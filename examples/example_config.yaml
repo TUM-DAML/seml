@@ -1,0 +1,138 @@
+# Experiment configuration file.
+#
+# There are two special blocks. The 'tracking' block is required for every experiment.
+# It has to contain the following values:
+# executable:    Name of the Python script containing the experiment
+# db_collection: Name of the MongoDB collection to save the experiment information to
+# Additionally, it can contain a `conda_environment` entry which specifies which conda environment will be activated
+# before execution of the executable.
+#
+# The special 'slurm' block contains the slurm parameters. This block and all values are optional. Possible values are:
+# output_dir:           Directory to store the Slurm log files in. Default: Current directory
+# experiments_per_job:  Number of parallel experiments to run in each Slurm job. Default: 1
+# sbatch_options:       dictionary that contains custom values that will be passed to `sbatch`, specifying e.g.
+#                       the memory and number of GPUs to be allocated.
+#
+# Parameters under 'fixed' will be used for all the experiments.
+#
+# Under 'grid' you can define parameters that should be sampled from a regular grid. Options are:
+#   - choice:     List the different values you want to evaluate under 'choices' as in the example below.
+#   - range:      Specify the min, max, and step. Parameter values will be generated using np.arange(min, max, step).
+#   - uniform:    Specify the min, max, and num. Parameter values will be generated using
+#                 np.linspace(min, max, num, endpoint=True)
+#   - loguniform: Specify min, max, and num. Parameter values will be uniformly generated in log space (base 10).
+#
+# Under 'random' you can specify parameters for which you want to try several random values. Specify the number
+# of samples per parameter with the 'samples' value as in the examples below.
+# Specify the the seed under the 'random' dict or directly for the desired parameter(s).
+# Supported parameter types are:
+#   - choice:      Randomly samples <samples> entries (with replacement) from the list in parameter['options']
+#   - uniform:     Uniformly samples between 'min' and 'max' as specified in the parameter dict.
+#   - loguniform:  Uniformly samples in log space between 'min' and 'max' as specified in the parameter dict.
+#   - randint:     Randomly samples integers between 'min' (included) and 'max' (excluded).
+#
+# The configuration file can be nested (as the example below) so that we can run different parameter sets
+# e.g. for different datasets or models.
+# We take the cartesian product of all `grid` parameters on a path and sample all random parameters on the path.
+# The number of random parameters sampled will be max{n_samples} of all n_samples on the path. This is done because
+# we need the same number of samples from all random parameters in a configuration.
+#
+# More specific settings (i.e., further down the hierarchy) always overwrite more general ones.
+
+
+tracking:
+  executable: 'example_experiment.py'
+  db_collection: 'example_experiment'
+
+slurm:
+  output_dir: 'slurm'
+  experiments_per_job: 1
+  sbatch_options:
+    --gres: 'gpu:1'     # num GPUs
+    --mem: 16000        # memory
+    --cpus-per-task: 1  # num cores
+    --time: '0-08:00'   # max time, D-HH:MM
+
+###### BEGIN PARAMETER CONFIGURATION ######
+
+fixed:
+  reg_scale: 0.0
+  keep_prob: 0.5
+  max_epochs: 500
+  patience: 10
+  display_step: 25
+
+grid:
+  learning_rate:
+    type: "loguniform"
+    min: 1e-5
+    max: 1e-1
+    num: 5
+
+random:
+  samples: 3
+  seed: 821
+
+  max_epochs:
+    type: "randint"
+    min: 200
+    max: 1000
+    seed: 222
+
+small_datasets:
+
+  grid:
+    dataset:
+      type: "choice"
+      options:
+        - "small_dataset_1"
+        - "small_dataset_2"
+
+    hidden_sizes:
+      type: "choice"
+      options:
+        - [16]
+        - [32, 16]
+
+  random:
+    samples: 3
+    seed: 2223
+
+    reg_scale:
+      type: "loguniform"
+      min: 1e-9
+      max: 1e-1
+
+    keep_prob:
+      type: "uniform"
+      min: 0.3
+      max: 1
+
+    patience:
+      type: "choice"
+      options:
+        - 10
+        - 50
+
+large_datasets:
+
+  fixed:
+    max_epochs: 1000
+
+  grid:
+    learning_rate:
+      type: 'choice'
+      options:
+        - 0.001
+
+    dataset:
+      type: 'choice'
+      options:
+        - "large_dataset_1"
+        - "large_dataset_2"
+
+    hidden_sizes:
+      type: 'choice'
+      options:
+        - [64]
+        - [64, 32]

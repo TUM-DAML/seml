@@ -1,0 +1,6 @@
+numpy>=1.15
+pymongo>=3.7
+pandas
+sacred
+pyyaml
+jsonpickle
