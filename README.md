@@ -14,7 +14,7 @@ Keeping track of computational experiments can be annoying and failure to do so 
 ## Get started
 To get started, install **`SEML`** using the following commands:
 ```bash
-git clone https://github.com/KDDGroup/seml.git
+git clone https://github.com/TUM-KDD/seml.git
 cd seml
 pip install -r requirements.txt
 python setup.py develop
