@@ -6,6 +6,6 @@ setup(name='seml',
       description='Slurm Experiment Management Library',
       url='http://github.com/KDDgroup/seml',
       author='KDD Group @ TUM',
-      author_email='zuegnerd@in.tum.de',
+      author_email='zuegnerd@in.tum.de; klicpera@in.tum.de',
       packages=find_packages('.'),
       zip_safe=False)
