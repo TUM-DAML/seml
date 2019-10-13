@@ -25,6 +25,9 @@ vim mongodb.config
 ## Example
 See our simple [example](examples) to get familiar with how **`SEML`** works.
 
+## Contact
+Contact us at zuegnerd@in.tum.de or klicpera@in.tum.de for any questions.
+
 Copyright (C) 2019  
 Daniel Zügner and Johannes Klicpera  
 Technical University of Munich
