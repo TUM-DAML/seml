@@ -20,7 +20,8 @@ cp mongodb.config.example mongodb.config
 ## Experiment configuration
 
 In `example_config.yaml` we define the parameter configurations that will be run.
-
+<details><summary>Example config file</summary>
+  
 ```yaml
 tracking:
   executable: 'example_experiment.py'
@@ -119,7 +120,7 @@ large_datasets:
         - [64]
         - [64, 32]
 ```
-
+</details>
 There are two special blocks for meta-configuration: `tracking` and `slurm`.
 
 ### `tracking` block
