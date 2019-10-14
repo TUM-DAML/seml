@@ -20,7 +20,7 @@ cp mongodb.config.example mongodb.config
 ## Experiment configuration
 
 In `example_config.yaml` we define the parameter configurations that will be run.
-<details><summary>**Example config file**</summary>
+<details><summary><b>Example config file</b></summary>
   
 ```yaml
 tracking:
