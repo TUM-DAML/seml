@@ -138,7 +138,7 @@ The special 'slurm' block contains the slurm parameters. This block and all valu
    
 
 ### Parameter blocks
-In the `small_datasets` and `large_datasets` we have specified different sets of parameters to try.
+In the `small_datasets` and `large_datasets` (names are of course only examples; you can name sub-configs as you like) we have specified different sets of parameters to try.
 They will be combined with the parameters in `grid` in the root of the document.
 
 If a specific configuration (e.g. `large_datasets`) defines the same parameters, they will override the ones defined in the root, e.g. the learning rate in the example above.
