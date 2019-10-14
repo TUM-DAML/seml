@@ -14,7 +14,8 @@ database: <database_name>
 ```
 You can simply clone the example config in the root directory of this repo to get started:
 ```bash
-cp mongodb.config.example mongodb.config
+mkdirs ~/.config/seml
+cp mongodb.config.example ~/.config/seml/mongodb.config
 ```
 
 ## Experiment configuration
