@@ -3,7 +3,7 @@ This example will show you how to track your experiments using Sacred, how to pe
 
 
 ## MongoDB configuration
-Before starting, please make sure you have your MongoDB credentials stored in `/path/to/seml/mongodb.config`, e.g.:
+Before starting, please make sure you have your MongoDB credentials stored in `$HOME/.config/seml/mongodb.config`, e.g.:
 
 ```
 username: <your_username>
