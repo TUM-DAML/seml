@@ -120,14 +120,14 @@ def get_collection_from_config(config):
 def get_mongodb_config(path=None):
     """Read the MongoDB connection configuration.
 
-    Reads the file at $SEML_PATH/mongodb.config to get
+    Reads the file at $HOME/.config/seml/mongodb.config to get
         - database host
         - database port
         - database name
         - username
         - password
 
-    $SEML_PATH/mongodb.config should be in the format:
+    $HOME/.config/seml/mongodb.config.config should be in the format:
     username: <your_username>
     password: <your_password>
     port: <port>
@@ -144,10 +144,10 @@ def get_mongodb_config(path=None):
     access_dict = {}
 
     if path is None:
-        seml_path = os.path.dirname(os.path.dirname(seml.__file__))
-        path = f'{seml_path}/mongodb.config'
+        home = str(Path.home())
+        path = f'{home}/.config/seml/mongodb.config'
 
-    error_str = "Please supply your MongoDB credentials at $SEML_PATH/mongodb.config in the format:\n"\
+    error_str = "Please supply your MongoDB credentials at $HOME/.config/seml/mongodb.config in the format:\n"\
                 "username: <your_username>\npassword: <your_password>\nport: <port>\n"\
                 "database:<database_name>\n host: <hostname>"
 
@@ -163,11 +163,11 @@ def get_mongodb_config(path=None):
                     value = split[1].strip()
                     access_dict[key] = value
 
-    assert 'username' in access_dict, f'No username found in $SEML_PATH/mongodb.config. {error_str}'
-    assert 'password' in access_dict, f'No password found in $SEML_PATH/mongodb.config. {error_str}'
-    assert 'port' in access_dict, f'No database port found in $SEML_PATH/mongodb.config. {error_str}'
-    assert 'host' in access_dict, f'No host found in $SEML_PATH/mongodb.config. {error_str}'
-    assert 'database' in access_dict, f'No database name found in $SEML_PATH/mongodb.config. {error_str}'
+    assert 'username' in access_dict, f'No username found in $HOME/.config/seml/mongodb.config. {error_str}'
+    assert 'password' in access_dict, f'No password found in $HOME/.config/seml/mongodb.config. {error_str}'
+    assert 'port' in access_dict, f'No database port found in $HOME/.config/seml/mongodb.config. {error_str}'
+    assert 'host' in access_dict, f'No host found in $HOME/.config/seml/mongodb.config. {error_str}'
+    assert 'database' in access_dict, f'No database name found in $HOME/.config/seml/mongodb.config. {error_str}'
 
     db_port = access_dict['port']
     db_name = access_dict['database']
