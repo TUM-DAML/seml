@@ -18,9 +18,10 @@ git clone https://github.com/TUM-KDD/seml.git
 cd seml
 pip install -r requirements.txt
 python setup.py develop
-cp mongodb.config.example mongodb.config
+mkdirs ~/.config/seml
+cp mongodb.config.example ~/.config/seml/mongodb.config
 # modify mongodb config to reflect your setup:
-vim mongodb.config
+vim ~/.config/seml/mongodb.config
 ```
 ## Example
 See our simple [example](examples) to get familiar with how **`SEML`** works.
