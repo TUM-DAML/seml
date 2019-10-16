@@ -34,7 +34,7 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
 
     """
     id_strs = [str(exp['_id']) for exp in exps]
-    job_name = f"{exps[0]['tracking']['db_collection']}_{','.join(id_strs)}"
+    job_name = f"{exps[0]['seml']['db_collection']}_{','.join(id_strs)}"
     output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
     if not os.path.isdir(output_dir_path):
         raise ValueError(
@@ -60,19 +60,19 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
     script += "echo SLURM assigned me these nodes:\n"
     script += "squeue -j ${SLURM_JOBID} -O nodelist | tail -n +2\n"
 
-    collection = db_utils.get_collection(exps[0]['tracking']['db_collection'])
+    collection = db_utils.get_collection(exps[0]['seml']['db_collection'])
 
-    if "conda_environment" in exps[0]['tracking']:
+    if "conda_environment" in exps[0]['seml']:
         script += "CONDA_BASE=$(conda info --base)\n"
         script += "source $CONDA_BASE/etc/profile.d/conda.sh\n"
-        script += f"conda activate {exps[0]['tracking']['conda_environment']}\n"
+        script += f"conda activate {exps[0]['seml']['conda_environment']}\n"
 
     check_file = check_cancelled.__file__
     script += "process_ids=() \n"
     script += f"exp_ids=({' '.join([str(e['_id']) for e in exps])}) \n"
     for ix, exp in enumerate(exps):
         cmd = get_cmd_from_exp_dict(exp)
-        collection_str = exp['tracking']['db_collection']
+        collection_str = exp['seml']['db_collection']
         script += f"python {check_file} --experiment_id {exp['_id']} --database_collection {collection_str}\n"
         script += "ret=$?\n"
         script += "if [ $ret -eq 0 ]\n"
@@ -209,8 +209,8 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, slurm_config=
 def start_experiments(config_file, local, sacred_id, batch_id, filter_dict, test, verbose):
     use_slurm = not local
 
-    tracking_config, slurm_config, _ = db_utils.read_config(config_file)
-    db_collection_name = tracking_config['db_collection']
+    seml_config, slurm_config, _ = db_utils.read_config(config_file)
+    db_collection_name = seml_config['db_collection']
 
     if test != -1:
         verbose = True

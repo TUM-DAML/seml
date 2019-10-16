@@ -161,7 +161,7 @@ def delete_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
 
 
 def reset_experiment(collection, exp):
-    keep_entries = ['tracking', 'config', 'queue_time', 'batch_id']
+    keep_entries = ['seml', 'config', 'queue_time', 'batch_id']
     collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries}, upsert=False)
     collection.update_one({'_id': exp['_id']}, {"$set": {"status": 'QUEUED'}}, upsert=False)
 
@@ -219,12 +219,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
             description="Manage experiments for the given configuration. "
                         "Each experiment is represented as a record in the database. "
-                        "See examples/tracking/README.md for more details.",
+                        "See examples/README.md for more details.",
             formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
-            '-c', '--config-file',
-            type=str, required=True,
-            help="Path to the YAML configuration file for the experiment.")
     subparsers = parser.add_subparsers(title="Possible operations")
 
     parser_queue = subparsers.add_parser(

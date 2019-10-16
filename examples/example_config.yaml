@@ -1,6 +1,6 @@
 # Experiment configuration file.
 #
-# There are two special blocks. The 'tracking' block is required for every experiment.
+# There are two special blocks. The 'seml' block is required for every experiment.
 # It has to contain the following values:
 # executable:    Name of the Python script containing the experiment
 # db_collection: Name of the MongoDB collection to save the experiment information to
@@ -40,7 +40,7 @@
 # More specific settings (i.e., further down the hierarchy) always overwrite more general ones.
 
 
-tracking:
+seml:
   executable: 'example_experiment.py'
   db_collection: 'example_experiment'
 

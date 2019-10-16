@@ -9,10 +9,10 @@ def sacred_arguments_from_config_dict(config):
 
 
 def get_cmd_from_exp_dict(exp):
-    if 'executable' not in exp['tracking']:
+    if 'executable' not in exp['seml']:
         raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
-    exe = exp['tracking']['executable']
-    exp['config']['db_collection'] = exp['tracking']['db_collection']
+    exe = exp['seml']['executable']
+    exp['config']['db_collection'] = exp['seml']['db_collection']
     exp['config']['overwrite'] = exp['_id']
     configs_string = sacred_arguments_from_config_dict(exp['config'])
     return f"python {exe} with {configs_string}"

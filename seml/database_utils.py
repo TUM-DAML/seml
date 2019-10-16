@@ -81,21 +81,21 @@ def read_config(config_path):
     with open(config_path, 'r') as conf:
         config_dict = convert_values(yaml.load(conf, Loader=yaml.FullLoader))
 
-    if "tracking" not in config_dict:
-        raise ValueError("Please specify a 'tracking' dictionary in the experiment configuration.")
-    tracking_dict = config_dict['tracking']
-    del config_dict['tracking']
-    if "executable" not in tracking_dict:
+    if "seml" not in config_dict:
+        raise ValueError("Please specify a 'seml' dictionary in the experiment configuration.")
+    seml_dict = config_dict['seml']
+    del config_dict['seml']
+    if "executable" not in seml_dict:
         raise ValueError("Please specify an executable path for the experiment.")
-    if "db_collection" not in tracking_dict:
+    if "db_collection" not in seml_dict:
         raise ValueError("Please specify a database collection to store the experimental results.")
 
     if 'slurm' in config_dict:
         slurm_dict = config_dict['slurm']
         del config_dict['slurm']
-        return tracking_dict, slurm_dict, config_dict
+        return seml_dict, slurm_dict, config_dict
     else:
-        return tracking_dict, None, config_dict
+        return seml_dict, None, config_dict
 
 
 def get_collection(collection_name, mongodb_config=None):
@@ -112,8 +112,8 @@ def get_database(db_name, host, port, username, password):
 
 
 def get_collection_from_config(config):
-    tracking_config, _, _ = read_config(config)
-    db_collection_name = tracking_config['db_collection']
+    seml_config, _, _ = read_config(config)
+    db_collection_name = seml_config['db_collection']
     return get_collection(db_collection_name)
 
 

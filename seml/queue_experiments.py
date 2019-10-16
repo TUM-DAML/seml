@@ -195,15 +195,15 @@ def filter_experiments(collection, configurations):
     return filtered_configs
 
 
-def queue_configs(collection, tracking_config, configs):
+def queue_configs(collection, seml_config, configs):
     """Put the input configurations into the database.
 
     Parameters
     ----------
     collection: pymongo.collection.Collection
         The MongoDB collection containing the experiments.
-    tracking_config: dict
-        Configuration for the tracking library.
+    seml_config: dict
+        Configuration for the SEML library.
     configs: list of dicts
         Contains the parameter configurations.
 
@@ -234,7 +234,7 @@ def queue_configs(collection, tracking_config, configs):
     db_dicts = [{'_id': start_id + ix,
                  'batch_id': batch_id,
                  'status': 'QUEUED',
-                 'tracking': tracking_config,
+                 'seml': seml_config,
                  'config': c,
                  'queue_time': datetime.datetime.utcnow()}
                 for ix, c in enumerate(configs)]
@@ -242,8 +242,8 @@ def queue_configs(collection, tracking_config, configs):
 
 
 def queue_experiments(config_file, force_duplicates):
-    tracking_config, _, experiment_config = db_utils.read_config(config_file)
-    collection = db_utils.get_collection(tracking_config['db_collection'])
+    seml_config, _, experiment_config = db_utils.read_config(config_file)
+    collection = db_utils.get_collection(seml_config['db_collection'])
 
     configs = generate_configs(experiment_config)
 
@@ -257,4 +257,4 @@ def queue_experiments(config_file, force_duplicates):
 
     # Add the configurations to the database with QUEUED status.
     if len(configs) > 0:
-        queue_configs(collection, tracking_config, configs)
+        queue_configs(collection, seml_config, configs)

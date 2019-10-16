@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.egg-info
+
+# Latex aux files
+*.synctex.gz
+*.log
+*.aux
+*.out
+*.dvi
+*.xwm
+*.nav
+*.toc
+*.snm
+comment.cut
+*.fdb_latexmk
+*.fls
+*.blg
+
+# Jupyter
+*.ipynb_checkpoints
+
+# Code editors
+.idea/
+.vscode/
