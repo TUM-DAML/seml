@@ -1,8 +1,8 @@
 import logging
 from sacred import Experiment
 import numpy as np
-from tracking import database_utils as db_utils
-from tracking import misc
+from seml import database_utils as db_utils
+from seml import misc
 
 
 ex = Experiment()
