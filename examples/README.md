@@ -169,12 +169,12 @@ of samples per parameter with the `samples` value as in the examples below. Supp
 To insert the experiments the queue in the database, open a terminal on a machine with access to the `Slurm` system. In this directory and run
 
 ```
-python /path/to/seml/seml.py -c example_config.yaml queue
+python /path/to/seml/main.py -c example_config.yaml queue
 ```
 
 If you open your MongoDB (e.g. with the software `robo3t`), you should now find a collection `seml_example` with the queued experiments.
 Note that the config file is specified _before_ the operation (`queue`).
-Since all commands are run via this Python script, you might want to add `alias seml="python /path/to/seml/seml.py"` to your bashrc.
+Since all commands are run via this Python script, you might want to add `alias seml="python /path/to/seml/main.py"` to your bashrc.
 
 To see what the option `--force-duplicates` does, run the above command again. The output should now read something like:
 
@@ -190,7 +190,7 @@ All experiments are now already in the database collection specified in `example
 ## Run experiments using Slurm
 To run the queued experiments on the Slurm cluster, run:
 ```bash
-python /path/to/seml/seml.py -c example_config.yaml start
+python /path/to/seml/main.py -c example_config.yaml start
 ```
 
 ### Running multiple experiments per Slurm job
@@ -203,39 +203,39 @@ your experiments on a GPU that is reserved by another user's job.
 
 ## Check the status of your Slurm jobs
 
-You can check the status of your Slurm jobs by running `squeue` or `python ~/path/to/seml/seml.py -c example_config.yaml status`
+You can check the status of your Slurm jobs by running `squeue` or `python ~/path/to/seml/main.py -c example_config.yaml status`
 in the terminal. To check the console output of a experiment, open the corresponding logfile, e.g. `cat slurm-564.out`.
 
 To check whether some experiments may have failed due to errors, you can run:
 ```bash
-python /path/to/seml/seml.py -c example_config.yaml status
+python /path/to/seml/main.py -c example_config.yaml status
 ```
 
 You can delete all queued, failed, killed, or interrupted experiments with
 ```bash
-python /path/to/seml/seml.py -c example_config.yaml delete
+python /path/to/seml/main.py -c example_config.yaml delete
 ```
 
 You can reset all failed, killed, or interrupted experiments to QUEUED with
 ```bash
-python /path/to/seml/seml.py -c example_config.yaml reset
+python /path/to/seml/main.py -c example_config.yaml reset
 ```
 
 You can cancel (interrupt) all pending and running experiments with
 ```bash
-python /path/to/seml/seml.py -c example_config.yaml cancel
+python /path/to/seml/main.py -c example_config.yaml cancel
 ```
 
 These three commands also support passing a specific Sacred ID and a custom list of states.
 
 Moreover, you can specifically cancel/reset/delete experiments that match a custom dictionary, e.g.
 ```bash
-python /path/to/seml/seml.py -c example_config.yaml cancel --filter-dict '{"config.dataset":"cora_ml", "config.hidden_sizes": [16]}'
+python /path/to/seml/main.py -c example_config.yaml cancel --filter-dict '{"config.dataset":"cora_ml", "config.hidden_sizes": [16]}'
 ```
 
 Finally, you can detect experiments whose corresponding Slurm jobs were killed unexpectedly with
 ```bash
-python /path/to/seml/seml.py -c example_config.yaml detect-killed
+python /path/to/seml/main.py -c example_config.yaml detect-killed
 ```
 
 ### Batches
@@ -243,11 +243,11 @@ python /path/to/seml/seml.py -c example_config.yaml detect-killed
 You can use this to cancel all the experiments from the last configuration that you've started, e.g. if you find a bug. 
 Use
 ```bash
-python /path/to/seml/seml.py -c example_config.yaml cancel --batch-id i
+python /path/to/seml/main.py -c example_config.yaml cancel --batch-id i
 ```
 or equivalently
  ```bash
-python /path/to/seml/seml.py -c example_config.yaml cancel --filter-dict '{"batch_id": i}'
+python /path/to/seml/main.py -c example_config.yaml cancel --filter-dict '{"batch_id": i}'
 ```
 to cancel all jobs from batch `i`.
 

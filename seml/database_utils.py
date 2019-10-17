@@ -7,7 +7,6 @@ from sacred.arg_parser import _convert_value
 import jsonpickle
 import pandas as pd
 import warnings
-import seml
 
 
 def get_results_flattened(collection_name):
