@@ -97,7 +97,7 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
             filter_dict = db_utils.build_filter_dict(filter_states, batch_id, filter_dict)
 
             ncancel = collection.count_documents(filter_dict)
-            if batch_id is None and ncancel >= 10:
+            if ncancel >= 10:
                 if input(f"Cancelling {ncancel} experiment{s_if(ncancel)}. "
                          f"Are you sure? (y/n) ").lower() != "y":
                     exit()
@@ -145,7 +145,7 @@ def delete_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
         filter_dict = db_utils.build_filter_dict(filter_states, batch_id, filter_dict)
         ndelete = collection.count_documents(filter_dict)
 
-        if batch_id is None and ndelete >= 10:
+        if ndelete >= 10:
             if input(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection. "
                      f"Are you sure? (y/n) ").lower() != "y":
                 exit()
@@ -178,7 +178,7 @@ def reset_states(config_file, sacred_id, filter_states, batch_id, filter_dict):
         nreset = collection.count_documents(filter_dict)
         exps = collection.find(filter_dict)
 
-        if batch_id is None and nreset >= 10:
+        if nreset >= 10:
             if input(f"Resetting the state of {nreset} experiment{s_if(nreset)}. "
                      f"Are you sure? (y/n) ").lower() != "y":
                 exit()
