@@ -3,9 +3,9 @@ import math
 import subprocess
 import numpy as np
 
-from seml.misc import get_cmd_from_exp_dict, s_if, get_default_sbatch_dict
-from seml import database_utils as db_utils
-from seml import check_cancelled
+from misc import get_cmd_from_exp_dict, s_if, get_default_sbatch_dict
+import database_utils as db_utils
+import check_cancelled
 
 try:
     from tqdm import tqdm

@@ -1,5 +1,5 @@
 import argparse
-from seml import database_utils as db_utils
+import database_utils as db_utils
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

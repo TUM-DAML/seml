@@ -2,9 +2,9 @@ import datetime
 import numpy as np
 import pymongo
 
-from seml import parameter_utils as utils
-from seml import database_utils as db_utils
-from seml.misc import s_if
+import parameter_utils as utils
+import database_utils as db_utils
+from misc import s_if
 
 
 def unpack_config(config):

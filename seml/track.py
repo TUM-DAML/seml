@@ -4,10 +4,10 @@ import warnings
 import datetime
 import json
 
-from seml.misc import get_slurm_jobs, s_if
-from seml import database_utils as db_utils
-from seml.queue_experiments import queue_experiments
-from seml.start_experiments import start_experiments
+from misc import get_slurm_jobs, s_if
+import database_utils as db_utils
+from queue_experiments import queue_experiments
+from start_experiments import start_experiments
 
 
 def report_status(config_file):
