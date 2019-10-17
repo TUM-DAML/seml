@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     if exp is None:
         exit(2)
-    if exp['status'] not in  ["QUEUED", "PENDING"]:
+    if exp['status'] not in ["QUEUED", "PENDING"]:
         exit(1)
     else:
         exit(0)

@@ -96,9 +96,9 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
                 {'$set': {'status': 'PENDING'}})
         collection.update_one(
                 {'_id': exp['_id']},
-                {'$set': {'slurm': dict(
-                        sbatch_options=sbatch_options,
-                        step_id=ix)}})
+                {'$set': {
+                    'slurm.sbatch_options': sbatch_options,
+                    'slurm.step_id': ix}})
 
         if log_verbose:
             print(f'Running the following command:\n {cmd}')
