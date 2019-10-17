@@ -25,8 +25,8 @@ In `example_config.yaml` we define the parameter configurations that will be run
   
 ```yaml
 seml:
-  executable: 'example_experiment.py'
   db_collection: 'example_experiment'
+  executable: 'example_experiment.py'
 
 slurm:
   output_dir: '.'
@@ -126,8 +126,8 @@ There are two special blocks for meta-configuration: `seml` and `slurm`.
 
 ### `seml` block
 The `seml` block is required for every experiment. It has to contain the following values:
-   - `executable`: Name of the Python script containing the experiment
    - `db_collection`: Name of the MongoDB collection to save the experiment information to
+   - `executable`: Name of the Python script containing the experiment
 Optionally, it can contain
    - `conda_environment`: name of the Anaconda virtual environment; will be loaded before the experiment is executed.
 ### `slurm` block
