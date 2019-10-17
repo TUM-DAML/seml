@@ -28,8 +28,8 @@ def run(dataset, hidden_sizes, learning_rate, reg_scale, keep_prob, max_epochs, 
     #  do your processing here
 
     results = {
-        'test_acc': 2*np.random.randn() + 1,
-        'test_loss': np.random.uniform(0,10),
+        'test_acc': 0.5 + 0.3 * np.random.randn(),
+        'test_loss': np.random.uniform(0, 10),
         # ...
     }
     # the returned result will be written into the database

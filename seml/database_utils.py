@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from pymongo import MongoClient
+import numpy as np
 from sacred.observers import MongoObserver
 import yaml
 from sacred.arg_parser import _convert_value
@@ -252,3 +253,28 @@ def build_filter_dict(filter_states, batch_id, filter_dict):
                           " the command line (-f): {} AND --batch-id was set to {}. I'm using the value passed"
                           " via -f.".format(filter_dict['status'], filter_states))
     return filter_dict
+
+
+def chunk_list(exps):
+    """
+    Divide experiments into chunks of `experiments_per_job` that will be run in parallel in one job.
+    This assumes constant Slurm settings per batch (which should be the case if MongoDB wasn't edited manually).
+
+    Parameters
+    ----------
+    exps: list[dict]
+        List of dictionaries containing the experiment settings as saved in the MongoDB
+
+    Returns
+    -------
+    exp_chunks: list
+    """
+    batch_idx = [exp['batch_id'] for exp in exps]
+    unique_batch_idx = np.unique(batch_idx)
+    exp_chunks = []
+    for batch in unique_batch_idx:
+        idx = [i for i, batch_id in enumerate(batch_idx)
+               if batch_id == batch]
+        size = exps[idx[0]]['slurm']['experiments_per_job']
+        exp_chunks.extend(([exps[i] for i in idx[pos:pos + size]] for pos in range(0, len(idx), size)))
+    return exp_chunks

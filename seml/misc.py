@@ -41,10 +41,14 @@ def s_if(n):
     return '' if n == 1 else 's'
 
 
-def get_default_sbatch_dict():
-    sbatch_dict = {
-        '--time': '0-08:00',
-        '--cpus-per-task': 1,
-        '--nodes': 1,
-    }
-    return sbatch_dict
+def get_default_slurm_config():
+    return {
+            'output_dir': '.',
+            'experiments_per_job': 1,
+            'sbatch_options': {
+                '--time': '0-08:00',
+                '--nodes': 1,
+                '--cpus-per-task': 1,
+                '--mem': 8000,
+                },
+            }
