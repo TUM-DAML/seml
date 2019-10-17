@@ -107,7 +107,7 @@ def get_collection(collection_name, mongodb_config=None):
 
 def get_database(db_name, host, port, username, password):
     db = MongoClient(host, int(port))[db_name]
-    db.authenticate(name=db_name, password=password)
+    db.authenticate(name=username, password=password)
     return db
 
 
