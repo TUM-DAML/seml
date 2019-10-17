@@ -249,10 +249,13 @@ def queue_experiments(config_file, force_duplicates):
 
     # Set Slurm config with default parameters as fall-back option
     default_slurm_config = get_default_slurm_config()
-    default_slurm_config['sbatch_options'].update(slurm_config['sbatch_options'])
-    del slurm_config['sbatch_options']
-    default_slurm_config.update(slurm_config)
-    slurm_config = default_slurm_config
+    for k, v in default_slurm_config['sbatch_options'].items():
+        if k not in slurm_config['sbatch_options'].keys():
+            slurm_config['sbatch_options'][k] = v
+    del default_slurm_config['sbatch_options']
+    for k, v in default_slurm_config.items():
+        if k not in slurm_config.keys():
+            slurm_config[k] = v
 
     collection = db_utils.get_collection(seml_config['db_collection'])
 

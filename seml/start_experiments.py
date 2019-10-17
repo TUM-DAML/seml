@@ -13,7 +13,7 @@ except ImportError:
     tqdm = lambda x, total: x
 
 
-def start_slurm_job(exps, log_verbose, output_dir=".",
+def start_slurm_job(exps, log_verbose, name=None, output_dir=".",
                     sbatch_options=None):
     """Run a list of experiments as a job on the Slurm cluster.
 
@@ -23,6 +23,8 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
         List of experiments to run.
     log_verbose: bool
         Print all the Python syscalls before running them.
+    name: str
+        Job name, used by Slurm job and output file.
     output_dir: str
         Directory (relative to home directory) where to store the slurm output files.
     sbatch_options: dict
@@ -31,14 +33,19 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
     Returns
     -------
     None
-
     """
 
-    if 'job-name' not in sbatch_options.keys():
-        id_strs = [str(exp['_id']) for exp in exps]
-        job_name = f"{exps[0]['seml']['db_collection']}_{','.join(id_strs)}"
-        sbatch_options['job-name'] = job_name
+    # Set Slurm job-name parameter
+    if 'job-name' in sbatch_options.keys():
+        raise ValueError(
+            f"Can't set sbatch `job-name` Parameter explicitly. "
+             "Use `name` parameter instead and SEML will do that for you.")
+    name = name if name is not None else exps[0]['seml']['db_collection']
+    id_strs = [str(exp['_id']) for exp in exps]
+    job_name = f"{name}_{','.join(id_strs)}"
+    sbatch_options['job-name'] = job_name
 
+    # Set Slurm output parameter
     output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
     if not os.path.isdir(output_dir_path):
         raise ValueError(
@@ -46,7 +53,7 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
     if 'output' in sbatch_options.keys():
         raise ValueError(
             f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
-    sbatch_options['output'] = f'{output_dir_path}/slurm-%j.out'
+    sbatch_options['output'] = f'{output_dir_path}/{name}-%j.out'
 
     script = "#!/bin/bash\n"
 

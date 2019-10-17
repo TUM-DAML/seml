@@ -25,6 +25,7 @@ In `example_config.yaml` we define the parameter configurations that will be run
   
 ```yaml
 seml:
+  name: 'example_experiment'
   db_collection: 'example_experiment'
   executable: 'example_experiment.py'
 
@@ -132,11 +133,11 @@ Optionally, it can contain
    - `conda_environment`: name of the Anaconda virtual environment; will be loaded before the experiment is executed.
 ### `slurm` block
 The special 'slurm' block contains the slurm parameters. This block and all values are optional. Possible values are:
+   - `name`: Job name used by Slurm and file name of Slurm output. Default: Collection name
    - `output_dir`: Directory to store the Slurm log files in. Default: Current directory
    - `experiments_per_job`: Number of parallel experiments to run in each Slurm job. Default: 1
    - `sbatch_options`: dictionary that contains custom values that will be passed to `sbatch`, specifying e.g. the
    memory and the number of GPUs to be allocated. See [here](https://slurm.schedmd.com/sbatch.html) for possible parameters of `sbatch`.
-   
 
 ### Parameter blocks
 In the `small_datasets` and `large_datasets` (names are of course only examples; you can name sub-configs as you like) we have specified different sets of parameters to try.
