@@ -46,9 +46,9 @@ def get_default_slurm_config():
             'output_dir': '.',
             'experiments_per_job': 1,
             'sbatch_options': {
-                '--time': '0-08:00',
-                '--nodes': 1,
-                '--cpus-per-task': 1,
-                '--mem': 8000,
+                'time': '0-08:00',
+                'nodes': 1,
+                'cpus-per-task': 1,
+                'mem': 8000,
                 },
             }

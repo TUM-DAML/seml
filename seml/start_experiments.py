@@ -26,7 +26,7 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
     output_dir: str
         Directory (relative to home directory) where to store the slurm output files.
     sbatch_options: dict
-        A dictionary that contains options for #SBATCH, e.g., {'--mem': 8000} to limit the job's memory to 8,000 MB.
+        A dictionary that contains options for #SBATCH, e.g., {'mem': 8000} to limit the job's memory to 8,000 MB.
 
     Returns
     -------
@@ -34,27 +34,28 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
 
     """
 
-    if '--job-name' not in sbatch_options.keys():
+    if 'job-name' not in sbatch_options.keys():
         id_strs = [str(exp['_id']) for exp in exps]
         job_name = f"{exps[0]['seml']['db_collection']}_{','.join(id_strs)}"
-        sbatch_options['--job-name'] = job_name
+        sbatch_options['job-name'] = job_name
 
     output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
     if not os.path.isdir(output_dir_path):
         raise ValueError(
             f"Slurm output directory '{output_dir_path}' does not exist.")
-    if '--output' in sbatch_options.keys():
+    if 'output' in sbatch_options.keys():
         raise ValueError(
-            f"Can't set sbatch `--output` Parameter explicitly. SEML will do that for you.")
-    sbatch_options['--output'] = f'{output_dir_path}/slurm-%j.out'
+            f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
+    sbatch_options['output'] = f'{output_dir_path}/slurm-%j.out'
 
     script = "#!/bin/bash\n"
 
     for key, value in sbatch_options.items():
-        if key in ['--partition', 'p'] and isinstance(value, list):
-            script += f"#SBATCH {key}={','.join(value)}\n"
+        prepend = '-' if len(key) == 1 else '--'
+        if key in ['partition', 'p'] and isinstance(value, list):
+            script += f"#SBATCH {prepend}{key}={','.join(value)}\n"
         else:
-            script += f"#SBATCH {key}={value}\n"
+            script += f"#SBATCH {prepend}{key}={value}\n"
 
     script += "\n"
     script += "cd ${SLURM_SUBMIT_DIR} \n"

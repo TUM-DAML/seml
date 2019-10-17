@@ -32,10 +32,10 @@ slurm:
   output_dir: '.'
   experiments_per_job: 1
   sbatch_options:
-    --gres: 'gpu:1'     # num GPUs
-    --mem: 16000        # memory
-    --cpus-per-task: 1  # num cores
-    --time: '0-08:00'   # max time, D-HH:MM
+    gres: 'gpu:1'     # num GPUs
+    mem: 16000        # memory
+    cpus-per-task: 1  # num cores
+    time: '0-08:00'   # max time, D-HH:MM
 
 ###### BEGIN PARAMETER CONFIGURATION ######
 
@@ -192,6 +192,7 @@ To run the queued experiments on the Slurm cluster, run:
 ```bash
 python /path/to/seml/main.py -c example_config.yaml start
 ```
+The config file is only needed to specify the MongoDB collection. All other parameters will be loaded from the MongoDB.
 
 ### Running multiple experiments per Slurm job
 Often, a single experiment requires much less GPU RAM than is available on a GPU. Thus, we can
