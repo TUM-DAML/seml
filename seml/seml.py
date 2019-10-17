@@ -222,6 +222,9 @@ if __name__ == '__main__':
                         "See examples/README.md for more details.",
             formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
+            '-c', '--config-file',
+            type=str, required=True,
+            help="Path to the YAML configuration file for the experiment.")
     subparsers = parser.add_subparsers(title="Possible operations")
 
     parser_queue = subparsers.add_parser(
