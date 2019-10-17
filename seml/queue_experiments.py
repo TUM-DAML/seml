@@ -4,7 +4,7 @@ import pymongo
 
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
-from seml.misc import s_if
+from seml.misc import get_default_slurm_config, s_if
 
 
 def unpack_config(config):
@@ -195,15 +195,17 @@ def filter_experiments(collection, configurations):
     return filtered_configs
 
 
-def queue_configs(collection, tracking_config, configs):
+def queue_configs(collection, seml_config, slurm_config, configs):
     """Put the input configurations into the database.
 
     Parameters
     ----------
     collection: pymongo.collection.Collection
         The MongoDB collection containing the experiments.
-    tracking_config: dict
-        Configuration for the tracking library.
+    seml_config: dict
+        Configuration for the SEML library.
+    slurm_config: dict
+        Settings for the Slurm job. See `start_experiments.start_slurm_job` for details.
     configs: list of dicts
         Contains the parameter configurations.
 
@@ -234,7 +236,8 @@ def queue_configs(collection, tracking_config, configs):
     db_dicts = [{'_id': start_id + ix,
                  'batch_id': batch_id,
                  'status': 'QUEUED',
-                 'tracking': tracking_config,
+                 'seml': seml_config,
+                 'slurm': slurm_config,
                  'config': c,
                  'queue_time': datetime.datetime.utcnow()}
                 for ix, c in enumerate(configs)]
@@ -242,8 +245,19 @@ def queue_configs(collection, tracking_config, configs):
 
 
 def queue_experiments(config_file, force_duplicates):
-    tracking_config, _, experiment_config = db_utils.read_config(config_file)
-    collection = db_utils.get_collection(tracking_config['db_collection'])
+    seml_config, slurm_config, experiment_config = db_utils.read_config(config_file)
+
+    # Set Slurm config with default parameters as fall-back option
+    default_slurm_config = get_default_slurm_config()
+    for k, v in default_slurm_config['sbatch_options'].items():
+        if k not in slurm_config['sbatch_options'].keys():
+            slurm_config['sbatch_options'][k] = v
+    del default_slurm_config['sbatch_options']
+    for k, v in default_slurm_config.items():
+        if k not in slurm_config.keys():
+            slurm_config[k] = v
+
+    collection = db_utils.get_collection(seml_config['db_collection'])
 
     configs = generate_configs(experiment_config)
 
@@ -257,4 +271,4 @@ def queue_experiments(config_file, force_duplicates):
 
     # Add the configurations to the database with QUEUED status.
     if len(configs) > 0:
-        queue_configs(collection, tracking_config, configs)
+        queue_configs(collection, seml_config, slurm_config, configs)

@@ -3,7 +3,7 @@ import math
 import subprocess
 import numpy as np
 
-from seml.misc import get_cmd_from_exp_dict, s_if, get_default_sbatch_dict
+from seml.misc import get_cmd_from_exp_dict, s_if
 from seml import database_utils as db_utils
 from seml import check_cancelled
 
@@ -13,7 +13,7 @@ except ImportError:
     tqdm = lambda x, total: x
 
 
-def start_slurm_job(exps, log_verbose, output_dir=".",
+def start_slurm_job(exps, log_verbose, name=None, output_dir=".",
                     sbatch_options=None):
     """Run a list of experiments as a job on the Slurm cluster.
 
@@ -23,36 +23,46 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
         List of experiments to run.
     log_verbose: bool
         Print all the Python syscalls before running them.
+    name: str
+        Job name, used by Slurm job and output file.
     output_dir: str
         Directory (relative to home directory) where to store the slurm output files.
     sbatch_options: dict
-        A dictionary that contains options for #SBATCH, e.g., {'--mem': 8000} to limit the job's memory to 8,000 MB.
+        A dictionary that contains options for #SBATCH, e.g., {'mem': 8000} to limit the job's memory to 8,000 MB.
 
     Returns
     -------
     None
-
     """
+
+    # Set Slurm job-name parameter
+    if 'job-name' in sbatch_options.keys():
+        raise ValueError(
+            f"Can't set sbatch `job-name` Parameter explicitly. "
+             "Use `name` parameter instead and SEML will do that for you.")
+    name = name if name is not None else exps[0]['seml']['db_collection']
     id_strs = [str(exp['_id']) for exp in exps]
-    job_name = f"{exps[0]['tracking']['db_collection']}_{','.join(id_strs)}"
+    job_name = f"{name}_{','.join(id_strs)}"
+    sbatch_options['job-name'] = job_name
+
+    # Set Slurm output parameter
     output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
     if not os.path.isdir(output_dir_path):
         raise ValueError(
             f"Slurm output directory '{output_dir_path}' does not exist.")
-
-    sbatch_dict = get_default_sbatch_dict()
-    if sbatch_options is not None:
-        sbatch_dict.update(sbatch_options)
-    sbatch_dict['--job-name'] = job_name
-    sbatch_dict['--output'] = f'{output_dir_path}/slurm-%j.out'
+    if 'output' in sbatch_options.keys():
+        raise ValueError(
+            f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
+    sbatch_options['output'] = f'{output_dir_path}/{name}-%j.out'
 
     script = "#!/bin/bash\n"
 
-    for key, value in sbatch_dict.items():
-        if key in ['--partition', 'p'] and isinstance(value, list):
-            script += f"#SBATCH {key}={','.join(value)}\n"
+    for key, value in sbatch_options.items():
+        prepend = '-' if len(key) == 1 else '--'
+        if key in ['partition', 'p'] and isinstance(value, list):
+            script += f"#SBATCH {prepend}{key}={','.join(value)}\n"
         else:
-            script += f"#SBATCH {key}={value}\n"
+            script += f"#SBATCH {prepend}{key}={value}\n"
 
     script += "\n"
     script += "cd ${SLURM_SUBMIT_DIR} \n"
@@ -60,19 +70,19 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
     script += "echo SLURM assigned me these nodes:\n"
     script += "squeue -j ${SLURM_JOBID} -O nodelist | tail -n +2\n"
 
-    collection = db_utils.get_collection(exps[0]['tracking']['db_collection'])
+    collection = db_utils.get_collection(exps[0]['seml']['db_collection'])
 
-    if "conda_environment" in exps[0]['tracking']:
+    if "conda_environment" in exps[0]['seml']:
         script += "CONDA_BASE=$(conda info --base)\n"
         script += "source $CONDA_BASE/etc/profile.d/conda.sh\n"
-        script += f"conda activate {exps[0]['tracking']['conda_environment']}\n"
+        script += f"conda activate {exps[0]['seml']['conda_environment']}\n"
 
     check_file = check_cancelled.__file__
     script += "process_ids=() \n"
     script += f"exp_ids=({' '.join([str(e['_id']) for e in exps])}) \n"
     for ix, exp in enumerate(exps):
         cmd = get_cmd_from_exp_dict(exp)
-        collection_str = exp['tracking']['db_collection']
+        collection_str = exp['seml']['db_collection']
         script += f"python {check_file} --experiment_id {exp['_id']} --database_collection {collection_str}\n"
         script += "ret=$?\n"
         script += "if [ $ret -eq 0 ]\n"
@@ -93,9 +103,9 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
                 {'$set': {'status': 'PENDING'}})
         collection.update_one(
                 {'_id': exp['_id']},
-                {'$set': {'slurm': dict(
-                        sbatch_options=sbatch_options,
-                        step_id=ix)}})
+                {'$set': {
+                    'slurm.sbatch_options': sbatch_options,
+                    'slurm.step_id': ix}})
 
         if log_verbose:
             print(f'Running the following command:\n {cmd}')
@@ -128,7 +138,7 @@ def start_slurm_job(exps, log_verbose, output_dir=".",
             print(f"Started experiment with ID {slurm_job_id}")
 
 
-def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, slurm_config=None, filter_dict=None):
+def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, filter_dict={}):
     """Pull queued experiments from the database and run them.
 
     Parameters
@@ -142,8 +152,6 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, slurm_config=
     num_exps: int, default: -1
         If >0, will only submit the specified number of experiments to the cluster.
         This is useful when you only want to test your setup.
-    slurm_config: dict
-        Settings for the Slurm job. See `start_slurm_job` for details.
     filter_dict: dict
         Dictionary for filtering the entries in the collection.
 
@@ -151,13 +159,6 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, slurm_config=
     -------
     None
     """
-
-    if slurm_config is None:
-        # Default Slurm config.
-        slurm_config = {'output_dir': '.',
-                        'experiments_per_job': 1}
-    if filter_dict is None:
-        filter_dict = {}
 
     collection = db_utils.get_collection(collection_name)
 
@@ -170,16 +171,9 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, slurm_config=
 
     exps_list = list(collection.find(query_dict))
 
-    # divide experiments into chunks of <experiments_per_job>  that will be run in parallel on one GPU.
-    def chunk_list(seq, size):
-        return (seq[pos:pos + size] for pos in range(0, len(seq), size))
-
     nexps = num_exps if num_exps > 0 else len(exps_list)
-    exp_chunks = chunk_list(
-        exps_list[:nexps], size=slurm_config['experiments_per_job'])
-
-    njobs = math.ceil(nexps / slurm_config['experiments_per_job'])
-    del slurm_config['experiments_per_job']
+    exp_chunks = db_utils.chunk_list(exps_list[:nexps])
+    njobs = len(exp_chunks)
 
     if slurm:
         print(f"Starting {nexps} experiment{s_if(nexps)} in "
@@ -187,17 +181,20 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, slurm_config=
     else:
         print(f"Starting {nexps} experiment{s_if(nexps)} locally.")
         for exp in exps_list[:nexps]:
-                collection.update_one(
-                        {'_id': exp['_id']},
-                        {'$set': {'status': 'PENDING'}})
+            collection.update_one(
+                    {'_id': exp['_id']},
+                    {'$set': {'status': 'PENDING'}})
 
-    for ix, exps in tqdm(enumerate(exp_chunks), total=njobs ):
+    for exps in tqdm(exp_chunks):
         if slurm:
+            slurm_config = exps[0]['slurm']
+            del slurm_config['experiments_per_job']
             start_slurm_job(exps, log_verbose, **slurm_config)
         else:
-            if 'fileserver' in os.uname()[1]:
-                raise ValueError("Refusing to run a compute experiment on a file server. "
-                                 "Please use a GPU machine or slurm.")
+            login_node_name = 'fs'
+            if login_node_name in os.uname()[1]:
+                raise ValueError("Refusing to run a compute experiment on a login node. "
+                                 "Please use slurm or a compute node.")
             for exp in exps:
                 cmd = get_cmd_from_exp_dict(exp)
                 if log_verbose:
@@ -209,8 +206,7 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, slurm_config=
 def start_experiments(config_file, local, sacred_id, batch_id, filter_dict, test, verbose):
     use_slurm = not local
 
-    tracking_config, slurm_config, _ = db_utils.read_config(config_file)
-    db_collection_name = tracking_config['db_collection']
+    db_collection_name = db_utils.read_config(config_file)[0]['db_collection']
 
     if test != -1:
         verbose = True
@@ -221,4 +217,4 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict, test
         filter_dict = {'_id': sacred_id}
 
     do_work(db_collection_name, verbose, slurm=use_slurm,
-            slurm_config=slurm_config, num_exps=test, filter_dict=filter_dict)
+            num_exps=test, filter_dict=filter_dict)

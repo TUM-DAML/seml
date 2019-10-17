@@ -4,7 +4,7 @@ Keeping track of computational experiments can be annoying and failure to do so 
 
 [`sacred`](https://github.com/IDSIA/sacred) is a great tool to collect and manage experiments and their result, but is lacking integration with workload schedulers.
 
-**`SEML`** is the missing link between the open-source workload scheduling system `Slurm` and the experiment management tool `sacred`.
+**`SEML`** is the missing link between the open-source workload scheduling system `Slurm` and the experiment management tool `sacred`. It is lightweight, hackable, written in pure Python, and scales to thousands of experiments.
 
 **`SEML`** enables you to 
 * very easily define hyperparameter search spaces using YAML files,

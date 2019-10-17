@@ -9,10 +9,10 @@ def sacred_arguments_from_config_dict(config):
 
 
 def get_cmd_from_exp_dict(exp):
-    if 'executable' not in exp['tracking']:
+    if 'executable' not in exp['seml']:
         raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
-    exe = exp['tracking']['executable']
-    exp['config']['db_collection'] = exp['tracking']['db_collection']
+    exe = exp['seml']['executable']
+    exp['config']['db_collection'] = exp['seml']['db_collection']
     exp['config']['overwrite'] = exp['_id']
     configs_string = sacred_arguments_from_config_dict(exp['config'])
     return f"python {exe} with {configs_string}"
@@ -41,10 +41,14 @@ def s_if(n):
     return '' if n == 1 else 's'
 
 
-def get_default_sbatch_dict():
-    sbatch_dict = {
-        '--time': '0-08:00',
-        '--cpus-per-task': 1,
-        '--nodes': 1,
-    }
-    return sbatch_dict
+def get_default_slurm_config():
+    return {
+            'output_dir': '.',
+            'experiments_per_job': 1,
+            'sbatch_options': {
+                'time': '0-08:00',
+                'nodes': 1,
+                'cpus-per-task': 1,
+                'mem': 8000,
+                },
+            }
