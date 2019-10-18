@@ -13,12 +13,14 @@ except ImportError:
     tqdm = lambda x, total: x
 
 
-def start_slurm_job(exps, log_verbose, name=None, output_dir=".",
-                    sbatch_options=None):
+def start_slurm_job(collection, exps, log_verbose, name=None,
+                    output_dir=".", sbatch_options=None):
     """Run a list of experiments as a job on the Slurm cluster.
 
     Parameters
     ----------
+    collection: pymongo.collection.Collection
+        The MongoDB collection containing the experiments.
     exps: List[dict]
         List of experiments to run.
     log_verbose: bool
@@ -69,8 +71,6 @@ def start_slurm_job(exps, log_verbose, name=None, output_dir=".",
     script += "echo Starting job ${SLURM_JOBID} \n"
     script += "echo SLURM assigned me these nodes:\n"
     script += "squeue -j ${SLURM_JOBID} -O nodelist | tail -n +2\n"
-
-    collection = db_utils.get_collection(exps[0]['seml']['db_collection'])
 
     if "conda_environment" in exps[0]['seml']:
         script += "CONDA_BASE=$(conda info --base)\n"
@@ -182,7 +182,7 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, filter_dict={
         for exps in tqdm(exp_chunks):
             slurm_config = exps[0]['slurm']
             del slurm_config['experiments_per_job']
-            start_slurm_job(exps, log_verbose, **slurm_config)
+            start_slurm_job(collection, exps, log_verbose, **slurm_config)
     else:
         login_node_name = 'fs'
         if login_node_name in os.uname()[1]:
