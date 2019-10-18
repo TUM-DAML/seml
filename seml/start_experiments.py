@@ -178,23 +178,24 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, filter_dict={
     if slurm:
         print(f"Starting {nexps} experiment{s_if(nexps)} in "
               f"{njobs} Slurm job{s_if(njobs)}.")
+
+        for exps in tqdm(exp_chunks):
+            slurm_config = exps[0]['slurm']
+            del slurm_config['experiments_per_job']
+            start_slurm_job(exps, log_verbose, **slurm_config)
     else:
+        login_node_name = 'fs'
+        if login_node_name in os.uname()[1]:
+            raise ValueError("Refusing to run a compute experiment on a login node. "
+                             "Please use Slurm or a compute node.")
+
         print(f"Starting {nexps} experiment{s_if(nexps)} locally.")
         for exp in exps_list[:nexps]:
             collection.update_one(
                     {'_id': exp['_id']},
                     {'$set': {'status': 'PENDING'}})
 
-    for exps in tqdm(exp_chunks):
-        if slurm:
-            slurm_config = exps[0]['slurm']
-            del slurm_config['experiments_per_job']
-            start_slurm_job(exps, log_verbose, **slurm_config)
-        else:
-            login_node_name = 'fs'
-            if login_node_name in os.uname()[1]:
-                raise ValueError("Refusing to run a compute experiment on a login node. "
-                                 "Please use slurm or a compute node.")
+        for exps in tqdm(exp_chunks):
             for exp in exps:
                 cmd = get_cmd_from_exp_dict(exp)
                 if log_verbose:

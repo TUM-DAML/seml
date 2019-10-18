@@ -12,7 +12,7 @@
 # output_dir:           Directory to store the Slurm log files in. Default: Current directory
 # experiments_per_job:  Number of parallel experiments to run in each Slurm job. Default: 1
 # sbatch_options:       dictionary that contains custom values that will be passed to `sbatch`, specifying e.g.
-#                       the memory and number of GPUs to be allocated (dashes are not required).
+#                       the memory and number of GPUs to be allocated (prepended dashes are not required).
 #
 # Parameters under 'fixed' will be used for all the experiments.
 #
