@@ -106,7 +106,7 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
 
             exps = list(collection.find(filter_dict))
             # set of slurm IDs in the database
-            slurm_ids = set([e['slurm']['id'] for e in exps if "slurm" in e and ["id"] in e['slurm']])
+            slurm_ids = set([e['slurm']['id'] for e in exps if "slurm" in e and 'id' in e['slurm']])
             # set of experiment IDs to be cancelled.
             exp_ids = set([e['_id'] for e in exps])
             to_cancel = set()
