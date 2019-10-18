@@ -2,12 +2,11 @@ import os
 from pathlib import Path
 from pymongo import MongoClient
 import numpy as np
-from sacred.observers import MongoObserver
 import yaml
-from sacred.arg_parser import _convert_value
+import json
 import jsonpickle
-import pandas as pd
 import warnings
+import ast
 
 
 def get_results_flattened(collection_name):
@@ -41,13 +40,15 @@ def get_results_flattened(collection_name):
 
 
 def get_results(collection_name, fields=['config', 'result'], to_data_frame=False):
+    import pandas as pd
+
     collection = get_collection(collection_name)
     cursor = collection.find({'status': 'COMPLETED'}, fields)
     results = list(cursor)
 
     parsed = [parse_jsonpickle(entry) for entry in results]
     if to_data_frame:
-        parsed = pd.io.json.json_normalize(parsed, sep='.')
+        parsed = pd.io.jsonpickle.json_normalize(parsed, sep='.')
     return parsed
 
 
@@ -63,6 +64,27 @@ def parse_jsonpickle(db_entry):
     except IndexError:
         parsed = db_entry
     return parsed
+
+
+def restore(flat):
+    """
+    Restore more complex data that Python's json can't handle (e.g. Numpy arrays).
+    Copied from sacred.serializer for performance reasons.
+    """
+    return jsonpickle.decode(json.dumps(flat), keys=True)
+
+
+def _convert_value(value):
+    """
+    Parse string as python literal if possible and fallback to string.
+    Copied from sacred.arg_parser for performance reasons.
+    """
+
+    try:
+        return restore(ast.literal_eval(value))
+    except (ValueError, SyntaxError):
+        # use as string if nothing else worked
+        return value
 
 
 def convert_values(val):
@@ -196,6 +218,7 @@ def create_mongodb_observer(collection,
     -------
     observer: MongoObserver
     """
+    from sacred.observers import MongoObserver
 
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()

@@ -1,6 +1,5 @@
 import subprocess
 import logging
-from sacred import Experiment
 
 
 def sacred_arguments_from_config_dict(config):
@@ -23,8 +22,20 @@ def get_slurm_jobs():
     return [int(line) for line in squeue_out.split(b'\n')[:-1]]
 
 
-def setup_logger(ex: Experiment):
-    # set up the logger
+def setup_logger(ex):
+    """
+    Set up logger for experiment.
+
+    Parameters
+    ----------
+    ex: sacred.Experiment
+    Sacred experiment to set the logger of.
+
+    Returns
+    -------
+    None
+
+    """
     logger = logging.getLogger()
     logger.handlers = []
     ch = logging.StreamHandler()
