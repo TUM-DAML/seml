@@ -137,7 +137,7 @@ The special 'slurm' block contains the slurm parameters. This block and all valu
    - `output_dir`: Directory to store the Slurm log files in. Default: Current directory
    - `experiments_per_job`: Number of parallel experiments to run in each Slurm job. Default: 1
    - `sbatch_options`: dictionary that contains custom values that will be passed to `sbatch`, specifying e.g. the
-   memory and the number of GPUs to be allocated. See [here](https://slurm.schedmd.com/sbatch.html) for possible parameters of `sbatch`.
+   memory and the number of GPUs to be allocated. See [here](https://slurm.schedmd.com/sbatch.html) for possible parameters of `sbatch` (dashes are not required).
 
 ### Parameter blocks
 In the `small_datasets` and `large_datasets` (names are of course only examples; you can name sub-configs as you like) we have specified different sets of parameters to try.

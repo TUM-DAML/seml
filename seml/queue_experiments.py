@@ -257,6 +257,8 @@ def queue_experiments(config_file, force_duplicates):
         if k not in slurm_config.keys():
             slurm_config[k] = v
 
+    slurm_config['sbatch_options'] = utils.remove_dashes(slurm_config['sbatch_options'])
+
     collection = db_utils.get_collection(seml_config['db_collection'])
 
     configs = generate_configs(experiment_config)

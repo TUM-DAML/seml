@@ -205,3 +205,15 @@ def cartesian_product_dict(input_dict):
     vals = input_dict.values()
     for instance in itertools.product(*vals):
         yield dict(zip(keys, instance))
+
+
+def remove_dashes(param_dict):
+    new_dict = {}
+    for k, v in param_dict.items():
+        if k.startswith('--'):
+            new_dict[k[2:]] = v
+        elif k.startswith('-'):
+            new_dict[k[1:]] = v
+        else:
+            new_dict[k] = v
+    return new_dict
