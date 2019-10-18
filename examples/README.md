@@ -159,7 +159,7 @@ are:
 
 ### Random parameters
 Under 'random' you can specify parameters for which you want to try several random values. Specify the number
-of samples per parameter with the `samples` value as in the examples below. Supported parameter types are:
+of samples per parameter with the `samples` value and optionally the random seed with `seed` as in the examples below. Supported parameter types are:
   - `choice`: Randomly samples `<samples>` entries (with replacement) from the list in `options`
   - `uniform`: Uniformly samples between `min` and `max` as specified in the parameter dict.
   - `loguniform`:  Uniformly samples in log space between `min` and `max` as specified in the parameter dict.
@@ -213,9 +213,9 @@ To check whether some experiments may have failed due to errors, you can run:
 python /path/to/seml/main.py -c example_config.yaml status
 ```
 
-You can delete all queued, failed, killed, or interrupted experiments with
+You can cancel (interrupt) all pending and running experiments with
 ```bash
-python /path/to/seml/main.py -c example_config.yaml delete
+python /path/to/seml/main.py -c example_config.yaml cancel
 ```
 
 You can reset all failed, killed, or interrupted experiments to QUEUED with
@@ -223,9 +223,9 @@ You can reset all failed, killed, or interrupted experiments to QUEUED with
 python /path/to/seml/main.py -c example_config.yaml reset
 ```
 
-You can cancel (interrupt) all pending and running experiments with
+You can delete all queued, failed, killed, or interrupted experiments with
 ```bash
-python /path/to/seml/main.py -c example_config.yaml cancel
+python /path/to/seml/main.py -c example_config.yaml delete
 ```
 
 These three commands also support passing a specific Sacred ID and a custom list of states.
@@ -235,10 +235,11 @@ Moreover, you can specifically cancel/reset/delete experiments that match a cust
 python /path/to/seml/main.py -c example_config.yaml cancel --filter-dict '{"config.dataset":"cora_ml", "config.hidden_sizes": [16]}'
 ```
 
-Finally, you can detect experiments whose corresponding Slurm jobs were killed unexpectedly with
+Finally, you can manually detect experiments whose corresponding Slurm jobs were killed unexpectedly with
 ```bash
 python /path/to/seml/main.py -c example_config.yaml detect-killed
 ```
+(Detection is run automatically when executing the `status`, `delete`, `reset`, and `cancel` commands and therefore rarely necessary to do manually.)
 
 ### Batches
 `seml` assigns each experiment a batch ID, where all experiments that were queued together get the same batch ID. 
