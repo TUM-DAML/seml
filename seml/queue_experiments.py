@@ -139,17 +139,19 @@ def generate_configs(experiment_config):
         fixed_params = conf['fixed'] if 'fixed' in conf else {}
         grid_params = conf['grid'] if 'grid' in conf else {}
 
-        all_num_samples = np.array([x['samples'] for x in random_params.values() if 'samples' in x])
-        num_samples = np.max(all_num_samples)
-
-        random_sampled = utils.sample_random_configs(random_params, seed=None, samples=num_samples)
+        if len(random_params) > 0:
+            all_num_samples = np.array([x['samples'] for x in random_params.values() if 'samples' in x])
+            num_samples = np.max(all_num_samples)
+            random_sampled = utils.sample_random_configs(random_params, seed=None, samples=num_samples)
 
         grid_configs = {k: utils.generate_grid(v) for k,v in grid_params.items()}
         grid_product = list(utils.cartesian_product_dict(grid_configs))
 
         with_fixed = [{**d, **fixed_params} for d in grid_product]
-        with_random = [{**grid, **random} for grid in with_fixed for random in random_sampled]
-
+        if len(random_params) > 0:
+            with_random = [{**grid, **random} for grid in with_fixed for random in random_sampled]
+        else:
+            with_random = with_fixed
         all_configs.extend(with_random)
 
     # Cast NumPy integers to normal integers since PyMongo doesn't like them
