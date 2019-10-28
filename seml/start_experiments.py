@@ -133,7 +133,7 @@ def start_slurm_job(collection, exps, log_verbose, name=None,
         collection.update_one(
                 {'_id': exp['_id']},
                 {'$set': {'slurm.id': slurm_job_id,
-                          'slurm.output_file': f"{output_dir_path}/slurm-{slurm_job_id}.out"}})
+                          'slurm.output_file': f"{output_dir_path}/{name}-{slurm_job_id}.out"}})
         if log_verbose:
             print(f"Started experiment with ID {slurm_job_id}")
 
