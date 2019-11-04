@@ -239,7 +239,7 @@ if __name__ == '__main__':
             "queue",
             help="Queue the experiments as defined in the configuration.")
     parser_queue.add_argument(
-            '--force-duplicates', action='store_true',
+            '-f', '--force-duplicates', action='store_true',
             help="If True, will add experiments to the database even when experiments with identical configurations "
                  "are already in the database.")
     parser_queue.set_defaults(func=queue_experiments)
@@ -260,9 +260,9 @@ if __name__ == '__main__':
             '-id', '--sacred-id', type=int,
             help="Sacred ID (_id in the database collection) of the experiment to cancel.")
     parser_start.add_argument(
-        '-b', '--batch-id', type=int,
-        help="Batch ID (batch_id in the database collection) of the experiments to be cancelled. Experiments that were "
-             "queued together have the same batch_id."
+            '-b', '--batch-id', type=int,
+            help="Batch ID (batch_id in the database collection) of the experiments to be cancelled. Experiments that were "
+                 "queued together have the same batch_id."
     )
     parser_start.add_argument(
         '-f', '--filter-dict', type=json.loads,
@@ -286,13 +286,13 @@ if __name__ == '__main__':
             help="List of states to filter experiments by. Cancels all experiments if an empty list is passed. "
                  "Default: Cancel all pending and running experiments.")
     parser_cancel.add_argument(
-        '-b', '--batch-id', type=int,
-        help="Batch ID (batch_id in the database collection) of the experiments to be cancelled. Experiments that were "
-             "queued together have the same batch_id."
+            '-b', '--batch-id', type=int,
+            help="Batch ID (batch_id in the database collection) of the experiments to be cancelled. Experiments that were "
+                 "queued together have the same batch_id."
     )
     parser_cancel.add_argument(
-        '-f', '--filter-dict', type=json.loads,
-        help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by."
+            '-f', '--filter-dict', type=json.loads,
+            help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by."
     )
     parser_cancel.set_defaults(func=cancel_experiments)
 
@@ -307,13 +307,13 @@ if __name__ == '__main__':
             help="List of states to filter experiments by. Deletes all experiments if an empty list is passed. "
                  "Default: Delete all queued, failed, killed and interrupted experiments.")
     parser_delete.add_argument(
-        '-b', '--batch-id', type=int,
-        help="Batch ID (batch_id in the database collection) of the experiments to be deleted. Experiments that were "
-             "queued together have the same batch_id."
+            '-b', '--batch-id', type=int,
+            help="Batch ID (batch_id in the database collection) of the experiments to be deleted. Experiments that were "
+                 "queued together have the same batch_id."
     )
     parser_delete.add_argument(
-        '-f', '--filter-dict', type=json.loads,
-        help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by."
+            '-f', '--filter-dict', type=json.loads,
+            help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by."
     )
     parser_delete.set_defaults(func=delete_experiments)
 
@@ -330,13 +330,13 @@ if __name__ == '__main__':
                  "Resets all experiments if an empty list is passed. "
                  "Default: Reset failed, killed and interrupted experiments.")
     parser_reset.add_argument(
-        '-f', '--filter-dict', type=json.loads,
-        help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by."
+            '-f', '--filter-dict', type=json.loads,
+            help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by."
     )
     parser_reset.add_argument(
-        '-b', '--batch-id', type=int,
-        help="Batch ID (batch_id in the database collection) of the experiments to be deleted. Experiments that were "
-             "queued together have the same batch_id."
+            '-b', '--batch-id', type=int,
+            help="Batch ID (batch_id in the database collection) of the experiments to be deleted. Experiments that were "
+                 "queued together have the same batch_id."
     )
 
     parser_reset.set_defaults(func=reset_states)
