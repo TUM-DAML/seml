@@ -1,5 +1,4 @@
 import os
-import math
 import subprocess
 import numpy as np
 
@@ -10,7 +9,8 @@ from seml import check_cancelled
 try:
     from tqdm import tqdm
 except ImportError:
-    tqdm = lambda x, total: x
+    def tqdm(iterable, total=None):
+        return iterable
 
 
 def start_slurm_job(collection, exps, log_verbose, name=None,
