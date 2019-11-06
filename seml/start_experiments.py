@@ -69,8 +69,7 @@ def start_slurm_job(collection, exps, log_verbose, name=None,
     script += "\n"
     script += "cd ${SLURM_SUBMIT_DIR} \n"
     script += "echo Starting job ${SLURM_JOBID} \n"
-    script += "echo SLURM assigned me these nodes:\n"
-    script += "squeue -j ${SLURM_JOBID} -O nodelist | tail -n +2\n"
+    script += "echo \"SLURM assigned me the node(s): $(squeue -j ${SLURM_JOBID} -O nodelist | tail -n +2)\"\n"
 
     if "conda_environment" in exps[0]['seml']:
         script += "CONDA_BASE=$(conda info --base)\n"
@@ -116,7 +115,8 @@ def start_slurm_job(collection, exps, log_verbose, name=None,
     script += f"do\n"
     script += f"    echo \"Experiment ID: ${{exp_ids[$i]}}\tProcess ID: ${{process_ids[$i]}}\"\n"
     script += f"done\n"
-    script += f"wait \n"
+    script += "echo\n"
+    script += "wait\n"
 
     random_int = np.random.randint(0, 999999)
     path = f"/tmp/{random_int}.sh"
