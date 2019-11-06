@@ -97,15 +97,6 @@ def start_slurm_job(collection, exps, log_verbose, name=None,
         script += f"    (>&2 echo ERROR: Experiment with id {exp['_id']} not found in the database.)\n"
         script += "fi\n"
 
-        collection.update_one(
-                {'_id': exp['_id']},
-                {'$set': {'status': 'PENDING'}})
-        collection.update_one(
-                {'_id': exp['_id']},
-                {'$set': {
-                    'slurm.sbatch_options': sbatch_options,
-                    'slurm.step_id': ix}})
-
         if log_verbose:
             print(f'Running the following command:\n {cmd}')
 
@@ -127,15 +118,19 @@ def start_slurm_job(collection, exps, log_verbose, name=None,
         f.write(script)
 
     output = subprocess.check_output(f'sbatch {path}', shell=True)
-    os.remove(path)
     slurm_job_id = int(output.split(b' ')[-1])
-    for exp in exps:
+    for ix, exp in enumerate(exps):
         collection.update_one(
                 {'_id': exp['_id']},
-                {'$set': {'slurm.id': slurm_job_id,
+                {'$set': {
+                    'status': 'PENDING',
+                    'slurm.id': slurm_job_id,
+                    'slurm.step_id': ix,
+                    'slurm.sbatch_options': sbatch_options,
                           'slurm.output_file': f"{output_dir_path}/{name}-{slurm_job_id}.out"}})
         if log_verbose:
             print(f"Started experiment with ID {slurm_job_id}")
+    os.remove(path)
 
 
 def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, filter_dict={}):
