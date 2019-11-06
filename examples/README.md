@@ -25,18 +25,18 @@ In `example_config.yaml` we define the parameter configurations that will be run
   
 ```yaml
 seml:
-  name: 'example_experiment'
-  db_collection: 'example_experiment'
-  executable: 'example_experiment.py'
+  name: example_experiment
+  db_collection: example_experiment
+  executable: example_experiment.py
 
 slurm:
-  output_dir: '.'
+  output_dir: .
   experiments_per_job: 1
   sbatch_options:
-    gres: 'gpu:1'     # num GPUs
-    mem: 16000        # memory
+    gres: gpu:1       # num GPUs
+    mem: 16G          # memory
     cpus-per-task: 1  # num cores
-    time: '0-08:00'   # max time, D-HH:MM
+    time: 0-08:00     # max time, D-HH:MM
 
 ###### BEGIN PARAMETER CONFIGURATION ######
 
@@ -49,7 +49,7 @@ fixed:
 
 grid:
   learning_rate:
-    type: "loguniform"
+    type: loguniform
     min: 1e-5
     max: 1e-1
     num: 5
@@ -59,7 +59,7 @@ random:
   seed: 821
 
   max_epochs:
-    type: "randint"
+    type: randint
     min: 200
     max: 1000
     seed: 222
@@ -68,13 +68,13 @@ small_datasets:
 
   grid:
     dataset:
-      type: "choice"
+      type: choice
       options:
-        - "small_dataset_1"
-        - "small_dataset_2"
+        - small_dataset_1
+        - small_dataset_2
 
     hidden_sizes:
-      type: "choice"
+      type: choice
       options:
         - [16]
         - [32, 16]
@@ -84,17 +84,17 @@ small_datasets:
     seed: 2223
 
     reg_scale:
-      type: "loguniform"
+      type: loguniform
       min: 1e-9
       max: 1e-1
 
     keep_prob:
-      type: "uniform"
+      type: uniform
       min: 0.3
       max: 1
 
     patience:
-      type: "choice"
+      type: choice
       options:
         - 10
         - 50
@@ -106,18 +106,18 @@ large_datasets:
 
   grid:
     learning_rate:
-      type: 'choice'
+      type: choice
       options:
         - 0.001
 
     dataset:
-      type: 'choice'
+      type: choice
       options:
-        - "large_dataset_1"
-        - "large_dataset_2"
+        - large_dataset_1
+        - large_dataset_2
 
     hidden_sizes:
-      type: 'choice'
+      type: choice
       options:
         - [64]
         - [64, 32]
