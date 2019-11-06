@@ -13,7 +13,8 @@
 # experiments_per_job:  Number of parallel experiments to run in each Slurm job.
 #                       Note that only experiments from the same batch share a job. Default: 1
 # sbatch_options:       dictionary that contains custom values that will be passed to `sbatch`, specifying e.g.
-#                       the memory and number of GPUs to be allocated (prepended dashes are not required).
+#                       the memory and number of GPUs to be allocated (prepended dashes are not required). See
+#                       https://slurm.schedmd.com/sbatch.html for all possible options.
 #
 # Parameters under 'fixed' will be used for all the experiments.
 #
