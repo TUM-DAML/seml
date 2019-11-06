@@ -164,13 +164,15 @@ def reset_experiment(collection, exp):
     keep_entries = ['batch_id', 'seml', 'slurm', 'config', 'queue_time']
 
     # Clean up Slurm dictionary
-    keep_slurm = ['name', 'output_dir', 'experiments_per_job', 'sbatch_options']
-    slurm_keys = list(exp['slurm'].keys())
-    for key in slurm_keys:
-        if key not in keep_slurm:
-            del exp['slurm'][key]
-    remove_sbatch = ['job-name', 'output']
-    for key in remove_sbatch:
+    keep_slurm = {'name', 'output_dir', 'experiments_per_job', 'sbatch_options'}
+    slurm_keys = set(exp['slurm'].keys())
+    for key in slurm_keys - keep_slurm:
+        del exp['slurm'][key]
+
+    # Clean up sbatch_options dictionary
+    remove_sbatch = {'job-name', 'output'}
+    sbatch_keys = set(exp['slurm']['sbatch_options'].keys())
+    for key in remove_sbatch & sbatch_keys:
         del exp['slurm']['sbatch_options'][key]
 
     collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries}, upsert=False)
