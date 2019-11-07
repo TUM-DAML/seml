@@ -161,7 +161,8 @@ def delete_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
 
 
 def reset_experiment(collection, exp):
-    keep_entries = ['batch_id', 'seml', 'slurm', 'config', 'queue_time']
+    exp['status'] = 'QUEUED'
+    keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'queue_time']
 
     # Clean up Slurm dictionary
     keep_slurm = {'name', 'output_dir', 'experiments_per_job', 'sbatch_options'}
@@ -176,7 +177,6 @@ def reset_experiment(collection, exp):
         del exp['slurm']['sbatch_options'][key]
 
     collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries}, upsert=False)
-    collection.update_one({'_id': exp['_id']}, {"$set": {"status": 'QUEUED'}}, upsert=False)
 
 
 def reset_states(config_file, sacred_id, filter_states, batch_id, filter_dict):
