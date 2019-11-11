@@ -48,7 +48,7 @@ def get_results(collection_name, fields=['config', 'result'], to_data_frame=Fals
 
     parsed = [parse_jsonpickle(entry) for entry in results]
     if to_data_frame:
-        parsed = pd.io.jsonpickle.json_normalize(parsed, sep='.')
+        parsed = pd.io.json.json_normalize(parsed, sep='.')
     return parsed
 
 
