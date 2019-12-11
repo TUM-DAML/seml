@@ -4,3 +4,4 @@ pandas
 sacred
 pyyaml
 jsonpickle>=0.7.2, <1.0
+munch>=2.0.4
