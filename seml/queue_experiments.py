@@ -4,7 +4,7 @@ import pymongo
 
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
-from seml.misc import get_default_slurm_config, s_if
+from seml.misc import get_default_slurm_config, s_if, unflatten
 
 
 def unpack_config(config):
@@ -17,25 +17,27 @@ def unpack_config(config):
 
         if key not in reserved_keys:
             children[key] = value
-        elif key == 'random':
-            if not 'samples' in value:
-                raise ValueError('Random parameters must specify "samples", i.e. the number of random samples.')
-            keys = [k for k in value.keys() if k not in ['seed', 'samples']]
-            if 'seed' in value:
-                seed = value['seed']
-                rdm_dict = {
-                    k: {'samples': value['samples'],
-                        'seed': seed, **value[k]}
-                    for k in keys
-                }
-            else:
-                rdm_dict = {
-                    k: {'samples': value['samples'], **value[k]}
-                    for k in keys
-                }
-            reserved_dict[key] = rdm_dict
         else:
-            reserved_dict[key] = value
+            # value = munch.munchify(value)
+            if key == 'random':
+                if not 'samples' in value:
+                    raise ValueError('Random parameters must specify "samples", i.e. the number of random samples.')
+                keys = [k for k in value.keys() if k not in ['seed', 'samples']]
+                if 'seed' in value:
+                    seed = value['seed']
+                    rdm_dict = {
+                        k: {'samples': value['samples'],
+                            'seed': seed, **value[k]}
+                        for k in keys
+                    }
+                else:
+                    rdm_dict = {
+                        k: {'samples': value['samples'], **value[k]}
+                        for k in keys
+                    }
+                reserved_dict[key] = rdm_dict
+            else:
+                reserved_dict[key] = value
     return reserved_dict, children
 
 
@@ -144,7 +146,8 @@ def generate_configs(experiment_config):
             num_samples = np.max(all_num_samples)
             random_sampled = utils.sample_random_configs(random_params, seed=None, samples=num_samples)
 
-        grid_configs = {k: utils.generate_grid(v) for k,v in grid_params.items()}
+        grids = [utils.generate_grid(v, parent_key=k) for k,v in grid_params.items()]
+        grid_configs = dict([sub for item in grids for sub in item])
         grid_product = list(utils.cartesian_product_dict(grid_configs))
 
         with_fixed = [{**d, **fixed_params} for d in grid_product]
@@ -158,6 +161,8 @@ def generate_configs(experiment_config):
     all_configs = [{k: int(v) if isinstance(v, np.integer) else v
                     for k, v in config.items()}
                    for config in all_configs]
+
+    all_configs = [unflatten(conf) for conf in all_configs]
     return all_configs
 
 

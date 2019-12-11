@@ -67,6 +67,22 @@ fixed:
   display_step: 25
 
 grid:
+  regularization_params:
+    type: parameter_collection
+    params:
+
+      dropout:
+        type: choice
+        options:
+          - 0.5
+          - 0.6
+
+      reg_scale:
+        type: choice
+        options:
+          - 1e-4
+          - 1e-5
+
   learning_rate:
     type: loguniform
     min: 1e-5

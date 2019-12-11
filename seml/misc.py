@@ -66,3 +66,30 @@ def get_default_slurm_config():
                 'mem': 8000,
                 },
             }
+
+
+def unflatten(dictionary: dict, sep: str ='.'):
+    """
+    Turns a flattened dict into a nested one, e.g. {'a.b':2, 'c':3} becomes {'a':{'b': 2}, 'c': 3}
+    From https://stackoverflow.com/questions/6037503/python-unflatten-dict
+
+    Parameters
+    ----------
+    dictionary: dict to be un-flattened
+    sep: separator with which the nested keys are separated
+
+    Returns
+    -------
+    resultDict: the nested dictionary.
+    """
+
+    resultDict = dict()
+    for key, value in dictionary.items():
+        parts = key.split(sep)
+        d = resultDict
+        for part in parts[:-1]:
+            if part not in d:
+                d[part] = dict()
+            d = d[part]
+        d[parts[-1]] = value
+    return resultDict
