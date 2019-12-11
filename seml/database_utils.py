@@ -7,6 +7,7 @@ import jsonpickle
 import warnings
 import ast
 from seml.settings import SETTINGS
+import urllib.parse
 
 def get_results_flattened(collection_name):
     warnings.warn("This method is deprecated. Use database_utils.get_results instead.",
@@ -223,12 +224,11 @@ def create_mongodb_observer(collection,
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
 
-    db_name = mongodb_config['db_name']
-    db_username = mongodb_config['username']
-    db_password = mongodb_config['password']
-    db_port = mongodb_config['port']
-    db_host = mongodb_config['host']
-
+    db_name = urllib.parse.quote(mongodb_config['db_name'])
+    db_username = urllib.parse.quote(mongodb_config['username'])
+    db_password = urllib.parse.quote(mongodb_config['password'])
+    db_port = urllib.parse.quote(mongodb_config['port'])
+    db_host = urllib.parse.quote(mongodb_config['host'])
     observer = MongoObserver.create(
         url=f'mongodb://{db_username}:{db_password}@{db_host}:{db_port}/{db_name}?authMechanism=SCRAM-SHA-1',
         db_name=db_name,
