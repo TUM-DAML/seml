@@ -18,8 +18,11 @@ def get_cmd_from_exp_dict(exp):
 
 
 def get_slurm_jobs():
-    squeue_out = subprocess.check_output("squeue -a -t pending,running -h -o %A", shell=True)
-    return [int(line) for line in squeue_out.split(b'\n')[:-1]]
+    try:
+        squeue_out = subprocess.check_output("squeue -a -t pending,running -h -o %A", shell=True)
+        return [int(line) for line in squeue_out.split(b'\n')[:-1]]
+    except subprocess.CalledProcessError:
+        return []
 
 
 def setup_logger(ex):
