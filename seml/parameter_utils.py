@@ -1,7 +1,6 @@
 import itertools
 import numpy as np
 
-
 def merge_dicts(dict1, dict2):
     """Recursively merge two dictionaries.
 
@@ -62,13 +61,14 @@ def sample_random_configs(random_config, samples=1, seed=None):
 
     rdm_keys = [k for k in random_config.keys() if k not in ["samples", "seed"]]
 
-    random_samples = {k: sample_parameter(random_config[k], samples, seed) for k in rdm_keys}
+    random_samples = [sample_parameter(random_config[k], samples, seed, parent_key=k) for k in rdm_keys]
+    random_samples = dict([sub for item in random_samples for sub in item])
     random_configurations = [{k: v[ix] for k, v in random_samples.items()} for ix in range(samples)]
 
     return random_configurations
 
 
-def sample_parameter(parameter, samples, seed=None):
+def sample_parameter(parameter, samples, seed=None, parent_key=''):
     """
     Generate random samples from the specified parameter.
 
@@ -88,31 +88,38 @@ def sample_parameter(parameter, samples, seed=None):
         Number of samples to draw for the parameter.
     seed: int
         The seed to use when drawing the parameter value. Defaults to None.
+    parent_key: str
+        The key to prepend the parameter name with. Used for nested parameters, where we here create a flattened version
+        where e.g. {'a': {'b': 11}, 'c': 3} becomes {'a.b': 11, 'c': 3}
 
     Returns
     -------
-    samples: numpy array or list
-        1-D list/array of the samples drawn for the parameter.
+    return_items: tuple(str, np.array or list)
+        tuple of the parameter name and a 1-D list/array of the samples drawn for the parameter.
 
     """
 
     if "type" not in parameter:
         raise ValueError("No type found in parameter {}".format(parameter))
+    return_items = []
 
-    if 'seed' in parameter:
-        seed = parameter['seed']
     if seed is not None:
         np.random.seed(seed)
+    elif 'seed' in parameter:
+        np.random.seed(parameter['seed'])
+
     param_type = parameter['type']
 
     if param_type == "choice":
         choices = parameter['options']
         sampled_values = np.random.choice(choices, replace=True, size=samples)
+        return_items.append((parent_key, sampled_values))
 
     elif param_type == "uniform":
         min_val = parameter['min']
         max_val = parameter['max']
         sampled_values = np.random.uniform(min_val, max_val, samples)
+        return_items.append((parent_key, sampled_values))
 
     elif param_type == "loguniform":
         if parameter['min'] <= 0:
@@ -120,24 +127,32 @@ def sample_parameter(parameter, samples, seed=None):
         min_val = np.log(parameter['min'])
         max_val = np.log(parameter['max'])
         sampled_values = np.exp(np.random.uniform(min_val, max_val, samples))
+        return_items.append((parent_key, sampled_values))
 
     elif param_type == "randint":
         min_val = int(parameter['min'])
         max_val = int(parameter['max'])
         sampled_values = np.random.randint(min_val, max_val, samples)
+        return_items.append((parent_key, sampled_values))
 
     elif param_type == "randint_unique":
         min_val = int(parameter['min'])
         max_val = int(parameter['max'])
         sampled_values = np.random.choice(np.arange(min_val, max_val), samples, replace=False)
+        return_items.append((parent_key, sampled_values))
+
+    elif param_type == "parameter_collection":
+        sub_items = [sample_parameter(v, parent_key=f'{parent_key}.{k}',
+                                      seed=seed, samples=samples) for k,v in parameter['params'].items()]
+        return_items.extend([sub_item for item in sub_items for sub_item in item])
 
     else:
         raise NotImplementedError(f"Parameter type {param_type} not implemented.")
 
-    return sampled_values
+    return return_items
 
 
-def generate_grid(parameter):
+def generate_grid(parameter, parent_key=''):
     """
     Generate a grid of parameter values from the input configuration.
 
@@ -150,11 +165,16 @@ def generate_grid(parameter):
                      np.arange(min, max, step)
             - uniform: Generates the grid using np.linspace(min, max, num, endpoint=True)
             - loguniform: Uniformly samples 'num' points in log space (base 10) between 'min' and 'max'
+            - parameter_collection: wrapper around a dictionary of parameters (of the types above); we call this
+              function recursively on each of the sub-parameters.
+    parent_key: str
+        The key to prepend the parameter name with. Used for nested parameters, where we here create a flattened version
+        where e.g. {'a': {'b': 11}, 'c': 3} becomes {'a.b': 11, 'c': 3}
 
     Returns
     -------
-    values: list
-        List containing the grid values for this parameter.
+    return_items: tuple(str, list)
+        Name of the parameter and list containing the grid values for this parameter.
 
     """
     if "type" not in parameter:
@@ -162,30 +182,41 @@ def generate_grid(parameter):
 
     param_type = parameter['type']
 
+    return_items = []
+
     if param_type == "choice":
         values = parameter['options']
+        return_items.append((parent_key, values))
 
     elif param_type == "range":
         min_val = parameter['min']
         max_val = parameter['max']
         step = int(parameter['step'])
         values = list(np.arange(min_val, max_val, step))
+        return_items.append((parent_key, values))
 
     elif param_type == "uniform":
         min_val = parameter['min']
         max_val = parameter['max']
         num = int(parameter['num'])
         values = list(np.linspace(min_val, max_val, num, endpoint=True))
+        return_items.append((parent_key, values))
 
     elif param_type == "loguniform":
         min_val = parameter['min']
         max_val = parameter['max']
         num = int(parameter['num'])
         values = np.logspace(np.log10(min_val), np.log10(max_val), num, endpoint=True)
+        return_items.append((parent_key, values))
+
+    elif param_type == "parameter_collection":
+        sub_items = [generate_grid(v, parent_key=f'{parent_key}.{k}') for k,v in parameter['params'].items()]
+        return_items.extend([sub_item for item in sub_items for sub_item in item])
+
     else:
         raise NotImplementedError(f"Parameter {param_type} not implemented.")
 
-    return values
+    return return_items
 
 
 def cartesian_product_dict(input_dict):
