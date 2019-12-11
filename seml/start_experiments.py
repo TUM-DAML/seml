@@ -184,15 +184,22 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, filter_dict={
             raise ValueError("Refusing to run a compute experiment on a login node. "
                              "Please use Slurm or a compute node.")
 
-        print(f"Starting {nexps} experiment{s_if(nexps)} locally.")
-        for exp in exps_list[:nexps]:
-            collection.update_one(
-                    {'_id': exp['_id']},
-                    {'$set': {'status': 'PENDING'}})
+        print(f'Starting local worker thread that will run up to {nexps} experiments, '
+              f'until no queued experiments remain.')
 
         for exps in tqdm(exp_chunks):
             for exp in exps:
+                db_entry = collection.find_one({'_id': exp['_id']})
+                if db_entry['status'] != 'QUEUED':
+                    # if there are multiple local workers another one might have started
+                    # this experiment in the meantime.
+                    continue
                 cmd = get_cmd_from_exp_dict(exp)
+                # setting the seml command here because it makes re-running and debugging from the
+                # command line much easier.
+                collection.update_one(
+                    {'_id': exp['_id']},
+                    {'$set': {'status': 'PENDING', 'seml.cmd': cmd}})
                 if log_verbose:
                     print(f'Running the following command:\n {cmd}')
                 # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
