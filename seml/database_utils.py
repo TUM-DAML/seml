@@ -232,7 +232,7 @@ def create_mongodb_observer(collection,
     observer = MongoObserver.create(
         url=f'mongodb://{db_username}:{db_password}@{db_host}:{db_port}/{db_name}?authMechanism=SCRAM-SHA-1',
         db_name=db_name,
-        collection=collection,
+        collection_prefix=collection,
         overwrite=overwrite)
 
     return observer
