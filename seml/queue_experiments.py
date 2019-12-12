@@ -4,7 +4,7 @@ import pymongo
 
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
-from seml.misc import get_default_slurm_config, s_if, unflatten
+from seml.misc import get_default_slurm_config, s_if, unflatten, flatten
 
 
 def unpack_config(config):
@@ -138,7 +138,7 @@ def generate_configs(experiment_config):
     all_configs = []
     for conf in final_configs:
         random_params = conf['random'] if 'random' in conf else {}
-        fixed_params = conf['fixed'] if 'fixed' in conf else {}
+        fixed_params = flatten(conf['fixed']) if 'fixed' in conf else {}
         grid_params = conf['grid'] if 'grid' in conf else {}
 
         if len(random_params) > 0:
