@@ -93,3 +93,30 @@ def unflatten(dictionary: dict, sep: str ='.'):
             d = d[part]
         d[parts[-1]] = value
     return resultDict
+
+
+def flatten(dictionary: dict, parent_key: str='', sep: str='.'):
+    """
+    Flatten a nested dictionary, e.g. {'a':{'b': 2}, 'c': 3} becomes {'a.b':2, 'c':3}.
+    From https://stackoverflow.com/questions/6027558/flatten-nested-dictionaries-compressing-keys
+
+    Parameters
+    ----------
+    dictionary: dict to be flattened
+    parent_key: string to prepend the key with
+    sep: level separator
+
+    Returns
+    -------
+    flattened dictionary.
+    """
+    import collections
+
+    items = []
+    for k, v in dictionary.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
