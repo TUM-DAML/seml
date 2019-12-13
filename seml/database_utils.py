@@ -9,6 +9,7 @@ import ast
 from seml.settings import SETTINGS
 import urllib.parse
 
+
 def get_results_flattened(collection_name):
     warnings.warn("This method is deprecated. Use database_utils.get_results instead.",
                   DeprecationWarning)
@@ -120,10 +121,13 @@ def read_config(config_path):
         return seml_dict, None, config_dict
 
 
-def get_collection(collection_name, mongodb_config=None):
+def get_collection(collection_name, mongodb_config=None, suffix='_runs'):
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
     db = get_database(**mongodb_config)
+    if suffix is not None and not collection_name.endswith(suffix):
+        collection_name = f'{collection_name}{suffix}'
+
     return db[collection_name]
 
 
