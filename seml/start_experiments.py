@@ -13,7 +13,7 @@ except ImportError:
         return iterable
 
 
-def start_slurm_job(collection, exps, log_verbose, name=None,
+def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem=False, name=None,
                     output_dir=".", sbatch_options=None):
     """Run a list of experiments as a job on the Slurm cluster.
 
@@ -25,6 +25,10 @@ def start_slurm_job(collection, exps, log_verbose, name=None,
         List of experiments to run.
     log_verbose: bool
         Print all the Python syscalls before running them.
+    unobserved: bool
+        Disable all Sacred observers (nothing written to MongoDB).
+    post_mortem: bool
+        Activate post-mortem debugging.
     name: str
         Job name, used by Slurm job and output file.
     output_dir: str
@@ -81,6 +85,10 @@ def start_slurm_job(collection, exps, log_verbose, name=None,
     script += f"exp_ids=({' '.join([str(e['_id']) for e in exps])}) \n"
     for ix, exp in enumerate(exps):
         cmd = get_cmd_from_exp_dict(exp)
+        if unobserved:
+            cmd += " --unobserved"
+        if post_mortem:
+            cmd += " --pdb"
         collection_str = exp['seml']['db_collection']
         script += f"python {check_file} --experiment_id {exp['_id']} --database_collection {collection_str}\n"
         script += "ret=$?\n"
@@ -120,20 +128,22 @@ def start_slurm_job(collection, exps, log_verbose, name=None,
     output = subprocess.check_output(f'sbatch {path}', shell=True)
     slurm_job_id = int(output.split(b' ')[-1])
     for ix, exp in enumerate(exps):
-        collection.update_one(
-                {'_id': exp['_id']},
-                {'$set': {
-                    'status': 'PENDING',
-                    'slurm.id': slurm_job_id,
-                    'slurm.step_id': ix,
-                    'slurm.sbatch_options': sbatch_options,
-                          'slurm.output_file': f"{output_dir_path}/{name}-{slurm_job_id}.out"}})
+        if not unobserved:
+            collection.update_one(
+                    {'_id': exp['_id']},
+                    {'$set': {
+                        'status': 'PENDING',
+                        'slurm.id': slurm_job_id,
+                        'slurm.step_id': ix,
+                        'slurm.sbatch_options': sbatch_options,
+                        'slurm.output_file': f"{output_dir_path}/{name}-{slurm_job_id}.out"}})
         if log_verbose:
             print(f"Started experiment with ID {slurm_job_id}")
     os.remove(path)
 
 
-def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, filter_dict={}):
+def do_work(collection_name, log_verbose, slurm=True,
+            unobserved=False, post_mortem=False, num_exps=-1, filter_dict={}):
     """Pull queued experiments from the database and run them.
 
     Parameters
@@ -144,6 +154,10 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, filter_dict={
         Print all the Python syscalls before running them.
     slurm: bool
         Use the Slurm cluster.
+    unobserved: bool
+        Disable all Sacred observers (nothing written to MongoDB).
+    post_mortem: bool
+        Activate post-mortem debugging.
     num_exps: int, default: -1
         If >0, will only submit the specified number of experiments to the cluster.
         This is useful when you only want to test your setup.
@@ -177,7 +191,7 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, filter_dict={
         for exps in tqdm(exp_chunks):
             slurm_config = exps[0]['slurm']
             del slurm_config['experiments_per_job']
-            start_slurm_job(collection, exps, log_verbose, **slurm_config)
+            start_slurm_job(collection, exps, log_verbose, unobserved, post_mortem, **slurm_config)
     else:
         login_node_name = 'fs'
         if login_node_name in os.uname()[1]:
@@ -185,24 +199,36 @@ def do_work(collection_name, log_verbose, slurm=True, num_exps=-1, filter_dict={
                              "Please use Slurm or a compute node.")
 
         print(f"Starting {nexps} experiment{s_if(nexps)} locally.")
-        for exp in exps_list[:nexps]:
-            collection.update_one(
-                    {'_id': exp['_id']},
-                    {'$set': {'status': 'PENDING'}})
+        if not unobserved:
+            for exp in exps_list[:nexps]:
+                collection.update_one(
+                        {'_id': exp['_id']},
+                        {'$set': {'status': 'PENDING'}})
 
         for exps in tqdm(exp_chunks):
             for exp in exps:
                 cmd = get_cmd_from_exp_dict(exp)
+                if unobserved:
+                    cmd += " --unobserved"
+                if post_mortem:
+                    cmd += " --pdb"
                 if log_verbose:
                     print(f'Running the following command:\n {cmd}')
                 # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
                 subprocess.check_call(cmd, shell=True)
 
 
-def start_experiments(config_file, local, sacred_id, batch_id, filter_dict, test, verbose):
+def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
+                      test, unobserved, post_mortem, debug, verbose):
     use_slurm = not local
 
     db_collection_name = db_utils.read_config(config_file)[0]['db_collection']
+
+    if debug:
+        test = 1
+        use_slurm = False
+        unobserved = True
+        post_mortem = True
 
     if test != -1:
         verbose = True
@@ -213,4 +239,5 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict, test
         filter_dict = {'_id': sacred_id}
 
     do_work(db_collection_name, verbose, slurm=use_slurm,
+            unobserved=unobserved, post_mortem=post_mortem,
             num_exps=test, filter_dict=filter_dict)

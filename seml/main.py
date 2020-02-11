@@ -259,6 +259,17 @@ if __name__ == '__main__':
             '--test', type=int, default=-1,
             help="Only run the specified number of experiments to try and see whether they work.")
     parser_start.add_argument(
+            '-u', '--unobserved', action='store_true',
+            help="Run the experiments without Sacred observers (no changes to MongoDB). "
+                 "This also disables output capturing by Sacred, facilitating the use of debuggers (pdb, ipdb).")
+    parser_start.add_argument(
+            '-pm', '--post-mortem', action='store_true',
+            help="Activate post-mortem debugging with pdb.")
+    parser_start.add_argument(
+            '-d', '--debug', action='store_true',
+            help="Run a single experiment locally without Sacred observers and with post-mortem debugging. "
+                 "This is equivalent to `--local --unobserved --test 1 --post-mortem`.")
+    parser_start.add_argument(
             '--verbose', '-v', action='store_true',
             help='Display more log messages.')
     parser_start.add_argument(
