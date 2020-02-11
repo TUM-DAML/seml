@@ -257,7 +257,8 @@ if __name__ == '__main__':
             help="Run the experiments locally.")
     parser_start.add_argument(
             '--test', type=int, default=-1,
-            help="Only run the specified number of experiments to try and see whether they work.")
+            help="Only run the specified number of experiments to try and see whether they work. "
+                 "Also activates `--verbose`.")
     parser_start.add_argument(
             '-u', '--unobserved', action='store_true',
             help="Run the experiments without Sacred observers (no changes to MongoDB). "
