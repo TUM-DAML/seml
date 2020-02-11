@@ -85,6 +85,8 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
     script += f"exp_ids=({' '.join([str(e['_id']) for e in exps])}) \n"
     for ix, exp in enumerate(exps):
         cmd = get_cmd_from_exp_dict(exp)
+        if not log_verbose:
+            cmd += " --force"
         if unobserved:
             cmd += " --unobserved"
         if post_mortem:
@@ -208,6 +210,8 @@ def do_work(collection_name, log_verbose, slurm=True,
         for exps in tqdm(exp_chunks):
             for exp in exps:
                 cmd = get_cmd_from_exp_dict(exp)
+                if not log_verbose:
+                    cmd += " --force"
                 if unobserved:
                     cmd += " --unobserved"
                 if post_mortem:

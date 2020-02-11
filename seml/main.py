@@ -268,7 +268,7 @@ if __name__ == '__main__':
     parser_start.add_argument(
             '-d', '--debug', action='store_true',
             help="Run a single experiment locally without Sacred observers and with post-mortem debugging. "
-                 "This is equivalent to `--local --unobserved --test 1 --post-mortem`.")
+                 "This is equivalent to `--local --test 1 --unobserved --post-mortem`.")
     parser_start.add_argument(
             '--verbose', '-v', action='store_true',
             help='Display more log messages.')
