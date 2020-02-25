@@ -41,16 +41,19 @@ def cancel_experiment_by_id(collection, exp_id):
             # Set the database state to INTERRUPTED
             collection.update_one({'_id': exp_id}, {'$set': {'status': 'INTERRUPTED'}})
 
+            # Check if other experiments are running in the same job
             other_exps = collection.find({'slurm.id': exp['slurm']['id']})
-            any_exp_running = False
+            other_exp_running = False
             for e in other_exps:
-                if e['status'] in ["RUNNING", "COMPLETED"]:
-                    any_exp_running = True
+                if e['status'] in ["RUNNING", "PENDING"]:
+                    other_exp_running = True
 
-            if not any_exp_running:
+            # Cancel if no other experiments are running in the same job
+            if not other_exp_running:
                 subprocess.check_output(f"scancel {exp['slurm']['id']}", shell=True)
                 # set state to interrupted again (might have been overwritten by Sacred in the meantime).
-                collection.update_many({'slurm.id': exp['slurm']['id']}, {'$set': {'status': 'INTERRUPTED'}})
+                collection.update_many({'slurm.id': exp['slurm']['id']},
+                                       {'$set': {'status': 'INTERRUPTED', 'stop_time': datetime.datetime.utcnow()}})
 
         except subprocess.CalledProcessError:
             warnings.warn(f"Slurm job {exp['slurm']['id']} of experiment "
