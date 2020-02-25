@@ -258,7 +258,7 @@ if __name__ == '__main__':
             '-l', '--local', action='store_true',
             help="Run the experiments locally.")
     parser_start.add_argument(
-            '--test', type=int, default=-1,
+            '-t', '--test', type=int, default=-1,
             help="Only run the specified number of experiments to try and see whether they work. "
                  "Also activates `--verbose`.")
     parser_start.add_argument(
