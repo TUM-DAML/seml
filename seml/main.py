@@ -273,6 +273,9 @@ if __name__ == '__main__':
             help="Run a single experiment locally without Sacred observers and with post-mortem debugging. "
                  "This is equivalent to `--local --test 1 --unobserved --post-mortem`.")
     parser_start.add_argument(
+            '-dr', '--dry-run', action='store_true',
+            help="Only show the associated commands instead of running the experiments.")
+    parser_start.add_argument(
             '--verbose', '-v', action='store_true',
             help='Display more log messages.')
     parser_start.add_argument(

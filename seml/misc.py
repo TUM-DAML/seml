@@ -2,20 +2,26 @@ import subprocess
 import logging
 
 
-def sacred_arguments_from_config_dict(config):
-    config_strings = [f'{key}="{val}"' for key, val in config.items()]
-    return " ".join(config_strings)
-
-
-def get_cmd_from_exp_dict(exp, overwrite=True):
+def get_config_from_exp(exp, log_verbose=False, unobserved=False, post_mortem=False, debug=False):
     if 'executable' not in exp['seml']:
         raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
-    exp['config']['db_collection'] = exp['seml']['db_collection']
-    if overwrite:
-        exp['config']['overwrite'] = exp['_id']
-    configs_string = sacred_arguments_from_config_dict(exp['config'])
-    return f"python {exe} with {configs_string}"
+
+    config = exp['config']
+    config['db_collection'] = exp['seml']['db_collection']
+    config_strings = [f'{key}="{val}"' for key, val in config.items()]
+    if not log_verbose:
+        config_strings.append("--force")
+    if unobserved:
+        config_strings.append("--unobserved")
+    else:
+        config['overwrite'] = exp['_id']
+    if post_mortem:
+        config_strings.append("--pdb")
+    if debug:
+        config_strings.append("--debug")
+
+    return exe, config_strings
 
 
 def get_slurm_jobs():

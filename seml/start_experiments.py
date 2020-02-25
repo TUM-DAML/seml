@@ -2,7 +2,7 @@ import os
 import subprocess
 import numpy as np
 
-from seml.misc import get_cmd_from_exp_dict, s_if
+from seml.misc import get_config_from_exp, s_if
 from seml import database_utils as db_utils
 from seml import check_cancelled
 
@@ -84,13 +84,9 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
     script += "process_ids=() \n"
     script += f"exp_ids=({' '.join([str(e['_id']) for e in exps])}) \n"
     for ix, exp in enumerate(exps):
-        cmd = get_cmd_from_exp_dict(exp, overwrite=not unobserved)
-        if not log_verbose:
-            cmd += " --force"
-        if unobserved:
-            cmd += " --unobserved"
-        if post_mortem:
-            cmd += " --pdb"
+        exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
+                                          unobserved=unobserved, post_mortem=post_mortem)
+        cmd = f"python {exe} with {' '.join(config)}"
         collection_str = exp['seml']['db_collection']
         script += f"python {check_file} --experiment_id {exp['_id']} --database_collection {collection_str}\n"
         script += "ret=$?\n"
@@ -144,8 +140,8 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
     os.remove(path)
 
 
-def do_work(collection_name, log_verbose, slurm=True,
-            unobserved=False, post_mortem=False, num_exps=-1, filter_dict={}):
+def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
+            post_mortem=False, num_exps=-1, filter_dict={}, dry_run=False):
     """Pull queued experiments from the database and run them.
 
     Parameters
@@ -165,6 +161,8 @@ def do_work(collection_name, log_verbose, slurm=True,
         This is useful when you only want to test your setup.
     filter_dict: dict
         Dictionary for filtering the entries in the collection.
+    dry_run: bool
+        Just return the executables and configurations instead of running them.
 
     Returns
     -------
@@ -186,7 +184,14 @@ def do_work(collection_name, log_verbose, slurm=True,
     exp_chunks = db_utils.chunk_list(exps_list[:nexps])
     njobs = len(exp_chunks)
 
-    if slurm:
+    if dry_run:
+        configs = []
+        for exps in exp_chunks:
+            for exp in exps:
+                configs.append(get_config_from_exp(exp, log_verbose=log_verbose,
+                                                   unobserved=unobserved, post_mortem=post_mortem))
+        return configs
+    elif slurm:
         print(f"Starting {nexps} experiment{s_if(nexps)} in "
               f"{njobs} Slurm job{s_if(njobs)}.")
 
@@ -206,24 +211,49 @@ def do_work(collection_name, log_verbose, slurm=True,
                 collection.update_one(
                         {'_id': exp['_id']},
                         {'$set': {'status': 'PENDING'}})
-
         for exps in tqdm(exp_chunks):
             for exp in exps:
-                cmd = get_cmd_from_exp_dict(exp, overwrite=not unobserved)
-                if not log_verbose:
-                    cmd += " --force"
-                if unobserved:
-                    cmd += " --unobserved"
-                if post_mortem:
-                    cmd += " --pdb"
+                exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
+                                                  unobserved=unobserved, post_mortem=post_mortem)
+
+                cmd = f"python {exe} with {' '.join(config)}"
                 if log_verbose:
                     print(f'Running the following command:\n {cmd}')
                 # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
                 subprocess.check_call(cmd, shell=True)
 
 
+def print_commands(db_collection_name, verbose, unobserved, post_mortem, num_exps, filter_dict):
+    print("********** First experiment **********")
+    configs = do_work(db_collection_name, verbose, slurm=False,
+                      unobserved=True, post_mortem=False,
+                      num_exps=1, filter_dict=filter_dict, dry_run=True)
+    exe, config = configs[0]
+    print(f"Executable: {exe}")
+    config.insert(0, 'with')
+    config.append('--debug')
+    config = [c.replace('"', "'") for c in config]
+    print("Arguments for running inside a debugger:")
+    print('["' + '", "'.join(config) + '"]')
+
+    print("\nCommand for running locally with post-mortem debugging:")
+    configs = do_work(db_collection_name, verbose, slurm=False,
+                      unobserved=True, post_mortem=True,
+                      num_exps=1, filter_dict=filter_dict, dry_run=True)
+    exe, config = configs[0]
+    print(f"python {exe} with {' '.join(config)}")
+
+    print()
+    print("********** All raw commands **********")
+    configs = do_work(db_collection_name, verbose, slurm=False,
+                      unobserved=unobserved, post_mortem=post_mortem,
+                      num_exps=num_exps, filter_dict=filter_dict, dry_run=True)
+    for (exe, config) in configs:
+        print(f"python {exe} with {' '.join(config)}")
+
+
 def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
-                      test, unobserved, post_mortem, debug, verbose):
+                      test, unobserved, post_mortem, debug, verbose, dry_run):
     use_slurm = not local
 
     db_collection_name = db_utils.read_config(config_file)[0]['db_collection']
@@ -242,6 +272,11 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
     else:
         filter_dict = {'_id': sacred_id}
 
-    do_work(db_collection_name, verbose, slurm=use_slurm,
-            unobserved=unobserved, post_mortem=post_mortem,
-            num_exps=test, filter_dict=filter_dict)
+    if dry_run:
+        print_commands(db_collection_name, verbose,
+                       unobserved=unobserved, post_mortem=post_mortem,
+                       num_exps=test, filter_dict=filter_dict)
+    else:
+        do_work(db_collection_name, verbose, slurm=use_slurm,
+                unobserved=unobserved, post_mortem=post_mortem,
+                num_exps=test, filter_dict=filter_dict, dry_run=dry_run)
