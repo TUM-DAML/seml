@@ -52,7 +52,18 @@ def get_results(collection_name, fields=['config', 'result'], to_data_frame=Fals
     return parsed
 
 
+def numpy_dict_to_value(d):
+    if 'py/object' in d.keys() and d['py/object'].startswith('numpy.'):
+        return d['value']
+    else:
+        for k, v in d.items():
+            if type(v) is dict:
+                d[k] = numpy_dict_to_value(v)
+        return d
+
+
 def parse_jsonpickle(db_entry):
+    db_entry = numpy_dict_to_value(db_entry)
     db_entry = str(db_entry)
     db_entry = db_entry.replace("\'", "\"")
     db_entry = db_entry.replace("False", "false")
