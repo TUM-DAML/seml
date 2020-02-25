@@ -20,7 +20,7 @@ def report_status(config_file):
     interrupted = collection.count_documents({'status': 'INTERRUPTED'})
     running = collection.count_documents({'status': 'RUNNING'})
     completed = collection.count_documents({'status': 'COMPLETED'})
-    title = "********** Experiment database collection report **********"
+    title = f"********** Report for database collection '{collection.name}' **********"
     print(title)
     print(f"*     - {queued:3d} queued experiment{s_if(queued)}")
     print(f"*     - {pending:3d} pending experiment{s_if(pending)}")
