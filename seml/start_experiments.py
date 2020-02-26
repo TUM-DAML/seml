@@ -223,9 +223,9 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                 subprocess.check_call(cmd, shell=True)
 
 
-def print_commands(db_collection_name, verbose, unobserved, post_mortem, num_exps, filter_dict):
+def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num_exps, filter_dict):
     print("********** First experiment **********")
-    configs = do_work(db_collection_name, verbose, slurm=False,
+    configs = do_work(db_collection_name, log_verbose=True, slurm=False,
                       unobserved=True, post_mortem=False,
                       num_exps=1, filter_dict=filter_dict, dry_run=True)
     exe, config = configs[0]
@@ -237,7 +237,7 @@ def print_commands(db_collection_name, verbose, unobserved, post_mortem, num_exp
     print('["' + '", "'.join(config) + '"]')
 
     print("\nCommand for running locally with post-mortem debugging:")
-    configs = do_work(db_collection_name, verbose, slurm=False,
+    configs = do_work(db_collection_name, log_verbose=True, slurm=False,
                       unobserved=True, post_mortem=True,
                       num_exps=1, filter_dict=filter_dict, dry_run=True)
     exe, config = configs[0]
@@ -245,7 +245,7 @@ def print_commands(db_collection_name, verbose, unobserved, post_mortem, num_exp
 
     print()
     print("********** All raw commands **********")
-    configs = do_work(db_collection_name, verbose, slurm=False,
+    configs = do_work(db_collection_name, log_verbose=log_verbose, slurm=False,
                       unobserved=unobserved, post_mortem=post_mortem,
                       num_exps=num_exps, filter_dict=filter_dict, dry_run=True)
     for (exe, config) in configs:
@@ -273,10 +273,10 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
         filter_dict = {'_id': sacred_id}
 
     if dry_run:
-        print_commands(db_collection_name, verbose,
+        print_commands(db_collection_name, log_verbose=verbose,
                        unobserved=unobserved, post_mortem=post_mortem,
                        num_exps=test, filter_dict=filter_dict)
     else:
-        do_work(db_collection_name, verbose, slurm=use_slurm,
+        do_work(db_collection_name, log_verbose=verbose, slurm=use_slurm,
                 unobserved=unobserved, post_mortem=post_mortem,
                 num_exps=test, filter_dict=filter_dict, dry_run=dry_run)
