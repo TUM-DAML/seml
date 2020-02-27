@@ -232,7 +232,11 @@ def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num
     print(f"Executable: {exe}")
     config.insert(0, 'with')
     config.append('--debug')
-    config = [c.replace('"', "'") for c in config]
+
+    # Remove double quotes, change single quotes to escaped double quotes
+    config = [c.replace('"', '') for c in config]
+    config = [c.replace("'", '\\"') for c in config]
+
     print("Arguments for running inside a debugger:")
     print('["' + '", "'.join(config) + '"]')
 
