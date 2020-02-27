@@ -234,11 +234,13 @@ def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num
     config.append('--debug')
 
     # Remove double quotes, change single quotes to escaped double quotes
-    config = [c.replace('"', '') for c in config]
-    config = [c.replace("'", '\\"') for c in config]
+    config_vscode = [c.replace('"', '') for c in config]
+    config_vscode = [c.replace("'", '\\"') for c in config_vscode]
 
-    print("Arguments for running inside a debugger:")
-    print('["' + '", "'.join(config) + '"]')
+    print("Arguments for VS Code debugger:")
+    print('["' + '", "'.join(config_vscode) + '"]')
+    print("Arguments for PyCharm debugger:")
+    print(" ".join(config))
 
     print("\nCommand for running locally with post-mortem debugging:")
     configs = do_work(db_collection_name, log_verbose=True, slurm=False,
