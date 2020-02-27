@@ -9,13 +9,13 @@ def get_config_from_exp(exp, log_verbose=False, unobserved=False, post_mortem=Fa
 
     config = exp['config']
     config['db_collection'] = exp['seml']['db_collection']
+    if not unobserved:
+        config['overwrite'] = exp['_id']
     config_strings = [f'{key}="{val}"' for key, val in config.items()]
     if not log_verbose:
         config_strings.append("--force")
     if unobserved:
         config_strings.append("--unobserved")
-    else:
-        config['overwrite'] = exp['_id']
     if post_mortem:
         config_strings.append("--pdb")
     if debug:
