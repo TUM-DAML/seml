@@ -1,6 +1,6 @@
 import subprocess
 import logging
-
+from seml.settings import SETTINGS
 
 def get_config_from_exp(exp, log_verbose=False, unobserved=False, post_mortem=False, debug=False):
     if 'executable' not in exp['seml']:
