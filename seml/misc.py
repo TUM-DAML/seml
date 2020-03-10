@@ -120,3 +120,49 @@ def flatten(dictionary: dict, parent_key: str='', sep: str='.'):
         else:
             items.append((new_key, v))
     return dict(items)
+
+def create_slack_observer(webhook=None):
+    from sacred.observers import SlackObserver
+    slack_obs = None
+    if webhook is None:
+        if "OBSERVERS" in SETTINGS and "SLACK" in SETTINGS.OBSERVERS:
+            if "WEBHOOK" in SETTINGS.OBSERVERS.SLACK:
+                webhook = SETTINGS.OBSERVERS.SLACK.WEBHOOK
+                slack_obs = SlackObserver(webhook)
+    else:
+        slack_obs = SlackObserver(webhook)
+
+    if slack_obs is None:
+        print('Failed to create Slack observer.')
+    return slack_obs
+
+def create_neptune_observer(project_name, api_token=None,
+                            source_extensions=['**/*.py', '**/*.yaml', '**/*.yml']):
+    from neptunecontrib.monitoring.sacred import NeptuneObserver
+
+    if api_token is None:
+        if "OBSERVERS" in SETTINGS and "NEPTUNE" in SETTINGS.OBSERVERS:
+            if "AUTH_TOKEN" in SETTINGS.OBSERVERS.NEPTUNE:
+                api_token = SETTINGS.OBSERVERS.NEPTUNE.AUTH_TOKEN
+    else:
+        api_token = SETTINGS.OBSERVERS.NEPTUNE.AUTH_TOKEN
+    if api_token is None:
+        print('No API token for Nepune provided. Trying to use environment variable NEPTUNE_API_TOKEN.')
+    neptune_obs = NeptuneObserver(api_token=api_token, project_name=project_name, source_extensions=source_extensions)
+    return neptune_obs
+
+def chunker(seq, size):
+    """
+    Chunk a list into chunks of size `size`.
+    From
+    https://stackoverflow.com/questions/434287/what-is-the-most-pythonic-way-to-iterate-over-a-list-in-chunks
+    Parameters
+    ----------
+    seq: input list
+    size: size of chunks
+
+    Returns
+    -------
+    The list of lists of size `size`
+    """
+    return (seq[pos:pos + size] for pos in range(0, len(seq), size))
