@@ -138,7 +138,7 @@ def get_collection_from_config(config):
     return get_collection(db_collection_name)
 
 
-def get_mongodb_config(path=None):
+def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     """Read the MongoDB connection configuration.
 
     Reads the file at the provided path or otherwise {SETTINGS.DATABASE.MONGODB_CONFIG_PATH} to get
@@ -165,9 +165,6 @@ def get_mongodb_config(path=None):
     """
 
     access_dict = {}
-
-    if path is None:
-        path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH
 
     error_str = f"Please supply your MongoDB credentials at {path} in the format:\n"\
                 "username: <your_username>\npassword: <your_password>\nport: <port>\n"\
