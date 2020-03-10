@@ -46,7 +46,7 @@ def get_results_flattened(collection_name):
 
 
 def get_results(collection_name, fields=['config', 'result'],
-                to_data_frame=False, suffix='_runs',
+                to_data_frame=False, suffix=None,
                 states=None, parallel=False):
     import pandas as pd
     if states is None:
@@ -135,7 +135,7 @@ def read_config(config_path):
         return seml_dict, None, config_dict
 
 
-def get_collection(collection_name, mongodb_config=None, suffix='_runs'):
+def get_collection(collection_name, mongodb_config=None, suffix=None):
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
     db = get_database(**mongodb_config)
@@ -250,7 +250,7 @@ def create_mongodb_observer(collection,
     observer = MongoObserver.create(
         url=f'mongodb://{db_username}:{db_password}@{db_host}:{db_port}/{db_name}?authMechanism=SCRAM-SHA-1',
         db_name=db_name,
-        collection_prefix=collection,
+        collection=collection,
         overwrite=overwrite)
 
     return observer
