@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from pymongo import MongoClient
 import numpy as np
 import yaml
@@ -7,6 +6,7 @@ import json
 import jsonpickle
 import warnings
 import ast
+from seml.settings import SETTINGS
 import urllib.parse
 
 def get_results_flattened(collection_name):
@@ -150,17 +150,19 @@ def get_collection_from_config(config):
     return get_collection(db_collection_name)
 
 
-def get_mongodb_config(path=None):
+def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     """Read the MongoDB connection configuration.
 
-    Reads the file at $HOME/.config/seml/mongodb.config to get
+    Reads the file at the provided path or otherwise {SETTINGS.DATABASE.MONGODB_CONFIG_PATH} to get
         - database host
         - database port
         - database name
         - username
         - password
 
-    $HOME/.config/seml/mongodb.config.config should be in the format:
+    Default path is $HOME/.config/seml/mongodb.config.
+
+    Config file should be in the format:
     username: <your_username>
     password: <your_password>
     port: <port>
@@ -176,11 +178,7 @@ def get_mongodb_config(path=None):
 
     access_dict = {}
 
-    if path is None:
-        home = str(Path.home())
-        path = f'{home}/.config/seml/mongodb.config'
-
-    error_str = "Please supply your MongoDB credentials at $HOME/.config/seml/mongodb.config in the format:\n"\
+    error_str = f"Please supply your MongoDB credentials at {path} in the format:\n"\
                 "username: <your_username>\npassword: <your_password>\nport: <port>\n"\
                 "database:<database_name>\n host: <hostname>"
 
@@ -189,18 +187,18 @@ def get_mongodb_config(path=None):
 
     with open(path, 'r') as f:
         for line in f.readlines():
-                # ignore lines that are empty
-                if len(line.strip()) > 0:
-                    split = line.split(':')
-                    key = split[0].strip()
-                    value = split[1].strip()
-                    access_dict[key] = value
+            # ignore lines that are empty
+            if len(line.strip()) > 0:
+                split = line.split(':')
+                key = split[0].strip()
+                value = split[1].strip()
+                access_dict[key] = value
 
-    assert 'username' in access_dict, f'No username found in $HOME/.config/seml/mongodb.config. {error_str}'
-    assert 'password' in access_dict, f'No password found in $HOME/.config/seml/mongodb.config. {error_str}'
-    assert 'port' in access_dict, f'No database port found in $HOME/.config/seml/mongodb.config. {error_str}'
-    assert 'host' in access_dict, f'No host found in $HOME/.config/seml/mongodb.config. {error_str}'
-    assert 'database' in access_dict, f'No database name found in $HOME/.config/seml/mongodb.config. {error_str}'
+    assert 'username' in access_dict, f'No username found in {path}. {error_str}'
+    assert 'password' in access_dict, f'No password found in {path}. {error_str}'
+    assert 'port' in access_dict, f'No database port found in {path}. {error_str}'
+    assert 'host' in access_dict, f'No host found in {path}. {error_str}'
+    assert 'database' in access_dict, f'No database name found in {path}. {error_str}'
 
     db_port = access_dict['port']
     db_name = access_dict['database']
