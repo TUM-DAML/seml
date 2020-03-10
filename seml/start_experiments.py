@@ -7,7 +7,7 @@ from seml import database_utils as db_utils
 from seml import check_cancelled
 
 try:
-    from tqdm import tqdm
+    from tqdm.autonotebook import tqdm
 except ImportError:
     def tqdm(iterable, total=None):
         return iterable

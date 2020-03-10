@@ -5,7 +5,11 @@ import pymongo
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
 from seml.misc import get_default_slurm_config, s_if, unflatten, flatten
-
+try:
+    from tqdm.autonotebook import tqdm
+except ImportError:
+    def tqdm(iterable, total=None):
+        return iterable
 
 def unpack_config(config):
     reserved_keys = ['grid', 'fixed', 'random']
@@ -189,7 +193,7 @@ def filter_experiments(collection, configurations):
 
     filtered_configs = []
 
-    for config in configurations:
+    for config in tqdm(configurations):
         lookup_dict = {
             f'config.{key}': value for key, value in config.items()
         }
