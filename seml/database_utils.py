@@ -4,11 +4,16 @@ import numpy as np
 import yaml
 import json
 import jsonpickle
+from bson import json_util
 import warnings
 import ast
 from seml.settings import SETTINGS
 import urllib.parse
-
+try:
+    from tqdm.autonotebook import tqdm
+except ImportError:
+    def tqdm(iterable, total=None):
+        return iterable
 
 def get_results_flattened(collection_name):
     warnings.warn("This method is deprecated. Use database_utils.get_results instead.",
@@ -40,28 +45,37 @@ def get_results_flattened(collection_name):
     return results_flattened
 
 
-def get_results(collection_name, fields=['config', 'result'], to_data_frame=False):
+def get_results(collection_name, fields=['config', 'result'],
+                to_data_frame=False, suffix='_runs',
+                states=None, parallel=False):
     import pandas as pd
+    if states is None:
+        states = ['COMPLETED']
+    collection = get_collection(collection_name, suffix=suffix)
+    if len(states) > 0:
+        filter = {'status': {'$in': states}}
+    else:
+        filter = {}
+    cursor = collection.find(filter, fields)
+    results = [x for x in tqdm(cursor, total=collection.count_documents(filter))]
 
-    collection = get_collection(collection_name)
-    cursor = collection.find({'status': 'COMPLETED'}, fields)
-    results = list(cursor)
-
-    parsed = [parse_jsonpickle(entry) for entry in results]
+    if parallel:
+        from multiprocessing import Pool
+        with Pool() as p:
+            parsed = list(tqdm(p.imap(parse_jsonpickle, results),
+                               total=len(results)))
+    else:
+        parsed = [parse_jsonpickle(entry) for entry in tqdm(results)]
     if to_data_frame:
         parsed = pd.io.json.json_normalize(parsed, sep='.')
     return parsed
 
 
 def parse_jsonpickle(db_entry):
-    db_entry = str(db_entry)
-    db_entry = db_entry.replace("\'", "\"")
-    db_entry = db_entry.replace("False", "false")
-    db_entry = db_entry.replace("True", "true")
-    db_entry = db_entry.replace("json://", "")
-    db_entry = db_entry.replace("None", "null")
+    import jsonpickle.ext.numpy as jsonpickle_numpy
+    jsonpickle_numpy.register_handlers()
     try:
-        parsed = jsonpickle.loads(db_entry, keys=False)
+        parsed = jsonpickle.loads(json.dumps(db_entry, default=json_util.default), keys=False)
     except IndexError:
         parsed = db_entry
     return parsed
