@@ -2,6 +2,7 @@ import datetime
 import numpy as np
 import pymongo
 
+from seml.database_utils import make_hash
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
 from seml.misc import get_default_slurm_config, s_if, unflatten, flatten
@@ -170,7 +171,7 @@ def generate_configs(experiment_config):
     return all_configs
 
 
-def filter_experiments(collection, configurations):
+def filter_experiments(collection, configurations, no_hash=False):
     """Check database collection for already present entries.
 
     Check the database collection for experiments that have the same configuration.
@@ -183,6 +184,8 @@ def filter_experiments(collection, configurations):
         The MongoDB collection containing the experiments.
     configurations: list of dicts
         Contains the individual parameter configurations.
+    no_hash: bool (default: False)
+        Whether to *NOT* use the hash of the config dictionary to perform a faster duplicate check.
 
     Returns
     -------
@@ -192,13 +195,16 @@ def filter_experiments(collection, configurations):
     """
 
     filtered_configs = []
-
     for config in tqdm(configurations):
-        lookup_dict = {
-            f'config.{key}': value for key, value in config.items()
-        }
+        if not no_hash:
+            config_hash = make_hash(config)
+            lookup_result = collection.find_one({'config_hash': config_hash})
+        else:
+            lookup_dict = {
+                f'config.{key}': value for key, value in config.items()
+            }
 
-        lookup_result = collection.find_one(lookup_dict)
+            lookup_result = collection.find_one(lookup_dict)
 
         if lookup_result is None:
             filtered_configs.append(config)
@@ -250,12 +256,13 @@ def queue_configs(collection, seml_config, slurm_config, configs):
                  'seml': seml_config,
                  'slurm': slurm_config,
                  'config': c,
+                 'config_hash': make_hash(c),
                  'queue_time': datetime.datetime.utcnow()}
                 for ix, c in enumerate(configs)]
     collection.insert_many(db_dicts)
 
 
-def queue_experiments(config_file, force_duplicates):
+def queue_experiments(config_file, force_duplicates, no_hash=False):
     seml_config, slurm_config, experiment_config = db_utils.read_config(config_file)
 
     # Set Slurm config with default parameters as fall-back option
@@ -269,19 +276,19 @@ def queue_experiments(config_file, force_duplicates):
             slurm_config[k] = v
 
     slurm_config['sbatch_options'] = utils.remove_dashes(slurm_config['sbatch_options'])
-
     collection = db_utils.get_collection(seml_config['db_collection'])
-
     configs = generate_configs(experiment_config)
 
     if not force_duplicates:
         len_before = len(configs)
-        configs = filter_experiments(collection, configs)
+        configs = filter_experiments(collection, configs, no_hash=no_hash)
         len_after = len(configs)
         if len_after != len_before:
             print(f"{len_before - len_after} of {len_before} experiment{s_if(len_before)} were already found "
                   f"in the database. They were not added again.")
 
+    # Create an index on the config hash. If the index is already present, this simply does nothing.
+    collection.create_index("config_hash")
     # Add the configurations to the database with QUEUED status.
     if len(configs) > 0:
         queue_configs(collection, seml_config, slurm_config, configs)

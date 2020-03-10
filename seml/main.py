@@ -302,6 +302,11 @@ if __name__ == '__main__':
             "queue",
             help="Queue the experiments as defined in the configuration.")
     parser_queue.add_argument(
+            '-n', '--no-hash', action='store_true',
+            help="If True, will not use the hash of the config dictionary to filter out duplicates (by comparing all"
+                 "dictionary values individually. This is much  slower, so use only if you have a good reason not to"
+                 " use the hash.")
+    parser_queue.add_argument(
             '-f', '--force-duplicates', action='store_true',
             help="If True, will add experiments to the database even when experiments with identical configurations "
                  "are already in the database.")

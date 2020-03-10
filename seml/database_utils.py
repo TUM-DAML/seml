@@ -316,3 +316,19 @@ def chunk_list(exps):
         size = exps[idx[0]]['slurm']['experiments_per_job']
         exp_chunks.extend(([exps[i] for i in idx[pos:pos + size]] for pos in range(0, len(idx), size)))
     return exp_chunks
+
+
+def make_hash(d: dict):
+    """
+    Generate a hash for the input dictionary.
+    From: https://stackoverflow.com/a/22003440
+    Parameters
+    ----------
+    d: input dictionary
+
+    Returns
+    -------
+    hash (hex encoded) of the input dictionary.
+    """
+    import hashlib
+    return hashlib.md5(json.dumps(d, sort_keys=True).encode("utf-8")).hexdigest()
