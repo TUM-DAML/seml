@@ -83,10 +83,12 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
     check_file = check_cancelled.__file__
     script += "process_ids=() \n"
     script += f"exp_ids=({' '.join([str(e['_id']) for e in exps])}) \n"
+    commands = []
     for ix, exp in enumerate(exps):
         exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
                                           unobserved=unobserved, post_mortem=post_mortem)
         cmd = f"python {exe} with {' '.join(config)}"
+        commands.append(cmd)
         collection_str = exp['seml']['db_collection']
         script += f"python {check_file} --experiment_id {exp['_id']} --database_collection {collection_str}\n"
         script += "ret=$?\n"
@@ -134,6 +136,7 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
                         'slurm.id': slurm_job_id,
                         'slurm.step_id': ix,
                         'slurm.sbatch_options': sbatch_options,
+                        'slurm.command': commands[ix],
                         'slurm.output_file': f"{output_dir_path}/{name}-{slurm_job_id}.out"}})
         if log_verbose:
             print(f"Started experiment with ID {slurm_job_id}")
@@ -214,19 +217,25 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                                                   unobserved=unobserved, post_mortem=post_mortem)
 
                 cmd = f"python {exe} with {' '.join(config)}"
-                db_entry = collection.find_one({'_id': exp['_id']})
-                if db_entry['status'] != 'QUEUED' and not unobserved:
-                    # if there are multiple local workers another one might have started
-                    # this experiment in the meantime.
-                    continue
+
                 if not unobserved:
-                    collection.update_one(
-                        {'_id': exp['_id']},
-                        {'$set': {'status': 'PENDING', 'seml.cmd': cmd}})
+                    db_entry = collection.find_one_and_update(filter={'_id': exp['_id'], 'status': 'QUEUED'},
+                                                              update={'$set': {'status': 'PENDING',
+                                                                               'seml.command': cmd}},
+                                                              upsert=False)
+                    if db_entry is None:
+                        # another worker already set this entry to PENDING (or at least, it's no longer QUEUED)
+                        # so we ignore it.
+                        continue
+
                 if log_verbose:
                     print(f'Running the following command:\n {cmd}')
                 # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
-                subprocess.check_call(cmd, shell=True)
+                try:
+                    subprocess.check_call(cmd, shell=True)
+                except subprocess.CalledProcessError as e:
+                    output = e.output
+                    print(output)
 
 
 def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num_exps, filter_dict):
