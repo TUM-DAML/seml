@@ -4,13 +4,13 @@ import warnings
 import datetime
 import json
 
-from seml.misc import get_slurm_jobs, s_if
+from seml.misc import get_slurm_jobs, s_if, chunker
 from seml import database_utils as db_utils
 from seml.queue_experiments import queue_experiments
 from seml.start_experiments import start_experiments
 
 try:
-    from tqdm import tqdm
+    from tqdm.autonotebook import tqdm
 except ImportError:
     def tqdm(iterable, total=None):
         return iterable
@@ -110,7 +110,7 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
             else:
                 print(f"Cancelling {ncancel} experiment{s_if(ncancel)}.")
 
-            exps = list(collection.find(filter_dict))
+            exps = list(collection.find(filter_dict, {'slurm.id': 1, '_id': 1, 'status': 1}))
             # set of slurm IDs in the database
             slurm_ids = set([e['slurm']['id'] for e in exps if "slurm" in e and 'id' in e['slurm']])
             # set of experiment IDs to be cancelled.
@@ -118,11 +118,12 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
             to_cancel = set()
 
             # iterate over slurm IDs to check which slurm jobs can be cancelled altogether
-            for s_id in slurm_ids:
+            for s_id in tqdm(slurm_ids):
                 # find experiments RUNNING under the slurm job
-                jobs_running = list(collection.find({'slurm.id': s_id,
-                                                     'status'  : {"$in": ["RUNNING"]}},
-                                                    {"_id": 1}))
+                jobs_running = [x for x in exps if x['slurm']['id'] == s_id and x['status'] in ['RUNNING']]
+                # jobs_running = list(collection.find({'slurm.id': s_id,
+                #                                      'status'  : {"$in": ["RUNNING"]}},
+                #                                     {"_id": 1}))
                 running_exp_ids = set(e['_id'] for e in jobs_running)
                 if len(running_exp_ids.difference(exp_ids)) == 0:
                     # there are no running jobs in this slurm job that should not be canceled.
@@ -130,7 +131,9 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
 
             # cancel all Slurm jobs for which no running experiment remains.
             if len(to_cancel) > 0:
-                subprocess.check_output(f"scancel {' '.join(list(to_cancel))}", shell=True)
+                chunk_size = 100
+                chunks = chunker(list(to_cancel), chunk_size)
+                [subprocess.check_output(f"scancel {' '.join(chunk)}", shell=True) for chunk in chunks]
 
             # update database status and write the stop_time
             collection.update_many(filter_dict, {'$set': {"status": "INTERRUPTED",
