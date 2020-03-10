@@ -7,6 +7,7 @@ import jsonpickle
 import warnings
 import ast
 from seml.settings import SETTINGS
+import urllib.parse
 
 def get_results_flattened(collection_name):
     warnings.warn("This method is deprecated. Use database_utils.get_results instead.",
@@ -51,7 +52,18 @@ def get_results(collection_name, fields=['config', 'result'], to_data_frame=Fals
     return parsed
 
 
+def numpy_dict_to_value(d):
+    if 'py/object' in d.keys() and d['py/object'].startswith('numpy.'):
+        return d['value']
+    else:
+        for k, v in d.items():
+            if type(v) is dict:
+                d[k] = numpy_dict_to_value(v)
+        return d
+
+
 def parse_jsonpickle(db_entry):
+    db_entry = numpy_dict_to_value(db_entry)
     db_entry = str(db_entry)
     db_entry = db_entry.replace("\'", "\"")
     db_entry = db_entry.replace("False", "false")
@@ -220,12 +232,11 @@ def create_mongodb_observer(collection,
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
 
-    db_name = mongodb_config['db_name']
-    db_username = mongodb_config['username']
-    db_password = mongodb_config['password']
-    db_port = mongodb_config['port']
-    db_host = mongodb_config['host']
-
+    db_name = urllib.parse.quote(mongodb_config['db_name'])
+    db_username = urllib.parse.quote(mongodb_config['username'])
+    db_password = urllib.parse.quote(mongodb_config['password'])
+    db_port = urllib.parse.quote(mongodb_config['port'])
+    db_host = urllib.parse.quote(mongodb_config['host'])
     observer = MongoObserver.create(
         url=f'mongodb://{db_username}:{db_password}@{db_host}:{db_port}/{db_name}?authMechanism=SCRAM-SHA-1',
         db_name=db_name,

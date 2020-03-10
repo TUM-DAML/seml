@@ -147,7 +147,7 @@ def generate_configs(experiment_config):
         grid_configs = {k: utils.generate_grid(v) for k,v in grid_params.items()}
         grid_product = list(utils.cartesian_product_dict(grid_configs))
 
-        with_fixed = [{**d, **fixed_params} for d in grid_product]
+        with_fixed = [{**fixed_params, **d} for d in grid_product]
         if len(random_params) > 0:
             with_random = [{**grid, **random} for grid in with_fixed for random in random_sampled]
         else:

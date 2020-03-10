@@ -20,7 +20,7 @@ def report_status(config_file):
     interrupted = collection.count_documents({'status': 'INTERRUPTED'})
     running = collection.count_documents({'status': 'RUNNING'})
     completed = collection.count_documents({'status': 'COMPLETED'})
-    title = "********** Experiment database collection report **********"
+    title = f"********** Report for database collection '{collection.name}' **********"
     print(title)
     print(f"*     - {queued:3d} queued experiment{s_if(queued)}")
     print(f"*     - {pending:3d} pending experiment{s_if(pending)}")
@@ -41,16 +41,19 @@ def cancel_experiment_by_id(collection, exp_id):
             # Set the database state to INTERRUPTED
             collection.update_one({'_id': exp_id}, {'$set': {'status': 'INTERRUPTED'}})
 
+            # Check if other experiments are running in the same job
             other_exps = collection.find({'slurm.id': exp['slurm']['id']})
-            any_exp_running = False
+            other_exp_running = False
             for e in other_exps:
-                if e['status'] in ["RUNNING", "COMPLETED"]:
-                    any_exp_running = True
+                if e['status'] in ["RUNNING", "PENDING"]:
+                    other_exp_running = True
 
-            if not any_exp_running:
+            # Cancel if no other experiments are running in the same job
+            if not other_exp_running:
                 subprocess.check_output(f"scancel {exp['slurm']['id']}", shell=True)
                 # set state to interrupted again (might have been overwritten by Sacred in the meantime).
-                collection.update_many({'slurm.id': exp['slurm']['id']}, {'$set': {'status': 'INTERRUPTED'}})
+                collection.update_many({'slurm.id': exp['slurm']['id']},
+                                       {'$set': {'status': 'INTERRUPTED', 'stop_time': datetime.datetime.utcnow()}})
 
         except subprocess.CalledProcessError:
             warnings.warn(f"Slurm job {exp['slurm']['id']} of experiment "
@@ -235,8 +238,7 @@ if __name__ == '__main__':
                         "See examples/README.md for more details.",
             formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
-            '-c', '--config-file',
-            type=str, required=True,
+            'config_file', type=str,
             help="Path to the YAML configuration file for the experiment.")
     subparsers = parser.add_subparsers(title="Possible operations")
 
@@ -256,8 +258,23 @@ if __name__ == '__main__':
             '-l', '--local', action='store_true',
             help="Run the experiments locally.")
     parser_start.add_argument(
-            '--test', type=int, default=-1,
-            help="Only run the specified number of experiments to try and see whether they work.")
+            '-t', '--test', type=int, default=-1,
+            help="Only run the specified number of experiments to try and see whether they work. "
+                 "Also activates `--verbose`.")
+    parser_start.add_argument(
+            '-u', '--unobserved', action='store_true',
+            help="Run the experiments without Sacred observers (no changes to MongoDB). "
+                 "This also disables output capturing by Sacred, facilitating the use of debuggers (pdb, ipdb).")
+    parser_start.add_argument(
+            '-pm', '--post-mortem', action='store_true',
+            help="Activate post-mortem debugging with pdb.")
+    parser_start.add_argument(
+            '-d', '--debug', action='store_true',
+            help="Run a single experiment locally without Sacred observers and with post-mortem debugging. "
+                 "This is equivalent to `--local --test 1 --unobserved --post-mortem`.")
+    parser_start.add_argument(
+            '-dr', '--dry-run', action='store_true',
+            help="Only show the associated commands instead of running the experiments.")
     parser_start.add_argument(
             '--verbose', '-v', action='store_true',
             help='Display more log messages.')
