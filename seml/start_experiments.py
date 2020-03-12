@@ -136,7 +136,7 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
                         'slurm.id': slurm_job_id,
                         'slurm.step_id': ix,
                         'slurm.sbatch_options': sbatch_options,
-                        'slurm.command': commands[ix],
+                        'seml.command': commands[ix],
                         'slurm.output_file': f"{output_dir_path}/{name}-{slurm_job_id}.out"}})
         if log_verbose:
             print(f"Started experiment with ID {slurm_job_id}")
