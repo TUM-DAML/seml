@@ -171,7 +171,7 @@ def generate_configs(experiment_config):
     return all_configs
 
 
-def filter_experiments(collection, configurations, no_hash=False):
+def filter_experiments(collection, configurations, use_hash=False):
     """Check database collection for already present entries.
 
     Check the database collection for experiments that have the same configuration.
@@ -184,8 +184,8 @@ def filter_experiments(collection, configurations, no_hash=False):
         The MongoDB collection containing the experiments.
     configurations: list of dicts
         Contains the individual parameter configurations.
-    no_hash: bool (default: False)
-        Whether to *NOT* use the hash of the config dictionary to perform a faster duplicate check.
+    use_hash: bool (default: False)
+        Whether to use the hash of the config dictionary to perform a faster duplicate check.
 
     Returns
     -------
@@ -196,7 +196,7 @@ def filter_experiments(collection, configurations, no_hash=False):
 
     filtered_configs = []
     for config in tqdm(configurations):
-        if not no_hash:
+        if use_hash:
             config_hash = make_hash(config)
             lookup_result = collection.find_one({'config_hash': config_hash})
         else:
@@ -281,7 +281,8 @@ def queue_experiments(config_file, force_duplicates, no_hash=False):
 
     if not force_duplicates:
         len_before = len(configs)
-        configs = filter_experiments(collection, configs, no_hash=no_hash)
+        use_hash = not no_hash
+        configs = filter_experiments(collection, configs, use_hash=use_hash)
         len_after = len(configs)
         if len_after != len_before:
             print(f"{len_before - len_after} of {len_before} experiment{s_if(len_before)} were already found "
