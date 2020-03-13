@@ -5,6 +5,7 @@ import numpy as np
 from seml.misc import get_config_from_exp, s_if
 from seml import database_utils as db_utils
 from seml import check_cancelled
+import warnings
 
 try:
     from tqdm.autonotebook import tqdm
@@ -137,7 +138,7 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
                         'slurm.step_id': ix,
                         'slurm.sbatch_options': sbatch_options,
                         'seml.command': commands[ix],
-                        'slurm.output_file': f"{output_dir_path}/{name}-{slurm_job_id}.out"}})
+                        'seml.output_file': f"{output_dir_path}/{name}-{slurm_job_id}.out"}})
         if log_verbose:
             print(f"Started experiment with ID {slurm_job_id}")
     os.remove(path)
@@ -200,6 +201,12 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
 
         for exps in tqdm(exp_chunks):
             slurm_config = exps[0]['slurm']
+            seml_config = exps[0]['seml']
+            if 'output_dir' in slurm_config:
+                warnings.warn("'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
+                              "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
+            elif 'output_dir' in seml_config:
+                slurm_config['output_dir'] = seml_config['output_dir']
             del slurm_config['experiments_per_job']
             start_slurm_job(collection, exps, log_verbose, unobserved, post_mortem, **slurm_config)
     else:
@@ -210,8 +217,12 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
 
         print(f'Starting local worker thread that will run up to {nexps} experiments, '
               f'until no queued experiments remain.')
+        collection.update_many(query_dict, {"$set": {"status": "PENDING"}})
+        num_exceptions = 0
+        i_exp = 0
 
-        for exps in tqdm(exp_chunks):
+        tq = tqdm(exp_chunks)
+        for exps in tq:
             for exp in exps:
                 exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
                                                   unobserved=unobserved, post_mortem=post_mortem)
@@ -219,9 +230,12 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                 cmd = f"python {exe} with {' '.join(config)}"
 
                 if not unobserved:
-                    db_entry = collection.find_one_and_update(filter={'_id': exp['_id'], 'status': 'QUEUED'},
-                                                              update={'$set': {'status': 'PENDING',
-                                                                               'seml.command': cmd}},
+                    # check also whether PENDING experiments have their Slurm ID set, in this case they are waiting
+                    # for Slurm execution and we don't start them locally.
+                    db_entry = collection.find_one_and_update(filter={'_id': exp['_id'], 'status': 'PENDING',
+                                                                      'slurm.id': {'$exists': False}},
+                                                              update={'$set': {'seml.command': cmd,
+                                                                               'status': 'RUNNING'}},
                                                               upsert=False)
                     if db_entry is None:
                         # another worker already set this entry to PENDING (or at least, it's no longer QUEUED)
@@ -230,12 +244,39 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
 
                 if log_verbose:
                     print(f'Running the following command:\n {cmd}')
-                # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
                 try:
-                    subprocess.check_call(cmd, shell=True)
+                    output_dir = "."
+                    slurm_config = exps[0]['slurm']
+                    seml_config = exps[0]['seml']
+                    if 'output_dir' in slurm_config:
+                        warnings.warn(
+                            "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
+                            "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
+                        output_dir = slurm_config['output_dir']
+                    if 'output_dir' in seml_config:
+                        output_dir = seml_config['output_dir']
+                    output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
+                    exp_name = slurm_config['name']
+
+                    output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}-out.txt"
+                    collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
+
+                    with open(output_file, "w") as log_file:
+                        # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
+                        subprocess.check_call(cmd, shell=True, stderr=log_file,
+                                              stdout=log_file, )
+
                 except subprocess.CalledProcessError as e:
-                    output = e.output
-                    print(output)
+                    num_exceptions += 1
+                except IOError:
+                    print(f"Log file {output_file} could not be written.")
+                    # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
+                    collection.find_one_and_update(filter={'_id': exp['_id']},
+                                                   update={'$set': {'status': 'FAILED'}},
+                                                   upsert=False)
+                finally:
+                    i_exp += 1
+                    tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
 
 
 def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num_exps, filter_dict):

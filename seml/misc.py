@@ -64,7 +64,6 @@ def s_if(n):
 
 def get_default_slurm_config():
     return {
-            'output_dir': '.',
             'experiments_per_job': 1,
             'sbatch_options': {
                 'time': '0-08:00',

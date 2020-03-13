@@ -123,7 +123,8 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
             # iterate over slurm IDs to check which slurm jobs can be cancelled altogether
             for s_id in tqdm(slurm_ids):
                 # find experiments RUNNING under the slurm job
-                jobs_running = [x for x in exps if x['slurm']['id'] == s_id and x['status'] in ['RUNNING']]
+                jobs_running = [x for x in exps if 'id' in x['slurm'] and x['slurm']['id'] == s_id
+                                and x['status'] in ['RUNNING']]
                 # jobs_running = list(collection.find({'slurm.id': s_id,
                 #                                      'status'  : {"$in": ["RUNNING"]}},
                 #                                     {"_id": 1}))
@@ -230,13 +231,26 @@ def detect_killed(config_file, verbose=True):
             nkilled += 1
             collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'KILLED'}})
             try:
-                with open(exp['slurm']['output_file'], 'r') as f:
+                slurm_config = exp['slurm']
+                seml_config = exp['seml']
+                if 'output_file' in seml_config:
+                    output_file = seml_config['output_file']
+                elif 'output_file' in slurm_config:     # backward compatibility, we used to store the path in 'slurm'
+                    output_file = slurm_config['output_file']
+                else:
+                    continue
+                with open(output_file, 'r') as f:
                     all_lines = f.readlines()
                 collection.update_one({'_id': exp['_id']}, {'$set': {'fail_trace': all_lines[-4:]}})
             except IOError:
-                print(f"Warning: file {exp['slurm']['output_file']} could not be read.")
+                if 'output_file' in seml_config:
+                    output_file = seml_config['output_file']
+                elif 'output_file' in slurm_config:     # backward compatibility
+                    output_file = slurm_config['output_file']
+                print(f"Warning: file {output_file} could not be read.")
     if verbose:
         print(f"Detected {nkilled} externally killed experiment{s_if(nkilled)}.")
+
 
 def clean_unreferenced_artifacts(config_file, all_collections=False):
     """

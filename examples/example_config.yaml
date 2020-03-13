@@ -46,10 +46,10 @@
 seml:
   db_collection: example_experiment
   executable: example_experiment.py
+  output_dir: slurm
 
 slurm:
   name: example_experiment
-  output_dir: slurm
   experiments_per_job: 1
   sbatch_options:
     gres: gpu:1       # num GPUs
