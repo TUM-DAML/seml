@@ -46,7 +46,7 @@ def get_results_flattened(collection_name):
 
 
 def get_results(collection_name, fields=['config', 'result'],
-                to_data_frame=False, suffix=None,
+                to_data_frame=False, suffix="_runs",
                 states=None, parallel=False):
     import pandas as pd
     if states is None:
@@ -135,7 +135,7 @@ def read_config(config_path):
         return seml_dict, None, config_dict
 
 
-def get_collection(collection_name, mongodb_config=None, suffix=None):
+def get_collection(collection_name, mongodb_config=None, suffix="_runs"):
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
     db = get_database(**mongodb_config)
@@ -244,11 +244,11 @@ def create_mongodb_observer(collection,
     db_password = urllib.parse.quote(mongodb_config['password'])
     db_port = urllib.parse.quote(mongodb_config['port'])
     db_host = urllib.parse.quote(mongodb_config['host'])
-    observer = MongoObserver.create(
-        url=f'mongodb://{db_username}:{db_password}@{db_host}:{db_port}/{db_name}?authMechanism=SCRAM-SHA-1',
-        db_name=db_name,
-        collection=collection,
-        overwrite=overwrite)
+    url = f'mongodb://{db_username}:{db_password}@{db_host}:{db_port}/{db_name}?authMechanism=SCRAM-SHA-1'
+    observer = MongoObserver(url=url,
+                             db_name=db_name,
+                             collection_prefix=collection,
+                             overwrite=overwrite)
 
     return observer
 
