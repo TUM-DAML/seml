@@ -8,4 +8,5 @@ setup(name='seml',
       author='KDD Group @ TUM',
       author_email='zuegnerd@in.tum.de; klicpera@in.tum.de',
       packages=find_packages('.'),
+      scripts=['bin/seml'],
       zip_safe=False)
