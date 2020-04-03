@@ -280,10 +280,12 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
 
 
 def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num_exps, filter_dict):
-    print("********** First experiment **********")
     configs = do_work(db_collection_name, log_verbose=True, slurm=False,
                       unobserved=True, post_mortem=False,
                       num_exps=1, filter_dict=filter_dict, dry_run=True)
+    if configs is None:
+        return
+    print("********** First experiment **********")
     exe, config = configs[0]
     print(f"Executable: {exe}")
     config.insert(0, 'with')
