@@ -300,8 +300,8 @@ def clean_unreferenced_artifacts(config_file, all_collections=False):
         fs.delete(to_delete)
     print(f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.')
 
-if __name__ == '__main__':
 
+def main():
     parser = argparse.ArgumentParser(
             description="Manage experiments for the given configuration. "
                         "Each experiment is represented as a record in the database. "
