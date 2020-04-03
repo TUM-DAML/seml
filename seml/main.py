@@ -444,11 +444,11 @@ def main():
     parser_detect.set_defaults(func=detect_killed)
 
     parser_clean_db = subparsers.add_parser(
-        "clean_db",
+        "clean-db",
         help="Remove orphaned artifacts in the DB from runs which have been deleted.")
 
     parser_clean_db.add_argument(
-        '-a', '--all_collections', action='store_true',
+        '-a', '--all-collections', action='store_true',
         help="If True, will scan all collections for orphaned artifacts (not just the one provided in the config).")
 
     parser_clean_db.set_defaults(func=clean_unreferenced_artifacts)
