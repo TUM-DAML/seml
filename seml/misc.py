@@ -32,7 +32,7 @@ def get_slurm_jobs():
         return []
 
 
-def setup_logger(ex):
+def setup_logger(ex, level='INFO'):
     """
     Set up logger for experiment.
 
@@ -40,6 +40,8 @@ def setup_logger(ex):
     ----------
     ex: sacred.Experiment
     Sacred experiment to set the logger of.
+    level: str or int
+    Set the threshold for the logger to this level.
 
     Returns
     -------
@@ -54,7 +56,7 @@ def setup_logger(ex):
             datefmt='%Y-%m-%d %H:%M:%S')
     ch.setFormatter(formatter)
     logger.addHandler(ch)
-    logger.setLevel('INFO')
+    logger.setLevel(level)
     ex.logger = logger
 
 
