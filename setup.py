@@ -1,5 +1,7 @@
 from setuptools import setup, find_packages
 
+with open('requirements.txt', 'r') as f:
+    install_requires = f.read().splitlines()
 
 setup(
     name='seml',
@@ -14,4 +16,5 @@ setup(
                 'seml = seml.main:main'
             ]
     },
+    install_requires=install_requires,
     zip_safe=False)
