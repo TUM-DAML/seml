@@ -191,7 +191,10 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
 
     collection = db_utils.get_collection(collection_name)
 
-    query_dict = {'status': {"$in": ['QUEUED']}}
+    if unobserved and '_id' in filter_dict.keys():
+        query_dict = {}
+    else:
+        query_dict = {'status': {"$in": ['QUEUED']}}
     query_dict.update(filter_dict)
 
     if collection.count_documents(query_dict) <= 0:
