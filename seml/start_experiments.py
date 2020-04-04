@@ -140,7 +140,7 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
     output = subprocess.check_output(f'sbatch {path}', shell=True)
     slurm_array_job_id = int(output.split(b' ')[-1])
     for task_id, chunk in enumerate(exp_array):
-        for step_id, exp in enumerate(chunk):
+        for exp in chunk:
             if not unobserved:
                 collection.update_one(
                         {'_id': exp['_id']},
@@ -148,7 +148,6 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
                             'status': 'PENDING',
                             'slurm.array_id': slurm_array_job_id,
                             'slurm.task_id': task_id,
-                            'slurm.step_id': step_id,
                             'slurm.sbatch_options': sbatch_options,
                             'seml.output_file': f"{output_dir_path}/{name}_{slurm_array_job_id}_{task_id}.out"}})
             if log_verbose:
