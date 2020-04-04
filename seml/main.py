@@ -4,7 +4,7 @@ import warnings
 import datetime
 import json
 
-from seml.misc import get_slurm_jobs, s_if, chunker
+from seml.misc import get_slurm_arrays_tasks, s_if, chunker
 from seml import database_utils as db_utils
 from seml.queue_experiments import queue_experiments
 from seml.start_experiments import start_experiments
@@ -41,14 +41,16 @@ def report_status(config_file):
 def cancel_experiment_by_id(collection, exp_id):
     exp = collection.find_one({'_id': exp_id})
     if exp is not None:
+        job_str = f"{exp['slurm']['array_id']}_{exp['slurm']['task_id']}"
         try:
             # Check if job exists
-            subprocess.check_output(f"scontrol show jobid -dd {exp['slurm']['id']}", shell=True)
+            subprocess.check_output(f"scontrol show jobid -dd {job_str}", shell=True)
             # Set the database state to INTERRUPTED
             collection.update_one({'_id': exp_id}, {'$set': {'status': 'INTERRUPTED'}})
 
             # Check if other experiments are running in the same job
-            other_exps = collection.find({'slurm.id': exp['slurm']['id']})
+            other_exps = collection.find({'slurm.array_id': exp['slurm']['array_id'],
+                                          'slurm.task_id': exp['slurm']['task_id']})
             other_exp_running = False
             for e in other_exps:
                 if e['status'] in ["RUNNING", "PENDING"]:
@@ -56,13 +58,15 @@ def cancel_experiment_by_id(collection, exp_id):
 
             # Cancel if no other experiments are running in the same job
             if not other_exp_running:
-                subprocess.check_output(f"scancel {exp['slurm']['id']}", shell=True)
+                subprocess.check_output(f"scancel {job_str}", shell=True)
                 # set state to interrupted again (might have been overwritten by Sacred in the meantime).
-                collection.update_many({'slurm.id': exp['slurm']['id']},
-                                       {'$set': {'status': 'INTERRUPTED', 'stop_time': datetime.datetime.utcnow()}})
+                collection.update_many({'slurm.array_id': exp['slurm']['array_id'],
+                                        'slurm.task_id': exp['slurm']['task_id']},
+                                       {'$set': {'status': 'INTERRUPTED',
+                                                 'stop_time': datetime.datetime.utcnow()}})
 
         except subprocess.CalledProcessError:
-            warnings.warn(f"Slurm job {exp['slurm']['id']} of experiment "
+            warnings.warn(f"Slurm job {job_str} of experiment "
                           f"with ID {exp_id} is not pending/running in Slurm.")
     else:
         raise LookupError(f"No experiment found with ID {exp_id}.")
@@ -113,25 +117,23 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
             else:
                 print(f"Cancelling {ncancel} experiment{s_if(ncancel)}.")
 
-            exps = list(collection.find(filter_dict, {'slurm.id': 1, '_id': 1, 'status': 1}))
+            exps = list(collection.find(filter_dict, {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1}))
             # set of slurm IDs in the database
-            slurm_ids = set([e['slurm']['id'] for e in exps if "slurm" in e and 'id' in e['slurm']])
+            slurm_ids = set([(e['slurm']['array_id'], e['slurm']['task_id']) for e in exps])
             # set of experiment IDs to be cancelled.
             exp_ids = set([e['_id'] for e in exps])
             to_cancel = set()
 
             # iterate over slurm IDs to check which slurm jobs can be cancelled altogether
-            for s_id in tqdm(slurm_ids):
+            for (a_id, t_id) in slurm_ids:
                 # find experiments RUNNING under the slurm job
-                jobs_running = [x for x in exps if 'id' in x['slurm'] and x['slurm']['id'] == s_id
-                                and x['status'] in ['RUNNING']]
-                # jobs_running = list(collection.find({'slurm.id': s_id,
-                #                                      'status'  : {"$in": ["RUNNING"]}},
-                #                                     {"_id": 1}))
+                jobs_running = [e for e in exps
+                                if (e['slurm']['array_id'] == a_id and e['slurm']['task_id'] == t_id
+                                    and e['status'] in ['RUNNING'])]
                 running_exp_ids = set(e['_id'] for e in jobs_running)
                 if len(running_exp_ids.difference(exp_ids)) == 0:
                     # there are no running jobs in this slurm job that should not be canceled.
-                    to_cancel.add(str(s_id))
+                    to_cancel.add(f"{a_id}_{t_id}")
 
             # cancel all Slurm jobs for which no running experiment remains.
             if len(to_cancel) > 0:
@@ -224,10 +226,13 @@ def reset_states(config_file, sacred_id, filter_states, batch_id, filter_dict):
 def detect_killed(config_file, verbose=True):
     collection = db_utils.get_collection_from_config(config_file)
     exps = collection.find({'status': {'$in': ['PENDING', 'RUNNING']}})
-    running_jobs = get_slurm_jobs()
+    running_jobs = get_slurm_arrays_tasks()
     nkilled = 0
     for exp in exps:
-        if 'slurm' in exp and 'id' in exp['slurm'] and exp['slurm']['id'] not in running_jobs:
+        exp_running = (exp['slurm']['array_id'] in running_jobs.keys()
+                       and (exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][0]
+                            or exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][1]))
+        if 'slurm' in exp and 'array_id' in exp['slurm'] and not exp_running:
             nkilled += 1
             collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'KILLED'}})
             try:

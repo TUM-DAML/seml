@@ -136,6 +136,7 @@ The special 'slurm' block contains the slurm parameters. This block and all valu
    - `name`: Job name used by Slurm and file name of Slurm output. Default: Collection name
    - `output_dir`: Directory to store the Slurm log files in. Default: Current directory
    - `experiments_per_job`: Number of parallel experiments to run in each Slurm job. Note that only experiments from the same batch share a job. Default: 1
+   - `max_jobs_per_batch`: Maximum number of Slurm jobs running per experiment batch. Default: No restriction
    - `sbatch_options`: dictionary that contains custom values that will be passed to `sbatch`, specifying e.g. the
    memory and the number of GPUs to be allocated. See [here](https://slurm.schedmd.com/sbatch.html) for possible parameters of `sbatch` (prepended dashes are not required).
 

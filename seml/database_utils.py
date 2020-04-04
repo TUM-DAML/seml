@@ -318,6 +318,27 @@ def chunk_list(exps):
     return exp_chunks
 
 
+def batch_chunks(exp_chunks):
+    """
+    Divide chunks of experiments into Slurm job arrays with one experiment batch per array. Each array is started together.
+    This assumes constant Slurm settings per batch (which should be the case if MongoDB wasn't edited manually).
+
+    Parameters
+    ----------
+    exp_chunks: list[list[dict]]
+        List of list of dictionaries containing the experiment settings as saved in the MongoDB
+
+    Returns
+    -------
+    exp_arrays: list[list[list[dict]]]
+    """
+    batch_idx = np.array([chunk[0]['batch_id'] for chunk in exp_chunks])
+    unique_batch_idx = np.unique(batch_idx)
+    ids_per_array = [np.where(batch_idx == array_bidx)[0] for array_bidx in unique_batch_idx]
+    exp_arrays = [[exp_chunks[idx] for idx in chunk_ids] for chunk_ids in ids_per_array]
+    return exp_arrays
+
+
 def make_hash(d: dict):
     """
     Generate a hash for the input dictionary.

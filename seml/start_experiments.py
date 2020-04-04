@@ -4,7 +4,7 @@ import numpy as np
 
 from seml.misc import get_config_from_exp, s_if
 from seml import database_utils as db_utils
-from seml import check_cancelled
+from seml import get_experiment_command
 import warnings
 
 try:
@@ -14,16 +14,16 @@ except ImportError:
         return iterable
 
 
-def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem=False, name=None,
-                    output_dir=".", sbatch_options=None):
+def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_mortem=False, name=None,
+                    output_dir=".", sbatch_options=None, max_jobs_per_batch=None):
     """Run a list of experiments as a job on the Slurm cluster.
 
     Parameters
     ----------
     collection: pymongo.collection.Collection
         The MongoDB collection containing the experiments.
-    exps: List[dict]
-        List of experiments to run.
+    exp_array: List[List[dict]]
+        List of chunks of experiments to run. Each chunk is a list of experiments.
     log_verbose: bool
         Print all the Python syscalls before running them.
     unobserved: bool
@@ -36,6 +36,8 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
         Directory (relative to home directory) where to store the slurm output files.
     sbatch_options: dict
         A dictionary that contains options for #SBATCH, e.g., {'mem': 8000} to limit the job's memory to 8,000 MB.
+    max_jobs_per_batch: int
+        Maximum number of Slurm jobs running per experiment batch.
 
     Returns
     -------
@@ -47,10 +49,14 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
         raise ValueError(
             f"Can't set sbatch `job-name` Parameter explicitly. "
              "Use `name` parameter instead and SEML will do that for you.")
-    name = name if name is not None else exps[0]['seml']['db_collection']
-    id_strs = [str(exp['_id']) for exp in exps]
-    job_name = f"{name}_{','.join(id_strs)}"
+    name = name if name is not None else exp_array[0][0]['seml']['db_collection']
+    job_name = f"{name}_{exp_array[0][0]['batch_id']}"
     sbatch_options['job-name'] = job_name
+
+    # Set Slurm job array options
+    sbatch_options['array'] = f"0-{len(exp_array) - 1}"
+    if max_jobs_per_batch is not None:
+        sbatch_options['array'] += f"%{max_jobs_per_batch}"
 
     # Set Slurm output parameter
     output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
@@ -60,7 +66,7 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
     if 'output' in sbatch_options.keys():
         raise ValueError(
             f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
-    sbatch_options['output'] = f'{output_dir_path}/{name}-%j.out'
+    sbatch_options['output'] = f'{output_dir_path}/{name}_%A_%a.out'
 
     script = "#!/bin/bash\n"
 
@@ -76,45 +82,50 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
     script += "echo Starting job ${SLURM_JOBID} \n"
     script += "echo \"SLURM assigned me the node(s): $(squeue -j ${SLURM_JOBID} -O nodelist | tail -n +2)\"\n"
 
-    if "conda_environment" in exps[0]['seml']:
+    if "conda_environment" in exp_array[0][0]['seml']:
         script += "CONDA_BASE=$(conda info --base)\n"
         script += "source $CONDA_BASE/etc/profile.d/conda.sh\n"
-        script += f"conda activate {exps[0]['seml']['conda_environment']}\n"
+        script += f"conda activate {exp_array[0][0]['seml']['conda_environment']}\n"
 
-    check_file = check_cancelled.__file__
+    get_config_file = get_experiment_command.__file__
     script += "process_ids=() \n"
-    script += f"exp_ids=({' '.join([str(e['_id']) for e in exps])}) \n"
-    commands = []
-    for ix, exp in enumerate(exps):
-        exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
-                                          unobserved=unobserved, post_mortem=post_mortem)
-        cmd = f"python {exe} with {' '.join(config)}"
-        commands.append(cmd)
-        collection_str = exp['seml']['db_collection']
-        script += f"python {check_file} --experiment_id {exp['_id']} --database_collection {collection_str}\n"
-        script += "ret=$?\n"
-        script += "if [ $ret -eq 0 ]\n"
-        script += "then\n"
-        script += f"    {cmd}  & \n"
-        script += f"    process_ids[{ix}]=$!\n"
 
-        script += "elif [ $ret -eq 1 ]\n"
-        script += "then\n"
-        script += f"    echo WARNING: Experiment with ID {exp['_id']} has status INTERRUPTED and will not be run. \n"
-        script += "elif [ $ret -eq 2 ]\n"
-        script += "then\n"
-        script += f"    (>&2 echo ERROR: Experiment with id {exp['_id']} not found in the database.)\n"
-        script += "fi\n"
+    # Construct chunked list with all experiment IDs
+    expid_strings = [('"' + ';'.join([str(exp['_id']) for exp in chunk]) + '"') for chunk in exp_array]
+    script += f"all_exp_ids=({' '.join(expid_strings)}) \n"
 
-        if log_verbose:
-            print(f'Running the following command:\n {cmd}')
+    # Get experiment IDs for this Slurm task
+    script += 'exp_ids_str="${all_exp_ids[$SLURM_ARRAY_TASK_ID]}"\n'
+    script += 'IFS=";" read -r -a exp_ids <<< "$exp_ids_str"\n'
 
-    script += f"echo Experiments are running under the following process IDs:\n"
-    script += f"num_it=${{#process_ids[@]}}\n"
-    script += f"for ((i=0; i<$num_it; i++))\n"
-    script += f"do\n"
-    script += f"    echo \"Experiment ID: ${{exp_ids[$i]}}\tProcess ID: ${{process_ids[$i]}}\"\n"
-    script += f"done\n"
+    collection_str = exp_array[0][0]['seml']['db_collection']
+
+    script += "for exp_id in \"${exp_ids[@]}\"\n"
+    script += "do\n"
+    script += (f"cmd=$(python {get_config_file} "
+               f"--experiment_id ${{exp_id}} --database_collection {collection_str} "
+               f"--log-verbose {log_verbose} --unobserved {unobserved} --post-mortem {post_mortem})\n")
+    script += "ret=$?\n"
+    script += "if [ $ret -eq 0 ]\n"
+    script += "then\n"
+    script += "    eval $cmd &\n"
+    script += "    process_ids+=($!)\n"
+
+    script += "elif [ $ret -eq 1 ]\n"
+    script += "then\n"
+    script += "    echo WARNING: Experiment with ID ${exp_id} does not have status PENDING and will not be run. \n"
+    script += "elif [ $ret -eq 2 ]\n"
+    script += "then\n"
+    script += "    (>&2 echo ERROR: Experiment with id ${exp_id} not found in the database.)\n"
+    script += "fi\n"
+    script += "done\n"
+
+    script += "echo Experiments are running under the following process IDs:\n"
+    script += "num_it=${#process_ids[@]}\n"
+    script += "for ((i=0; i<$num_it; i++))\n"
+    script += "do\n"
+    script += "    echo \"Experiment ID: ${exp_ids[$i]}\tProcess ID: ${process_ids[$i]}\"\n"
+    script += "done\n"
     script += "echo\n"
     script += "wait\n"
 
@@ -127,20 +138,21 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
         f.write(script)
 
     output = subprocess.check_output(f'sbatch {path}', shell=True)
-    slurm_job_id = int(output.split(b' ')[-1])
-    for ix, exp in enumerate(exps):
-        if not unobserved:
-            collection.update_one(
-                    {'_id': exp['_id']},
-                    {'$set': {
-                        'status': 'PENDING',
-                        'slurm.id': slurm_job_id,
-                        'slurm.step_id': ix,
-                        'slurm.sbatch_options': sbatch_options,
-                        'seml.command': commands[ix],
-                        'seml.output_file': f"{output_dir_path}/{name}-{slurm_job_id}.out"}})
-        if log_verbose:
-            print(f"Started experiment with ID {slurm_job_id}")
+    slurm_array_job_id = int(output.split(b' ')[-1])
+    for task_id, chunk in enumerate(exp_array):
+        for step_id, exp in enumerate(chunk):
+            if not unobserved:
+                collection.update_one(
+                        {'_id': exp['_id']},
+                        {'$set': {
+                            'status': 'PENDING',
+                            'slurm.array_id': slurm_array_job_id,
+                            'slurm.task_id': task_id,
+                            'slurm.step_id': step_id,
+                            'slurm.sbatch_options': sbatch_options,
+                            'seml.output_file': f"{output_dir_path}/{name}_{slurm_array_job_id}_{task_id}.out"}})
+            if log_verbose:
+                print(f"Started experiment with array job ID {slurm_array_job_id}, task ID {task_id}.")
     os.remove(path)
 
 
@@ -182,33 +194,36 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
         print("No queued experiments.")
         return
 
-    exps_list = list(collection.find(query_dict))
+    exps_full = list(collection.find(query_dict))
 
-    nexps = num_exps if num_exps > 0 else len(exps_list)
-    exp_chunks = db_utils.chunk_list(exps_list[:nexps])
-    njobs = len(exp_chunks)
+    nexps = num_exps if num_exps > 0 else len(exps_full)
+    exps_list = exps_full[:nexps]
 
     if dry_run:
         configs = []
-        for exps in exp_chunks:
-            for exp in exps:
-                configs.append(get_config_from_exp(exp, log_verbose=log_verbose,
-                                                   unobserved=unobserved, post_mortem=post_mortem))
+        for exp in exps_list:
+            configs.append(get_config_from_exp(exp, log_verbose=log_verbose,
+                                               unobserved=unobserved, post_mortem=post_mortem))
         return configs
     elif slurm:
-        print(f"Starting {nexps} experiment{s_if(nexps)} in "
-              f"{njobs} Slurm job{s_if(njobs)}.")
+        exp_chunks = db_utils.chunk_list(exps_list)
+        exp_arrays = db_utils.batch_chunks(exp_chunks)
+        njobs = len(exp_chunks)
+        narrays = len(exp_arrays)
 
-        for exps in tqdm(exp_chunks):
-            slurm_config = exps[0]['slurm']
-            seml_config = exps[0]['seml']
+        print(f"Starting {nexps} experiment{s_if(nexps)} in "
+              f"{njobs} Slurm job{s_if(njobs)} in {narrays} Slurm job array{s_if(narrays)}.")
+
+        for exp_array in exp_arrays:
+            slurm_config = exp_array[0][0]['slurm']
+            seml_config = exp_array[0][0]['seml']
             if 'output_dir' in slurm_config:
                 warnings.warn("'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
                               "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
             elif 'output_dir' in seml_config:
                 slurm_config['output_dir'] = seml_config['output_dir']
             del slurm_config['experiments_per_job']
-            start_slurm_job(collection, exps, log_verbose, unobserved, post_mortem, **slurm_config)
+            start_slurm_job(collection, exp_array, log_verbose, unobserved, post_mortem, **slurm_config)
     else:
         login_node_name = 'fs'
         if login_node_name in os.uname()[1]:
@@ -221,62 +236,61 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
         num_exceptions = 0
         i_exp = 0
 
-        tq = tqdm(exp_chunks)
-        for exps in tq:
-            for exp in exps:
-                exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
-                                                  unobserved=unobserved, post_mortem=post_mortem)
+        tq = tqdm(exps_list)
+        for exp in tq:
+            exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
+                                              unobserved=unobserved, post_mortem=post_mortem)
 
-                cmd = f"python {exe} with {' '.join(config)}"
+            cmd = f"python {exe} with {' '.join(config)}"
 
-                if not unobserved:
-                    # check also whether PENDING experiments have their Slurm ID set, in this case they are waiting
-                    # for Slurm execution and we don't start them locally.
-                    db_entry = collection.find_one_and_update(filter={'_id': exp['_id'], 'status': 'PENDING',
-                                                                      'slurm.id': {'$exists': False}},
-                                                              update={'$set': {'seml.command': cmd,
-                                                                               'status': 'RUNNING'}},
-                                                              upsert=False)
-                    if db_entry is None:
-                        # another worker already set this entry to PENDING (or at least, it's no longer QUEUED)
-                        # so we ignore it.
-                        continue
+            if not unobserved:
+                # check also whether PENDING experiments have their Slurm ID set, in this case they are waiting
+                # for Slurm execution and we don't start them locally.
+                db_entry = collection.find_one_and_update(filter={'_id': exp['_id'], 'status': 'PENDING',
+                                                                  'slurm.array_id': {'$exists': False}},
+                                                          update={'$set': {'seml.command': cmd,
+                                                                           'status': 'RUNNING'}},
+                                                          upsert=False)
+                if db_entry is None:
+                    # another worker already set this entry to PENDING (or at least, it's no longer QUEUED)
+                    # so we ignore it.
+                    continue
 
-                if log_verbose:
-                    print(f'Running the following command:\n {cmd}')
-                try:
-                    output_dir = "."
-                    slurm_config = exps[0]['slurm']
-                    seml_config = exps[0]['seml']
-                    if 'output_dir' in slurm_config:
-                        warnings.warn(
-                            "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
-                            "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
-                        output_dir = slurm_config['output_dir']
-                    if 'output_dir' in seml_config:
-                        output_dir = seml_config['output_dir']
-                    output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
-                    exp_name = slurm_config['name']
+            if log_verbose:
+                print(f'Running the following command:\n {cmd}')
+            try:
+                output_dir = "."
+                slurm_config = exp['slurm']
+                seml_config = exp['seml']
+                if 'output_dir' in slurm_config:
+                    warnings.warn(
+                        "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
+                        "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
+                    output_dir = slurm_config['output_dir']
+                if 'output_dir' in seml_config:
+                    output_dir = seml_config['output_dir']
+                output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
+                exp_name = slurm_config['name']
 
-                    output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}-out.txt"
-                    collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
+                output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
+                collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
 
-                    with open(output_file, "w") as log_file:
-                        # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
-                        subprocess.check_call(cmd, shell=True, stderr=log_file,
-                                              stdout=log_file, )
+                with open(output_file, "w") as log_file:
+                    # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
+                    subprocess.check_call(cmd, shell=True, stderr=log_file,
+                                          stdout=log_file)
 
-                except subprocess.CalledProcessError as e:
-                    num_exceptions += 1
-                except IOError:
-                    print(f"Log file {output_file} could not be written.")
-                    # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
-                    collection.find_one_and_update(filter={'_id': exp['_id']},
-                                                   update={'$set': {'status': 'FAILED'}},
-                                                   upsert=False)
-                finally:
-                    i_exp += 1
-                    tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
+            except subprocess.CalledProcessError:
+                num_exceptions += 1
+            except IOError:
+                print(f"Log file {output_file} could not be written.")
+                # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
+                collection.find_one_and_update(filter={'_id': exp['_id']},
+                                               update={'$set': {'status': 'FAILED'}},
+                                               upsert=False)
+            finally:
+                i_exp += 1
+                tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
 
 
 def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num_exps, filter_dict):
