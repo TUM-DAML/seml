@@ -179,6 +179,12 @@ def reset_experiment(collection, exp):
     exp['status'] = 'QUEUED'
     keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'config_hash', 'queue_time']
 
+    # Clean up SEML dictionary
+    keep_seml = {'db_collection', 'executable', 'conda_environment', 'output_dir'}
+    seml_keys = set(exp['seml'].keys())
+    for key in seml_keys - keep_seml:
+        del exp['seml'][key]
+
     # Clean up Slurm dictionary
     keep_slurm = {'name', 'output_dir', 'experiments_per_job', 'sbatch_options'}
     slurm_keys = set(exp['slurm'].keys())
