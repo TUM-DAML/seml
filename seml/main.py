@@ -238,27 +238,30 @@ def detect_killed(config_file, verbose=True):
         exp_running = (exp['slurm']['array_id'] in running_jobs.keys()
                        and (exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][0]
                             or exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][1]))
-        if 'slurm' in exp and 'array_id' in exp['slurm'] and not exp_running:
-            nkilled += 1
-            collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'KILLED'}})
-            try:
-                slurm_config = exp['slurm']
-                seml_config = exp['seml']
-                if 'output_file' in seml_config:
-                    output_file = seml_config['output_file']
-                elif 'output_file' in slurm_config:     # backward compatibility, we used to store the path in 'slurm'
-                    output_file = slurm_config['output_file']
-                else:
-                    continue
-                with open(output_file, 'r') as f:
-                    all_lines = f.readlines()
-                collection.update_one({'_id': exp['_id']}, {'$set': {'fail_trace': all_lines[-4:]}})
-            except IOError:
-                if 'output_file' in seml_config:
-                    output_file = seml_config['output_file']
-                elif 'output_file' in slurm_config:     # backward compatibility
-                    output_file = slurm_config['output_file']
-                print(f"Warning: file {output_file} could not be read.")
+        if not exp_running:
+            if 'stop_time' in exp.keys():
+                collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'INTERRUPTED'}})
+            else:
+                nkilled += 1
+                collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'KILLED'}})
+                try:
+                    slurm_config = exp['slurm']
+                    seml_config = exp['seml']
+                    if 'output_file' in seml_config:
+                        output_file = seml_config['output_file']
+                    elif 'output_file' in slurm_config:     # backward compatibility, we used to store the path in 'slurm'
+                        output_file = slurm_config['output_file']
+                    else:
+                        continue
+                    with open(output_file, 'r') as f:
+                        all_lines = f.readlines()
+                    collection.update_one({'_id': exp['_id']}, {'$set': {'fail_trace': all_lines[-4:]}})
+                except IOError:
+                    if 'output_file' in seml_config:
+                        output_file = seml_config['output_file']
+                    elif 'output_file' in slurm_config:     # backward compatibility
+                        output_file = slurm_config['output_file']
+                    print(f"Warning: file {output_file} could not be read.")
     if verbose:
         print(f"Detected {nkilled} externally killed experiment{s_if(nkilled)}.")
 
