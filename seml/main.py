@@ -225,7 +225,7 @@ def reset_states(config_file, sacred_id, filter_states, batch_id, filter_dict):
 
 def detect_killed(config_file, verbose=True):
     collection = db_utils.get_collection_from_config(config_file)
-    exps = collection.find({'status': {'$in': ['PENDING', 'RUNNING']}})
+    exps = collection.find({'status': {'$in': ['PENDING', 'RUNNING']}, 'slurm.array_id': {'$exists': True}})
     running_jobs = get_slurm_arrays_tasks()
     nkilled = 0
     for exp in exps:
