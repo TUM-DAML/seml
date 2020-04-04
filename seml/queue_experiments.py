@@ -171,7 +171,7 @@ def generate_configs(experiment_config):
     return all_configs
 
 
-def filter_experiments(collection, configurations, use_hash=False):
+def filter_experiments(collection, configurations, use_hash=True):
     """Check database collection for already present entries.
 
     Check the database collection for experiments that have the same configuration.
@@ -184,7 +184,7 @@ def filter_experiments(collection, configurations, use_hash=False):
         The MongoDB collection containing the experiments.
     configurations: list of dicts
         Contains the individual parameter configurations.
-    use_hash: bool (default: False)
+    use_hash: bool (default: True)
         Whether to use the hash of the config dictionary to perform a faster duplicate check.
 
     Returns
