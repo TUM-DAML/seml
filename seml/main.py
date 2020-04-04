@@ -370,6 +370,10 @@ def main():
         '-f', '--filter-dict', type=json.loads,
         help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by."
     )
+    parser_start.add_argument(
+        '--output-to-console', action='store_true',
+        help="Print output to console instead of writing it to a log file. Only possible if experiment is run locally."
+    )
     parser_start.set_defaults(func=start_experiments)
 
     parser_status = subparsers.add_parser(
@@ -440,7 +444,6 @@ def main():
             help="Batch ID (batch_id in the database collection) of the experiments to be deleted. Experiments that were "
                  "queued together have the same batch_id."
     )
-
     parser_reset.set_defaults(func=reset_states)
 
     parser_detect = subparsers.add_parser(
@@ -451,11 +454,9 @@ def main():
     parser_clean_db = subparsers.add_parser(
         "clean-db",
         help="Remove orphaned artifacts in the DB from runs which have been deleted.")
-
     parser_clean_db.add_argument(
         '-a', '--all-collections', action='store_true',
         help="If True, will scan all collections for orphaned artifacts (not just the one provided in the config).")
-
     parser_clean_db.set_defaults(func=clean_unreferenced_artifacts)
 
     args = parser.parse_args()

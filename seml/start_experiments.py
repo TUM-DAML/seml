@@ -157,7 +157,8 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
 
 
 def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
-            post_mortem=False, num_exps=-1, filter_dict={}, dry_run=False):
+            post_mortem=False, num_exps=-1, filter_dict={}, dry_run=False,
+            output_to_file=True):
     """Pull queued experiments from the database and run them.
 
     Parameters
@@ -179,6 +180,9 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
         Dictionary for filtering the entries in the collection.
     dry_run: bool
         Just return the executables and configurations instead of running them.
+    output_to_file: bool
+        Pipe all output (stdout and stderr) to an output file.
+        Can only be False if slurm is False.
 
     Returns
     -------
@@ -206,6 +210,7 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                                                unobserved=unobserved, post_mortem=post_mortem))
         return configs
     elif slurm:
+        assert output_to_file is True, "Output cannot be written to stdout in Slurm mode."
         exp_chunks = db_utils.chunk_list(exps_list)
         exp_arrays = db_utils.batch_chunks(exp_chunks)
         njobs = len(exp_chunks)
@@ -275,10 +280,13 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                 output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
                 collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
 
-                with open(output_file, "w") as log_file:
-                    # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
-                    subprocess.check_call(cmd, shell=True, stderr=log_file,
-                                          stdout=log_file)
+                if output_to_file:
+                    with open(output_file, "w") as log_file:
+                        # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
+                        subprocess.check_call(cmd, shell=True, stderr=log_file,
+                                              stdout=log_file)
+                else:
+                    subprocess.check_call(cmd, shell=True)
 
             except subprocess.CalledProcessError:
                 num_exceptions += 1
@@ -331,8 +339,10 @@ def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num
 
 
 def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
-                      test, unobserved, post_mortem, debug, verbose, dry_run):
+                      test, unobserved, post_mortem, debug, verbose, dry_run,
+                      output_to_console):
     use_slurm = not local
+    output_to_file = not output_to_console
 
     db_collection_name = db_utils.read_config(config_file)[0]['db_collection']
 
@@ -344,6 +354,9 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
 
     if test != -1:
         verbose = True
+
+    if test != -1 and not use_slurm:
+        output_to_file = False
 
     if sacred_id is None:
         filter_dict = db_utils.build_filter_dict([], batch_id, filter_dict)
@@ -357,4 +370,5 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
     else:
         do_work(db_collection_name, log_verbose=verbose, slurm=use_slurm,
                 unobserved=unobserved, post_mortem=post_mortem,
-                num_exps=test, filter_dict=filter_dict, dry_run=dry_run)
+                num_exps=test, filter_dict=filter_dict, dry_run=dry_run,
+                output_to_file=output_to_file)
