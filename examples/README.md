@@ -130,11 +130,11 @@ The `seml` block is required for every experiment. It has to contain the followi
    - `db_collection`: Name of the MongoDB collection to save the experiment information to
    - `executable`: Name of the Python script containing the experiment
 Optionally, it can contain
-   - `conda_environment`: name of the Anaconda virtual environment; will be loaded before the experiment is executed.
+   - `conda_environment`: Name of the Anaconda virtual environment; will be loaded before the experiment is executed.
+   - `output_dir`: Directory to store log files in. Default: Current directory
 ### `slurm` block
 The special 'slurm' block contains the slurm parameters. This block and all values are optional. Possible values are:
    - `name`: Job name used by Slurm and file name of Slurm output. Default: Collection name
-   - `output_dir`: Directory to store the Slurm log files in. Default: Current directory
    - `experiments_per_job`: Number of parallel experiments to run in each Slurm job. Note that only experiments from the same batch share a job. Default: 1
    - `max_jobs_per_batch`: Maximum number of Slurm jobs running per experiment batch. Default: No restriction
    - `sbatch_options`: dictionary that contains custom values that will be passed to `sbatch`, specifying e.g. the
