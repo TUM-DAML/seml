@@ -6,11 +6,7 @@ from seml.database_utils import make_hash
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
 from seml.misc import get_default_slurm_config, s_if, unflatten, flatten
-try:
-    from tqdm.autonotebook import tqdm
-except ImportError:
-    def tqdm(iterable, total=None):
-        return iterable
+
 
 def unpack_config(config):
     reserved_keys = ['grid', 'fixed', 'random']
@@ -195,7 +191,7 @@ def filter_experiments(collection, configurations, use_hash=True):
     """
 
     filtered_configs = []
-    for config in tqdm(configurations):
+    for config in configurations:
         if use_hash:
             config_hash = make_hash(config)
             lookup_result = collection.find_one({'config_hash': config_hash})
