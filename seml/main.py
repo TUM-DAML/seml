@@ -235,18 +235,18 @@ def detect_killed(config_file, verbose=True):
     running_jobs = get_slurm_arrays_tasks()
     nkilled = 0
     for exp in exps:
-        exp_running = (exp['slurm']['array_id'] in running_jobs.keys()
+        exp_running = (exp['slurm']['array_id'] in running_jobs
                        and (exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][0]
                             or exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][1]))
         if not exp_running:
-            if 'stop_time' in exp.keys():
+            if 'stop_time' in exp:
                 collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'INTERRUPTED'}})
             else:
                 nkilled += 1
                 collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'KILLED'}})
                 try:
-                    slurm_config = exp['slurm']
                     seml_config = exp['seml']
+                    slurm_config = exp['slurm']
                     if 'output_file' in seml_config:
                         output_file = seml_config['output_file']
                     elif 'output_file' in slurm_config:     # backward compatibility, we used to store the path in 'slurm'
@@ -380,7 +380,7 @@ def main():
         help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by."
     )
     parser_start.add_argument(
-        '--output-to-console', action='store_true',
+        '-o', '--output-to-console', action='store_true',
         help="Print output to console instead of writing it to a log file. Only possible if experiment is run locally."
     )
     parser_start.set_defaults(func=start_experiments)

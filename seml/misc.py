@@ -42,7 +42,7 @@ def get_slurm_arrays_tasks():
             job_dict = {}
             for i, task_range_str in enumerate(task_ids):
                 array_id = int(array_ids_str[i])
-                if array_id not in job_dict.keys():
+                if array_id not in job_dict:
                     job_dict[array_id] = [range(0), []]
                 if b'[' in task_range_str:
                     # There is only one task range, which is the overall pending job array
