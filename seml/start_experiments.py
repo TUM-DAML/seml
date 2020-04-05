@@ -261,6 +261,12 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                     output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}-out.txt"
                     collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
 
+                    if 'conda_environment' in seml_config:
+                        cmd = (f". $(conda info --base)/etc/profile.d/conda.sh "
+                               f"&& conda activate {seml_config['conda_environment']} "
+                               f"&& {cmd} "
+                               f"&& conda deactivate")
+
                     with open(output_file, "w") as log_file:
                         # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
                         subprocess.check_call(cmd, shell=True, stderr=log_file,
