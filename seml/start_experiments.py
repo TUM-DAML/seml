@@ -208,8 +208,12 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
     if dry_run:
         configs = []
         for exp in exps_list:
-            configs.append(get_config_from_exp(exp, log_verbose=log_verbose,
-                                               unobserved=unobserved, post_mortem=post_mortem))
+            exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
+                                              unobserved=unobserved, post_mortem=post_mortem)
+            if 'conda_environment' in exp['seml']:
+                configs.append((exe, exp['seml']['conda_environment'], config))
+            else:
+                configs.append((exe, None, config))
         return configs
     elif slurm:
         assert output_to_file is True, "Output cannot be written to stdout in Slurm mode."
@@ -264,8 +268,6 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                     # so we ignore it.
                     continue
 
-            if log_verbose:
-                print(f'Running the following command:\n {cmd}')
             try:
                 output_dir = "."
                 seml_config = exp['seml']
@@ -288,6 +290,9 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                             f"&& conda activate {seml_config['conda_environment']} "
                             f"&& {cmd} "
                             f"&& conda deactivate")
+
+                if log_verbose:
+                    print(f'Running the following command:\n {cmd}')
 
                 if output_to_file:
                     with open(output_file, "w") as log_file:
@@ -317,8 +322,11 @@ def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num
     if configs is None:
         return
     print("********** First experiment **********")
-    exe, config = configs[0]
+    exe, env, config = configs[0]
     print(f"Executable: {exe}")
+    if env is not None:
+        print(f"Anaconda environment: {env}")
+    print()
     config.insert(0, 'with')
     config.append('--debug')
 
@@ -335,7 +343,7 @@ def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num
     configs = do_work(db_collection_name, log_verbose=True, slurm=False,
                       unobserved=True, post_mortem=True,
                       num_exps=1, filter_dict=filter_dict, dry_run=True)
-    exe, config = configs[0]
+    exe, _, config = configs[0]
     print(f"python {exe} with {' '.join(config)}")
 
     print()
@@ -343,7 +351,7 @@ def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num
     configs = do_work(db_collection_name, log_verbose=log_verbose, slurm=False,
                       unobserved=unobserved, post_mortem=post_mortem,
                       num_exps=num_exps, filter_dict=filter_dict, dry_run=True)
-    for (exe, config) in configs:
+    for (exe, _, config) in configs:
         print(f"python {exe} with {' '.join(config)}")
 
 
