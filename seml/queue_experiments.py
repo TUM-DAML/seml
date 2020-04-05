@@ -1,3 +1,4 @@
+import os
 import datetime
 import numpy as np
 import pymongo
@@ -260,6 +261,10 @@ def queue_configs(collection, seml_config, slurm_config, configs):
 
 def queue_experiments(config_file, force_duplicates, no_hash=False):
     seml_config, slurm_config, experiment_config = db_utils.read_config(config_file)
+
+    # Use current Anaconda environment if not specified
+    if 'conda_environment' not in seml_config.keys():
+        seml_config['conda_environment'] = os.environ['CONDA_DEFAULT_ENV']
 
     # Set Slurm config with default parameters as fall-back option
     default_slurm_config = get_default_slurm_config()
