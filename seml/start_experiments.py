@@ -190,7 +190,7 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
 
     collection = db_utils.get_collection(collection_name)
 
-    if unobserved and not slurm and '_id' in filter_dict.keys():
+    if unobserved and not slurm and '_id' in filter_dict:
         query_dict = {}
     else:
         query_dict = {'status': {"$in": ['QUEUED']}}

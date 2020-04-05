@@ -235,11 +235,11 @@ def detect_killed(config_file, verbose=True):
     running_jobs = get_slurm_arrays_tasks()
     nkilled = 0
     for exp in exps:
-        exp_running = (exp['slurm']['array_id'] in running_jobs.keys()
+        exp_running = (exp['slurm']['array_id'] in running_jobs
                        and (exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][0]
                             or exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][1]))
         if not exp_running:
-            if 'stop_time' in exp.keys():
+            if 'stop_time' in exp:
                 collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'INTERRUPTED'}})
             else:
                 nkilled += 1
