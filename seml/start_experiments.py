@@ -5,7 +5,6 @@ import numpy as np
 from seml.misc import get_config_from_exp, s_if
 from seml import database_utils as db_utils
 from seml import get_experiment_command
-from seml import save_job_status
 import warnings
 
 try:
@@ -89,7 +88,6 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
         script += f"conda activate {exp_array[0][0]['seml']['conda_environment']}\n"
 
     get_cmd_fname = get_experiment_command.__file__
-    save_status_fname = save_job_status.__file__
     script += "process_ids=() \n"
 
     # Construct chunked list with all experiment IDs
@@ -130,14 +128,6 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
     script += "done\n"
     script += "echo\n"
     script += "wait\n"
-    script += ("job_status=$(sstat -j ${SLURM_JOBID} -P -n --noconvert "
-               "--format=MaxRSS,MaxVMSize,AveCPU,AvePages,AveDiskRead,AveDiskWrite,ConsumedEnergy)\n")
-    script += "for exp_id in \"${exp_ids[@]}\"\n"
-    script += "do\n"
-    script += (f"python {save_status_fname} "
-               f"--experiment_id ${{exp_id}} --database_collection {collection_str} "
-               f"--job-status ${{job_status}}\n")
-    script += "done\n"
 
     random_int = np.random.randint(0, 999999)
     path = f"/tmp/{random_int}.sh"

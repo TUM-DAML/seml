@@ -34,3 +34,6 @@ def run(dataset, hidden_sizes, learning_rate, reg_scale, keep_prob, max_epochs, 
     }
     # the returned result will be written into the database
     return results
+
+
+misc.collect_exp_stats(ex)
