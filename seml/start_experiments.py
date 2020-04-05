@@ -43,7 +43,7 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
     """
 
     # Set Slurm job-name parameter
-    if 'job-name' in sbatch_options.keys():
+    if 'job-name' in sbatch_options:
         raise ValueError(
             f"Can't set sbatch `job-name` Parameter explicitly. "
              "Use `name` parameter instead and SEML will do that for you.")
@@ -57,7 +57,7 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
     if not os.path.isdir(output_dir_path):
         raise ValueError(
             f"Slurm output directory '{output_dir_path}' does not exist.")
-    if 'output' in sbatch_options.keys():
+    if 'output' in sbatch_options:
         raise ValueError(
             f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
     sbatch_options['output'] = f'{output_dir_path}/{name}-%j.out'
@@ -76,7 +76,7 @@ def start_slurm_job(collection, exps, log_verbose, unobserved=False, post_mortem
     script += "echo Starting job ${SLURM_JOBID} \n"
     script += "echo \"SLURM assigned me the node(s): $(squeue -j ${SLURM_JOBID} -O nodelist | tail -n +2)\"\n"
 
-    if "conda_environment" in exps[0]['seml']:
+    if 'conda_environment' in exps[0]['seml']:
         script += "CONDA_BASE=$(conda info --base)\n"
         script += "source $CONDA_BASE/etc/profile.d/conda.sh\n"
         script += f"conda activate {exps[0]['seml']['conda_environment']}\n"
@@ -200,8 +200,8 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
               f"{njobs} Slurm job{s_if(njobs)}.")
 
         for exps in tqdm(exp_chunks):
-            slurm_config = exps[0]['slurm']
             seml_config = exps[0]['seml']
+            slurm_config = exps[0]['slurm']
             if 'output_dir' in slurm_config:
                 warnings.warn("'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
                               "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
@@ -246,8 +246,8 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                     print(f'Running the following command:\n {cmd}')
                 try:
                     output_dir = "."
-                    slurm_config = exps[0]['slurm']
                     seml_config = exps[0]['seml']
+                    slurm_config = exps[0]['slurm']
                     if 'output_dir' in slurm_config:
                         warnings.warn(
                             "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
