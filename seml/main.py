@@ -380,7 +380,7 @@ def main():
         help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by."
     )
     parser_start.add_argument(
-        '--output-to-console', action='store_true',
+        '-o', '--output-to-console', action='store_true',
         help="Print output to console instead of writing it to a log file. Only possible if experiment is run locally."
     )
     parser_start.set_defaults(func=start_experiments)
