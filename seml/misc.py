@@ -1,6 +1,10 @@
+import resource
+import warnings
 import subprocess
 import logging
 from seml.settings import SETTINGS
+import seml.database_utils as db_utils
+
 
 def get_config_from_exp(exp, log_verbose=False, unobserved=False, post_mortem=False, debug=False):
     if 'executable' not in exp['seml']:
@@ -157,6 +161,7 @@ def flatten(dictionary: dict, parent_key: str='', sep: str='.'):
             items.append((new_key, v))
     return dict(items)
 
+
 def create_slack_observer(webhook=None):
     from sacred.observers import SlackObserver
     slack_obs = None
@@ -171,6 +176,7 @@ def create_slack_observer(webhook=None):
     if slack_obs is None:
         print('Failed to create Slack observer.')
     return slack_obs
+
 
 def create_neptune_observer(project_name, api_token=None,
                             source_extensions=['**/*.py', '**/*.yaml', '**/*.yml']):
@@ -187,11 +193,13 @@ def create_neptune_observer(project_name, api_token=None,
     neptune_obs = NeptuneObserver(api_token=api_token, project_name=project_name, source_extensions=source_extensions)
     return neptune_obs
 
+
 def chunker(seq, size):
     """
     Chunk a list into chunks of size `size`.
     From
     https://stackoverflow.com/questions/434287/what-is-the-most-pythonic-way-to-iterate-over-a-list-in-chunks
+
     Parameters
     ----------
     seq: input list
@@ -202,3 +210,50 @@ def chunker(seq, size):
     The list of lists of size `size`
     """
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
+
+
+def collect_exp_stats(exp, gpu_info=None):
+    """
+    Collect information such as CPU user time, maximum memory usage,
+    and maximum GPU memory usage and save it in the MongoDB.
+
+    Parameters
+    ----------
+    exp: Sacred Experiment
+        Currently running Sacred experiment.
+    gpu_info: str
+        Framework for collecting GPU information. Options: 'pytorch', 'tensorflow'. Default: None.
+
+    Returns
+    -------
+    None
+    """
+    exp_id = exp.current_run.config['overwrite']
+    if exp_id is None or exp.current_run.unobserved:
+        return
+
+    resource_dict = {}
+
+    resource_dict['self'] = {}
+    resource_dict['self']['user_time'] = resource.getrusage(resource.RUSAGE_SELF).ru_utime
+    resource_dict['self']['system_time'] = resource.getrusage(resource.RUSAGE_SELF).ru_stime
+    resource_dict['self']['max_memory_bytes'] = 1024 * resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    resource_dict['children'] = {}
+    resource_dict['children']['user_time'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_utime
+    resource_dict['children']['system_time'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_stime
+    resource_dict['children']['max_memory_bytes'] = 1024 * resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+
+    if gpu_info == 'pytorch':
+        import torch
+        resource_dict['gpu_max_memory_bytes'] = torch.cuda.max_memory_allocated()
+    elif gpu_info == 'tensorflow':
+        import tensorflow as tf
+        if int(tf.__version__.split('.')[0]) < 2:
+            resource_dict['gpu_max_memory_bytes'] = tf.contrib.memory_stats.MaxBytesInUse()
+        else:
+            warnings.warn("There is currently no way to get real GPU memory usage in TensorFlow 2.")
+
+    collection = db_utils.get_collection(exp.current_run.config['db_collection'])
+    collection.update_one(
+            {'_id': exp_id},
+            {'$set': {'stats': resource_dict}})
