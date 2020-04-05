@@ -18,8 +18,7 @@ if __name__ == "__main__":
     exp_id = args.experiment_id
     db_collection = args.database_collection
 
-    mongodb_config = db_utils.get_mongodb_config()
-    collection = db_utils.get_collection(db_collection, mongodb_config)
+    collection = db_utils.get_collection(db_collection)
 
     exp = collection.find_one({'_id': exp_id})
 
