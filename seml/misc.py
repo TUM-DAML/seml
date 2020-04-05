@@ -1,5 +1,5 @@
+import sys
 import resource
-import warnings
 import subprocess
 import logging
 from seml.settings import SETTINGS
@@ -212,7 +212,7 @@ def chunker(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
 
-def collect_exp_stats(exp, gpu_info=None):
+def collect_exp_stats(exp):
     """
     Collect information such as CPU user time, maximum memory usage,
     and maximum GPU memory usage and save it in the MongoDB.
@@ -221,8 +221,6 @@ def collect_exp_stats(exp, gpu_info=None):
     ----------
     exp: Sacred Experiment
         Currently running Sacred experiment.
-    gpu_info: str
-        Framework for collecting GPU information. Options: 'pytorch', 'tensorflow'. Default: None.
 
     Returns
     -------
@@ -232,28 +230,34 @@ def collect_exp_stats(exp, gpu_info=None):
     if exp_id is None or exp.current_run.unobserved:
         return
 
-    resource_dict = {}
+    stats = {}
 
-    resource_dict['self'] = {}
-    resource_dict['self']['user_time'] = resource.getrusage(resource.RUSAGE_SELF).ru_utime
-    resource_dict['self']['system_time'] = resource.getrusage(resource.RUSAGE_SELF).ru_stime
-    resource_dict['self']['max_memory_bytes'] = 1024 * resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    resource_dict['children'] = {}
-    resource_dict['children']['user_time'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_utime
-    resource_dict['children']['system_time'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_stime
-    resource_dict['children']['max_memory_bytes'] = 1024 * resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+    stats['self'] = {}
+    stats['self']['user_time'] = resource.getrusage(resource.RUSAGE_SELF).ru_utime
+    stats['self']['system_time'] = resource.getrusage(resource.RUSAGE_SELF).ru_stime
+    stats['self']['max_memory_bytes'] = 1024 * resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    stats['children'] = {}
+    stats['children']['user_time'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_utime
+    stats['children']['system_time'] = resource.getrusage(resource.RUSAGE_CHILDREN).ru_stime
+    stats['children']['max_memory_bytes'] = 1024 * resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
 
-    if gpu_info == 'pytorch':
+    if 'torch' in sys.modules:
         import torch
-        resource_dict['gpu_max_memory_bytes'] = torch.cuda.max_memory_allocated()
-    elif gpu_info == 'tensorflow':
+        stats['pytorch'] = {}
+        if torch.cuda.is_available():
+            stats['pytorch']['gpu_max_memory_bytes'] = torch.cuda.max_memory_allocated()
+
+    if 'tensorflow' in sys.modules:
         import tensorflow as tf
+        stats['tensorflow'] = {}
         if int(tf.__version__.split('.')[0]) < 2:
-            resource_dict['gpu_max_memory_bytes'] = tf.contrib.memory_stats.MaxBytesInUse()
+            if tf.test.is_gpu_available():
+                stats['tensorflow']['gpu_max_memory_bytes'] = tf.contrib.memory_stats.MaxBytesInUse()
         else:
-            warnings.warn("There is currently no way to get real GPU memory usage in TensorFlow 2.")
+            if len(tf.config.experimental.list_physical_devices('GPU')) >= 1:
+                logging.info("SEML stats: There is currently no way to get actual GPU memory usage in TensorFlow 2.")
 
     collection = db_utils.get_collection(exp.current_run.config['db_collection'])
     collection.update_one(
             {'_id': exp_id},
-            {'$set': {'stats': resource_dict}})
+            {'$set': {'stats': stats}})
