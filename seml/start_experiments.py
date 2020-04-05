@@ -240,7 +240,7 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
         print(f'Starting local worker thread that will run up to {nexps} experiments, '
               f'until no queued experiments remain.')
         if not unobserved:
-            collection.update_many(query_dict, {"$set": {"status": "PENDING"}})
+            collection.update_many({'_id': {'$in': [e['_id'] for e in exps_list]}}, {"$set": {"status": "PENDING"}})
         num_exceptions = 0
         i_exp = 0
 
