@@ -245,8 +245,8 @@ def detect_killed(config_file, verbose=True):
                 nkilled += 1
                 collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'KILLED'}})
                 try:
-                    slurm_config = exp['slurm']
                     seml_config = exp['seml']
+                    slurm_config = exp['slurm']
                     if 'output_file' in seml_config:
                         output_file = seml_config['output_file']
                     elif 'output_file' in slurm_config:     # backward compatibility, we used to store the path in 'slurm'

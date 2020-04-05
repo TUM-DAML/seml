@@ -45,7 +45,7 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
     """
 
     # Set Slurm job-name parameter
-    if 'job-name' in sbatch_options.keys():
+    if 'job-name' in sbatch_options:
         raise ValueError(
             f"Can't set sbatch `job-name` Parameter explicitly. "
              "Use `name` parameter instead and SEML will do that for you.")
@@ -63,7 +63,7 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
     if not os.path.isdir(output_dir_path):
         raise ValueError(
             f"Slurm output directory '{output_dir_path}' does not exist.")
-    if 'output' in sbatch_options.keys():
+    if 'output' in sbatch_options:
         raise ValueError(
             f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
     sbatch_options['output'] = f'{output_dir_path}/{name}_%A_%a.out'
@@ -82,7 +82,7 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
     script += "echo Starting job ${SLURM_JOBID} \n"
     script += "echo \"SLURM assigned me the node(s): $(squeue -j ${SLURM_JOBID} -O nodelist | tail -n +2)\"\n"
 
-    if "conda_environment" in exp_array[0][0]['seml']:
+    if 'conda_environment' in exp_array[0][0]['seml']:
         script += "CONDA_BASE=$(conda info --base)\n"
         script += "source $CONDA_BASE/etc/profile.d/conda.sh\n"
         script += f"conda activate {exp_array[0][0]['seml']['conda_environment']}\n"
@@ -222,8 +222,8 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
               f"{njobs} Slurm job{s_if(njobs)} in {narrays} Slurm job array{s_if(narrays)}.")
 
         for exp_array in exp_arrays:
-            slurm_config = exp_array[0][0]['slurm']
             seml_config = exp_array[0][0]['seml']
+            slurm_config = exp_array[0][0]['slurm']
             if 'output_dir' in slurm_config:
                 warnings.warn("'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
                               "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
@@ -268,8 +268,8 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                 print(f'Running the following command:\n {cmd}')
             try:
                 output_dir = "."
-                slurm_config = exp['slurm']
                 seml_config = exp['seml']
+                slurm_config = exp['slurm']
                 if 'output_dir' in slurm_config:
                     warnings.warn(
                         "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
@@ -282,6 +282,12 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
 
                 output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
                 collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
+
+                if 'conda_environment' in seml_config:
+                    cmd = (f". $(conda info --base)/etc/profile.d/conda.sh "
+                            f"&& conda activate {seml_config['conda_environment']} "
+                            f"&& {cmd} "
+                            f"&& conda deactivate")
 
                 if output_to_file:
                     with open(output_file, "w") as log_file:
