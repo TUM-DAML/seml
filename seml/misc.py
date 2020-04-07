@@ -24,12 +24,40 @@ def get_config_from_exp(exp, log_verbose=False, unobserved=False, post_mortem=Fa
     return exe, config_strings
 
 
-def get_slurm_jobs():
+def get_slurm_arrays_tasks():
+    """Get a dictionary of running/pending Slurm job arrays (as keys) and tasks (as values)
+
+    job_dict
+    -------
+    job_dict: dict
+        This dictionary has the job array IDs as keys and the values are
+        a list of 1) the pending job task range and 2) a list of running job task IDs.
+
+    """
     try:
-        squeue_out = subprocess.check_output("squeue -a -t pending,running -h -o %A", shell=True)
-        return [int(line) for line in squeue_out.split(b'\n')[:-1]]
+        squeue_out = subprocess.check_output("squeue -a -t pending,running -h -o %i -u `logname`", shell=True)
+        jobs = [job_str for job_str in squeue_out.splitlines() if b'_' in job_str]
+        if len(jobs) > 0:
+            array_ids_str, task_ids = zip(*[job_str.split(b'_') for job_str in jobs])
+            job_dict = {}
+            for i, task_range_str in enumerate(task_ids):
+                array_id = int(array_ids_str[i])
+                if array_id not in job_dict:
+                    job_dict[array_id] = [range(0), []]
+                if b'[' in task_range_str:
+                    # There is only one task range, which is the overall pending job array
+                    limits = task_range_str[1:-1].split(b'-')
+                    task_range = range(int(limits[0]), int(limits[-1]) + 1)
+                    job_dict[array_id][0] = task_range
+                else:
+                    # Single task IDs belong to running jobs
+                    task_id = int(task_range_str)
+                    job_dict[array_id][1].append(task_id)
+            return job_dict
+        else:
+            return {}
     except subprocess.CalledProcessError:
-        return []
+        return {}
 
 
 def setup_logger(ex, level='INFO'):
