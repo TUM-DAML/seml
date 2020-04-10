@@ -280,8 +280,9 @@ def check_sacred_config(executable, configs):
 
     # Get experiment as module (which causes Sacred not to start ex.automain)
     exe_path = os.path.abspath(executable)
-    sys.path.insert(1, os.path.dirname(exe_path))
+    sys.path.insert(0, os.path.dirname(exe_path))
     exp_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
+    del sys.path[0]
 
     # Extract experiment from module
     exps = [v for k, v in exp_module.__dict__.items() if type(v) == sacred.Experiment]
