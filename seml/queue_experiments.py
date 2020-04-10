@@ -1,4 +1,6 @@
 import os
+import sys
+import importlib
 import datetime
 import numpy as np
 import pymongo
@@ -259,7 +261,56 @@ def queue_configs(collection, seml_config, slurm_config, configs):
     collection.insert_many(db_dicts)
 
 
-def queue_experiments(config_file, force_duplicates, no_hash=False):
+def check_sacred_config(executable, configs):
+    """Check if the given configs are consistent with the Sacred experiment in the given executable.
+
+    Parameters
+    ----------
+    executable: str
+        The Python file containing the experiment.
+    configs: list of dicts
+        Contains the parameter configurations.
+
+    Returns
+    -------
+    None
+
+    """
+    import sacred
+
+    # Get experiment as module (which causes Sacred not to start ex.automain)
+    exe_path = os.path.abspath(executable)
+    sys.path.insert(1, os.path.dirname(exe_path))
+    exp_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
+
+    # Extract experiment from module
+    exps = [v for k, v in exp_module.__dict__.items() if type(v) == sacred.Experiment]
+    if len(exps) == 0:
+        raise ValueError(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
+    elif len(exps) > 1:
+        raise ValueError("Found more than 1 Sacred experiment. Can't check parameter configs. "
+                         "Disable via --no-config-check.")
+    exp = exps[0]
+
+    empty_run = sacred.initialize.create_run(exp, exp.default_command, config_updates=None, named_configs=())
+
+    captured_args = {
+            sacred.utils.join_paths(cf.prefix, n)
+            for cf in exp.captured_functions
+            for n in cf.signature.arguments
+    }
+
+    for config in configs:
+        unused_args = [arg for arg in sorted(config.keys()) if arg not in captured_args]
+        if len(unused_args) > 0:
+            raise sacred.utils.ConfigAddedError(unused_args, config=config)
+
+        options = empty_run.config.copy()
+        options.update(config)
+        empty_run.main_function.signature.construct_arguments((), {}, options, False)
+
+
+def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_check=False):
     seml_config, slurm_config, experiment_config = db_utils.read_config(config_file)
 
     # Use current Anaconda environment if not specified
@@ -279,6 +330,9 @@ def queue_experiments(config_file, force_duplicates, no_hash=False):
     slurm_config['sbatch_options'] = utils.remove_dashes(slurm_config['sbatch_options'])
     collection = db_utils.get_collection(seml_config['db_collection'])
     configs = generate_configs(experiment_config)
+
+    if not no_config_check:
+        check_sacred_config(seml_config['executable'], configs)
 
     if not force_duplicates:
         len_before = len(configs)
