@@ -1,7 +1,7 @@
 numpy>=1.15
 pymongo>=3.7
 pandas
-sacred
+sacred>=0.8.1
 pyyaml
 jsonpickle>=1.2, <2.0
 munch>=2.0.4

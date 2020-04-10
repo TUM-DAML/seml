@@ -335,6 +335,10 @@ def main():
                  "dictionary values individually). This is much  slower, so use only if you have a good reason not to"
                  " use the hash.")
     parser_queue.add_argument(
+            '-nc', '--no-config-check', action='store_true',
+            help="Do not check the config for missing/unused arguments. "
+                 "Use this if the check fails unexpectedly when using advanced Sacred features or to accelerate queueing.")
+    parser_queue.add_argument(
             '-f', '--force-duplicates', action='store_true',
             help="Add experiments to the database even when experiments with identical configurations "
                  "are already in the database.")
