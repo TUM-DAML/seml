@@ -226,6 +226,8 @@ def collect_exp_stats(exp):
     -------
     None
     """
+    if exp.current_run is None:
+        return
     exp_id = exp.current_run.config['overwrite']
     if exp_id is None or exp.current_run.unobserved:
         return
