@@ -9,6 +9,11 @@ ex = Experiment()
 misc.setup_logger(ex)
 
 
+@ex.post_run_hook
+def collect_stats():
+    misc.collect_exp_stats(ex)
+
+
 @ex.config
 def config():
     overwrite = None
@@ -34,6 +39,3 @@ def run(dataset, hidden_sizes, learning_rate, reg_scale, keep_prob, max_epochs, 
     }
     # the returned result will be written into the database
     return results
-
-
-misc.collect_exp_stats(ex)
