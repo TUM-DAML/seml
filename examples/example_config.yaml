@@ -4,14 +4,15 @@
 # It has to contain the following values:
 # db_collection: Name of the MongoDB collection to save the experiment information to
 # executable:    Name of the Python script containing the experiment
-# Additionally, it can contain a `conda_environment` entry which specifies which conda environment will be activated
-# before execution of the executable.
+# It can optionally also contain the following values:
+# conda_environment: Specifies which conda environment will be activated before the experiment is executed.
+# output_dir:    Directory to store log files in. Default: Current directory
 #
 # The special 'slurm' block contains the slurm parameters. This block and all values are optional. Possible values are:
 # name:                 Job name used by Slurm and file name of Slurm output. Default: Collection name
-# output_dir:           Directory to store the Slurm log files in. Default: Current directory
 # experiments_per_job:  Number of parallel experiments to run in each Slurm job.
 #                       Note that only experiments from the same batch share a job. Default: 1
+# max_jobs_per_batch:   Maximum number of Slurm jobs running per experiment batch. Default: No restriction
 # sbatch_options:       dictionary that contains custom values that will be passed to `sbatch`, specifying e.g.
 #                       the memory and number of GPUs to be allocated (prepended dashes are not required). See
 #                       https://slurm.schedmd.com/sbatch.html for all possible options.

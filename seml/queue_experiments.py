@@ -1,3 +1,4 @@
+import os
 import datetime
 import numpy as np
 import pymongo
@@ -6,11 +7,7 @@ from seml.database_utils import make_hash
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
 from seml.misc import get_default_slurm_config, s_if, unflatten, flatten
-try:
-    from tqdm.autonotebook import tqdm
-except ImportError:
-    def tqdm(iterable, total=None):
-        return iterable
+
 
 def unpack_config(config):
     reserved_keys = ['grid', 'fixed', 'random']
@@ -171,7 +168,7 @@ def generate_configs(experiment_config):
     return all_configs
 
 
-def filter_experiments(collection, configurations, use_hash=False):
+def filter_experiments(collection, configurations, use_hash=True):
     """Check database collection for already present entries.
 
     Check the database collection for experiments that have the same configuration.
@@ -184,7 +181,7 @@ def filter_experiments(collection, configurations, use_hash=False):
         The MongoDB collection containing the experiments.
     configurations: list of dicts
         Contains the individual parameter configurations.
-    use_hash: bool (default: False)
+    use_hash: bool (default: True)
         Whether to use the hash of the config dictionary to perform a faster duplicate check.
 
     Returns
@@ -195,7 +192,7 @@ def filter_experiments(collection, configurations, use_hash=False):
     """
 
     filtered_configs = []
-    for config in tqdm(configurations):
+    for config in configurations:
         if use_hash:
             config_hash = make_hash(config)
             lookup_result = collection.find_one({'config_hash': config_hash})
@@ -265,14 +262,18 @@ def queue_configs(collection, seml_config, slurm_config, configs):
 def queue_experiments(config_file, force_duplicates, no_hash=False):
     seml_config, slurm_config, experiment_config = db_utils.read_config(config_file)
 
+    # Use current Anaconda environment if not specified
+    if 'conda_environment' not in seml_config:
+        seml_config['conda_environment'] = os.environ['CONDA_DEFAULT_ENV']
+
     # Set Slurm config with default parameters as fall-back option
     default_slurm_config = get_default_slurm_config()
     for k, v in default_slurm_config['sbatch_options'].items():
-        if k not in slurm_config['sbatch_options'].keys():
+        if k not in slurm_config['sbatch_options']:
             slurm_config['sbatch_options'][k] = v
     del default_slurm_config['sbatch_options']
     for k, v in default_slurm_config.items():
-        if k not in slurm_config.keys():
+        if k not in slurm_config:
             slurm_config[k] = v
 
     slurm_config['sbatch_options'] = utils.remove_dashes(slurm_config['sbatch_options'])
