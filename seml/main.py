@@ -15,7 +15,6 @@ except ImportError:
     def tqdm(iterable, total=None):
         return iterable
 
-
 def report_status(config_file):
     detect_killed(config_file, verbose=False)
     collection = db_utils.get_collection_from_config(config_file)
@@ -291,21 +290,49 @@ def clean_unreferenced_artifacts(config_file, all_collections=False):
         collection = db_utils.get_collection_from_config(config_file)
         db = collection.database
         collection_names = [collection.name]
+    collection_names = set(collection_names)
+    collection_blacklist = {'fs.chunks', 'fs.files'}
+    collection_names = collection_names - collection_blacklist
 
+    from bson.objectid import ObjectId
     fs = gridfs.GridFS(db)
     referenced_artifact_ids = set()
-    for collection_name in collection_names:
+    referenced_files = set()
+    for collection_name in tqdm(collection_names):
         collection = db[collection_name]
-        all_artifacts = list(collection.find({}, {'artifacts': 1}))
-        all_artifacts = [x['artifacts'] for x in all_artifacts if 'artifacts' in x]
-        all_artifacts_flat = [art for x in all_artifacts for art in x]
-        artifact_ids = set([x['file_id'] for x in all_artifacts_flat])
-        referenced_artifact_ids = referenced_artifact_ids.union(artifact_ids)
+        experiments = list(collection.find({}, {'artifacts': 1, 'experiment.sources': 1, 'source_files': 1}))
+        for exp in experiments:
+            if 'artifacts' in exp:
+                referenced_files.update({x[1] for x in exp['artifacts']})
+            if 'experiment' in exp and 'sources' in exp['experiment']:
+                referenced_files.update({x[1] for x in exp['experiment']['sources']})
+            if 'source_files' in exp:
+                referenced_files.update({x[1] for x in exp['source_files']})
 
-    artifacts_in_db = list(db['fs.files'].find({}, {'_id': 1}))
-    artifacts_in_db = set([x['_id'] for x in artifacts_in_db])
-    not_referenced_artifacts = artifacts_in_db - referenced_artifact_ids
+    all_files_in_db = list(db['fs.files'].find({}, {'_id': 1, 'filename': 1, 'metadata': 1}))
+    filtered_file_ids = set()
+    for file in all_files_in_db:
+        if 'filename' in file:
+            filename = file['filename']
+            file_collection = None
+            if filename.startswith("file://") and 'metadata' in file and file['metadata']:
+                # seml-uploaded source
+                metadata = file['metadata']
+                file_collection = metadata['collection_name'] if 'collection_name' in metadata else None
+            elif filename.startswith("artifact://"):
+                # artifact uploaded by Sacred
+                filename = filename[11:]
+                file_collection = filename.split("/")[0]
+            if file_collection is not None and file_collection in collection_names:
+                # only delete files corresponding to collections we want to clean
+                filtered_file_ids.add(file['_id'])
+
+    not_referenced_artifacts = filtered_file_ids - referenced_files
     n_delete = len(not_referenced_artifacts)
+    if n_delete == 0:
+        print("No unreferenced artifacts found.")
+        return
+    
     if input(f"Deleting {n_delete} not referenced artifact{s_if(n_delete)} from database {db.name}. "
              f"Are you sure? (y/n) ").lower() != "y":
         exit()
@@ -478,3 +505,6 @@ def main():
     if 'filter_states' in args:
         args.filter_states = [state.upper() for state in args.filter_states]
     f(**args.__dict__)
+
+if __name__ == "__main__":
+    main()

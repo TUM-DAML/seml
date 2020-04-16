@@ -5,3 +5,4 @@ sacred>=0.8.1
 pyyaml
 jsonpickle>=1.2, <2.0
 munch>=2.0.4
+gitpython

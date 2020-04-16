@@ -1,4 +1,6 @@
 import os
+
+import gridfs
 from pymongo import MongoClient
 import numpy as np
 import yaml
@@ -7,8 +9,13 @@ import jsonpickle
 from bson import json_util
 import warnings
 import ast
+
+from pymongo.collection import Collection
+
 from seml.settings import SETTINGS
 import urllib.parse
+import pymongo
+
 try:
     from tqdm.autonotebook import tqdm
 except ImportError:
@@ -354,3 +361,37 @@ def make_hash(d: dict):
     """
     import hashlib
     return hashlib.md5(json.dumps(d, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def get_max_value(collection, field):
+
+    ndocs = collection.count_documents({})
+    if field == "_id":
+        c = collection.find({}, {'_id': 1})
+    else:
+        c = collection.find({}, {'_id': 1, field: 1})
+    b = c.sort(field, pymongo.DESCENDING).limit(1)
+    if ndocs != 0:
+        b_next = b.next()
+        max_val = b_next[field] if field in b_next else None
+    else:
+        max_val = None
+
+    return max_val
+
+
+def upload_source_file(filename, db_collection: Collection, batch_id):
+    db = db_collection.database
+    fs = gridfs.GridFS(db)
+    try:
+        with open(filename, "rb") as f:
+            db_filename = f"file://{db_collection.name}/{batch_id}/{filename}"
+            file_id = fs.put(
+                f, filename=db_filename, metadata={"collection_name": db_collection.name,
+                                                   "type": "source_file",
+                                                   "batch_id": batch_id}
+            )
+            return file_id
+    except IOError:
+        print(f"IOError: could not read {filename}")
+    return None

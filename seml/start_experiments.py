@@ -99,13 +99,30 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
     script += 'IFS=";" read -r -a exp_ids <<< "$exp_ids_str"\n'
 
     collection_str = exp_array[0][0]['seml']['db_collection']
+    if 'source_files' in exp_array[0][0]:
+        # we have uploaded the source files to the MongoDB
+        with_sources = True
+        script += "rdm=$RANDOM\n"  # random number for temp dir
+        script += 'tmpdir="/tmp/$rdm"\n'
+        script += 'declare -i ctr=0\n'
+        script += 'while [ -d $tmpdir -a $ctr -le 100 ]; do tmpdir="/tmp/$RANDOM"; ctr=$ctr+1; done\n'
+        script += 'if [ $ctr -ge 100 ]; then echo "could not create a temp dir"; exit 99; fi\n'
+        script += "mkdir $tmpdir\n"
+        temp_prefix = 'PYTHONPATH=$tmpdir:$PYTHONPATH/'
+    else:
+        with_sources = False
+        temp_prefix = ""
+
 
     script += "for exp_id in \"${exp_ids[@]}\"\n"
     script += "do\n"
+    
+    sources_argument = "--stored-sources-dir $tmpdir " if with_sources else ""
     script += (f"cmd=$(python {get_cmd_fname} "
-               f"--experiment_id ${{exp_id}} --database_collection {collection_str} "
+               f"--experiment_id ${{exp_id}} --database_collection {collection_str} {sources_argument}"
                f"--log-verbose {log_verbose} --unobserved {unobserved} --post-mortem {post_mortem})\n")
     script += "ret=$?\n"
+    script += f'cmd="{temp_prefix} $cmd"\n'  # prepend the temp directory if we have one
     script += "if [ $ret -eq 0 ]\n"
     script += "then\n"
     script += "    eval $cmd &\n"
@@ -128,6 +145,8 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
     script += "done\n"
     script += "echo\n"
     script += "wait\n"
+    if with_sources:
+        script += "rm -rf $tmpdir\n"
 
     random_int = np.random.randint(0, 999999)
     path = f"/tmp/{random_int}.sh"
@@ -136,7 +155,6 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
         path = f"/tmp/{random_int}.sh"
     with open(path, "w") as f:
         f.write(script)
-
     output = subprocess.check_output(f'sbatch {path}', shell=True)
     slurm_array_job_id = int(output.split(b' ')[-1])
     for task_id, chunk in enumerate(exp_array):
