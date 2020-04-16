@@ -1,9 +1,6 @@
 import argparse
 from seml import database_utils as db_utils
 from seml.misc import get_config_from_exp
-import gridfs
-import os
-import numpy as np
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -25,27 +22,18 @@ if __name__ == "__main__":
     collection = db_utils.get_collection(db_collection)
 
     exp = collection.find_one({'_id': exp_id})
-    relative = args.stored_sources_dir is not None
-    if relative:
+    use_stored_sources = args.stored_sources_dir is not None
+    if use_stored_sources:
         assert "source_files" in exp, \
             "--stored-sources-dir was supplied but queued experiment does not contain stored source files."
-
-        db = collection.database
-        fs = gridfs.GridFS(db)
-        source_files = exp['source_files']
-        for path, _id in source_files:
-            _dir = f"{args.stored_sources_dir}/{os.path.dirname(path)}"
-            if not os.path.exists(_dir):
-                os.makedirs(_dir)
-            with open(f'{args.stored_sources_dir}/{path}', 'wb') as f:
-                f.write(fs.find_one(_id).read())
+        db_utils.load_sources_from_db(exp, to_directory=args.stored_sources_dir)
 
     exe, config = get_config_from_exp(exp, log_verbose=args.log_verbose,
                                       unobserved=args.unobserved, post_mortem=args.post_mortem,
-                                      relative=relative)
+                                      relative=use_stored_sources)
 
     cmd = f"python {exe} with {' '.join(config)}"
-    if relative:
+    if use_stored_sources:
         # add command without the temp_dir prefix
         # also add the temp dir for debugging purposes
         collection.update_one(

@@ -419,3 +419,18 @@ def upload_source_file(filename, db_collection: Collection, batch_id):
         print(f"IOError: could not read {filename}")
     return None
 
+
+def load_sources_from_db(exp, to_directory):
+    collection = get_collection(exp['seml']['db_collection'])
+    db = collection.database
+    fs = gridfs.GridFS(db)
+    source_files = exp['source_files']
+    for path, _id in source_files:
+        _dir = f"{to_directory}/{os.path.dirname(path)}"
+        if not os.path.exists(_dir):
+            os.makedirs(_dir, mode=0o700)  # only current user can read, write, or execute
+        with open(f'{to_directory}/{path}', 'wb') as f:
+            file = fs.find_one(_id)
+            if file is None:
+                raise ValueError(f"Source file was not found on the MongoDB.")
+            f.write(file.read())

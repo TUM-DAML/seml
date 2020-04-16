@@ -6,6 +6,7 @@ from seml.misc import get_config_from_exp, s_if
 from seml import database_utils as db_utils
 from seml import get_experiment_command
 import warnings
+import shutil
 
 try:
     from tqdm.autonotebook import tqdm
@@ -267,11 +268,14 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
 
         tq = tqdm(exps_list)
         for exp in tq:
+            use_stored_sources = False
+            if 'project_root_dir' in exp['seml']:
+                use_stored_sources = True
+
             exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
-                                              unobserved=unobserved, post_mortem=post_mortem)
-
+                                              unobserved=unobserved, post_mortem=post_mortem,
+                                              relative=use_stored_sources)
             cmd = f"python {exe} with {' '.join(config)}"
-
             if not unobserved:
                 # check also whether PENDING experiments have their Slurm ID set, in this case they are waiting
                 # for Slurm execution and we don't start them locally.
@@ -302,6 +306,17 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                 output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
                 collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
 
+                if use_stored_sources:
+                    random_int = np.random.randint(0, 999999)
+                    temp_dir = f"/tmp/{random_int}"
+                    while os.path.exists(temp_dir):
+                        random_int = np.random.randint(0, 999999)
+                        temp_dir = f"/tmp/{random_int}"
+                    os.mkdir(temp_dir, mode=0o700)
+                    db_utils.load_sources_from_db(exp, to_directory=temp_dir)
+                    # update the command to use the temp dir
+                    cmd = f'PYTHONPATH="{temp_dir}:$PYTHONPATH" python {temp_dir}/{exe} with {" ".join(config)}'
+
                 if 'conda_environment' in seml_config:
                     cmd = (f". $(conda info --base)/etc/profile.d/conda.sh "
                             f"&& conda activate {seml_config['conda_environment']} "
@@ -330,7 +345,9 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
             finally:
                 i_exp += 1
                 tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
-
+                if use_stored_sources:
+                    # clean up temp directory
+                    shutil.rmtree(temp_dir)
 
 def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num_exps, filter_dict):
     configs = do_work(db_collection_name, log_verbose=True, slurm=False,
