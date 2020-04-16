@@ -361,26 +361,17 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
     collection = db_utils.get_collection(seml_config['db_collection'])
     configs = generate_configs(experiment_config)
 
-    root_dir = os.path.abspath("../")
-    sources = get_imported_files(seml_config['executable'], root_dir=root_dir)
-    executable_abs = os.path.abspath(seml_config['executable'])
-    executable_rel = Path(executable_abs).relative_to(root_dir)
-
-    if not executable_abs in sources:
-        raise ValueError(f"Executable {executable_abs} was not found in the sources to upload.")
-    seml_config['executable_relative'] = str(executable_rel)
-
     batch_id = db_utils.get_max_value(collection, "batch_id")
     if batch_id is None:
         batch_id = 1
     else:
         batch_id = batch_id + 1
 
-    uploaded_files = []
-    for s in sources:
-        file_id = upload_source_file(s, collection, batch_id)
-        source_path = Path(s)
-        uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
+    if "project_root_dir" in seml_config:
+        print("Warning: 'project_root_dir' not defined in seml config. Source files will not be uploaded.")
+        uploaded_files = None
+    else:
+        uploaded_files = upload_sources(seml_config, collection, batch_id)
 
     if not no_config_check:
         check_sacred_config(seml_config['executable'], seml_config['conda_environment'], configs)
@@ -399,3 +390,20 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
     # Add the configurations to the database with QUEUED status.
     if len(configs) > 0:
         queue_configs(collection, seml_config, slurm_config, configs, uploaded_files)
+
+
+def upload_sources(seml_config, collection, batch_id):
+    root_dir = os.path.abspath(seml_config['project_root_dir'])
+    sources = get_imported_files(seml_config['executable'], root_dir=root_dir)
+    executable_abs = os.path.abspath(seml_config['executable'])
+    executable_rel = Path(executable_abs).relative_to(root_dir)
+
+    if not executable_abs in sources:
+        raise ValueError(f"Executable {executable_abs} was not found in the sources to upload.")
+    seml_config['executable_relative'] = str(executable_rel)
+
+    uploaded_files = []
+    for s in sources:
+        file_id = upload_source_file(s, collection, batch_id)
+        source_path = Path(s)
+        uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))

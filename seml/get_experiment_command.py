@@ -33,7 +33,7 @@ if __name__ == "__main__":
         db = collection.database
         fs = gridfs.GridFS(db)
         source_files = exp['source_files']
-        for _id, path in source_files:
+        for path, _id in source_files:
             _dir = f"{args.stored_sources_dir}/{os.path.dirname(path)}"
             if not os.path.exists(_dir):
                 os.makedirs(_dir)

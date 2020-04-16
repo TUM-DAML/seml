@@ -108,10 +108,10 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
         script += 'while [ -d $tmpdir -a $ctr -le 100 ]; do tmpdir="/tmp/$RANDOM"; ctr=$ctr+1; done\n'
         script += 'if [ $ctr -ge 100 ]; then echo "could not create a temp dir"; exit 99; fi\n'
         script += "mkdir $tmpdir\n"
-        temp_prefix = 'PYTHONPATH=$tmpdir:$PYTHONPATH/'
+        # prepend the temp dir to $PYTHONPATH so it will be used by python.
+        script += 'export PYTHONPATH="$tmpdir:$PYTHONPATH"\n'
     else:
         with_sources = False
-        temp_prefix = ""
 
 
     script += "for exp_id in \"${exp_ids[@]}\"\n"
@@ -122,7 +122,6 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
                f"--experiment_id ${{exp_id}} --database_collection {collection_str} {sources_argument}"
                f"--log-verbose {log_verbose} --unobserved {unobserved} --post-mortem {post_mortem})\n")
     script += "ret=$?\n"
-    script += f'cmd="{temp_prefix} $cmd"\n'  # prepend the temp directory if we have one
     script += "if [ $ret -eq 0 ]\n"
     script += "then\n"
     script += "    eval $cmd &\n"

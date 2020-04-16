@@ -363,7 +363,18 @@ def make_hash(d: dict):
     return hashlib.md5(json.dumps(d, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def get_max_value(collection, field):
+def get_max_value(collection: Collection, field: str):
+    """
+    Find the maximum value in the input collection for the input field.
+    Parameters
+    ----------
+    collection
+    field
+
+    Returns
+    -------
+    max_val: the maximum value in the field.
+    """
 
     ndocs = collection.count_documents({})
     if field == "_id":
@@ -381,6 +392,18 @@ def get_max_value(collection, field):
 
 
 def upload_source_file(filename, db_collection: Collection, batch_id):
+    """
+    Upload a source file to the MongoDB.
+    Parameters
+    ----------
+    filename: str
+    db_collection: Collection
+    batch_id: int
+
+    Returns
+    -------
+    file_id: ID of the inserted file, or None if there was an error.
+    """
     db = db_collection.database
     fs = gridfs.GridFS(db)
     try:
@@ -395,3 +418,4 @@ def upload_source_file(filename, db_collection: Collection, batch_id):
     except IOError:
         print(f"IOError: could not read {filename}")
     return None
+
