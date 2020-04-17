@@ -58,7 +58,7 @@ slurm:
   name: example_experiment
   experiments_per_job: 1
   sbatch_options:
-    gres: gpu:0       # num GPUs
+    gres: gpu:1       # num GPUs
     mem: 16G          # memory
     cpus-per-task: 1  # num cores
     time: 0-08:00     # max time, D-HH:MM
