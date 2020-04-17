@@ -100,7 +100,7 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
     script += 'IFS=";" read -r -a exp_ids <<< "$exp_ids_str"\n'
 
     collection_str = exp_array[0][0]['seml']['db_collection']
-    if 'source_files' in exp_array[0][0]:
+    if 'source_files' in exp_array[0][0]['seml']:
         # we have uploaded the source files to the MongoDB
         with_sources = True
         script += "rdm=$RANDOM\n"  # random number for temp dir
