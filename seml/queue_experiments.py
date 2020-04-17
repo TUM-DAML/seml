@@ -3,13 +3,15 @@ import sys
 import datetime
 import numpy as np
 import pymongo
+import importlib
+import sys
+from pathlib import Path
 
 from seml.database_utils import make_hash, upload_source_file
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
 from seml.misc import get_default_slurm_config, s_if, unflatten, flatten, import_exe, is_local_source
 
-from pathlib import Path
 
 
 def unpack_config(config):
@@ -268,7 +270,6 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
 
 
 def get_imported_files(executable, root_dir="../"):
-    MODULE_BLACKLIST = set()
     exe_path = os.path.abspath(executable)
     sys.path.insert(0, os.path.dirname(exe_path))
     exp_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
@@ -277,8 +278,6 @@ def get_imported_files(executable, root_dir="../"):
 
     sources = set()
     for name, mod in sys.modules.items():
-        if name in MODULE_BLACKLIST:
-            continue
         if mod is None:
             continue
         if not getattr(mod, "__file__", False):
