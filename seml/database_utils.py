@@ -424,7 +424,9 @@ def load_sources_from_db(exp, to_directory):
     collection = get_collection(exp['seml']['db_collection'])
     db = collection.database
     fs = gridfs.GridFS(db)
-    source_files = exp['source_files']
+    if not 'source_files' in exp['seml']:
+        raise ValueError(f'No source files found for experiment with ID {exp["_id"]}')
+    source_files = exp['seml']['source_files']
     for path, _id in source_files:
         _dir = f"{to_directory}/{os.path.dirname(path)}"
         if not os.path.exists(_dir):

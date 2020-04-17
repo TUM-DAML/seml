@@ -252,6 +252,8 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
 
     print(f"Queueing {len(configs)} configs into the database (batch-ID {batch_id}).")
 
+    if source_files is not None:
+        seml_config['source_files'] = source_files
     db_dicts = [{'_id': start_id + ix,
                  'batch_id': batch_id,
                  'status': 'QUEUED',
@@ -261,8 +263,7 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
                  'config_hash': make_hash(c),
                  'queue_time': datetime.datetime.utcnow()}
                 for ix, c in enumerate(configs)]
-    if source_files is not None:
-        db_dicts = [{**d, 'source_files': source_files} for d in db_dicts]
+
     collection.insert_many(db_dicts)
 
 

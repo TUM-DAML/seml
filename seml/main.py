@@ -179,7 +179,7 @@ def reset_experiment(collection, exp):
     keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'config_hash', 'queue_time']
 
     # Clean up SEML dictionary
-    keep_seml = {'db_collection', 'executable', 'conda_environment', 'output_dir'}
+    keep_seml = {'db_collection', 'executable', 'conda_environment', 'output_dir', 'source_files'}
     seml_keys = set(exp['seml'].keys())
     for key in seml_keys - keep_seml:
         del exp['seml'][key]
