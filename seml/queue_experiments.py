@@ -269,7 +269,7 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
     collection.insert_many(db_dicts)
 
 
-def get_imported_files(executable, root_dir="../"):
+def get_imported_files(executable, root_dir):
     exe_path = os.path.abspath(executable)
     sys.path.insert(0, os.path.dirname(exe_path))
     exp_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
