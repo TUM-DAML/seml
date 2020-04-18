@@ -212,22 +212,22 @@ def chunker(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
 
-def collect_exp_stats(exp):
+def collect_exp_stats(run):
     """
     Collect information such as CPU user time, maximum memory usage,
     and maximum GPU memory usage and save it in the MongoDB.
 
     Parameters
     ----------
-    exp: Sacred Experiment
-        Currently running Sacred experiment.
+    run: Sacred run
+        Current Sacred run.
 
     Returns
     -------
     None
     """
-    exp_id = exp.current_run.config['overwrite']
-    if exp_id is None or exp.current_run.unobserved:
+    exp_id = run.config['overwrite']
+    if exp_id is None or run.unobserved:
         return
 
     stats = {}
@@ -257,7 +257,7 @@ def collect_exp_stats(exp):
             if len(tf.config.experimental.list_physical_devices('GPU')) >= 1:
                 logging.info("SEML stats: There is currently no way to get actual GPU memory usage in TensorFlow 2.")
 
-    collection = db_utils.get_collection(exp.current_run.config['db_collection'])
+    collection = db_utils.get_collection(run.config['db_collection'])
     collection.update_one(
             {'_id': exp_id},
             {'$set': {'stats': stats}})

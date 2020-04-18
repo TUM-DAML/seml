@@ -10,8 +10,8 @@ misc.setup_logger(ex)
 
 
 @ex.post_run_hook
-def collect_stats():
-    misc.collect_exp_stats(ex)
+def collect_stats(_run):
+    misc.collect_exp_stats(_run)
 
 
 @ex.config
