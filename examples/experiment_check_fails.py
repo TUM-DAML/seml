@@ -27,6 +27,7 @@ def config():
     if db_collection is not None:
         ex.observers.append(db_utils.create_mongodb_observer(db_collection, overwrite=overwrite))
 
+
 @ex.capture(prefix="model")
 def init_model(layer, activation):
     print("init_model")
@@ -35,6 +36,7 @@ def init_model(layer, activation):
 @ex.capture(prefix="optimizer")
 def init_optimizer(opt, lr):
     print("init_optimizer")
+
 
 @ex.automain
 def run(dataset):

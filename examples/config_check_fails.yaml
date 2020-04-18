@@ -73,4 +73,3 @@ fixed:
     opt: adam
     lr: 1e-3
   dataset: my_dataset
-
