@@ -299,9 +299,11 @@ def check_sacred_config(executable, conda_env, configs):
     }
 
     for config in configs:
-        unused_args = [arg for arg in sorted(config.keys()) if arg not in captured_args]
-        if len(unused_args) > 0:
-            raise sacred.utils.ConfigAddedError(unused_args, config=config)
+        config_flattened = {k for k, v in sacred.utils.iterate_flattened(config)}
+
+        for conf in sorted(config_flattened):
+            if not (set(sacred.utils.iter_prefixes(conf)) & captured_args):
+                raise sacred.utils.ConfigAddedError(conf, config=config_flattened)
 
         options = empty_run.config.copy()
         options.update(config)
