@@ -299,7 +299,8 @@ def check_sacred_config(executable, conda_env, configs):
     }
 
     for config in configs:
-        config_flattened = {k for k, v in sacred.utils.iterate_flattened(config)}
+        config_added = {k: v for k, v in config.items() if k not in empty_run.config.keys()}
+        config_flattened = {k for k, v in sacred.utils.iterate_flattened(config_added)}
 
         for conf in sorted(config_flattened):
             if not (set(sacred.utils.iter_prefixes(conf)) & captured_args):
