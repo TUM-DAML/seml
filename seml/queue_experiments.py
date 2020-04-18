@@ -6,6 +6,7 @@ import pymongo
 import importlib
 import sys
 from pathlib import Path
+import logging
 
 from seml.database_utils import make_hash, upload_source_file
 from seml import parameter_utils as utils
@@ -368,7 +369,7 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
         batch_id = batch_id + 1
 
     if "project_root_dir" not in seml_config:
-        print("Warning: 'project_root_dir' not defined in seml config. Source files will not be uploaded.")
+        logging.warning("Warning: 'project_root_dir' not defined in seml config. Source files will not be uploaded.")
         uploaded_files = None
     else:
         uploaded_files = upload_sources(seml_config, collection, batch_id)
@@ -393,7 +394,7 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
 
 
 def upload_sources(seml_config, collection, batch_id):
-    root_dir = os.path.abspath(seml_config['project_root_dir'])
+    root_dir = os.path.abspath(os.path.expanduser(seml_config['project_root_dir']))
     sources = get_imported_files(seml_config['executable'], root_dir=root_dir)
     executable_abs = os.path.abspath(seml_config['executable'])
     executable_rel = Path(executable_abs).relative_to(root_dir)

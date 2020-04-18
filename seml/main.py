@@ -15,6 +15,7 @@ except ImportError:
     def tqdm(iterable, total=None):
         return iterable
 
+
 def report_status(config_file):
     detect_killed(config_file, verbose=False)
     collection = db_utils.get_collection_from_config(config_file)

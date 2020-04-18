@@ -9,6 +9,7 @@ import jsonpickle
 from bson import json_util
 import warnings
 import ast
+import logging
 
 from pymongo.collection import Collection
 
@@ -416,7 +417,7 @@ def upload_source_file(filename, db_collection: Collection, batch_id):
             )
             return file_id
     except IOError:
-        print(f"IOError: could not read {filename}")
+        logging.error(f"IOError: could not read {filename}")
     return None
 
 

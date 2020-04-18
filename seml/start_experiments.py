@@ -349,6 +349,7 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
                     # clean up temp directory
                     shutil.rmtree(temp_dir)
 
+
 def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num_exps, filter_dict):
     configs = do_work(db_collection_name, log_verbose=True, slurm=False,
                       unobserved=True, post_mortem=False,
