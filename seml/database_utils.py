@@ -15,6 +15,7 @@ except ImportError:
     def tqdm(iterable, total=None):
         return iterable
 
+
 def get_results_flattened(collection_name):
     warnings.warn("This method is deprecated. Use database_utils.get_results instead.",
                   DeprecationWarning)

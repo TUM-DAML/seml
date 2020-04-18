@@ -1,6 +1,5 @@
 import os
 import sys
-import importlib
 import datetime
 import numpy as np
 import pymongo
@@ -8,7 +7,7 @@ import pymongo
 from seml.database_utils import make_hash
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
-from seml.misc import get_default_slurm_config, s_if, unflatten, flatten
+from seml.misc import get_default_slurm_config, s_if, unflatten, flatten, import_exe
 
 
 def unpack_config(config):
@@ -261,13 +260,15 @@ def queue_configs(collection, seml_config, slurm_config, configs):
     collection.insert_many(db_dicts)
 
 
-def check_sacred_config(executable, configs):
+def check_sacred_config(executable, conda_env, configs):
     """Check if the given configs are consistent with the Sacred experiment in the given executable.
 
     Parameters
     ----------
     executable: str
         The Python file containing the experiment.
+    conda_env: str
+        The experiment's Anaconda environment.
     configs: list of dicts
         Contains the parameter configurations.
 
@@ -278,11 +279,7 @@ def check_sacred_config(executable, configs):
     """
     import sacred
 
-    # Get experiment as module (which causes Sacred not to start ex.automain)
-    exe_path = os.path.abspath(executable)
-    sys.path.insert(0, os.path.dirname(exe_path))
-    exp_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
-    del sys.path[0]
+    exp_module = import_exe(executable, conda_env)
 
     # Extract experiment from module
     exps = [v for k, v in exp_module.__dict__.items() if type(v) == sacred.Experiment]
@@ -333,7 +330,7 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
     configs = generate_configs(experiment_config)
 
     if not no_config_check:
-        check_sacred_config(seml_config['executable'], configs)
+        check_sacred_config(seml_config['executable'], seml_config['conda_environment'], configs)
 
     if not force_duplicates:
         len_before = len(configs)
