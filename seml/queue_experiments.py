@@ -369,7 +369,7 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
         batch_id = batch_id + 1
 
     if "project_root_dir" not in seml_config:
-        logging.warning("Warning: 'project_root_dir' not defined in seml config. Source files will not be uploaded.")
+        logging.warning("'project_root_dir' not defined in seml config. Source files will not be uploaded.")
         uploaded_files = None
     else:
         uploaded_files = upload_sources(seml_config, collection, batch_id)
