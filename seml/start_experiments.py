@@ -233,7 +233,6 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
             else:
                 configs.append((exe, None, config))
         return configs
-
     elif slurm:
         assert output_to_file is True, "Output cannot be written to stdout in Slurm mode."
         exp_chunks = db_utils.chunk_list(exps_list)
@@ -259,19 +258,20 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
         if login_node_name in os.uname()[1]:
             raise ValueError("Refusing to run a compute experiment on a login node. "
                              "Please use Slurm or a compute node.")
+        print(f'Starting local worker thread that will run up to {nexps} experiments, '
+              f'until no queued experiments remain.')
+        if not unobserved:
+            collection.update_many({'_id': {'$in': [e['_id'] for e in exps_list]}}, {"$set": {"status": "PENDING"}})
+        num_exceptions = 0
+        tq = tqdm(enumerate(exps_list))
+        for i_exp, exp in tq:
+            success = start_local_job(collection, exp, log_verbose, output_to_file, post_mortem, unobserved)
+            if success is False:
+                num_exceptions += 1
+            tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
 
-        start_local_job(collection, exps_list, log_verbose, nexps, output_to_file, post_mortem, unobserved)
 
-
-def start_local_job(collection, exps_list, log_verbose, nexps, output_to_file, post_mortem, unobserved):
-    print(f'Starting local worker thread that will run up to {nexps} experiments, '
-          f'until no queued experiments remain.')
-    if not unobserved:
-        collection.update_many({'_id': {'$in': [e['_id'] for e in exps_list]}}, {"$set": {"status": "PENDING"}})
-    num_exceptions = 0
-    i_exp = 0
-    tq = tqdm(exps_list)
-    for exp in tq:
+def start_local_job(collection, exp, log_verbose, output_to_file, post_mortem, unobserved):
         use_stored_sources = False
         if 'project_root_dir' in exp['seml']:
             use_stored_sources = True
@@ -291,7 +291,9 @@ def start_local_job(collection, exps_list, log_verbose, nexps, output_to_file, p
             if db_entry is None:
                 # another worker already set this entry to PENDING (or at least, it's no longer QUEUED)
                 # so we ignore it.
-                continue
+                return None
+
+        success = True
 
         try:
             output_dir = "."
@@ -339,19 +341,20 @@ def start_local_job(collection, exps_list, log_verbose, nexps, output_to_file, p
                 subprocess.check_call(cmd, shell=True)
 
         except subprocess.CalledProcessError:
-            num_exceptions += 1
+            success =  False
         except IOError:
             print(f"Log file {output_file} could not be written.")
             # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
             collection.find_one_and_update(filter={'_id': exp['_id']},
                                            update={'$set': {'status': 'FAILED'}},
                                            upsert=False)
+            success = False
+
         finally:
-            i_exp += 1
-            tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
             if use_stored_sources:
                 # clean up temp directory
                 shutil.rmtree(temp_dir)
+            return success
 
 
 def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num_exps, filter_dict):
