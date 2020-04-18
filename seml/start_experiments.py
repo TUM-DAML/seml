@@ -233,6 +233,7 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
             else:
                 configs.append((exe, None, config))
         return configs
+
     elif slurm:
         assert output_to_file is True, "Output cannot be written to stdout in Slurm mode."
         exp_chunks = db_utils.chunk_list(exps_list)
@@ -259,95 +260,98 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
             raise ValueError("Refusing to run a compute experiment on a login node. "
                              "Please use Slurm or a compute node.")
 
-        print(f'Starting local worker thread that will run up to {nexps} experiments, '
-              f'until no queued experiments remain.')
+        start_local_job(collection, exps_list, log_verbose, nexps, output_to_file, post_mortem, unobserved)
+
+
+def start_local_job(collection, exps_list, log_verbose, nexps, output_to_file, post_mortem, unobserved):
+    print(f'Starting local worker thread that will run up to {nexps} experiments, '
+          f'until no queued experiments remain.')
+    if not unobserved:
+        collection.update_many({'_id': {'$in': [e['_id'] for e in exps_list]}}, {"$set": {"status": "PENDING"}})
+    num_exceptions = 0
+    i_exp = 0
+    tq = tqdm(exps_list)
+    for exp in tq:
+        use_stored_sources = False
+        if 'project_root_dir' in exp['seml']:
+            use_stored_sources = True
+
+        exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
+                                          unobserved=unobserved, post_mortem=post_mortem,
+                                          relative=use_stored_sources)
+        cmd = f"python {exe} with {' '.join(config)}"
         if not unobserved:
-            collection.update_many({'_id': {'$in': [e['_id'] for e in exps_list]}}, {"$set": {"status": "PENDING"}})
-        num_exceptions = 0
-        i_exp = 0
+            # check also whether PENDING experiments have their Slurm ID set, in this case they are waiting
+            # for Slurm execution and we don't start them locally.
+            db_entry = collection.find_one_and_update(filter={'_id': exp['_id'], 'status': 'PENDING',
+                                                              'slurm.array_id': {'$exists': False}},
+                                                      update={'$set': {'seml.command': cmd,
+                                                                       'status': 'RUNNING'}},
+                                                      upsert=False)
+            if db_entry is None:
+                # another worker already set this entry to PENDING (or at least, it's no longer QUEUED)
+                # so we ignore it.
+                continue
 
-        tq = tqdm(exps_list)
-        for exp in tq:
-            use_stored_sources = False
-            if 'project_root_dir' in exp['seml']:
-                use_stored_sources = True
+        try:
+            output_dir = "."
+            seml_config = exp['seml']
+            slurm_config = exp['slurm']
+            if 'output_dir' in slurm_config:
+                warnings.warn(
+                    "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
+                    "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
+                output_dir = slurm_config['output_dir']
+            if 'output_dir' in seml_config:
+                output_dir = seml_config['output_dir']
+            output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
+            exp_name = slurm_config['name']
 
-            exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
-                                              unobserved=unobserved, post_mortem=post_mortem,
-                                              relative=use_stored_sources)
-            cmd = f"python {exe} with {' '.join(config)}"
-            if not unobserved:
-                # check also whether PENDING experiments have their Slurm ID set, in this case they are waiting
-                # for Slurm execution and we don't start them locally.
-                db_entry = collection.find_one_and_update(filter={'_id': exp['_id'], 'status': 'PENDING',
-                                                                  'slurm.array_id': {'$exists': False}},
-                                                          update={'$set': {'seml.command': cmd,
-                                                                           'status': 'RUNNING'}},
-                                                          upsert=False)
-                if db_entry is None:
-                    # another worker already set this entry to PENDING (or at least, it's no longer QUEUED)
-                    # so we ignore it.
-                    continue
+            output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
+            collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
 
-            try:
-                output_dir = "."
-                seml_config = exp['seml']
-                slurm_config = exp['slurm']
-                if 'output_dir' in slurm_config:
-                    warnings.warn(
-                        "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
-                        "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
-                    output_dir = slurm_config['output_dir']
-                if 'output_dir' in seml_config:
-                    output_dir = seml_config['output_dir']
-                output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
-                exp_name = slurm_config['name']
-
-                output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
-                collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
-
-                if use_stored_sources:
+            if use_stored_sources:
+                random_int = np.random.randint(0, 999999)
+                temp_dir = f"/tmp/{random_int}"
+                while os.path.exists(temp_dir):
                     random_int = np.random.randint(0, 999999)
                     temp_dir = f"/tmp/{random_int}"
-                    while os.path.exists(temp_dir):
-                        random_int = np.random.randint(0, 999999)
-                        temp_dir = f"/tmp/{random_int}"
-                    os.mkdir(temp_dir, mode=0o700)
-                    db_utils.load_sources_from_db(exp, to_directory=temp_dir)
-                    # update the command to use the temp dir
-                    cmd = f'PYTHONPATH="{temp_dir}:$PYTHONPATH" python {temp_dir}/{exe} with {" ".join(config)}'
+                os.mkdir(temp_dir, mode=0o700)
+                db_utils.load_sources_from_db(exp, to_directory=temp_dir)
+                # update the command to use the temp dir
+                cmd = f'PYTHONPATH="{temp_dir}:$PYTHONPATH" python {temp_dir}/{exe} with {" ".join(config)}'
 
-                if 'conda_environment' in seml_config:
-                    cmd = (f". $(conda info --base)/etc/profile.d/conda.sh "
-                            f"&& conda activate {seml_config['conda_environment']} "
-                            f"&& {cmd} "
-                            f"&& conda deactivate")
+            if 'conda_environment' in seml_config:
+                cmd = (f". $(conda info --base)/etc/profile.d/conda.sh "
+                       f"&& conda activate {seml_config['conda_environment']} "
+                       f"&& {cmd} "
+                       f"&& conda deactivate")
 
-                if log_verbose:
-                    print(f'Running the following command:\n {cmd}')
+            if log_verbose:
+                print(f'Running the following command:\n {cmd}')
 
-                if output_to_file:
-                    with open(output_file, "w") as log_file:
-                        # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
-                        subprocess.check_call(cmd, shell=True, stderr=log_file,
-                                              stdout=log_file)
-                else:
-                    subprocess.check_call(cmd, shell=True)
+            if output_to_file:
+                with open(output_file, "w") as log_file:
+                    # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
+                    subprocess.check_call(cmd, shell=True, stderr=log_file,
+                                          stdout=log_file)
+            else:
+                subprocess.check_call(cmd, shell=True)
 
-            except subprocess.CalledProcessError:
-                num_exceptions += 1
-            except IOError:
-                print(f"Log file {output_file} could not be written.")
-                # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
-                collection.find_one_and_update(filter={'_id': exp['_id']},
-                                               update={'$set': {'status': 'FAILED'}},
-                                               upsert=False)
-            finally:
-                i_exp += 1
-                tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
-                if use_stored_sources:
-                    # clean up temp directory
-                    shutil.rmtree(temp_dir)
+        except subprocess.CalledProcessError:
+            num_exceptions += 1
+        except IOError:
+            print(f"Log file {output_file} could not be written.")
+            # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
+            collection.find_one_and_update(filter={'_id': exp['_id']},
+                                           update={'$set': {'status': 'FAILED'}},
+                                           upsert=False)
+        finally:
+            i_exp += 1
+            tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
+            if use_stored_sources:
+                # clean up temp directory
+                shutil.rmtree(temp_dir)
 
 
 def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num_exps, filter_dict):
