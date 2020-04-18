@@ -1,4 +1,6 @@
+import os
 import sys
+import importlib
 import resource
 import subprocess
 import logging
@@ -261,3 +263,31 @@ def collect_exp_stats(exp):
     collection.update_one(
             {'_id': exp_id},
             {'$set': {'stats': stats}})
+
+
+def import_exe(executable, conda_env):
+    """Import the given executable file.
+
+    Parameters
+    ----------
+    executable: str
+        The Python file containing the experiment.
+    conda_env: str
+        The experiment's Anaconda environment.
+
+    Returns
+    -------
+    The module of the imported executable.
+
+    """
+    # Check if current environment matches experiment environment
+    if conda_env != os.environ['CONDA_DEFAULT_ENV']:
+        logging.warning(f"Current Anaconda environment does not match the experiment's environment ('{conda_env}').")
+
+    # Get experiment as module (which causes Sacred not to start ex.automain)
+    exe_path = os.path.abspath(executable)
+    sys.path.insert(0, os.path.dirname(exe_path))
+    exe_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
+    del sys.path[0]
+
+    return exe_module
