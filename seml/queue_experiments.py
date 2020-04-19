@@ -270,11 +270,8 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
     collection.insert_many(db_dicts)
 
 
-def get_imported_files(executable, root_dir):
-    exe_path = os.path.abspath(executable)
-    sys.path.insert(0, os.path.dirname(exe_path))
-    exp_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
-    del sys.path[0]
+def get_imported_files(executable, root_dir, conda_env):
+    exp_module = import_exe(executable, conda_env)
     root_path = os.path.abspath(root_dir)
 
     sources = set()
@@ -395,7 +392,8 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
 
 def upload_sources(seml_config, collection, batch_id):
     root_dir = os.path.abspath(os.path.expanduser(seml_config['project_root_dir']))
-    sources = get_imported_files(seml_config['executable'], root_dir=root_dir)
+    sources = get_imported_files(seml_config['executable'], root_dir=root_dir,
+                                 conda_env=seml_config['conda_environment'])
     executable_abs = os.path.abspath(seml_config['executable'])
     executable_rel = Path(executable_abs).relative_to(root_dir)
 
