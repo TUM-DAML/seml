@@ -3,11 +3,16 @@ import sys
 import datetime
 import numpy as np
 import pymongo
+import importlib
+import sys
+from pathlib import Path
+import logging
 
-from seml.database_utils import make_hash
+from seml.database_utils import make_hash, upload_source_file
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
-from seml.misc import get_default_slurm_config, s_if, unflatten, flatten, import_exe
+from seml.misc import get_default_slurm_config, s_if, unflatten, flatten, import_exe, is_local_source
+
 
 
 def unpack_config(config):
@@ -210,7 +215,7 @@ def filter_experiments(collection, configurations, use_hash=True):
     return filtered_configs
 
 
-def queue_configs(collection, seml_config, slurm_config, configs):
+def queue_configs(collection, seml_config, slurm_config, configs, source_files=None):
     """Put the input configurations into the database.
 
     Parameters
@@ -223,6 +228,9 @@ def queue_configs(collection, seml_config, slurm_config, configs):
         Settings for the Slurm job. See `start_experiments.start_slurm_job` for details.
     configs: list of dicts
         Contains the parameter configurations.
+    source_files: (optional) list of tuples
+        Contains the uploaded source files corresponding to the batch. Entries are of the form
+        (object_id, relative_path)
 
     Returns
     -------
@@ -233,21 +241,22 @@ def queue_configs(collection, seml_config, slurm_config, configs):
     if len(configs) == 0:
         return
 
-    ndocs = collection.count_documents({})
-    c = collection.find({}, {'_id': 1, 'batch_id': 1})
-    c = c.sort('_id', pymongo.DESCENDING).limit(1)
-    start_id = c.next()['_id'] + 1 if ndocs != 0 else 1
-    c.rewind()
-    b = c.sort('batch_id', pymongo.DESCENDING).limit(1)
-
-    if ndocs != 0:
-        b_next = b.next()
-        batch_id = b_next['batch_id'] + 1 if "batch_id" in b_next else 1
+    start_id = db_utils.get_max_value(collection, "_id")
+    if start_id is None:
+        start_id = 1
     else:
+        start_id = start_id + 1
+
+    batch_id = db_utils.get_max_value(collection, "batch_id")
+    if batch_id is None:
         batch_id = 1
+    else:
+        batch_id = batch_id + 1
 
     print(f"Queueing {len(configs)} configs into the database (batch-ID {batch_id}).")
 
+    if source_files is not None:
+        seml_config['source_files'] = source_files
     db_dicts = [{'_id': start_id + ix,
                  'batch_id': batch_id,
                  'status': 'QUEUED',
@@ -257,7 +266,25 @@ def queue_configs(collection, seml_config, slurm_config, configs):
                  'config_hash': make_hash(c),
                  'queue_time': datetime.datetime.utcnow()}
                 for ix, c in enumerate(configs)]
+
     collection.insert_many(db_dicts)
+
+
+def get_imported_files(executable, root_dir, conda_env):
+    exp_module = import_exe(executable, conda_env)
+    root_path = os.path.abspath(root_dir)
+
+    sources = set()
+    for name, mod in sys.modules.items():
+        if mod is None:
+            continue
+        if not getattr(mod, "__file__", False):
+            continue
+        filename = os.path.abspath(mod.__file__)
+        if filename not in sources and is_local_source(filename, root_path):
+            sources.add(filename)
+
+    return sources
 
 
 def check_sacred_config(executable, conda_env, configs):
@@ -315,7 +342,7 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
     seml_config, slurm_config, experiment_config = db_utils.read_config(config_file)
 
     # Use current Anaconda environment if not specified
-    if 'conda_environment' not in seml_config:
+    if 'conda_environment' not in seml_config and 'CONDA_DEFAULT_ENV' in os.environ:
         seml_config['conda_environment'] = os.environ['CONDA_DEFAULT_ENV']
 
     # Set Slurm config with default parameters as fall-back option
@@ -331,6 +358,18 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
     slurm_config['sbatch_options'] = utils.remove_dashes(slurm_config['sbatch_options'])
     collection = db_utils.get_collection(seml_config['db_collection'])
     configs = generate_configs(experiment_config)
+
+    batch_id = db_utils.get_max_value(collection, "batch_id")
+    if batch_id is None:
+        batch_id = 1
+    else:
+        batch_id = batch_id + 1
+
+    if "project_root_dir" not in seml_config:
+        logging.warning("'project_root_dir' not defined in seml config. Source files will not be uploaded.")
+        uploaded_files = None
+    else:
+        uploaded_files = upload_sources(seml_config, collection, batch_id)
 
     if not no_config_check:
         check_sacred_config(seml_config['executable'], seml_config['conda_environment'], configs)
@@ -348,4 +387,23 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
     collection.create_index("config_hash")
     # Add the configurations to the database with QUEUED status.
     if len(configs) > 0:
-        queue_configs(collection, seml_config, slurm_config, configs)
+        queue_configs(collection, seml_config, slurm_config, configs, uploaded_files)
+
+
+def upload_sources(seml_config, collection, batch_id):
+    root_dir = os.path.abspath(os.path.expanduser(seml_config['project_root_dir']))
+    sources = get_imported_files(seml_config['executable'], root_dir=root_dir,
+                                 conda_env=seml_config['conda_environment'])
+    executable_abs = os.path.abspath(seml_config['executable'])
+    executable_rel = Path(executable_abs).relative_to(root_dir)
+
+    if not executable_abs in sources:
+        raise ValueError(f"Executable {executable_abs} was not found in the sources to upload.")
+    seml_config['executable_relative'] = str(executable_rel)
+
+    uploaded_files = []
+    for s in sources:
+        file_id = upload_source_file(s, collection, batch_id)
+        source_path = Path(s)
+        uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
+    return uploaded_files

@@ -23,12 +23,13 @@ def config():
 
 
 @ex.automain
-def run(dataset, hidden_sizes, learning_rate, reg_scale, keep_prob, max_epochs, patience, display_step, regularization_params):
+def run(dataset, hidden_sizes, learning_rate, reg_scale, keep_prob, max_epochs, patience, display_step,
+        regularization_params):
 
     logging.info('Received the following configuration:')
     logging.info(f'Dataset: {dataset}, hidden sizes: {hidden_sizes}, learning_rate: {learning_rate},'
-                 f'reg_scale: {reg_scale}, keep_prob:{keep_prob}, max_epochs: {max_epochs}, patience:{patience}, '
-                 f'display_step: {display_step}')
+                 f'reg_scale: {reg_scale}, keep_prob:{keep_prob}, max_epochs: {max_epochs}, patience:{patience},'
+                 f'display_step: {display_step}, regularization: {regularization_params}')
 
     #  do your processing here
 

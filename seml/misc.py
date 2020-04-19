@@ -1,17 +1,21 @@
-import os
 import sys
 import importlib
 import resource
+import os
 import subprocess
 import logging
+from pathlib import Path
+
 from seml.settings import SETTINGS
 import seml.database_utils as db_utils
 
 
-def get_config_from_exp(exp, log_verbose=False, unobserved=False, post_mortem=False, debug=False):
+def get_config_from_exp(exp, log_verbose=False, unobserved=False, post_mortem=False, debug=False, relative=False):
     if 'executable' not in exp['seml']:
         raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
+    if relative:
+        exe = exp['seml']['executable_relative']
 
     config = exp['config']
     config['db_collection'] = exp['seml']['db_collection']
@@ -263,6 +267,25 @@ def collect_exp_stats(run):
     collection.update_one(
             {'_id': exp_id},
             {'$set': {'stats': stats}})
+
+
+def is_local_source(filename, root_dir):
+    """
+    See https://github.com/IDSIA/sacred/blob/master/sacred/dependencies.py
+    Parameters
+    ----------
+    filename
+    root_dir
+
+    Returns
+    -------
+
+    """
+    filename = Path(os.path.abspath(os.path.realpath(filename)))
+    root_path = Path(os.path.abspath(os.path.realpath(root_dir)))
+    if root_path not in filename.parents:
+        return False
+    return True
 
 
 def import_exe(executable, conda_env):
