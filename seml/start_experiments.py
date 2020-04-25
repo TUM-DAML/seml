@@ -398,7 +398,7 @@ def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num
 
 
 def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
-                      test, unobserved, post_mortem, debug, verbose, dry_run,
+                      num_exps, unobserved, post_mortem, debug, verbose, dry_run,
                       output_to_console):
     use_slurm = not local
     output_to_file = not output_to_console
@@ -406,15 +406,12 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
     db_collection_name = db_utils.read_config(config_file)[0]['db_collection']
 
     if debug:
-        test = 1
+        num_exps = 1
         use_slurm = False
         unobserved = True
         post_mortem = True
 
-    if test != -1:
-        verbose = True
-
-    if test != -1 and not use_slurm:
+    if num_exps != -1 and not use_slurm:
         output_to_file = False
 
     if sacred_id is None:
@@ -425,9 +422,9 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
     if dry_run:
         print_commands(db_collection_name, log_verbose=verbose,
                        unobserved=unobserved, post_mortem=post_mortem,
-                       num_exps=test, filter_dict=filter_dict)
+                       num_exps=num_exps, filter_dict=filter_dict)
     else:
         do_work(db_collection_name, log_verbose=verbose, slurm=use_slurm,
                 unobserved=unobserved, post_mortem=post_mortem,
-                num_exps=test, filter_dict=filter_dict, dry_run=dry_run,
+                num_exps=num_exps, filter_dict=filter_dict, dry_run=dry_run,
                 output_to_file=output_to_file)
