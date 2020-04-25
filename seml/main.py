@@ -181,7 +181,7 @@ def reset_experiment(collection, exp):
 
     # Clean up SEML dictionary
     keep_seml = {'db_collection', 'executable', 'conda_environment', 'output_dir', 'source_files', 'project_root_dir',
-                 'executable_relative'}
+                 'executable_relative', 'git'}
     seml_keys = set(exp['seml'].keys())
     for key in seml_keys - keep_seml:
         del exp['seml'][key]

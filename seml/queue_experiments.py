@@ -374,6 +374,10 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
     if not no_config_check:
         check_sacred_config(seml_config['executable'], seml_config['conda_environment'], configs)
 
+    path, commit, dirty = get_git_info(seml_config['executable'])
+    if path is not None:
+        seml_config['git'] = {'path': path, 'commit': commit, 'dirty': dirty}
+
     if not force_duplicates:
         len_before = len(configs)
         use_hash = not no_hash
@@ -407,3 +411,41 @@ def upload_sources(seml_config, collection, batch_id):
         source_path = Path(s)
         uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
     return uploaded_files
+
+
+def get_git_info(filename):
+    """
+    Get the git commit info.
+    See https://github.com/IDSIA/sacred/blob/c1c19a58332368da5f184e113252b6b0abc8e33b/sacred/dependencies.py#L400
+
+    Parameters
+    ----------
+    filename: str
+
+    Returns
+    -------
+    path: str
+        The base path of the repository
+    commit: str
+        The commit hash
+    is_dirty: bool
+        True if there are uncommitted changes in the repository
+    """
+
+    try:
+        from git import Repo, InvalidGitRepositoryError
+    except ImportError:
+        logging.warn("Cannot import git (pip install GitPython).\n"
+                     "Not saving git status.")
+
+    directory = os.path.dirname(filename)
+    try:
+        repo = Repo(directory, search_parent_directories=True)
+    except InvalidGitRepositoryError:
+        return None, None, None
+    try:
+        path = repo.remote().url
+    except ValueError:
+        path = "git:/" + repo.working_dir
+    commit = repo.head.commit.hexsha
+    return path, commit, repo.is_dirty()
