@@ -117,7 +117,7 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
 
     script += "for exp_id in \"${exp_ids[@]}\"\n"
     script += "do\n"
-    
+
     sources_argument = "--stored-sources-dir $tmpdir " if with_sources else ""
     script += (f"cmd=$(python {get_cmd_fname} "
                f"--experiment_id ${{exp_id}} --database_collection {collection_str} {sources_argument}"
@@ -410,8 +410,7 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
         use_slurm = False
         unobserved = True
         post_mortem = True
-
-    if num_exps != -1 and not use_slurm:
+        verbose = True
         output_to_file = False
 
     if sacred_id is None:

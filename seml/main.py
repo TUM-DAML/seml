@@ -334,7 +334,7 @@ def clean_unreferenced_artifacts(config_file, all_collections=False):
     if n_delete == 0:
         print("No unreferenced artifacts found.")
         return
-    
+
     if input(f"Deleting {n_delete} not referenced artifact{s_if(n_delete)} from database {db.name}. "
              f"Are you sure? (y/n) ").lower() != "y":
         exit()
@@ -380,7 +380,7 @@ def main():
             '-l', '--local', action='store_true',
             help="Run the experiments locally.")
     parser_start.add_argument(
-            '-n', '--num_exps', type=int, default=-1,
+            '-n', '--num-exps', type=int, default=-1,
             help="Only start the specified number of experiments.")
     parser_start.add_argument(
             '-u', '--unobserved', action='store_true',
