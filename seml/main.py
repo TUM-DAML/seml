@@ -522,6 +522,7 @@ def main():
 
     f = args.func
     del args.func
+    del args.verbose
     if 'filter_states' in args:
         args.filter_states = [state.upper() for state in args.filter_states]
     f(**args.__dict__)
