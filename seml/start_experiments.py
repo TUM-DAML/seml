@@ -69,84 +69,42 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
             f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
     sbatch_options['output'] = f'{output_dir_path}/{name}_%A_%a.out'
 
-    script = "#!/bin/bash\n"
-
+    # Construct sbatch options string
+    sbatch_options_str = ""
     for key, value in sbatch_options.items():
         prepend = '-' if len(key) == 1 else '--'
         if key in ['partition', 'p'] and isinstance(value, list):
-            script += f"#SBATCH {prepend}{key}={','.join(value)}\n"
+            sbatch_options_str += f"#SBATCH {prepend}{key}={','.join(value)}\n"
         else:
-            script += f"#SBATCH {prepend}{key}={value}\n"
-
-    script += "\n"
-    script += "cd ${SLURM_SUBMIT_DIR} \n"
-    script += "echo Starting job ${SLURM_JOBID} \n"
-    script += "echo \"SLURM assigned me the node(s): $(squeue -j ${SLURM_JOBID} -O nodelist | tail -n +2)\"\n"
-
-    if 'conda_environment' in exp_array[0][0]['seml']:
-        script += "CONDA_BASE=$(conda info --base)\n"
-        script += "source $CONDA_BASE/etc/profile.d/conda.sh\n"
-        script += f"conda activate {exp_array[0][0]['seml']['conda_environment']}\n"
-
-    get_cmd_fname = get_experiment_command.__file__
-    script += "process_ids=() \n"
+            sbatch_options_str += f"#SBATCH {prepend}{key}={value}\n"
 
     # Construct chunked list with all experiment IDs
     expid_strings = [('"' + ';'.join([str(exp['_id']) for exp in chunk]) + '"') for chunk in exp_array]
-    script += f"all_exp_ids=({' '.join(expid_strings)}) \n"
 
-    # Get experiment IDs for this Slurm task
-    script += 'exp_ids_str="${all_exp_ids[$SLURM_ARRAY_TASK_ID]}"\n'
-    script += 'IFS=";" read -r -a exp_ids <<< "$exp_ids_str"\n'
+    with_sources = ('source_files' in exp_array[0][0]['seml'])
 
-    collection_str = exp_array[0][0]['seml']['db_collection']
-    if 'source_files' in exp_array[0][0]['seml']:
-        # we have uploaded the source files to the MongoDB
-        with_sources = True
-        script += "rdm=$RANDOM\n"  # random number for temp dir
-        script += 'tmpdir="/tmp/$rdm"\n'
-        script += 'declare -i ctr=0\n'
-        script += 'while [ -d $tmpdir -a $ctr -le 100 ]; do tmpdir="/tmp/$RANDOM"; ctr=$ctr+1; done\n'
-        script += 'if [ $ctr -ge 100 ]; then echo "could not create a temp dir"; exit 99; fi\n'
-        script += "mkdir $tmpdir\n"
-        # prepend the temp dir to $PYTHONPATH so it will be used by python.
-        script += 'export PYTHONPATH="$tmpdir:$PYTHONPATH"\n'
+    use_conda_env = 'conda_environment' in exp_array[0][0]['seml']
+    if use_conda_env:
+        conda_env = exp_array[0][0]['seml']['conda_environment']
     else:
-        with_sources = False
+        conda_env = ""
 
-
-    script += "for exp_id in \"${exp_ids[@]}\"\n"
-    script += "do\n"
-
-    sources_argument = "--stored-sources-dir $tmpdir " if with_sources else ""
-    script += (f"cmd=$(python {get_cmd_fname} "
-               f"--experiment_id ${{exp_id}} --database_collection {collection_str} {sources_argument}"
-               f"--log-verbose {log_verbose} --unobserved {unobserved} --post-mortem {post_mortem})\n")
-    script += "ret=$?\n"
-    script += "if [ $ret -eq 0 ]\n"
-    script += "then\n"
-    script += "    eval $cmd &\n"
-    script += "    process_ids+=($!)\n"
-
-    script += "elif [ $ret -eq 1 ]\n"
-    script += "then\n"
-    script += "    echo WARNING: Experiment with ID ${exp_id} does not have status PENDING and will not be run. \n"
-    script += "elif [ $ret -eq 2 ]\n"
-    script += "then\n"
-    script += "    (>&2 echo ERROR: Experiment with id ${exp_id} not found in the database.)\n"
-    script += "fi\n"
-    script += "done\n"
-
-    script += "echo Experiments are running under the following process IDs:\n"
-    script += "num_it=${#process_ids[@]}\n"
-    script += "for ((i=0; i<$num_it; i++))\n"
-    script += "do\n"
-    script += "    echo \"Experiment ID: ${exp_ids[$i]}\tProcess ID: ${process_ids[$i]}\"\n"
-    script += "done\n"
-    script += "echo\n"
-    script += "wait\n"
-    if with_sources:
-        script += "rm -rf $tmpdir\n"
+    # Construct Slurm script
+    with open(f"{os.path.dirname(__file__)}/slurm_template.sh", 'r') as f:
+        template = f.read()
+    script = template.format(
+            sbatch_options=sbatch_options_str,
+            use_conda_env=str(use_conda_env).lower(),
+            conda_env=conda_env,
+            exp_ids=' '.join(expid_strings),
+            with_sources=str(with_sources).lower(),
+            get_cmd_fname=get_experiment_command.__file__,
+            collection_str=exp_array[0][0]['seml']['db_collection'],
+            sources_argument="--stored-sources-dir $tmpdir " if with_sources else "",
+            log_verbose=log_verbose,
+            unobserved=unobserved,
+            post_mortem=post_mortem,
+    )
 
     random_int = np.random.randint(0, 999999)
     path = f"/tmp/{random_int}.sh"
