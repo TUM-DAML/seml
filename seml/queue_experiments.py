@@ -215,7 +215,8 @@ def filter_experiments(collection, configurations, use_hash=True):
     return filtered_configs
 
 
-def queue_configs(collection, seml_config, slurm_config, configs, source_files=None):
+def queue_configs(collection, seml_config, slurm_config, configs, source_files=None,
+                  git_info=None):
     """Put the input configurations into the database.
 
     Parameters
@@ -231,6 +232,7 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
     source_files: (optional) list of tuples
         Contains the uploaded source files corresponding to the batch. Entries are of the form
         (object_id, relative_path)
+    git_info: (Optional) dict containing information about the git repo status.
 
     Returns
     -------
@@ -264,6 +266,7 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
                  'slurm': slurm_config,
                  'config': c,
                  'config_hash': make_hash(c),
+                 'git': git_info,
                  'queue_time': datetime.datetime.utcnow()}
                 for ix, c in enumerate(configs)]
 
@@ -375,8 +378,9 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
         check_sacred_config(seml_config['executable'], seml_config['conda_environment'], configs)
 
     path, commit, dirty = get_git_info(seml_config['executable'])
+    git_info = None
     if path is not None:
-        seml_config['git'] = {'path': path, 'commit': commit, 'dirty': dirty}
+        git_info = {'path': path, 'commit': commit, 'dirty': dirty}
 
     if not force_duplicates:
         len_before = len(configs)
@@ -391,7 +395,7 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
     collection.create_index("config_hash")
     # Add the configurations to the database with QUEUED status.
     if len(configs) > 0:
-        queue_configs(collection, seml_config, slurm_config, configs, uploaded_files)
+        queue_configs(collection, seml_config, slurm_config, configs, uploaded_files, git_info)
 
 
 def upload_sources(seml_config, collection, batch_id):
