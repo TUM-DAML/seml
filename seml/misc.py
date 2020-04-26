@@ -34,6 +34,14 @@ def get_config_from_exp(exp, verbose=False, unobserved=False, post_mortem=False,
     return exe, config_strings
 
 
+def get_slurm_jobs():
+    try:
+        squeue_out = subprocess.check_output("squeue -a -t pending,running -h -o %i -u `logname`", shell=True)
+        return {int(job_str) for job_str in squeue_out.splitlines() if b'_' not in job_str}
+    except subprocess.CalledProcessError:
+        return set()
+
+
 def get_slurm_arrays_tasks():
     """Get a dictionary of running/pending Slurm job arrays (as keys) and tasks (as values)
 

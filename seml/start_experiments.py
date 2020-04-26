@@ -6,7 +6,6 @@ import numpy as np
 from seml.misc import get_config_from_exp, s_if
 from seml import database_utils as db_utils
 from seml import get_experiment_command
-import warnings
 import shutil
 
 try:
