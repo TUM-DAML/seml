@@ -437,3 +437,31 @@ def load_sources_from_db(exp, to_directory):
             if file is None:
                 raise ValueError(f"Source file was not found on the MongoDB.")
             f.write(file.read())
+
+
+def check_empty_batches(collection, batch_ids=None):
+    if batch_ids is not None:
+        # check for empty batches within list of batch ids
+        filter_dict = {'batch_id': {'$in': list(batch_ids)}}
+    else:
+        # check for any empty batches
+        filter_dict = {}
+    db_results = collection.find(filter_dict, {'batch_id'})
+    remaining_batch_ids = set([x['batch_id'] for x in db_results])
+    empty_batch_ids = set(batch_ids) - remaining_batch_ids
+    for b_id in empty_batch_ids:
+        delete_source_files(collection, b_id)
+
+
+def delete_source_files(collection, batch_id):
+    db = collection.database
+    fs = gridfs.GridFS(db)
+    filter_dict = {'metadata.batch_id': batch_id,
+                   'metadata.collection_name': f'{collection.name}'}
+    source_files = db['fs.files'].find(filter_dict, {'_id'})
+    source_files = [x['_id'] for x in source_files]
+    if len(source_files) > 0:
+        print(f"Deleting {len(source_files)} source files corresponding "
+              f"to batch {batch_id} in collection {collection.name}.")
+        for to_delete in source_files:
+            fs.delete(to_delete)

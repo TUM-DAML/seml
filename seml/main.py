@@ -159,6 +159,8 @@ def delete_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
 
         filter_dict = db_utils.build_filter_dict(filter_states, batch_id, filter_dict)
         ndelete = collection.count_documents(filter_dict)
+        batch_ids = collection.find(filter_dict, {'batch_id'})
+        batch_ids_in_del = set([x['batch_id'] for x in batch_ids])
 
         if ndelete >= 10:
             if input(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection. "
@@ -168,11 +170,17 @@ def delete_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
             print(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection.")
         collection.delete_many(filter_dict)
     else:
-        if collection.find_one({'_id': sacred_id}) is None:
+        exp = collection.find_one({'_id': sacred_id})
+        if exp is None:
             raise LookupError(f"No experiment found with ID {sacred_id}.")
         else:
             print(f"Deleting experiment with ID {sacred_id}.")
+            batch_ids_in_del = set(exp['batch_id'])
             collection.delete_one({'_id': sacred_id})
+
+    if len(batch_ids_in_del) > 0:
+        # clean up the uploaded sources if no experiments of a batch remain
+        db_utils.check_empty_batches(collection, batch_ids_in_del)
 
 
 def reset_experiment(collection, exp):
