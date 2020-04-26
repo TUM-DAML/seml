@@ -10,7 +10,7 @@ from seml.settings import SETTINGS
 import seml.database_utils as db_utils
 
 
-def get_config_from_exp(exp, log_verbose=False, unobserved=False, post_mortem=False, debug=False, relative=False):
+def get_config_from_exp(exp, verbose=False, unobserved=False, post_mortem=False, debug=False, relative=False):
     if 'executable' not in exp['seml']:
         raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
@@ -22,7 +22,7 @@ def get_config_from_exp(exp, log_verbose=False, unobserved=False, post_mortem=Fa
     if not unobserved:
         config['overwrite'] = exp['_id']
     config_strings = [f'{key}="{val}"' for key, val in config.items()]
-    if not log_verbose:
+    if not verbose:
         config_strings.append("--force")
     if unobserved:
         config_strings.append("--unobserved")
@@ -180,7 +180,7 @@ def create_slack_observer(webhook=None):
         slack_obs = SlackObserver(webhook)
 
     if slack_obs is None:
-        print('Failed to create Slack observer.')
+        logging.warning('Failed to create Slack observer.')
     return slack_obs
 
 
@@ -195,7 +195,7 @@ def create_neptune_observer(project_name, api_token=None,
     else:
         api_token = SETTINGS.OBSERVERS.NEPTUNE.AUTH_TOKEN
     if api_token is None:
-        print('No API token for Nepune provided. Trying to use environment variable NEPTUNE_API_TOKEN.')
+        logging.info('No API token for Nepune provided. Trying to use environment variable NEPTUNE_API_TOKEN.')
     neptune_obs = NeptuneObserver(api_token=api_token, project_name=project_name, source_extensions=source_extensions)
     return neptune_obs
 
@@ -314,3 +314,56 @@ def import_exe(executable, conda_env):
     del sys.path[0]
 
     return exe_module
+
+
+def addLoggingLevel(levelName, levelNum, methodName=None):
+    """
+    Comprehensively adds a new logging level to the `logging` module and the
+    currently configured logging class.
+
+    `levelName` becomes an attribute of the `logging` module with the value
+    `levelNum`. `methodName` becomes a convenience method for both `logging`
+    itself and the class returned by `logging.getLoggerClass()` (usually just
+    `logging.Logger`). If `methodName` is not specified, `levelName.lower()` is
+    used.
+
+    From https://stackoverflow.com/a/35804945
+    """
+    if not methodName:
+        methodName = levelName.lower()
+
+    if hasattr(logging, levelName):
+        raise AttributeError('{} already defined in logging module'.format(levelName))
+    if hasattr(logging, methodName):
+        raise AttributeError('{} already defined in logging module'.format(methodName))
+    if hasattr(logging.getLoggerClass(), methodName):
+        raise AttributeError('{} already defined in logger class'.format(methodName))
+
+    def logForLevel(self, message, *args, **kwargs):
+        if self.isEnabledFor(levelNum):
+            self._log(levelNum, message, args, **kwargs)
+
+    def logToRoot(message, *args, **kwargs):
+        logging.log(levelNum, message, *args, **kwargs)
+
+    logging.addLevelName(levelNum, levelName)
+    setattr(logging, levelName, levelNum)
+    setattr(logging.getLoggerClass(), methodName, logForLevel)
+    setattr(logging, methodName, logToRoot)
+
+
+addLoggingLevel('VERBOSE', 19)
+
+
+class LoggingFormatter(logging.Formatter):
+    FORMATS = {
+        logging.INFO: "%(msg)s",
+        logging.VERBOSE: "%(msg)s",
+        logging.DEBUG: "DEBUG: %(module)s: %(lineno)d: %(msg)s",
+        "DEFAULT": "%(levelname)s: %(msg)s",
+    }
+
+    def format(self, record):
+        log_fmt = self.FORMATS.get(record.levelno, self.FORMATS['DEFAULT'])
+        formatter = logging.Formatter(log_fmt)
+        return formatter.format(record)

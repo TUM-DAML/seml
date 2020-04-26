@@ -2,9 +2,6 @@ import os
 import sys
 import datetime
 import numpy as np
-import pymongo
-import importlib
-import sys
 from pathlib import Path
 import logging
 
@@ -12,7 +9,6 @@ from seml.database_utils import make_hash, upload_source_file
 from seml import parameter_utils as utils
 from seml import database_utils as db_utils
 from seml.misc import get_default_slurm_config, s_if, unflatten, flatten, import_exe, is_local_source
-
 
 
 def unpack_config(config):
@@ -255,7 +251,7 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
     else:
         batch_id = batch_id + 1
 
-    print(f"Queueing {len(configs)} configs into the database (batch-ID {batch_id}).")
+    logging.info(f"Queueing {len(configs)} configs into the database (batch-ID {batch_id}).")
 
     if source_files is not None:
         seml_config['source_files'] = source_files
@@ -388,8 +384,8 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
         configs = filter_experiments(collection, configs, use_hash=use_hash)
         len_after = len(configs)
         if len_after != len_before:
-            print(f"{len_before - len_after} of {len_before} experiment{s_if(len_before)} were already found "
-                  f"in the database. They were not added again.")
+            logging.info(f"{len_before - len_after} of {len_before} experiment{s_if(len_before)} were already found "
+                         f"in the database. They were not added again.")
 
     # Create an index on the config hash. If the index is already present, this simply does nothing.
     collection.create_index("config_hash")
@@ -439,8 +435,8 @@ def get_git_info(filename):
     try:
         from git import Repo, InvalidGitRepositoryError
     except ImportError:
-        logging.warn("Cannot import git (pip install GitPython).\n"
-                     "Not saving git status.")
+        logging.warning("Cannot import git (pip install GitPython). "
+                        "Not saving git status.")
 
     directory = os.path.dirname(filename)
     try:

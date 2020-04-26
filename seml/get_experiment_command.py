@@ -10,7 +10,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--experiment_id", type=int, help="The experiment ID.")
     parser.add_argument("--database_collection", type=str, help="The collection in the database to use.")
-    parser.add_argument("--log-verbose", default=False, type=lambda x: (str(x).lower() == 'true'), help="Display more log messages.")
+    parser.add_argument("--verbose", default=False, type=lambda x: (str(x).lower() == 'true'), help="Display more log messages.")
     parser.add_argument("--unobserved", default=False, type=lambda x: (str(x).lower() == 'true'), help="Run the experiments without Sacred observers.")
     parser.add_argument("--post-mortem", default=False, type=lambda x: (str(x).lower() == 'true'), help="Activate post-mortem debugging with pdb.")
     parser.add_argument("--stored-sources-dir", default=None, type=str, help="Load source files into this directory before starting.")
@@ -28,7 +28,7 @@ if __name__ == "__main__":
             "--stored-sources-dir was supplied but queued experiment does not contain stored source files."
         db_utils.load_sources_from_db(exp, to_directory=args.stored_sources_dir)
 
-    exe, config = get_config_from_exp(exp, log_verbose=args.log_verbose,
+    exe, config = get_config_from_exp(exp, verbose=args.verbose,
                                       unobserved=args.unobserved, post_mortem=args.post_mortem,
                                       relative=use_stored_sources)
 

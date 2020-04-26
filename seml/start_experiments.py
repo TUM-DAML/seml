@@ -1,5 +1,6 @@
 import os
 import subprocess
+import logging
 import numpy as np
 
 from seml.misc import get_config_from_exp, s_if
@@ -15,7 +16,7 @@ except ImportError:
         return iterable
 
 
-def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_mortem=False, name=None,
+def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, name=None,
                     output_dir=".", sbatch_options=None, max_jobs_per_batch=None):
     """Run a list of experiments as a job on the Slurm cluster.
 
@@ -25,8 +26,6 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
         The MongoDB collection containing the experiments.
     exp_array: List[List[dict]]
         List of chunks of experiments to run. Each chunk is a list of experiments.
-    log_verbose: bool
-        Print all the Python syscalls before running them.
     unobserved: bool
         Disable all Sacred observers (nothing written to MongoDB).
     post_mortem: bool
@@ -82,12 +81,7 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
     expid_strings = [('"' + ';'.join([str(exp['_id']) for exp in chunk]) + '"') for chunk in exp_array]
 
     with_sources = ('source_files' in exp_array[0][0]['seml'])
-
     use_conda_env = 'conda_environment' in exp_array[0][0]['seml']
-    if use_conda_env:
-        conda_env = exp_array[0][0]['seml']['conda_environment']
-    else:
-        conda_env = ""
 
     # Construct Slurm script
     with open(f"{os.path.dirname(__file__)}/slurm_template.sh", 'r') as f:
@@ -95,13 +89,13 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
     script = template.format(
             sbatch_options=sbatch_options_str,
             use_conda_env=str(use_conda_env).lower(),
-            conda_env=conda_env,
+            conda_env=exp_array[0][0]['seml']['conda_environment'] if use_conda_env else "",
             exp_ids=' '.join(expid_strings),
             with_sources=str(with_sources).lower(),
             get_cmd_fname=get_experiment_command.__file__,
             collection_str=exp_array[0][0]['seml']['db_collection'],
             sources_argument="--stored-sources-dir $tmpdir " if with_sources else "",
-            log_verbose=log_verbose,
+            verbose=logging.root.level <= logging.VERBOSE,
             unobserved=unobserved,
             post_mortem=post_mortem,
     )
@@ -126,12 +120,11 @@ def start_slurm_job(collection, exp_array, log_verbose, unobserved=False, post_m
                             'slurm.task_id': task_id,
                             'slurm.sbatch_options': sbatch_options,
                             'seml.output_file': f"{output_dir_path}/{name}_{slurm_array_job_id}_{task_id}.out"}})
-            if log_verbose:
-                print(f"Started experiment with array job ID {slurm_array_job_id}, task ID {task_id}.")
+            logging.verbose(f"Started experiment with array job ID {slurm_array_job_id}, task ID {task_id}.")
     os.remove(path)
 
 
-def start_local_job(collection, exp, log_verbose, unobserved=False, post_mortem=False, output_to_file=True):
+def start_local_job(collection, exp, unobserved=False, post_mortem=False, output_to_file=True):
     """Run an experiment locally.
 
     Parameters
@@ -140,8 +133,6 @@ def start_local_job(collection, exp, log_verbose, unobserved=False, post_mortem=
         The MongoDB collection containing the experiments.
     exp: dict
         Experiment to run.
-    log_verbose: bool
-        Print all the Python syscalls before running them.
     unobserved: bool
         Disable all Sacred observers (nothing written to MongoDB).
     post_mortem: bool
@@ -155,7 +146,7 @@ def start_local_job(collection, exp, log_verbose, unobserved=False, post_mortem=
     """
 
     use_stored_sources = ('project_root_dir' in exp['seml'])
-    exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
+    exe, config = get_config_from_exp(exp, verbose=logging.root.level <= logging.VERBOSE,
                                       unobserved=unobserved, post_mortem=post_mortem,
                                       relative=use_stored_sources)
     cmd = f"python {exe} with {' '.join(config)}"
@@ -207,8 +198,7 @@ def start_local_job(collection, exp, log_verbose, unobserved=False, post_mortem=
                    f"&& {cmd} "
                    f"&& conda deactivate")
 
-        if log_verbose:
-            print(f'Running the following command:\n {cmd}')
+        logging.verbose(f'Running the following command:\n {cmd}')
 
         if output_to_file:
             with open(output_file, "w") as log_file:
@@ -220,7 +210,7 @@ def start_local_job(collection, exp, log_verbose, unobserved=False, post_mortem=
     except subprocess.CalledProcessError:
         success = False
     except IOError:
-        print(f"Log file {output_file} could not be written.")
+        logging.error(f"Log file {output_file} could not be written.")
         # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
         collection.find_one_and_update(filter={'_id': exp['_id']},
                                        update={'$set': {'status': 'FAILED'}},
@@ -234,7 +224,7 @@ def start_local_job(collection, exp, log_verbose, unobserved=False, post_mortem=
         return success
 
 
-def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
+def do_work(collection_name, slurm=True, unobserved=False,
             post_mortem=False, num_exps=-1, filter_dict={}, dry_run=False,
             output_to_file=True):
     """Pull queued experiments from the database and run them.
@@ -243,8 +233,6 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
     ----------
     collection_name: str
         Name of the collection in the MongoDB.
-    log_verbose: bool
-        Print all the Python syscalls before running them.
     slurm: bool
         Use the Slurm cluster.
     unobserved: bool
@@ -276,7 +264,7 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
     query_dict.update(filter_dict)
 
     if collection.count_documents(query_dict) <= 0:
-        print("No queued experiments.")
+        logging.error("No queued experiments.")
         return
 
     exps_full = list(collection.find(query_dict))
@@ -287,7 +275,7 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
     if dry_run:
         configs = []
         for exp in exps_list:
-            exe, config = get_config_from_exp(exp, log_verbose=log_verbose,
+            exe, config = get_config_from_exp(exp, verbose=logging.root.level <= logging.VERBOSE,
                                               unobserved=unobserved, post_mortem=post_mortem)
             if 'conda_environment' in exp['seml']:
                 configs.append((exe, exp['seml']['conda_environment'], config))
@@ -301,8 +289,8 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
         njobs = len(exp_chunks)
         narrays = len(exp_arrays)
 
-        print(f"Starting {nexps} experiment{s_if(nexps)} in "
-              f"{njobs} Slurm job{s_if(njobs)} in {narrays} Slurm job array{s_if(narrays)}.")
+        logging.info(f"Starting {nexps} experiment{s_if(nexps)} in "
+                     f"{njobs} Slurm job{s_if(njobs)} in {narrays} Slurm job array{s_if(narrays)}.")
 
         for exp_array in exp_arrays:
             seml_config = exp_array[0][0]['seml']
@@ -313,37 +301,39 @@ def do_work(collection_name, log_verbose, slurm=True, unobserved=False,
             elif 'output_dir' in seml_config:
                 slurm_config['output_dir'] = seml_config['output_dir']
             del slurm_config['experiments_per_job']
-            start_slurm_job(collection, exp_array, log_verbose, unobserved, post_mortem, **slurm_config)
+            start_slurm_job(collection, exp_array, unobserved, post_mortem, **slurm_config)
     else:
         login_node_name = 'fs'
         if login_node_name in os.uname()[1]:
             raise ValueError("Refusing to run a compute experiment on a login node. "
                              "Please use Slurm or a compute node.")
-        print(f'Starting local worker thread that will run up to {nexps} experiments, '
-              f'until no queued experiments remain.')
+        logging.info(f'Starting local worker thread that will run up to {nexps} experiments, '
+                     f'until no queued experiments remain.')
         if not unobserved:
             collection.update_many({'_id': {'$in': [e['_id'] for e in exps_list]}}, {"$set": {"status": "PENDING"}})
         num_exceptions = 0
         tq = tqdm(enumerate(exps_list))
         for i_exp, exp in tq:
-            success = start_local_job(collection, exp, log_verbose, unobserved, post_mortem, output_to_file)
+            success = start_local_job(collection, exp, unobserved, post_mortem, output_to_file)
             if success is False:
                 num_exceptions += 1
             tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
 
 
-def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num_exps, filter_dict):
-    configs = do_work(db_collection_name, log_verbose=True, slurm=False,
+def print_commands(db_collection_name, unobserved, post_mortem, num_exps, filter_dict):
+    orig_level = logging.root.level
+    logging.root.setLevel(logging.VERBOSE)
+    configs = do_work(db_collection_name, slurm=False,
                       unobserved=True, post_mortem=False,
                       num_exps=1, filter_dict=filter_dict, dry_run=True)
     if configs is None:
         return
-    print("********** First experiment **********")
+    logging.info("********** First experiment **********")
     exe, env, config = configs[0]
-    print(f"Executable: {exe}")
+    logging.info(f"Executable: {exe}")
     if env is not None:
-        print(f"Anaconda environment: {env}")
-    print()
+        logging.info(f"Anaconda environment: {env}")
+    logging.info()
     config.insert(0, 'with')
     config.append('--debug')
 
@@ -351,29 +341,30 @@ def print_commands(db_collection_name, log_verbose, unobserved, post_mortem, num
     config_vscode = [c.replace('"', '') for c in config]
     config_vscode = [c.replace("'", '\\"') for c in config_vscode]
 
-    print("Arguments for VS Code debugger:")
-    print('["' + '", "'.join(config_vscode) + '"]')
-    print("Arguments for PyCharm debugger:")
-    print(" ".join(config))
+    logging.info("Arguments for VS Code debugger:")
+    logging.info('["' + '", "'.join(config_vscode) + '"]')
+    logging.info("Arguments for PyCharm debugger:")
+    logging.info(" ".join(config))
 
-    print("\nCommand for running locally with post-mortem debugging:")
-    configs = do_work(db_collection_name, log_verbose=True, slurm=False,
+    logging.info("\nCommand for running locally with post-mortem debugging:")
+    configs = do_work(db_collection_name, slurm=False,
                       unobserved=True, post_mortem=True,
                       num_exps=1, filter_dict=filter_dict, dry_run=True)
     exe, _, config = configs[0]
-    print(f"python {exe} with {' '.join(config)}")
+    logging.info(f"python {exe} with {' '.join(config)}")
 
-    print()
-    print("********** All raw commands **********")
-    configs = do_work(db_collection_name, log_verbose=log_verbose, slurm=False,
+    logging.info()
+    logging.info("********** All raw commands **********")
+    logging.root.setLevel(orig_level)
+    configs = do_work(db_collection_name, slurm=False,
                       unobserved=unobserved, post_mortem=post_mortem,
                       num_exps=num_exps, filter_dict=filter_dict, dry_run=True)
     for (exe, _, config) in configs:
-        print(f"python {exe} with {' '.join(config)}")
+        logging.info(f"python {exe} with {' '.join(config)}")
 
 
 def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
-                      num_exps, unobserved, post_mortem, debug, verbose, dry_run,
+                      num_exps, unobserved, post_mortem, debug, dry_run,
                       output_to_console):
     use_slurm = not local
     output_to_file = not output_to_console
@@ -385,8 +376,8 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
         use_slurm = False
         unobserved = True
         post_mortem = True
-        verbose = True
         output_to_file = False
+        logging.root.setLevel(logging.VERBOSE)
 
     if sacred_id is None:
         filter_dict = db_utils.build_filter_dict([], batch_id, filter_dict)
@@ -394,11 +385,10 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
         filter_dict = {'_id': sacred_id}
 
     if dry_run:
-        print_commands(db_collection_name, log_verbose=verbose,
-                       unobserved=unobserved, post_mortem=post_mortem,
+        print_commands(db_collection_name, unobserved=unobserved, post_mortem=post_mortem,
                        num_exps=num_exps, filter_dict=filter_dict)
     else:
-        do_work(db_collection_name, log_verbose=verbose, slurm=use_slurm,
+        do_work(db_collection_name, slurm=use_slurm,
                 unobserved=unobserved, post_mortem=post_mortem,
                 num_exps=num_exps, filter_dict=filter_dict, dry_run=dry_run,
                 output_to_file=output_to_file)
