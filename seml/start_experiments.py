@@ -169,7 +169,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
         seml_config = exp['seml']
         slurm_config = exp['slurm']
         if 'output_dir' in slurm_config:
-            warnings.warn(
+            logging.warning(
                     "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
                     "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
             output_dir = slurm_config['output_dir']
@@ -296,8 +296,8 @@ def do_work(collection_name, slurm=True, unobserved=False,
             seml_config = exp_array[0][0]['seml']
             slurm_config = exp_array[0][0]['slurm']
             if 'output_dir' in slurm_config:
-                warnings.warn("'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
-                              "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
+                logging.warning("'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
+                                "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
             elif 'output_dir' in seml_config:
                 slurm_config['output_dir'] = seml_config['output_dir']
             del slurm_config['experiments_per_job']

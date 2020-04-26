@@ -288,17 +288,17 @@ def build_filter_dict(filter_states, batch_id, filter_dict):
         if 'status' not in filter_dict:
             filter_dict['status'] = {'$in': filter_states}
         else:
-            warnings.warn("'status' was defined in the filter dictionary passed via"
-                          " the command line (-f): {} AND --status was set to {}. I'm using the value passed"
-                          " via -f.".format(filter_dict['status'], filter_states))
+            logging.warning(f"'status' was defined in the filter dictionary passed via the command line (-f): "
+                            f"{filter_dict['status']} AND --status was set to {filter_states}. "
+                            f"I'm using the value passed via -f.")
 
     if batch_id is not None:
         if 'batch_id' not in filter_dict:
             filter_dict['batch_id'] = batch_id
         else:
-            warnings.warn("'batch_id' was defined in the filter dictionary passed via"
-                          " the command line (-f): {} AND --batch-id was set to {}. I'm using the value passed"
-                          " via -f.".format(filter_dict['status'], filter_states))
+            logging.warning(f"'batch_id' was defined in the filter dictionary passed via the command line (-f): "
+                            f"{filter_dict['status']} AND --batch-id was set to {filter_states}. "
+                            f"I'm using the value passed via -f.")
     return filter_dict
 
 

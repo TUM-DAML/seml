@@ -68,10 +68,10 @@ def cancel_experiment_by_id(collection, exp_id):
                                                  'stop_time': datetime.datetime.utcnow()}})
 
         except subprocess.CalledProcessError:
-            warnings.warn(f"Slurm job {job_str} of experiment "
+            logging.error(f"Slurm job {job_str} of experiment "
                           f"with ID {exp_id} is not pending/running in Slurm.")
     else:
-        raise LookupError(f"No experiment found with ID {exp_id}.")
+        logging.error(f"No experiment found with ID {exp_id}.")
 
 
 def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_dict):
@@ -147,7 +147,7 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
             collection.update_many(filter_dict, {'$set': {"status": "INTERRUPTED",
                                                           "stop_time": datetime.datetime.utcnow()}})
         except subprocess.CalledProcessError:
-            warnings.warn(f"One or multiple Slurm jobs were no longer running when I tried to cancel them.")
+            logging.warning(f"One or multiple Slurm jobs were no longer running when I tried to cancel them.")
     else:
         logging.info(f"Cancelling experiment with ID {sacred_id}.")
         cancel_experiment_by_id(collection, sacred_id)
