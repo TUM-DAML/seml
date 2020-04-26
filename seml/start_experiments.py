@@ -80,7 +80,8 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     expid_strings = [('"' + ';'.join([str(exp['_id']) for exp in chunk]) + '"') for chunk in exp_array]
 
     with_sources = ('source_files' in exp_array[0][0]['seml'])
-    use_conda_env = 'conda_environment' in exp_array[0][0]['seml']
+    use_conda_env = ('conda_environment' in exp_array[0][0]['seml']
+                     and exp_array[0][0]['seml']['conda_environment'] is not None)
 
     # Construct Slurm script
     with open(f"{os.path.dirname(__file__)}/slurm_template.sh", 'r') as f:
@@ -191,7 +192,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
             # update the command to use the temp dir
             cmd = f'PYTHONPATH="{temp_dir}:$PYTHONPATH" python {temp_dir}/{exe} with {" ".join(config)}'
 
-        if 'conda_environment' in seml_config:
+        if 'conda_environment' in seml_config and seml_config['conda_environment'] is not None:
             cmd = (f". $(conda info --base)/etc/profile.d/conda.sh "
                    f"&& conda activate {seml_config['conda_environment']} "
                    f"&& {cmd} "

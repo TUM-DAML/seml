@@ -341,8 +341,11 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
     seml_config, slurm_config, experiment_config = db_utils.read_config(config_file)
 
     # Use current Anaconda environment if not specified
-    if 'conda_environment' not in seml_config and 'CONDA_DEFAULT_ENV' in os.environ:
-        seml_config['conda_environment'] = os.environ['CONDA_DEFAULT_ENV']
+    if 'conda_environment' not in seml_config:
+        if 'CONDA_DEFAULT_ENV' in os.environ:
+            seml_config['conda_environment'] = os.environ['CONDA_DEFAULT_ENV']
+        else:
+            seml_config['conda_environment'] = None
 
     # Set Slurm config with default parameters as fall-back option
     default_slurm_config = get_default_slurm_config()
