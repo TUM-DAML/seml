@@ -1,17 +1,16 @@
 import logging
 from sacred import Experiment
 import numpy as np
-from seml import database_utils as db_utils
-from seml import misc
+import seml
 
 
 ex = Experiment()
-misc.setup_logger(ex)
+seml.setup_logger(ex)
 
 
 @ex.post_run_hook
 def collect_stats(_run):
-    misc.collect_exp_stats(_run)
+    seml.collect_exp_stats(_run)
 
 
 @ex.config
@@ -19,7 +18,7 @@ def config():
     overwrite = None
     db_collection = None
     if db_collection is not None:
-        ex.observers.append(db_utils.create_mongodb_observer(db_collection, overwrite=overwrite))
+        ex.observers.append(seml.create_mongodb_observer(db_collection, overwrite=overwrite))
 
 
 @ex.automain

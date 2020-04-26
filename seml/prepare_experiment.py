@@ -1,7 +1,9 @@
 import argparse
 import os
-from seml import database_utils as db_utils
-from seml.misc import get_config_from_exp
+
+from seml.start import get_command_from_exp
+from seml.database import get_collection
+from seml.sources import load_sources_from_db
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -20,18 +22,18 @@ if __name__ == "__main__":
     exp_id = args.experiment_id
     db_collection = args.database_collection
 
-    collection = db_utils.get_collection(db_collection)
+    collection = get_collection(db_collection)
 
     exp = collection.find_one({'_id': exp_id})
     use_stored_sources = args.stored_sources_dir is not None
     if use_stored_sources and not os.listdir(args.stored_sources_dir):
         assert "source_files" in exp['seml'], \
             "--stored-sources-dir was supplied but queued experiment does not contain stored source files."
-        db_utils.load_sources_from_db(exp, to_directory=args.stored_sources_dir)
+        load_sources_from_db(exp, to_directory=args.stored_sources_dir)
 
-    exe, config = get_config_from_exp(exp, verbose=args.verbose,
-                                      unobserved=args.unobserved, post_mortem=args.post_mortem,
-                                      relative=use_stored_sources)
+    exe, config = get_command_from_exp(exp, verbose=args.verbose,
+                                       unobserved=args.unobserved, post_mortem=args.post_mortem,
+                                       relative=use_stored_sources)
 
     cmd = f"python {exe} with {' '.join(config)}"
     if use_stored_sources:

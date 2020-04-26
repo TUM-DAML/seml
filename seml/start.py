@@ -2,17 +2,41 @@ import os
 import subprocess
 import logging
 import numpy as np
-
-from seml.misc import get_config_from_exp, s_if
-from seml import database_utils as db_utils
-from seml import get_experiment_command
 import shutil
-
 try:
     from tqdm.autonotebook import tqdm
 except ImportError:
     def tqdm(iterable, total=None):
         return iterable
+
+from seml.database import get_collection, build_filter_dict
+from seml.config import read_config
+from seml.sources import load_sources_from_db
+from seml.utils import s_if
+
+
+def get_command_from_exp(exp, verbose=False, unobserved=False, post_mortem=False, debug=False, relative=False):
+    if 'executable' not in exp['seml']:
+        raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
+    exe = exp['seml']['executable']
+    if relative:
+        exe = exp['seml']['executable_relative']
+
+    config = exp['config']
+    config['db_collection'] = exp['seml']['db_collection']
+    if not unobserved:
+        config['overwrite'] = exp['_id']
+    config_strings = [f'{key}="{val}"' for key, val in config.items()]
+    if not verbose:
+        config_strings.append("--force")
+    if unobserved:
+        config_strings.append("--unobserved")
+    if post_mortem:
+        config_strings.append("--pdb")
+    if debug:
+        config_strings.append("--debug")
+
+    return exe, config_strings
 
 
 def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, name=None,
@@ -46,8 +70,8 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     # Set Slurm job-name parameter
     if 'job-name' in sbatch_options:
         raise ValueError(
-            f"Can't set sbatch `job-name` Parameter explicitly. "
-             "Use `name` parameter instead and SEML will do that for you.")
+                "Can't set sbatch `job-name` Parameter explicitly. "
+                "Use `name` parameter instead and SEML will do that for you.")
     name = name if name is not None else exp_array[0][0]['seml']['db_collection']
     job_name = f"{name}_{exp_array[0][0]['batch_id']}"
     sbatch_options['job-name'] = job_name
@@ -92,7 +116,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
             conda_env=exp_array[0][0]['seml']['conda_environment'] if use_conda_env else "",
             exp_ids=' '.join(expid_strings),
             with_sources=str(with_sources).lower(),
-            get_cmd_fname=get_experiment_command.__file__,
+            get_cmd_fname=f"{os.path.dirname(__file__)}/prepare_experiment.py",
             collection_str=exp_array[0][0]['seml']['db_collection'],
             sources_argument="--stored-sources-dir $tmpdir" if with_sources else "",
             verbose=logging.root.level <= logging.VERBOSE,
@@ -146,9 +170,9 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
     """
 
     use_stored_sources = ('project_root_dir' in exp['seml'])
-    exe, config = get_config_from_exp(exp, verbose=logging.root.level <= logging.VERBOSE,
-                                      unobserved=unobserved, post_mortem=post_mortem,
-                                      relative=use_stored_sources)
+    exe, config = get_command_from_exp(exp, verbose=logging.root.level <= logging.VERBOSE,
+                                       unobserved=unobserved, post_mortem=post_mortem,
+                                       relative=use_stored_sources)
     cmd = f"python {exe} with {' '.join(config)}"
     if not unobserved:
         # check also whether PENDING experiments have their Slurm ID set, in this case they are waiting
@@ -188,7 +212,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
                 random_int = np.random.randint(0, 999999)
                 temp_dir = f"/tmp/{random_int}"
             os.mkdir(temp_dir, mode=0o700)
-            db_utils.load_sources_from_db(exp, to_directory=temp_dir)
+            load_sources_from_db(exp, to_directory=temp_dir)
             # update the command to use the temp dir
             cmd = f'PYTHONPATH="{temp_dir}:$PYTHONPATH" python {temp_dir}/{exe} with {" ".join(config)}'
 
@@ -224,9 +248,56 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
         return success
 
 
-def do_work(collection_name, slurm=True, unobserved=False,
-            post_mortem=False, num_exps=-1, filter_dict={}, dry_run=False,
-            output_to_file=True):
+def chunk_list(exps):
+    """
+    Divide experiments into chunks of `experiments_per_job` that will be run in parallel in one job.
+    This assumes constant Slurm settings per batch (which should be the case if MongoDB wasn't edited manually).
+
+    Parameters
+    ----------
+    exps: list[dict]
+        List of dictionaries containing the experiment settings as saved in the MongoDB
+
+    Returns
+    -------
+    exp_chunks: list
+    """
+    batch_idx = [exp['batch_id'] for exp in exps]
+    unique_batch_idx = np.unique(batch_idx)
+    exp_chunks = []
+    for batch in unique_batch_idx:
+        idx = [i for i, batch_id in enumerate(batch_idx)
+               if batch_id == batch]
+        size = exps[idx[0]]['slurm']['experiments_per_job']
+        exp_chunks.extend(([exps[i] for i in idx[pos:pos + size]] for pos in range(0, len(idx), size)))
+    return exp_chunks
+
+
+def batch_chunks(exp_chunks):
+    """
+    Divide chunks of experiments into Slurm job arrays with one experiment batch per array.
+    Each array is started together.
+    This assumes constant Slurm settings per batch (which should be the case if MongoDB wasn't edited manually).
+
+    Parameters
+    ----------
+    exp_chunks: list[list[dict]]
+        List of list of dictionaries containing the experiment settings as saved in the MongoDB
+
+    Returns
+    -------
+    exp_arrays: list[list[list[dict]]]
+    """
+    batch_idx = np.array([chunk[0]['batch_id'] for chunk in exp_chunks])
+    unique_batch_idx = np.unique(batch_idx)
+    ids_per_array = [np.where(batch_idx == array_bidx)[0] for array_bidx in unique_batch_idx]
+    exp_arrays = [[exp_chunks[idx] for idx in chunk_ids] for chunk_ids in ids_per_array]
+    return exp_arrays
+
+
+def start_jobs(collection_name, slurm=True, unobserved=False,
+               post_mortem=False, num_exps=-1, filter_dict={}, dry_run=False,
+               output_to_file=True):
     """Pull queued experiments from the database and run them.
 
     Parameters
@@ -255,7 +326,7 @@ def do_work(collection_name, slurm=True, unobserved=False,
     None
     """
 
-    collection = db_utils.get_collection(collection_name)
+    collection = get_collection(collection_name)
 
     if unobserved and not slurm and '_id' in filter_dict:
         query_dict = {}
@@ -275,8 +346,8 @@ def do_work(collection_name, slurm=True, unobserved=False,
     if dry_run:
         configs = []
         for exp in exps_list:
-            exe, config = get_config_from_exp(exp, verbose=logging.root.level <= logging.VERBOSE,
-                                              unobserved=unobserved, post_mortem=post_mortem)
+            exe, config = get_command_from_exp(exp, verbose=logging.root.level <= logging.VERBOSE,
+                                               unobserved=unobserved, post_mortem=post_mortem)
             if 'conda_environment' in exp['seml']:
                 configs.append((exe, exp['seml']['conda_environment'], config))
             else:
@@ -284,8 +355,8 @@ def do_work(collection_name, slurm=True, unobserved=False,
         return configs
     elif slurm:
         assert output_to_file is True, "Output cannot be written to stdout in Slurm mode."
-        exp_chunks = db_utils.chunk_list(exps_list)
-        exp_arrays = db_utils.batch_chunks(exp_chunks)
+        exp_chunks = chunk_list(exps_list)
+        exp_arrays = batch_chunks(exp_chunks)
         njobs = len(exp_chunks)
         narrays = len(exp_arrays)
 
@@ -323,9 +394,9 @@ def do_work(collection_name, slurm=True, unobserved=False,
 def print_commands(db_collection_name, unobserved, post_mortem, num_exps, filter_dict):
     orig_level = logging.root.level
     logging.root.setLevel(logging.VERBOSE)
-    configs = do_work(db_collection_name, slurm=False,
-                      unobserved=True, post_mortem=False,
-                      num_exps=1, filter_dict=filter_dict, dry_run=True)
+    configs = start_jobs(db_collection_name, slurm=False,
+                         unobserved=True, post_mortem=False,
+                         num_exps=1, filter_dict=filter_dict, dry_run=True)
     if configs is None:
         return
     logging.info("********** First experiment **********")
@@ -333,7 +404,6 @@ def print_commands(db_collection_name, unobserved, post_mortem, num_exps, filter
     logging.info(f"Executable: {exe}")
     if env is not None:
         logging.info(f"Anaconda environment: {env}")
-    logging.info()
     config.insert(0, 'with')
     config.append('--debug')
 
@@ -341,24 +411,23 @@ def print_commands(db_collection_name, unobserved, post_mortem, num_exps, filter
     config_vscode = [c.replace('"', '') for c in config]
     config_vscode = [c.replace("'", '\\"') for c in config_vscode]
 
-    logging.info("Arguments for VS Code debugger:")
+    logging.info("\nArguments for VS Code debugger:")
     logging.info('["' + '", "'.join(config_vscode) + '"]')
     logging.info("Arguments for PyCharm debugger:")
     logging.info(" ".join(config))
 
     logging.info("\nCommand for running locally with post-mortem debugging:")
-    configs = do_work(db_collection_name, slurm=False,
-                      unobserved=True, post_mortem=True,
-                      num_exps=1, filter_dict=filter_dict, dry_run=True)
+    configs = start_jobs(db_collection_name, slurm=False,
+                         unobserved=True, post_mortem=True,
+                         num_exps=1, filter_dict=filter_dict, dry_run=True)
     exe, _, config = configs[0]
     logging.info(f"python {exe} with {' '.join(config)}")
 
-    logging.info()
-    logging.info("********** All raw commands **********")
+    logging.info("\n********** All raw commands **********")
     logging.root.setLevel(orig_level)
-    configs = do_work(db_collection_name, slurm=False,
-                      unobserved=unobserved, post_mortem=post_mortem,
-                      num_exps=num_exps, filter_dict=filter_dict, dry_run=True)
+    configs = start_jobs(db_collection_name, slurm=False,
+                         unobserved=unobserved, post_mortem=post_mortem,
+                         num_exps=num_exps, filter_dict=filter_dict, dry_run=True)
     for (exe, _, config) in configs:
         logging.info(f"python {exe} with {' '.join(config)}")
 
@@ -369,7 +438,7 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
     use_slurm = not local
     output_to_file = not output_to_console
 
-    db_collection_name = db_utils.read_config(config_file)[0]['db_collection']
+    db_collection_name = read_config(config_file)[0]['db_collection']
 
     if debug:
         num_exps = 1
@@ -380,7 +449,7 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
         logging.root.setLevel(logging.VERBOSE)
 
     if sacred_id is None:
-        filter_dict = db_utils.build_filter_dict([], batch_id, filter_dict)
+        filter_dict = build_filter_dict([], batch_id, filter_dict)
     else:
         filter_dict = {'_id': sacred_id}
 
@@ -388,7 +457,7 @@ def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
         print_commands(db_collection_name, unobserved=unobserved, post_mortem=post_mortem,
                        num_exps=num_exps, filter_dict=filter_dict)
     else:
-        do_work(db_collection_name, slurm=use_slurm,
-                unobserved=unobserved, post_mortem=post_mortem,
-                num_exps=num_exps, filter_dict=filter_dict, dry_run=dry_run,
-                output_to_file=output_to_file)
+        start_jobs(db_collection_name, slurm=use_slurm,
+                   unobserved=unobserved, post_mortem=post_mortem,
+                   num_exps=num_exps, filter_dict=filter_dict, dry_run=dry_run,
+                   output_to_file=output_to_file)

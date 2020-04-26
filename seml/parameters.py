@@ -1,39 +1,6 @@
 import itertools
 import numpy as np
 
-def merge_dicts(dict1, dict2):
-    """Recursively merge two dictionaries.
-
-    Values in dict2 override values in dict1. If dict1 and dict2 contain a dictionary as a
-    value, this will call itself recursively to merge these dictionaries.
-    This does not modify the input dictionaries (creates an internal copy).
-
-    Parameters
-    ----------
-    dict1: dict
-        First dict.
-    dict2: dict
-        Second dict. Values in dict2 will override values from dict1 in case they share the same key.
-
-    Returns
-    -------
-    return_dict: dict
-        Merged dictionaries.
-
-    """
-
-    return_dict = dict1.copy()
-    for k, v in dict2.items():
-        if k not in dict1:
-            return_dict[k] = v
-        else:
-            if isinstance(v, dict):
-                return_dict[k] = merge_dicts(dict1[k], dict2[k])
-            else:
-                return_dict[k] = dict2[k]
-
-    return return_dict
-
 
 def sample_random_configs(random_config, samples=1, seed=None):
     """
@@ -236,15 +203,3 @@ def cartesian_product_dict(input_dict):
     vals = input_dict.values()
     for instance in itertools.product(*vals):
         yield dict(zip(keys, instance))
-
-
-def remove_dashes(param_dict):
-    new_dict = {}
-    for k, v in param_dict.items():
-        if k.startswith('--'):
-            new_dict[k[2:]] = v
-        elif k.startswith('-'):
-            new_dict[k[1:]] = v
-        else:
-            new_dict[k] = v
-    return new_dict
