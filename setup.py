@@ -1,11 +1,18 @@
 from setuptools import setup, find_packages
 
-with open('requirements.txt', 'r') as f:
-    install_requires = f.read().splitlines()
+install_requires = [
+    "numpy>=1.15",
+    "pymongo>=3.7",
+    "pandas",
+    "sacred>=0.8.1",
+    "pyyaml",
+    "jsonpickle>=1.2, <2.0",
+    "munch>=2.0.4",
+]
 
 setup(
     name='seml',
-    version='0.1.2',
+    version='0.2.0',
     description='Slurm Experiment Management Library',
     url='http://github.com/TUM-DAML/seml',
     author='DAML Group @ TUM',
@@ -17,4 +24,6 @@ setup(
             ]
     },
     install_requires=install_requires,
-    zip_safe=False)
+    python_requires='>=3.6',
+    zip_safe=False,
+)
