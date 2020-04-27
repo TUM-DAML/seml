@@ -6,12 +6,16 @@ Keeping track of computational experiments can be annoying and failure to do so 
 
 **`SEML`** is the missing link between the open-source workload scheduling system `Slurm` and the experiment management tool `sacred`. It is lightweight, hackable, written in pure Python, and scales to thousands of experiments.
 
-**`SEML`** furthermore provides many additional features, such as an easy but powerful way for defining hyperparameter spaces, tight integration with MongoDB, automatically saving and loading your source code, providing commands for your debugger, and keeping track of resource stats.
-
 **`SEML`** enables you to 
 * very easily define hyperparameter search spaces using YAML files,
 * run these hyperparameter configurations on a compute cluster using `Slurm`,
 * and to track the experimental results using `sacred` and [`MongoDB`](https://www.mongodb.com/).
+
+In addition, **`SEML`** offers many additional features, such as
+* tight integration with MongoDB,
+* automatically saving and loading your source code for reproducibility,
+* providing commands for your debugger, 
+* and keeping track of resource stats.
 
 ## Get started
 To get started, install **`SEML`** using the following commands:
@@ -30,6 +34,6 @@ See our simple [example](examples) to get familiar with how **`SEML`** works.
 ## Contact
 Contact us at zuegnerd@in.tum.de or klicpera@in.tum.de for any questions.
 
-Copyright (C) 2019  
+Copyright (C) 2020  
 Daniel Zügner and Johannes Klicpera  
 Technical University of Munich
