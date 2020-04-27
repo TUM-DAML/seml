@@ -25,12 +25,13 @@ In `example_config.yaml` we define the parameter configurations that will be run
   
 ```yaml
 seml:
-  name: example_experiment
   db_collection: example_experiment
   executable: example_experiment.py
+  output_dir: slurm
+  project_root_dir: ..
 
 slurm:
-  output_dir: .
+  name: example_experiment
   experiments_per_job: 1
   sbatch_options:
     gres: gpu:1       # num GPUs
@@ -48,6 +49,22 @@ fixed:
   display_step: 25
 
 grid:
+  regularization_params:
+    type: parameter_collection
+    params:
+
+      dropout:
+        type: choice
+        options:
+          - 0.5
+          - 0.6
+
+      reg_scale:
+        type: choice
+        options:
+          - 1e-4
+          - 1e-5
+
   learning_rate:
     type: loguniform
     min: 1e-5
@@ -132,13 +149,18 @@ The `seml` block is required for every experiment. It has to contain the followi
 Optionally, it can contain
    - `conda_environment`: Name of the Anaconda virtual environment; will be loaded before the experiment is executed.
    - `output_dir`: Directory to store log files in. Default: Current directory
+   - `project_root_dir`: (Relative or absolute) path to the root of the project. seml will then upload all the source
+                         files imported by the experiment to the MongoDB. Moreover, the uploaded source files will be
+                         downloaded before starting an experiment, so any changes to the source files in the project
+                         between queueing and starting the experiment will have no effect.
 ### `slurm` block
 The special 'slurm' block contains the slurm parameters. This block and all values are optional. Possible values are:
    - `name`: Job name used by Slurm and file name of Slurm output. Default: Collection name
    - `experiments_per_job`: Number of parallel experiments to run in each Slurm job. Note that only experiments from the same batch share a job. Default: 1
    - `max_jobs_per_batch`: Maximum number of Slurm jobs running per experiment batch. Default: No restriction
    - `sbatch_options`: dictionary that contains custom values that will be passed to `sbatch`, specifying e.g. the
-   memory and the number of GPUs to be allocated. See [here](https://slurm.schedmd.com/sbatch.html) for possible parameters of `sbatch` (prepended dashes are not required).
+                       memory and the number of GPUs to be allocated. See [here](https://slurm.schedmd.com/sbatch.html)
+                       for possible parameters of `sbatch` (prepended dashes are not required).
 
 ### Parameter blocks
 In the `small_datasets` and `large_datasets` (names are of course only examples; you can name sub-configs as you like) we have specified different sets of parameters to try.
@@ -155,7 +177,7 @@ are:
    - `choice`: List the different values you want to evaluate under `options`.
    - `range`: Specify the `min`, `max`, and `step`. Parameter values will be generated using `np.arange(min, max, step)`.
    - `uniform`: Specify the `min`, `max`, and `num`. Parameter values will be generated using
-              `np.linspace(min, max, num, endpoint=True)`
+                `np.linspace(min, max, num, endpoint=True)`
    - `loguniform`: Specify `min`, `max`, and `num`. Parameter values will be uniformly generated in log space (base 10).
 
 ### Random parameters

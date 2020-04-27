@@ -6,11 +6,11 @@
 # executable:    Name of the Python script containing the experiment
 # It can optionally also contain the following values:
 # conda_environment: Specifies which conda environment will be activated before the experiment is executed.
-# project_root_dir: (relative or absolute) path to the root of the project. seml will then upload all the source
+# output_dir:    Directory to store log files in. Default: Current directory
+# project_root_dir: (Relative or absolute) path to the root of the project. seml will then upload all the source
 #                   files imported by the experiment to the MongoDB. Moreover, the uploaded source files will be
 #                   downloaded before starting an experiment, so any changes to the source files in the project
 #                   between queueing and starting the experiment will have no effect.
-# output_dir:    Directory to store log files in. Default: Current directory
 #
 # The special 'slurm' block contains the slurm parameters. This block and all values are optional. Possible values are:
 # name:                 Job name used by Slurm and file name of Slurm output. Default: Collection name
