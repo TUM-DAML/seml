@@ -18,15 +18,18 @@ def main():
                         "See examples/README.md for more details.",
             formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
-            'config_file', type=str, nargs='?', default="",
+            'config_file', type=str, nargs='?', default=None,
             help="Path to the YAML configuration file for the experiment.")
     parser.add_argument(
             '--verbose', '-v', action='store_true',
             help='Display more log messages.')
-    parser.add_argument(
-            '--configure', action='store_true',
-            help='Configure the MongoDB credentials.')
+
     subparsers = parser.add_subparsers(title="Possible operations")
+
+    parser_configure = subparsers.add_parser(
+        "configure",
+        help="Provide your MongoDB credentials.")
+    parser_configure.set_defaults(func=mongodb_credentials_prompt)
 
     parser_queue = subparsers.add_parser(
             "queue",
@@ -168,15 +171,6 @@ def main():
 
     args = parser.parse_args()
 
-    if args.configure:  # launch SEML configure.
-        args.func = mongodb_credentials_prompt
-        del args.config_file
-        del args.configure
-    else:  # otherwise remove the flag as it is not used elsewhere.
-        del args.configure
-        if args.config_file is None or len(args.config_file) == 0:
-            raise ValueError("Please provide a path to the config file.")
-
     # Initialize logging
     if args.verbose:
         logging_level = logging.VERBOSE
@@ -186,6 +180,13 @@ def main():
     hdlr.setFormatter(LoggingFormatter())
     logging.root.addHandler(hdlr)
     logging.root.setLevel(logging_level)
+
+    if args.func == mongodb_credentials_prompt:  # launch SEML configure.
+        del args.config_file
+    else:  # otherwise remove the flag as it is not used elsewhere.
+        if args.config_file is None:
+            logging.error("Please provide a path to the config file.")
+            return
 
     f = args.func
     del args.func
