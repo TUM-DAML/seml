@@ -369,10 +369,10 @@ def mongodb_credentials_prompt():
     password = get_nonempty_input("password")
     file_path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH
     config_string = (f'username: {username}\n'
-                 f'password: {password}\n'
-                 f'port: {port}\n'
-                 f'database: {database}\n'
-                 f'host: {host}')
+                     f'password: {password}\n'
+                     f'port: {port}\n'
+                     f'database: {database}\n'
+                     f'host: {host}')
     logging.info(f"Saving the following configuration to {file_path}:\n"
                  f"{config_string.replace(f'password: {password}', 'password: ********')}"
                  )

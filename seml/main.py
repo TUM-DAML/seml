@@ -186,7 +186,7 @@ def main():
     else:  # otherwise remove the flag as it is not used elsewhere.
         if args.config_file is None:
             logging.error("Please provide a path to the config file.")
-            return
+            sys.exit(1)
 
     f = args.func
     del args.func
