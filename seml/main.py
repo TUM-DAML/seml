@@ -3,8 +3,8 @@ import argparse
 import json
 import logging
 
-from seml.manage import report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments, \
-    mongodb_credentials_prompt
+from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
+                         mongodb_credentials_prompt)
 from seml.queue import queue_experiments
 from seml.start import start_experiments
 from seml.database import clean_unreferenced_artifacts
