@@ -1,10 +1,12 @@
 import logging
 import subprocess
 import datetime
+from getpass import getpass
 
 from seml.database import get_collection_from_config, build_filter_dict
 from seml.sources import delete_orphaned_sources
 from seml.utils import s_if, chunker
+from seml.settings import SETTINGS
 
 
 def report_status(config_file):
@@ -340,3 +342,41 @@ def get_slurm_arrays_tasks():
             return {}
     except subprocess.CalledProcessError:
         return {}
+
+
+def get_nonempty_input(field_name, num_trials=3):
+    get_input = getpass if "password" in field_name else input
+    field = get_input(f"Please input the {field_name}: ")
+    trials = 0
+    while (field is None or len(field) == 0) and trials < num_trials:
+        logging.error(f'{field_name} was empty.')
+        field = get_input(f"Please input the {field_name}")
+        trials += 1
+    if field is None or len(field) == 0:
+        raise ValueError(f"Did not receive an input for {num_trials}. Aborting.")
+    return field
+
+
+def mongodb_credentials_prompt():
+    logging.info('Configuring SEML. Warning: password will be stored in plain text.')
+    host = get_nonempty_input("MongoDB host")
+    port = input('Port (default: 27017):')
+    if port == "":
+        port = "27017"
+    database = get_nonempty_input("database name")
+    username = get_nonempty_input("user name")
+    password = get_nonempty_input("password")
+    file_path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH
+    logging.info(f"Saving the following configuration to {file_path}:\n"
+                 f'username: {username}\n'
+                 'password: ********\n'
+                 f'port: {port}\n'
+                 f'database: {database}\n'
+                 f'host: {host}')
+
+    with open(file_path, 'w') as f:
+        f.write(f'username: {username}\n')
+        f.write(f'password: {password}\n')
+        f.write(f'port: {port}\n')
+        f.write(f'database: {database}\n')
+        f.write(f'host: {host}\n')

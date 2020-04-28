@@ -3,7 +3,8 @@ import argparse
 import json
 import logging
 
-from seml.manage import report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments
+from seml.manage import report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments, \
+    mongodb_credentials_prompt
 from seml.queue import queue_experiments
 from seml.start import start_experiments
 from seml.database import clean_unreferenced_artifacts
@@ -17,11 +18,14 @@ def main():
                         "See examples/README.md for more details.",
             formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
-            'config_file', type=str,
+            'config_file', type=str, nargs='?', default="",
             help="Path to the YAML configuration file for the experiment.")
     parser.add_argument(
             '--verbose', '-v', action='store_true',
             help='Display more log messages.')
+    parser.add_argument(
+            '--configure', action='store_true',
+            help='Configure the MongoDB credentials.')
     subparsers = parser.add_subparsers(title="Possible operations")
 
     parser_queue = subparsers.add_parser(
@@ -163,6 +167,15 @@ def main():
     parser_clean_db.set_defaults(func=clean_unreferenced_artifacts)
 
     args = parser.parse_args()
+
+    if args.configure:  # launch SEML configure.
+        args.func = mongodb_credentials_prompt
+        del args.config_file
+        del args.configure
+    else:  # otherwise remove the flag as it is not used elsewhere.
+        del args.configure
+        if args.config_file is None or len(args.config_file) == 0:
+            raise ValueError("Please provide a path to the config file.")
 
     # Initialize logging
     if args.verbose:
