@@ -196,7 +196,7 @@ def delete_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
             raise LookupError(f"No experiment found with ID {sacred_id}.")
         else:
             logging.info(f"Deleting experiment with ID {sacred_id}.")
-            batch_ids_in_del = set(exp['batch_id'])
+            batch_ids_in_del = set([exp['batch_id']])
             collection.delete_one({'_id': sacred_id})
 
     if len(batch_ids_in_del) > 0:
