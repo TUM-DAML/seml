@@ -27,8 +27,8 @@ if __name__ == "__main__":
     exp = collection.find_one({'_id': exp_id})
     use_stored_sources = args.stored_sources_dir is not None
     if use_stored_sources and not os.listdir(args.stored_sources_dir):
-        assert "source_files" in exp['seml'], \
-            "--stored-sources-dir was supplied but queued experiment does not contain stored source files."
+        assert "source_files" in exp['seml'],\
+               "--stored-sources-dir was supplied but queued experiment does not contain stored source files."
         load_sources_from_db(exp, to_directory=args.stored_sources_dir)
 
     exe, config = get_command_from_exp(exp, verbose=args.verbose,

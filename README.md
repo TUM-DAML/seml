@@ -23,10 +23,8 @@ To get started, install **`SEML`** using the following commands:
 git clone https://github.com/TUM-KDD/seml.git
 cd seml
 python setup.py develop
-mkdir ~/.config/seml
-cp mongodb.config.example ~/.config/seml/mongodb.config
-# modify mongodb config to reflect your setup:
-vim ~/.config/seml/mongodb.config
+# provide your MongoDB credentials
+seml configure
 ```
 ## Example
 See our simple [example](examples) to get familiar with how **`SEML`** works.

@@ -1,3 +1,5 @@
+import sys
+import logging
 import numpy as np
 import yaml
 import ast
@@ -22,7 +24,8 @@ def unpack_config(config):
             # value = munch.munchify(value)
             if key == 'random':
                 if 'samples' not in value:
-                    raise ValueError('Random parameters must specify "samples", i.e. the number of random samples.')
+                    logging.error('Random parameters must specify "samples", i.e. the number of random samples.')
+                    sys.exit(1)
                 keys = [k for k in value.keys() if k not in ['seed', 'samples']]
                 if 'seed' in value:
                     seed = value['seed']
@@ -192,10 +195,12 @@ def check_config(executable, conda_env, configs):
     # Extract experiment from module
     exps = [v for k, v in exp_module.__dict__.items() if type(v) == sacred.Experiment]
     if len(exps) == 0:
-        raise ValueError(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
+        logging.error(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
+        sys.exit(1)
     elif len(exps) > 1:
-        raise ValueError("Found more than 1 Sacred experiment. Can't check parameter configs. "
-                         "Disable via --no-config-check.")
+        logging.error("Found more than 1 Sacred experiment in '{executable}'. "
+                      "Can't check parameter configs. Disable via --no-config-check.")
+        sys.exit(1)
     exp = exps[0]
 
     empty_run = sacred.initialize.create_run(exp, exp.default_command, config_updates=None, named_configs=())
@@ -208,11 +213,11 @@ def check_config(executable, conda_env, configs):
 
     for config in configs:
         config_added = {k: v for k, v in config.items() if k not in empty_run.config.keys()}
-        config_flattened = {k for k, v in sacred.utils.iterate_flattened(config_added)}
+        config_flattened = {k for k, _ in sacred.utils.iterate_flattened(config_added)}
 
         for conf in sorted(config_flattened):
             if not (set(sacred.utils.iter_prefixes(conf)) & captured_args):
-                raise sacred.utils.ConfigAddedError(conf, config=config_flattened)
+                raise sacred.utils.ConfigAddedError(conf, config=config_added)
 
         options = empty_run.config.copy()
         options.update(config)
@@ -257,13 +262,16 @@ def read_config(config_path):
         config_dict = convert_values(yaml.load(conf, Loader=yaml.FullLoader))
 
     if "seml" not in config_dict:
-        raise ValueError("Please specify a 'seml' dictionary in the experiment configuration.")
+        logging.error("Please specify a 'seml' dictionary in the experiment configuration.")
+        sys.exit(1)
     seml_dict = config_dict['seml']
     del config_dict['seml']
     if "executable" not in seml_dict:
-        raise ValueError("Please specify an executable path for the experiment.")
+        logging.error("Please specify an executable path for the experiment.")
+        sys.exit(1)
     if "db_collection" not in seml_dict:
-        raise ValueError("Please specify a database collection to store the experimental results.")
+        logging.error("Please specify a database collection to store the experimental results.")
+        sys.exit(1)
 
     if 'slurm' in config_dict:
         slurm_dict = config_dict['slurm']

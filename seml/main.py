@@ -3,7 +3,8 @@ import argparse
 import json
 import logging
 
-from seml.manage import report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments
+from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
+                         mongodb_credentials_prompt)
 from seml.queue import queue_experiments
 from seml.start import start_experiments
 from seml.database import clean_unreferenced_artifacts
@@ -17,12 +18,18 @@ def main():
                         "See examples/README.md for more details.",
             formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
-            'config_file', type=str,
+            'config_file', type=str, nargs='?', default=None,
             help="Path to the YAML configuration file for the experiment.")
     parser.add_argument(
             '--verbose', '-v', action='store_true',
             help='Display more log messages.')
+
     subparsers = parser.add_subparsers(title="Possible operations")
+
+    parser_configure = subparsers.add_parser(
+        "configure",
+        help="Provide your MongoDB credentials.")
+    parser_configure.set_defaults(func=mongodb_credentials_prompt)
 
     parser_queue = subparsers.add_parser(
             "queue",
@@ -173,6 +180,13 @@ def main():
     hdlr.setFormatter(LoggingFormatter())
     logging.root.addHandler(hdlr)
     logging.root.setLevel(logging_level)
+
+    if args.func == mongodb_credentials_prompt:  # launch SEML configure.
+        del args.config_file
+    else:  # otherwise remove the flag as it is not used elsewhere.
+        if args.config_file is None:
+            logging.error("Please provide a path to the config file.")
+            sys.exit(1)
 
     f = args.func
     del args.func

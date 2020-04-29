@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import logging
 import numpy as np
@@ -69,9 +70,9 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
 
     # Set Slurm job-name parameter
     if 'job-name' in sbatch_options:
-        raise ValueError(
-                "Can't set sbatch `job-name` Parameter explicitly. "
-                "Use `name` parameter instead and SEML will do that for you.")
+        logging.error("Can't set sbatch `job-name` Parameter explicitly. "
+                      "Use `name` parameter instead and SEML will do that for you.")
+        sys.exit(1)
     name = name if name is not None else exp_array[0][0]['seml']['db_collection']
     job_name = f"{name}_{exp_array[0][0]['batch_id']}"
     sbatch_options['job-name'] = job_name
@@ -84,11 +85,11 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     # Set Slurm output parameter
     output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
     if not os.path.isdir(output_dir_path):
-        raise ValueError(
-            f"Slurm output directory '{output_dir_path}' does not exist.")
+        logging.error(f"Slurm output directory '{output_dir_path}' does not exist.")
+        sys.exit(1)
     if 'output' in sbatch_options:
-        raise ValueError(
-            f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
+        logging.error(f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
+        sys.exit(1)
     sbatch_options['output'] = f'{output_dir_path}/{name}_%A_%a.out'
 
     # Construct sbatch options string
@@ -354,7 +355,10 @@ def start_jobs(collection_name, slurm=True, unobserved=False,
                 configs.append((exe, None, config))
         return configs
     elif slurm:
-        assert output_to_file is True, "Output cannot be written to stdout in Slurm mode."
+        if not output_to_file:
+            logging.error("Output cannot be written to stdout in Slurm mode. "
+                          "Remove the '--output-to-console' argument.")
+            sys.exit(1)
         exp_chunks = chunk_list(exps_list)
         exp_arrays = batch_chunks(exp_chunks)
         njobs = len(exp_chunks)
@@ -376,8 +380,9 @@ def start_jobs(collection_name, slurm=True, unobserved=False,
     else:
         login_node_name = 'fs'
         if login_node_name in os.uname()[1]:
-            raise ValueError("Refusing to run a compute experiment on a login node. "
-                             "Please use Slurm or a compute node.")
+            logging.error("Refusing to run a compute experiment on a login node. "
+                          "Please use Slurm or a compute node.")
+            sys.exit(1)
         logging.info(f'Starting local worker thread that will run up to {nexps} experiments, '
                      f'until no queued experiments remain.')
         if not unobserved:

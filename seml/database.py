@@ -1,3 +1,4 @@
+import sys
 import os
 import gridfs
 import pymongo
@@ -63,13 +64,11 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     """
 
     access_dict = {}
-
-    error_str = f"Please supply your MongoDB credentials at {path} in the format:\n"\
-                "username: <your_username>\npassword: <your_password>\nport: <port>\n"\
-                "database:<database_name>\n host: <hostname>"
+    config_str = "\nPlease run `seml configure` to provide your credentials."
 
     if not os.path.exists(path):
-        raise ValueError(error_str)
+        logging.error(f"MongoDB credentials could not be read at '{path}'.{config_str}")
+        sys.exit(1)
 
     with open(path, 'r') as f:
         for line in f.readlines():
@@ -80,11 +79,11 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
                 value = split[1].strip()
                 access_dict[key] = value
 
-    assert 'username' in access_dict, f'No username found in {path}. {error_str}'
-    assert 'password' in access_dict, f'No password found in {path}. {error_str}'
-    assert 'port' in access_dict, f'No database port found in {path}. {error_str}'
-    assert 'host' in access_dict, f'No host found in {path}. {error_str}'
-    assert 'database' in access_dict, f'No database name found in {path}. {error_str}'
+    required_entries = ['username', 'password', 'port', 'host', 'database']
+    for entry in required_entries:
+        if entry not in access_dict:
+            logging.error(f"No {entry} found in '{path}'.{config_str}")
+            sys.exit(1)
 
     db_port = access_dict['port']
     db_name = access_dict['database']

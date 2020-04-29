@@ -1,10 +1,13 @@
 import logging
 import subprocess
 import datetime
+from getpass import getpass
+import sys
 
 from seml.database import get_collection_from_config, build_filter_dict
 from seml.sources import delete_orphaned_sources
 from seml.utils import s_if, chunker
+from seml.settings import SETTINGS
 
 
 def report_status(config_file):
@@ -190,10 +193,11 @@ def delete_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
     else:
         exp = collection.find_one({'_id': sacred_id})
         if exp is None:
-            raise LookupError(f"No experiment found with ID {sacred_id}.")
+            logging.error(f"No experiment found with ID {sacred_id}.")
+            sys.exit(1)
         else:
             logging.info(f"Deleting experiment with ID {sacred_id}.")
-            batch_ids_in_del = set(exp['batch_id'])
+            batch_ids_in_del = set([exp['batch_id']])
             collection.delete_one({'_id': sacred_id})
 
     if len(batch_ids_in_del) > 0:
@@ -250,7 +254,8 @@ def reset_experiments(config_file, sacred_id, filter_states, batch_id, filter_di
     else:
         exp = collection.find_one({'_id': sacred_id})
         if exp is None:
-            raise LookupError(f"No experiment found with ID {sacred_id}.")
+            logging.error(f"No experiment found with ID {sacred_id}.")
+            sys.exit(1)
         else:
             logging.info(f"Resetting the state of experiment with ID {sacred_id}.")
             reset_single_experiment(collection, exp)
@@ -340,3 +345,39 @@ def get_slurm_arrays_tasks():
             return {}
     except subprocess.CalledProcessError:
         return {}
+
+
+def get_nonempty_input(field_name, num_trials=3):
+    get_input = getpass if "password" in field_name else input
+    field = get_input(f"Please input the {field_name}: ")
+    trials = 1
+    while (field is None or len(field) == 0) and trials < num_trials:
+        logging.error(f'{field_name} was empty.')
+        field = get_input(f"Please input the {field_name}: ")
+        trials += 1
+    if field is None or len(field) == 0:
+        logging.error(f"Did not receive an input for {num_trials} times. Aborting.")
+        sys.exit(1)
+    return field
+
+
+def mongodb_credentials_prompt():
+    logging.info('Configuring SEML. Warning: Password will be stored in plain text.')
+    host = get_nonempty_input("MongoDB host")
+    port = input('Port (default: 27017):')
+    port = "27017" if port == "" else port
+    database = get_nonempty_input("database name")
+    username = get_nonempty_input("user name")
+    password = get_nonempty_input("password")
+    file_path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH
+    config_string = (f'username: {username}\n'
+                     f'password: {password}\n'
+                     f'port: {port}\n'
+                     f'database: {database}\n'
+                     f'host: {host}')
+    logging.info(f"Saving the following configuration to {file_path}:\n"
+                 f"{config_string.replace(f'password: {password}', 'password: ********')}"
+                 )
+
+    with open(file_path, 'w') as f:
+        f.write(config_string)
