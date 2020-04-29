@@ -215,12 +215,15 @@ def check_config(executable, conda_env, configs):
         config_added = {k: v for k, v in config.items() if k not in empty_run.config.keys()}
         config_flattened = {k for k, _ in sacred.utils.iterate_flattened(config_added)}
 
+        # Check for unused arguments
         for conf in sorted(config_flattened):
             if not (set(sacred.utils.iter_prefixes(conf)) & captured_args):
                 raise sacred.utils.ConfigAddedError(conf, config=config_added)
 
+        # Check for missing arguments
         options = empty_run.config.copy()
         options.update(config)
+        options.update({k: None for k in sacred.utils.ConfigAddedError.SPECIAL_ARGS})
         empty_run.main_function.signature.construct_arguments((), {}, options, False)
 
 

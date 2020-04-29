@@ -11,7 +11,7 @@ While workload scheduling systems such as [`Slurm`](https://slurm.schedmd.com/ov
 * and to track the experimental results using `sacred` and [`MongoDB`](https://www.mongodb.com/).
 
 
-In addition, **`SEML`** offers many additional features, such as
+In addition, **`SEML`** offers many more features to make your life easier, such as
 * tight integration with MongoDB,
 * automatically saving and loading your source code for reproducibility,
 * providing commands for your debugger, 
