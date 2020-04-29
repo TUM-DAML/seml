@@ -208,11 +208,11 @@ def check_config(executable, conda_env, configs):
 
     for config in configs:
         config_added = {k: v for k, v in config.items() if k not in empty_run.config.keys()}
-        config_flattened = {k for k, v in sacred.utils.iterate_flattened(config_added)}
+        config_flattened = {k for k, _ in sacred.utils.iterate_flattened(config_added)}
 
         for conf in sorted(config_flattened):
             if not (set(sacred.utils.iter_prefixes(conf)) & captured_args):
-                raise sacred.utils.ConfigAddedError(conf, config=config_flattened)
+                raise sacred.utils.ConfigAddedError(conf, config=config_added)
 
         options = empty_run.config.copy()
         options.update(config)
