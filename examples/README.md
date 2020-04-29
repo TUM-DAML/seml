@@ -3,20 +3,8 @@ This example will show you how to track your experiments using Sacred, how to pe
 
 
 ## MongoDB configuration
-Before starting, please make sure you have your MongoDB credentials stored in `$HOME/.config/seml/mongodb.config`, e.g.:
+Before starting, please make sure you have your MongoDB credentials stored in `$HOME/.config/seml/mongodb.config`. The easiest way to do so is to run `seml configure`, which will store your credentials in the correct format in the right place.
 
-```
-username: <your_username>
-password: <your_password>
-host: mongodb-host.example.com
-port: 27017
-database: <database_name>
-```
-You can simply clone the example config in the root directory of this repo to get started:
-```bash
-mkdirs ~/.config/seml
-cp mongodb.config.example ~/.config/seml/mongodb.config
-```
 
 ## Experiment configuration
 
