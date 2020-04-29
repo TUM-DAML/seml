@@ -64,7 +64,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     """
 
     access_dict = {}
-    config_str = "\nPlease run seml --configure to provide your credentials."
+    config_str = "\nPlease run `seml configure` to provide your credentials."
 
     if not os.path.exists(path):
         logging.error(f"MongoDB credentials could not be read at '{path}'.{config_str}")

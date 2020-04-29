@@ -362,7 +362,7 @@ def get_nonempty_input(field_name, num_trials=3):
 
 
 def mongodb_credentials_prompt():
-    logging.info('Configuring SEML. Warning: password will be stored in plain text.')
+    logging.info('Configuring SEML. Warning: Password will be stored in plain text.')
     host = get_nonempty_input("MongoDB host")
     port = input('Port (default: 27017):')
     port = "27017" if port == "" else port

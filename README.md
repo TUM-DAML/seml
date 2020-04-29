@@ -24,7 +24,7 @@ git clone https://github.com/TUM-KDD/seml.git
 cd seml
 python setup.py develop
 # provide your MongoDB credentials
-seml --configure
+seml configure
 ```
 ## Example
 See our simple [example](examples) to get familiar with how **`SEML`** works.
