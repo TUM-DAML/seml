@@ -143,7 +143,7 @@ def load_sources_from_db(exp, to_directory):
         with open(f'{to_directory}/{path}', 'wb') as f:
             file = fs.find_one(_id)
             if file is None:
-                raise ValueError(f"Source file was not found on the MongoDB.")
+                raise ValueError(f"Source file with ID '{_id}' was not found in the MongoDB.")
             f.write(file.read())
 
 

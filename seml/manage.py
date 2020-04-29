@@ -193,7 +193,8 @@ def delete_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
     else:
         exp = collection.find_one({'_id': sacred_id})
         if exp is None:
-            raise LookupError(f"No experiment found with ID {sacred_id}.")
+            logging.error(f"No experiment found with ID {sacred_id}.")
+            sys.exit(1)
         else:
             logging.info(f"Deleting experiment with ID {sacred_id}.")
             batch_ids_in_del = set([exp['batch_id']])
@@ -253,7 +254,8 @@ def reset_experiments(config_file, sacred_id, filter_states, batch_id, filter_di
     else:
         exp = collection.find_one({'_id': sacred_id})
         if exp is None:
-            raise LookupError(f"No experiment found with ID {sacred_id}.")
+            logging.error(f"No experiment found with ID {sacred_id}.")
+            sys.exit(1)
         else:
             logging.info(f"Resetting the state of experiment with ID {sacred_id}.")
             reset_single_experiment(collection, exp)

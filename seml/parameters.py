@@ -1,3 +1,5 @@
+import sys
+import logging
 import itertools
 import numpy as np
 
@@ -67,7 +69,8 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
     """
 
     if "type" not in parameter:
-        raise ValueError("No type found in parameter {}".format(parameter))
+        logging.error("No type found in parameter {}".format(parameter))
+        sys.exit(1)
     return_items = []
 
     if seed is not None:
@@ -90,7 +93,8 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
 
     elif param_type == "loguniform":
         if parameter['min'] <= 0:
-            raise ValueError("Cannot take log of values <= 0")
+            logging.error("Cannot take log of values <= 0")
+            sys.exit(1)
         min_val = np.log(parameter['min'])
         max_val = np.log(parameter['max'])
         sampled_values = np.exp(np.random.uniform(min_val, max_val, samples))
@@ -145,7 +149,8 @@ def generate_grid(parameter, parent_key=''):
 
     """
     if "type" not in parameter:
-        raise ValueError("No type found in parameter {}".format(parameter))
+        logging.error("No type found in parameter {}".format(parameter))
+        sys.exit(1)
 
     param_type = parameter['type']
 
