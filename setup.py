@@ -10,13 +10,18 @@ install_requires = [
     "munch>=2.0.4",
 ]
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(
     name='seml',
     version='0.2.0',
     description='Slurm Experiment Management Library',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     url='http://github.com/TUM-DAML/seml',
     author='DAML Group @ TUM',
-    author_email='zuegnerd@in.tum.de; klicpera@in.tum.de',
+    author_email='zuegnerd@in.tum.de, klicpera@in.tum.de',
     packages=find_packages('.'),
     entry_points={
             'console_scripts': [
