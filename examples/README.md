@@ -204,7 +204,7 @@ seml seml_example start
 This will start all experiments in the MongoDB collection `seml_example` that currently are in the QUEUED state.
 
 ### Running multiple experiments per Slurm job
-Often a single experiment requires much less GPU RAM than is available on a GPU. We can then
+Often a single experiment requires much less GPU RAM than is available on a GPU. Thus, we can often
 run multiple experiments per Slurm job (which commonly uses a single GPU) to increase the throughput of our experiments.
 This can be done by setting the `experiments_per_job` argument in the `slurm` block of the config file.
 
