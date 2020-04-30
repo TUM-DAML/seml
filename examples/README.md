@@ -179,11 +179,11 @@ of samples per parameter with the `samples` value and optionally the random seed
 To insert the experiments the queue in the database, open a terminal on a machine with access to the `Slurm` system. In this directory and run
 
 ```
-seml example_config.yaml queue
+seml seml_example queue example_config.yaml
 ```
 
 If you open your MongoDB (e.g. with the software `robo3t`), you should now find a collection `seml_example` with the queued experiments.
-Note that the config file is specified _before_ the operation (`queue`).
+Note that the collection name is specified _before_ the operation (`queue`).
 
 To see what the option `--force-duplicates` does, run the above command again. The output should now read something like:
 
@@ -194,18 +194,18 @@ To see what the option `--force-duplicates` does, run the above command again. T
 That is, the script checks whether experiments with the same configuration are already in the database collection.
 In this case, they are not added to the queue to avoid redundant computations. In order to force add duplicates to the database, use the `--force-duplicates` argument.
 
-All experiments are now already in the database collection specified in `example_config.yaml` and in the QUEUED state.
+All experiments are now already in the database collection you specified and in the QUEUED state.
 
 ## Run experiments using Slurm
 To run the queued experiments on the Slurm cluster, run:
 ```bash
-seml example_config.yaml start
+seml seml_example start
 ```
-The config file is only needed to specify the MongoDB collection. All other parameters will be loaded from the MongoDB.
+This will start all experiments in the MongoDB collection `seml_example` that currently are in the QUEUED state.
 
 ### Running multiple experiments per Slurm job
-Often, a single experiment requires much less GPU RAM than is available on a GPU. Thus, we can
-often run multiple experiments per Slurm job (which commonly uses a single GPU) to increase the throughput of our experiments.
+Often a single experiment requires much less GPU RAM than is available on a GPU. We can then
+run multiple experiments per Slurm job (which commonly uses a single GPU) to increase the throughput of our experiments.
 This can be done by setting the `experiments_per_job` argument in the `slurm` block of the config file.
 
 Note that this will only run your own experiments in parallel on a GPU. It will never run
@@ -214,39 +214,39 @@ Furthermore, only experiments from the same batch share jobs.
 
 ## Check the status of your Slurm jobs
 
-You can check the status of your Slurm jobs by running `squeue` or `seml example_config.yaml status`
+You can check the status of your Slurm jobs by running `squeue` or `seml seml_example status`
 in the terminal. To check the console output of a experiment, open the corresponding logfile, e.g. `cat slurm-564.out`.
 
 To check whether some experiments may have failed due to errors, you can run:
 ```bash
-seml example_config.yaml status
+seml seml_example status
 ```
 
 You can cancel (interrupt) all pending and running experiments with
 ```bash
-seml example_config.yaml cancel
+seml seml_example cancel
 ```
 
 You can reset all failed, killed, or interrupted experiments to QUEUED with
 ```bash
-seml example_config.yaml reset
+seml seml_example reset
 ```
 
 You can delete all queued, failed, killed, or interrupted experiments with
 ```bash
-seml example_config.yaml delete
+seml seml_example delete
 ```
 
 These three commands also support passing a specific Sacred ID and a custom list of states.
 
 Moreover, you can specifically cancel/reset/delete experiments that match a custom dictionary, e.g.
 ```bash
-seml example_config.yaml cancel --filter-dict '{"config.dataset":"cora_ml", "config.hidden_sizes": [16]}'
+seml seml_example cancel --filter-dict '{"config.dataset":"cora_ml", "config.hidden_sizes": [16]}'
 ```
 
 Finally, you can manually detect experiments whose corresponding Slurm jobs were killed unexpectedly with
 ```bash
-seml example_config.yaml detect-killed
+seml seml_example detect-killed
 ```
 (Detection is run automatically when executing the `status`, `delete`, `reset`, and `cancel` commands and therefore rarely necessary to do manually.)
 
@@ -255,11 +255,11 @@ seml example_config.yaml detect-killed
 You can use this to cancel all the experiments from the last configuration that you've started, e.g. if you find a bug. 
 Use
 ```bash
-seml example_config.yaml cancel --batch-id i
+seml seml_example cancel --batch-id i
 ```
 or equivalently
  ```bash
-seml example_config.yaml cancel --filter-dict '{"batch_id": i}'
+seml seml_example cancel --filter-dict '{"batch_id": i}'
 ```
 to cancel all jobs from batch `i`.
 
