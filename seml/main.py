@@ -194,8 +194,9 @@ def main():
             sys.exit(1)
         else:
             if os.path.isfile(args.db_collection_name):
-                logging.warning("Always providing a config file to seml has been deprecated. "
-                                "Provide a database collection name instead.")
+                logging.warning("Loading the collection name from a config file. "
+                                "This has been deprecated. "
+                                "Please provide a database collection name instead.")
                 seml_config, _, _ = read_config(args.db_collection_name)
                 args.db_collection_name = seml_config['db_collection']
 
