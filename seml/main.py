@@ -189,9 +189,8 @@ def main():
     if args.func == mongodb_credentials_prompt:  # launch SEML configure.
         del args.db_collection_name
     else:  # otherwise remove the flag as it is not used elsewhere.
-        if args.db_collection_name is None:
-            logging.error("Please provide a path to the config file.")
-            sys.exit(1)
+        if not args.db_collection_name:
+            parser.error("the following arguments are required: db_collection_name")
         else:
             if os.path.isfile(args.db_collection_name):
                 logging.warning("Loading the collection name from a config file. This has been deprecated. "
