@@ -176,7 +176,12 @@ of samples per parameter with the `samples` value and optionally the random seed
 
 ## Add experiments to queue
 
-To insert the experiments the queue in the database, open a terminal on a machine with access to the `Slurm` system. In this directory and run
+All SEML commands follow the pattern
+```
+seml [database_collection_name] [command] [command_options]
+```
+
+To insert the experiments the queue in the database, open a terminal on a machine with access to the `Slurm` system. Move to this directory and run
 
 ```
 seml seml_example queue example_config.yaml
