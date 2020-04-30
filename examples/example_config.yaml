@@ -2,7 +2,6 @@
 #
 # There are two special blocks. The 'seml' block is required for every experiment.
 # It has to contain the following values:
-# db_collection: Name of the MongoDB collection to save the experiment information to
 # executable:    Name of the Python script containing the experiment
 # It can optionally also contain the following values:
 # conda_environment: Specifies which conda environment will be activated before the experiment is executed.
@@ -49,7 +48,6 @@
 
 
 seml:
-  db_collection: example_experiment
   executable: example_experiment.py
   output_dir: slurm
   project_root_dir: ..

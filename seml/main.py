@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 import json
@@ -7,6 +8,7 @@ from seml.manage import (report_status, cancel_experiments, delete_experiments, 
                          mongodb_credentials_prompt)
 from seml.queuing import queue_experiments
 from seml.start import start_experiments
+from seml.config import read_config
 from seml.database import clean_unreferenced_artifacts
 from seml.utils import LoggingFormatter
 
@@ -18,8 +20,8 @@ def main():
                         "See examples/README.md for more details.",
             formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
-            'config_file', type=str, nargs='?', default=None,
-            help="Path to the YAML configuration file for the experiment.")
+            'db_collection_name', type=str, nargs='?', default=None,
+            help="Name of the database collection for the experiment.")
     parser.add_argument(
             '--verbose', '-v', action='store_true',
             help='Display more log messages.')
@@ -34,6 +36,9 @@ def main():
     parser_queue = subparsers.add_parser(
             "queue",
             help="Queue the experiments as defined in the configuration.")
+    parser_queue.add_argument(
+            'config_file', type=str,
+            help="Path to the YAML configuration file for the experiment.")
     parser_queue.add_argument(
             '-nh', '--no-hash', action='store_true',
             help="Do not use the hash of the config dictionary to filter out duplicates (by comparing all"
@@ -55,13 +60,13 @@ def main():
             help="Fetch queued experiments from the database and run them (by default via Slurm).")
     parser_start.add_argument(
             '-l', '--local', action='store_true',
-            help="Run the experiments locally.")
+            help="Run the experiments locally (not via Slurm).")
     parser_start.add_argument(
             '-n', '--num-exps', type=int, default=-1,
             help="Only start the specified number of experiments.")
     parser_start.add_argument(
             '-u', '--unobserved', action='store_true',
-            help="Run the experiments without Sacred observers (no changes to MongoDB). "
+            help="Run the experiments without Sacred observers (no changes to the database). "
                  "This also disables output capturing by Sacred, facilitating the use of debuggers (pdb, ipdb).")
     parser_start.add_argument(
             '-pm', '--post-mortem', action='store_true',
@@ -182,11 +187,17 @@ def main():
     logging.root.setLevel(logging_level)
 
     if args.func == mongodb_credentials_prompt:  # launch SEML configure.
-        del args.config_file
+        del args.db_collection_name
     else:  # otherwise remove the flag as it is not used elsewhere.
-        if args.config_file is None:
+        if args.db_collection_name is None:
             logging.error("Please provide a path to the config file.")
             sys.exit(1)
+        else:
+            if os.path.isfile(args.db_collection_name):
+                logging.warning("Always providing a config file to seml has been deprecated. "
+                                "Provide a database collection name instead.")
+                seml_config, _, _ = read_config(args.db_collection_name)
+                args.db_collection_name = seml_config['db_collection']
 
     f = args.func
     del args.func

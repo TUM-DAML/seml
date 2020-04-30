@@ -5,7 +5,7 @@ import logging
 import importlib
 import gridfs
 
-from seml.database import get_collection, upload_file
+from seml.database import upload_file
 
 
 def is_local_file(filename, root_dir):
@@ -129,8 +129,7 @@ def get_git_info(filename):
     return path, commit, repo.is_dirty()
 
 
-def load_sources_from_db(exp, to_directory):
-    collection = get_collection(exp['seml']['db_collection'])
+def load_sources_from_db(exp, collection, to_directory):
     db = collection.database
     fs = gridfs.GridFS(db)
     if 'source_files' not in exp['seml']:
