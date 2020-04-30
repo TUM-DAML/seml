@@ -37,7 +37,7 @@ def main():
             "queue",
             help="Queue the experiments as defined in the configuration.")
     parser_queue.add_argument(
-            'config_file', type=str,
+            'config_file', type=str, nargs='?', default=None,
             help="Path to the YAML configuration file for the experiment.")
     parser_queue.add_argument(
             '-nh', '--no-hash', action='store_true',
@@ -196,7 +196,11 @@ def main():
                 logging.warning("Loading the collection name from a config file. This has been deprecated. "
                                 "Please instead provide a database collection name in the command line.")
                 seml_config, _, _ = read_config(args.db_collection_name)
+                if args.func == queue_experiments:
+                    args.config_file = args.db_collection_name
                 args.db_collection_name = seml_config['db_collection']
+            elif args.func == queue_experiments and not args.config_file:
+                parser_queue.error("the following arguments are required: config_file")
 
     f = args.func
     del args.func
