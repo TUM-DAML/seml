@@ -6,6 +6,7 @@ import ast
 import jsonpickle
 import json
 
+from seml.sources import import_exe
 from seml.parameters import sample_random_configs, generate_grid, cartesian_product_dict
 from seml.utils import merge_dicts, flatten, unflatten
 
@@ -188,7 +189,6 @@ def check_config(executable, conda_env, configs):
 
     """
     import sacred
-    from seml.sources import import_exe  # Imported here to prevent circular imports
 
     exp_module = import_exe(executable, conda_env)
 
@@ -272,9 +272,9 @@ def read_config(config_path):
     if "executable" not in seml_dict:
         logging.error("Please specify an executable path for the experiment.")
         sys.exit(1)
-    if "db_collection" not in seml_dict:
-        logging.error("Please specify a database collection to store the experimental results.")
-        sys.exit(1)
+    if "db_collection" in seml_dict:
+        logging.warning("Specifying a the database collection in the config has been deprecated. "
+                        "Please provide it via the command line instead.")
 
     if 'slurm' in config_dict:
         slurm_dict = config_dict['slurm']

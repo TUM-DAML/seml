@@ -22,13 +22,13 @@ def parse_jsonpickle(db_entry):
     return parsed
 
 
-def get_results(collection_name, fields=['config', 'result'],
+def get_results(db_collection_name, fields=['config', 'result'],
                 to_data_frame=False, suffix=None,
                 states=None, parallel=False):
     import pandas as pd
     if states is None:
         states = ['COMPLETED']
-    collection = get_collection(collection_name, suffix=suffix)
+    collection = get_collection(db_collection_name, suffix=suffix)
     if len(states) > 0:
         filter = {'status': {'$in': states}}
     else:

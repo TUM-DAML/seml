@@ -11,12 +11,12 @@ except ImportError:
         return iterable
 
 from seml.database import get_collection, build_filter_dict
-from seml.config import read_config
 from seml.sources import load_sources_from_db
 from seml.utils import s_if
 
 
-def get_command_from_exp(exp, verbose=False, unobserved=False, post_mortem=False, debug=False, relative=False):
+def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
+                         post_mortem=False, debug=False, relative=False):
     if 'executable' not in exp['seml']:
         raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
@@ -24,7 +24,7 @@ def get_command_from_exp(exp, verbose=False, unobserved=False, post_mortem=False
         exe = exp['seml']['executable_relative']
 
     config = exp['config']
-    config['db_collection'] = exp['seml']['db_collection']
+    config['db_collection'] = db_collection_name
     if not unobserved:
         config['overwrite'] = exp['_id']
     config_strings = [f'{key}="{val}"' for key, val in config.items()]
@@ -73,7 +73,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
         logging.error("Can't set sbatch `job-name` Parameter explicitly. "
                       "Use `name` parameter instead and SEML will do that for you.")
         sys.exit(1)
-    name = name if name is not None else exp_array[0][0]['seml']['db_collection']
+    name = name if name is not None else collection.name
     job_name = f"{name}_{exp_array[0][0]['batch_id']}"
     sbatch_options['job-name'] = job_name
 
@@ -118,7 +118,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
             exp_ids=' '.join(expid_strings),
             with_sources=str(with_sources).lower(),
             get_cmd_fname=f"{os.path.dirname(__file__)}/prepare_experiment.py",
-            collection_str=exp_array[0][0]['seml']['db_collection'],
+            db_collection_name=collection.name,
             sources_argument="--stored-sources-dir $tmpdir" if with_sources else "",
             verbose=logging.root.level <= logging.VERBOSE,
             unobserved=unobserved,
@@ -171,7 +171,8 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
     """
 
     use_stored_sources = ('project_root_dir' in exp['seml'])
-    exe, config = get_command_from_exp(exp, verbose=logging.root.level <= logging.VERBOSE,
+    exe, config = get_command_from_exp(exp, collection.name,
+                                       verbose=logging.root.level <= logging.VERBOSE,
                                        unobserved=unobserved, post_mortem=post_mortem,
                                        relative=use_stored_sources)
     cmd = f"python {exe} with {' '.join(config)}"
@@ -213,7 +214,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
                 random_int = np.random.randint(0, 999999)
                 temp_dir = f"/tmp/{random_int}"
             os.mkdir(temp_dir, mode=0o700)
-            load_sources_from_db(exp, to_directory=temp_dir)
+            load_sources_from_db(exp, collection, to_directory=temp_dir)
             # update the command to use the temp dir
             cmd = f'PYTHONPATH="{temp_dir}:$PYTHONPATH" python {temp_dir}/{exe} with {" ".join(config)}'
 
@@ -296,14 +297,14 @@ def batch_chunks(exp_chunks):
     return exp_arrays
 
 
-def start_jobs(collection_name, slurm=True, unobserved=False,
+def start_jobs(db_collection_name, slurm=True, unobserved=False,
                post_mortem=False, num_exps=-1, filter_dict={}, dry_run=False,
                output_to_file=True):
     """Pull queued experiments from the database and run them.
 
     Parameters
     ----------
-    collection_name: str
+    db_collection_name: str
         Name of the collection in the MongoDB.
     slurm: bool
         Use the Slurm cluster.
@@ -327,7 +328,7 @@ def start_jobs(collection_name, slurm=True, unobserved=False,
     None
     """
 
-    collection = get_collection(collection_name)
+    collection = get_collection(db_collection_name)
 
     if unobserved and not slurm and '_id' in filter_dict:
         query_dict = {}
@@ -347,7 +348,8 @@ def start_jobs(collection_name, slurm=True, unobserved=False,
     if dry_run:
         configs = []
         for exp in exps_list:
-            exe, config = get_command_from_exp(exp, verbose=logging.root.level <= logging.VERBOSE,
+            exe, config = get_command_from_exp(exp, db_collection_name,
+                                               verbose=logging.root.level <= logging.VERBOSE,
                                                unobserved=unobserved, post_mortem=post_mortem)
             if 'conda_environment' in exp['seml']:
                 configs.append((exe, exp['seml']['conda_environment'], config))
@@ -383,7 +385,7 @@ def start_jobs(collection_name, slurm=True, unobserved=False,
             logging.error("Refusing to run a compute experiment on a login node. "
                           "Please use Slurm or a compute node.")
             sys.exit(1)
-        logging.info(f'Starting local worker thread that will run up to {nexps} experiments, '
+        logging.info(f'Starting local worker thread that will run up to {nexps} experiment{s_if(nexps)}, '
                      f'until no queued experiments remain.')
         if not unobserved:
             collection.update_many({'_id': {'$in': [e['_id'] for e in exps_list]}}, {"$set": {"status": "PENDING"}})
@@ -437,13 +439,11 @@ def print_commands(db_collection_name, unobserved, post_mortem, num_exps, filter
         logging.info(f"python {exe} with {' '.join(config)}")
 
 
-def start_experiments(config_file, local, sacred_id, batch_id, filter_dict,
+def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
                       num_exps, unobserved, post_mortem, debug, dry_run,
                       output_to_console):
     use_slurm = not local
     output_to_file = not output_to_console
-
-    db_collection_name = read_config(config_file)[0]['db_collection']
 
     if debug:
         num_exps = 1

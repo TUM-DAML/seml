@@ -108,7 +108,7 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
     collection.insert_many(db_dicts)
 
 
-def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_check=False):
+def queue_experiments(db_collection_name, config_file, force_duplicates, no_hash=False, no_config_check=False):
     seml_config, slurm_config, experiment_config = read_config(config_file)
 
     # Use current Anaconda environment if not specified
@@ -129,7 +129,7 @@ def queue_experiments(config_file, force_duplicates, no_hash=False, no_config_ch
             slurm_config[k] = v
 
     slurm_config['sbatch_options'] = remove_prepended_dashes(slurm_config['sbatch_options'])
-    collection = get_collection(seml_config['db_collection'])
+    collection = get_collection(db_collection_name)
     configs = generate_configs(experiment_config)
 
     batch_id = get_max_in_collection(collection, "batch_id")

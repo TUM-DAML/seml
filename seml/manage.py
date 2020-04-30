@@ -4,15 +4,15 @@ import datetime
 from getpass import getpass
 import sys
 
-from seml.database import get_collection_from_config, build_filter_dict
+from seml.database import get_collection, build_filter_dict
 from seml.sources import delete_orphaned_sources
 from seml.utils import s_if, chunker
 from seml.settings import SETTINGS
 
 
-def report_status(config_file):
-    detect_killed(config_file, print_detected=False)
-    collection = get_collection_from_config(config_file)
+def report_status(db_collection_name):
+    detect_killed(db_collection_name, print_detected=False)
+    collection = get_collection(db_collection_name)
     queued = collection.count_documents({'status': 'QUEUED'})
     pending = collection.count_documents({'status': 'PENDING'})
     failed = collection.count_documents({'status': 'FAILED'})
@@ -20,7 +20,7 @@ def report_status(config_file):
     interrupted = collection.count_documents({'status': 'INTERRUPTED'})
     running = collection.count_documents({'status': 'RUNNING'})
     completed = collection.count_documents({'status': 'COMPLETED'})
-    title = f"********** Report for database collection '{collection.name}' **********"
+    title = f"********** Report for database collection '{db_collection_name}' **********"
     logging.info(title)
     logging.info(f"*     - {queued:3d} queued experiment{s_if(queued)}")
     logging.info(f"*     - {pending:3d} pending experiment{s_if(pending)}")
@@ -38,7 +38,7 @@ def cancel_experiment_by_id(collection, exp_id):
         if 'array_id' in exp['slurm']:
             job_str = f"{exp['slurm']['array_id']}_{exp['slurm']['task_id']}"
             filter_dict = {'slurm.array_id': exp['slurm']['array_id'],
-                            'slurm.task_id': exp['slurm']['task_id']}
+                           'slurm.task_id': exp['slurm']['task_id']}
         elif 'id' in exp['slurm']:
             # Backward compatibility
             job_str = str(exp['slurm']['id'])
@@ -75,14 +75,14 @@ def cancel_experiment_by_id(collection, exp_id):
         logging.error(f"No experiment found with ID {exp_id}.")
 
 
-def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_dict):
+def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict):
     """
     Cancel experiments.
 
     Parameters
     ----------
-    config_file: str
-        Path to the configuration YAML file.
+    db_collection_name: str
+        Database collection name.
     sacred_id: int or None
         ID of the experiment to cancel. If None, will use the other arguments to cancel possible multiple experiments.
     filter_states: list of strings or None
@@ -100,7 +100,7 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
     None
 
     """
-    collection = get_collection_from_config(config_file)
+    collection = get_collection(db_collection_name)
     if sacred_id is None:
         # no ID is provided: we check whether there are slurm jobs for which after this action no
         # RUNNING experiment remains. These slurm jobs can be killed altogether.
@@ -108,7 +108,7 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
         # running experiments.
         try:
             if len({'PENDING', 'RUNNING', 'KILLED'} & set(filter_states)) > 0:
-                detect_killed(config_file, print_detected=False)
+                detect_killed(db_collection_name, print_detected=False)
 
             filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
 
@@ -172,11 +172,11 @@ def cancel_experiments(config_file, sacred_id, filter_states, batch_id, filter_d
         cancel_experiment_by_id(collection, sacred_id)
 
 
-def delete_experiments(config_file, sacred_id, filter_states, batch_id, filter_dict):
-    collection = get_collection_from_config(config_file)
+def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict):
+    collection = get_collection(db_collection_name)
     if sacred_id is None:
         if len({'PENDING', 'RUNNING', 'KILLED'} & set(filter_states)) > 0:
-            detect_killed(config_file, print_detected=False)
+            detect_killed(db_collection_name, print_detected=False)
 
         filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
         ndelete = collection.count_documents(filter_dict)
@@ -210,8 +210,8 @@ def reset_single_experiment(collection, exp):
     keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'config_hash', 'queue_time', 'git']
 
     # Clean up SEML dictionary
-    keep_seml = {'db_collection', 'executable', 'conda_environment', 'output_dir', 'source_files', 'project_root_dir',
-                 'executable_relative'}
+    keep_seml = {'executable', 'conda_environment', 'output_dir', 'source_files',
+                 'project_root_dir', 'executable_relative'}
     seml_keys = set(exp['seml'].keys())
     for key in seml_keys - keep_seml:
         del exp['seml'][key]
@@ -231,12 +231,12 @@ def reset_single_experiment(collection, exp):
     collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries}, upsert=False)
 
 
-def reset_experiments(config_file, sacred_id, filter_states, batch_id, filter_dict):
-    collection = get_collection_from_config(config_file)
+def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict):
+    collection = get_collection(db_collection_name)
 
     if sacred_id is None:
         if len({'PENDING', 'RUNNING', 'KILLED'} & set(filter_states)) > 0:
-            detect_killed(config_file, print_detected=False)
+            detect_killed(db_collection_name, print_detected=False)
 
         filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
 
@@ -261,8 +261,8 @@ def reset_experiments(config_file, sacred_id, filter_states, batch_id, filter_di
             reset_single_experiment(collection, exp)
 
 
-def detect_killed(config_file, print_detected=True):
-    collection = get_collection_from_config(config_file)
+def detect_killed(db_collection_name, print_detected=True):
+    collection = get_collection(db_collection_name)
     exps = collection.find({'status': {'$in': ['PENDING', 'RUNNING']},
                             '$or': [{'slurm.array_id': {'$exists': True}}, {'slurm.id': {'$exists': True}}]})
     running_jobs = get_slurm_arrays_tasks()

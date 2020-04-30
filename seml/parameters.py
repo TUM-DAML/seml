@@ -114,7 +114,7 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
 
     elif param_type == "parameter_collection":
         sub_items = [sample_parameter(v, parent_key=f'{parent_key}.{k}',
-                                      seed=seed, samples=samples) for k,v in parameter['params'].items()]
+                                      seed=seed, samples=samples) for k, v in parameter['params'].items()]
         return_items.extend([sub_item for item in sub_items for sub_item in item])
 
     else:
@@ -182,7 +182,7 @@ def generate_grid(parameter, parent_key=''):
         return_items.append((parent_key, values))
 
     elif param_type == "parameter_collection":
-        sub_items = [generate_grid(v, parent_key=f'{parent_key}.{k}') for k,v in parameter['params'].items()]
+        sub_items = [generate_grid(v, parent_key=f'{parent_key}.{k}') for k, v in parameter['params'].items()]
         return_items.extend([sub_item for item in sub_items for sub_item in item])
 
     else:
