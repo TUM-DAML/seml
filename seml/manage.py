@@ -309,7 +309,7 @@ def detect_killed(db_collection_name, print_detected=True):
 
 def get_slurm_jobs():
     try:
-        squeue_out = subprocess.check_output("squeue -a -t pending,running -h -o %i -u `logname`", shell=True)
+        squeue_out = subprocess.check_output("squeue -a -t pending,running -h -o %i -u `whoami`", shell=True)
         return {int(job_str) for job_str in squeue_out.splitlines() if b'_' not in job_str}
     except subprocess.CalledProcessError:
         return set()
@@ -326,7 +326,7 @@ def get_slurm_arrays_tasks():
 
     """
     try:
-        squeue_out = subprocess.check_output("squeue -a -t pending,running -h -o %i -u `logname`", shell=True)
+        squeue_out = subprocess.check_output("squeue -a -t pending,running -h -o %i -u `whoami`", shell=True)
         jobs = [job_str for job_str in squeue_out.splitlines() if b'_' in job_str]
         if len(jobs) > 0:
             array_ids_str, task_ids = zip(*[job_str.split(b'_') for job_str in jobs])
