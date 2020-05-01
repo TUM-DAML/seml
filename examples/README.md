@@ -14,11 +14,11 @@ In `example_config.yaml` we define the parameter configurations that will be run
 ```yaml
 seml:
   executable: example_experiment.py
+  name: example_experiment
   output_dir: slurm
   project_root_dir: ..
 
 slurm:
-  name: example_experiment
   experiments_per_job: 1
   sbatch_options:
     gres: gpu:1       # num GPUs
@@ -134,6 +134,7 @@ The `seml` block is required for every experiment. It has to contain the followi
    - `executable`: Name of the Python script containing the experiment
 Optionally, it can contain
    - `conda_environment`: Name of the Anaconda virtual environment; will be loaded before the experiment is executed.
+   - `name`: Name of output file and job name used by Slurm. Default: Collection name
    - `output_dir`: Directory to store log files in. Default: Current directory
    - `project_root_dir`: (Relative or absolute) path to the root of the project. seml will then upload all the source
                          files imported by the experiment to the MongoDB. Moreover, the uploaded source files will be
@@ -141,7 +142,6 @@ Optionally, it can contain
                          between queueing and starting the experiment will have no effect.
 ### `slurm` block
 The special 'slurm' block contains the slurm parameters. This block and all values are optional. Possible values are:
-   - `name`: Job name used by Slurm and file name of Slurm output. Default: Collection name
    - `experiments_per_job`: Number of parallel experiments to run in each Slurm job. Note that only experiments from the same batch share a job. Default: 1
    - `max_jobs_per_batch`: Maximum number of Slurm jobs running per experiment batch. Default: No restriction
    - `sbatch_options`: dictionary that contains custom values that will be passed to `sbatch`, specifying e.g. the

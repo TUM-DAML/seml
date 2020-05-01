@@ -56,6 +56,18 @@ def get_output_dir_path(config):
     return output_dir_path
 
 
+def get_exp_name(config, db_collection_name):
+    if 'name' in config['slurm']:
+        logging.warning("'name' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
+                        "by moving the 'name' parameter from 'slurm' to 'seml'.")
+        name = config['slurm']['name']
+    elif 'name' in config['seml']:
+        name = config['seml']['name']
+    else:
+        name = db_collection_name
+    return name
+
+
 def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, name=None,
                     output_dir_path=".", sbatch_options=None, max_jobs_per_batch=None):
     """Run a list of experiments as a job on the Slurm cluster.
@@ -89,7 +101,6 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
         logging.error("Can't set sbatch `job-name` Parameter explicitly. "
                       "Use `name` parameter instead and SEML will do that for you.")
         sys.exit(1)
-    name = name if name is not None else collection.name
     job_name = f"{name}_{exp_array[0][0]['batch_id']}"
     sbatch_options['job-name'] = job_name
 
@@ -226,7 +237,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
         logging.verbose(f'Running the following command:\n {cmd}')
 
         if output_dir_path:
-            exp_name = slurm_config['name']
+            exp_name = get_exp_name(exp, collection.name)
             output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
             collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
             with open(output_file, "w") as log_file:
@@ -372,11 +383,12 @@ def start_jobs(db_collection_name, slurm=True, unobserved=False,
                      f"{njobs} Slurm job{s_if(njobs)} in {narrays} Slurm job array{s_if(narrays)}.")
 
         for exp_array in exp_arrays:
+            job_name = get_exp_name(exp_array[0][0], collection.name)
             output_dir_path = get_output_dir_path(exp_array[0][0])
             slurm_config = exp_array[0][0]['slurm']
             del slurm_config['experiments_per_job']
             start_slurm_job(collection, exp_array, unobserved, post_mortem,
-                            output_dir_path=output_dir_path, **slurm_config)
+                            name=job_name, output_dir_path=output_dir_path, **slurm_config)
     else:
         login_node_name = 'fs'
         if login_node_name in os.uname()[1]:
