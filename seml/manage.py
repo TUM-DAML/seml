@@ -120,7 +120,9 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             else:
                 logging.info(f"Cancelling {ncancel} experiment{s_if(ncancel)}.")
 
-            exps = list(collection.find(filter_dict, {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1}))
+            filter_dict_new = filter_dict.copy()
+            filter_dict_new.update({'slurm.array_id': {'$exists': True}})
+            exps = list(collection.find(filter_dict_new, {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1}))
             # set of slurm IDs in the database
             slurm_ids = set([(e['slurm']['array_id'], e['slurm']['task_id']) for e in exps])
             # set of experiment IDs to be cancelled.
@@ -139,7 +141,9 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                     to_cancel.add(f"{a_id}_{t_id}")
 
             # ---------------- Backward compatibility ----------------
-            exps_old = list(collection.find(filter_dict, {'_id': 1, 'status': 1, 'slurm.id': 1}))
+            filter_dict_old = filter_dict.copy()
+            filter_dict_old.update({'slurm.id': {'$exists': True}})
+            exps_old = list(collection.find(filter_dict_old, {'_id': 1, 'status': 1, 'slurm.id': 1}))
             # set of slurm IDs in the database
             slurm_ids_old = set([e['slurm']['id'] for e in exps_old])
             # set of experiment IDs to be cancelled.
