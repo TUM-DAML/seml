@@ -24,7 +24,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     exp_id = args.experiment_id
-    db_collection_name = args.database_collection
+    db_collection_name = args.db_collection_name
 
     collection = get_collection(db_collection_name)
 
