@@ -133,7 +133,8 @@ There are two special blocks for meta-configuration: `seml` and `slurm`.
 The `seml` block is required for every experiment. It has to contain the following values:
    - `executable`: Name of the Python script containing the experiment
 Optionally, it can contain
-   - `conda_environment`: Name of the Anaconda virtual environment; will be loaded before the experiment is executed.
+   - `conda_environment`: Specifies which Anaconda virtual environment will be activated before the experiment is executed. 
+                          Default: The environment used when queuing.
    - `name`: Name of output file and job name used by Slurm. Default: Collection name
    - `output_dir`: Directory to store log files in. Default: Current directory
    - `project_root_dir`: (Relative or absolute) path to the root of the project. seml will then upload all the source
