@@ -40,8 +40,24 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     return exe, config_strings
 
 
+def get_output_dir_path(config):
+    if 'output_dir' in config['slurm']:
+        logging.warning("'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
+                        "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
+        output_dir = config['slurm']['output_dir']
+    elif 'output_dir' in config['seml']:
+        output_dir = config['seml']['output_dir']
+    else:
+        output_dir = '.'
+    output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
+    if not os.path.isdir(output_dir_path):
+        logging.error(f"Output directory '{output_dir_path}' does not exist.")
+        sys.exit(1)
+    return output_dir_path
+
+
 def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, name=None,
-                    output_dir=".", sbatch_options=None, max_jobs_per_batch=None):
+                    output_dir_path=".", sbatch_options=None, max_jobs_per_batch=None):
     """Run a list of experiments as a job on the Slurm cluster.
 
     Parameters
@@ -56,7 +72,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
         Activate post-mortem debugging.
     name: str
         Job name, used by Slurm job and output file.
-    output_dir: str
+    output_dir_path: str
         Directory (relative to home directory) where to store the slurm output files.
     sbatch_options: dict
         A dictionary that contains options for #SBATCH, e.g., {'mem': 8000} to limit the job's memory to 8,000 MB.
@@ -83,10 +99,6 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
         sbatch_options['array'] += f"%{max_jobs_per_batch}"
 
     # Set Slurm output parameter
-    output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
-    if not os.path.isdir(output_dir_path):
-        logging.error(f"Slurm output directory '{output_dir_path}' does not exist.")
-        sys.exit(1)
     if 'output' in sbatch_options:
         logging.error(f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
         sys.exit(1)
@@ -149,7 +161,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     os.remove(path)
 
 
-def start_local_job(collection, exp, unobserved=False, post_mortem=False, output_to_file=True):
+def start_local_job(collection, exp, unobserved=False, post_mortem=False, output_dir_path='.'):
     """Run an experiment locally.
 
     Parameters
@@ -162,7 +174,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
         Disable all Sacred observers (nothing written to MongoDB).
     post_mortem: bool
         Activate post-mortem debugging.
-    output_to_file: bool
+    output_dir_path: str
         Write the output to a file in `output_dir` given by the SEML config or in the current directory.
 
     Returns
@@ -191,21 +203,8 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
 
     success = True
     try:
-        output_dir = "."
         seml_config = exp['seml']
         slurm_config = exp['slurm']
-        if 'output_dir' in slurm_config:
-            logging.warning(
-                    "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
-                    "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
-            output_dir = slurm_config['output_dir']
-        if 'output_dir' in seml_config:
-            output_dir = seml_config['output_dir']
-        output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
-        exp_name = slurm_config['name']
-
-        output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
-        collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
 
         if use_stored_sources:
             random_int = np.random.randint(0, 999999)
@@ -226,7 +225,10 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
 
         logging.verbose(f'Running the following command:\n {cmd}')
 
-        if output_to_file:
+        if output_dir_path:
+            exp_name = slurm_config['name']
+            output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
+            collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
             with open(output_file, "w") as log_file:
                 # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
                 subprocess.check_call(cmd, shell=True, stderr=log_file, stdout=log_file)
@@ -244,7 +246,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
         success = False
 
     finally:
-        if use_stored_sources:
+        if use_stored_sources and 'temp_dir' in locals():
             # clean up temp directory
             shutil.rmtree(temp_dir)
         return success
@@ -370,21 +372,18 @@ def start_jobs(db_collection_name, slurm=True, unobserved=False,
                      f"{njobs} Slurm job{s_if(njobs)} in {narrays} Slurm job array{s_if(narrays)}.")
 
         for exp_array in exp_arrays:
-            seml_config = exp_array[0][0]['seml']
+            output_dir_path = get_output_dir_path(exp_array[0][0])
             slurm_config = exp_array[0][0]['slurm']
-            if 'output_dir' in slurm_config:
-                logging.warning("'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
-                                "by moving the 'output_dir' parameter from 'slurm' to 'seml'.")
-            elif 'output_dir' in seml_config:
-                slurm_config['output_dir'] = seml_config['output_dir']
             del slurm_config['experiments_per_job']
-            start_slurm_job(collection, exp_array, unobserved, post_mortem, **slurm_config)
+            start_slurm_job(collection, exp_array, unobserved, post_mortem,
+                            output_dir_path=output_dir_path, **slurm_config)
     else:
         login_node_name = 'fs'
         if login_node_name in os.uname()[1]:
             logging.error("Refusing to run a compute experiment on a login node. "
                           "Please use Slurm or a compute node.")
             sys.exit(1)
+        [get_output_dir_path(exp) for exp in exps_list]  # Check if output dir exists
         logging.info(f'Starting local worker thread that will run up to {nexps} experiment{s_if(nexps)}, '
                      f'until no queued experiments remain.')
         if not unobserved:
@@ -392,7 +391,11 @@ def start_jobs(db_collection_name, slurm=True, unobserved=False,
         num_exceptions = 0
         tq = tqdm(enumerate(exps_list))
         for i_exp, exp in tq:
-            success = start_local_job(collection, exp, unobserved, post_mortem, output_to_file)
+            if output_to_file:
+                output_dir_path = get_output_dir_path(exp)
+            else:
+                output_dir_path = None
+            success = start_local_job(collection, exp, unobserved, post_mortem, output_dir_path)
             if success is False:
                 num_exceptions += 1
             tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
