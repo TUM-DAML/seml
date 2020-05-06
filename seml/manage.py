@@ -307,9 +307,8 @@ def detect_killed(db_collection_name, print_detected=True):
         logging.info(f"Detected {nkilled} externally killed experiment{s_if(nkilled)}.")
 
 
-slurm_active_states = ['CONFIGURING', 'PENDING', 'RUNNING', 'RESV_DEL_HOLD',
-                       'REQUEUE_FED', 'REQUEUE_HOLD', 'REQUEUED', 'RESIZING',
-                       'SUSPENDED']
+slurm_active_states = ['CONFIGURING', 'PENDING', 'RUNNING', 'REQUEUE_FED',
+                       'REQUEUE_HOLD', 'REQUEUED', 'RESIZING', 'SUSPENDED']
 
 
 def get_slurm_jobs():
