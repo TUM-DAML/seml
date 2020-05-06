@@ -23,6 +23,7 @@ setup(
     author='DAML Group @ TUM',
     author_email='zuegnerd@in.tum.de, klicpera@in.tum.de',
     packages=find_packages('.'),
+    include_package_data=True,
     entry_points={
             'console_scripts': [
                 'seml = seml.main:main'
