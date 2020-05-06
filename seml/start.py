@@ -133,7 +133,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
                      and exp_array[0][0]['seml']['conda_environment'] is not None)
 
     # Construct Slurm script
-    template = pkg_resources.resource_string(__name__, "slurm_template.sh")
+    template = pkg_resources.resource_string(__name__, "slurm_template.sh").decode("utf-8")
     script = template.format(
             sbatch_options=sbatch_options_str,
             use_conda_env=str(use_conda_env).lower(),
