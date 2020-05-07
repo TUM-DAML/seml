@@ -14,6 +14,7 @@ __all__ = ['get_results']
 
 def parse_jsonpickle(db_entry):
     import jsonpickle.ext.numpy as jsonpickle_numpy
+
     jsonpickle_numpy.register_handlers()
     try:
         parsed = jsonpickle.loads(json.dumps(db_entry, default=json_util.default), keys=False)
@@ -24,10 +25,9 @@ def parse_jsonpickle(db_entry):
 
 def get_results(db_collection_name, fields=['config', 'result'],
                 to_data_frame=False, suffix=None,
-                states=None, parallel=False):
+                states=['COMPLETED'], parallel=False):
     import pandas as pd
-    if states is None:
-        states = ['COMPLETED']
+
     collection = get_collection(db_collection_name, suffix=suffix)
     if len(states) > 0:
         filter = {'status': {'$in': states}}
