@@ -49,7 +49,11 @@ def import_exe(executable, conda_env):
     # Get experiment as module (which causes Sacred not to start ex.automain)
     exe_path = os.path.abspath(executable)
     sys.path.insert(0, os.path.dirname(exe_path))
+    orig_handlers = logging.root.handlers
+    orig_loglevel = logging.root.level
     exe_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
+    logging.root.handlers = orig_handlers
+    logging.root.setLevel(orig_loglevel)
     del sys.path[0]
 
     return exe_module
