@@ -16,12 +16,10 @@ from seml.utils import s_if
 
 
 def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
-                         post_mortem=False, debug=False, relative=False):
+                         post_mortem=False, debug=False):
     if 'executable' not in exp['seml']:
         raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
-    if relative:
-        exe = exp['seml']['executable_relative']
 
     config = exp['config']
     config['db_collection'] = db_collection_name
@@ -134,8 +132,14 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     # Construct Slurm script
     with open(f"{os.path.dirname(__file__)}/slurm_template.sh", 'r') as f:
         template = f.read()
+    if 'project_root_dir' in exp_array[0][0]['seml']:
+        project_root = exp_array[0][0]['seml']['project_root_dir']
+    else:
+        project_root = exp_array[0][0]['seml']['config_dir']
+
     script = template.format(
             sbatch_options=sbatch_options_str,
+            project_root_dir=project_root,
             use_conda_env=str(use_conda_env).lower(),
             conda_env=exp_array[0][0]['seml']['conda_environment'] if use_conda_env else "",
             exp_ids=' '.join(expid_strings),
@@ -196,8 +200,10 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
     use_stored_sources = ('project_root_dir' in exp['seml'])
     exe, config = get_command_from_exp(exp, collection.name,
                                        verbose=logging.root.level <= logging.VERBOSE,
-                                       unobserved=unobserved, post_mortem=post_mortem,
-                                       relative=use_stored_sources)
+                                       unobserved=unobserved, post_mortem=post_mortem)
+    if not use_stored_sources:
+        os.chdir(exp['seml']['config_dir'])
+
     cmd = f"python {exe} with {' '.join(config)}"
     if not unobserved:
         # check also whether PENDING experiments have their Slurm ID set, in this case they are waiting

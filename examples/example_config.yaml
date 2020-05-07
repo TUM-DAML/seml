@@ -49,7 +49,7 @@
 
 
 seml:
-  executable: example_experiment.py
+  executable: examples/example_experiment.py
   name: example_experiment
   output_dir: logs
   project_root_dir: ..

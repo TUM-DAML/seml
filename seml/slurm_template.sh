@@ -1,8 +1,8 @@
 #!/bin/bash
 {sbatch_options}
 
-# Move to directory from which the experiments were started
-cd ${{SLURM_SUBMIT_DIR}}
+# Move either to project root dir or the config file path.
+cd {project_root_dir}
 
 # Print job information
 echo "Starting job ${{SLURM_JOBID}}"

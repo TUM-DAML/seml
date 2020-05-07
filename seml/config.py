@@ -5,6 +5,7 @@ import yaml
 import ast
 import jsonpickle
 import json
+import os
 
 from seml.sources import import_exe
 from seml.parameters import sample_random_configs, generate_grid, cartesian_product_dict
@@ -268,6 +269,14 @@ def read_config(config_path):
         logging.error("Please specify a 'seml' dictionary in the experiment configuration.")
         sys.exit(1)
     seml_dict = config_dict['seml']
+    config_dir = os.path.abspath(os.path.dirname(config_path))
+    seml_dict['config_dir'] = config_dir
+    os.chdir(config_dir)
+
+    if 'project_root_dir' in seml_dict:
+        seml_dict['project_root_dir'] = os.path.abspath(os.path.realpath(seml_dict['project_root_dir']))
+        os.chdir(seml_dict['project_root_dir'])  # use project root as base dir from now on
+
     del config_dict['seml']
     if "executable" not in seml_dict:
         logging.error("Please specify an executable path for the experiment.")
