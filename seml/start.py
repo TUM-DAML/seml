@@ -132,8 +132,12 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
 
     # Construct Slurm script
     template = pkg_resources.resource_string(__name__, "slurm_template.sh").decode("utf-8")
-    working_dir = (exp_array[0][0]['seml']['working_dir'] if 'working_dir' in exp_array[0][0]['seml']
-                   else exp_array[0][0]['project_root_dir'])  # backward compatibility
+    if 'working_dir' in exp_array[0][0]['seml']:
+        working_dir = exp_array[0][0]['seml']['working_dir']
+    elif 'project_root_dir' in exp_array[0][0]['seml']:
+        working_dir = exp_array[0][0]['seml']['project_root_dir']
+    else:
+        working_dir = "${{SLURM_SUBMIT_DIR}}"
 
     script = template.format(
             sbatch_options=sbatch_options_str,
