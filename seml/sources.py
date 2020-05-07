@@ -77,28 +77,14 @@ def get_imported_sources(executable, root_dir, conda_env):
 
 
 def upload_sources(seml_config, collection, batch_id):
-    root_dir = os.path.abspath(os.path.expanduser(seml_config['project_root_dir']))
-
-    if not os.path.exists(seml_config['executable']):
-        # try if the executable path is relative to the config file
-        os.chdir(seml_config['config_dir'])
-        if not os.path.exists(seml_config['executable']):
-            logging.error(f"Could not find the executable under {seml_config['project_root_dir']} or"
-                          f"{seml_config['config_dir']}.")
-            exit(1)
+    root_dir = os.path.abspath(os.path.expanduser(seml_config['working_dir']))
 
     sources = get_imported_sources(seml_config['executable'], root_dir=root_dir,
                                    conda_env=seml_config['conda_environment'])
     executable_abs = os.path.abspath(seml_config['executable'])
-    executable_rel = Path(executable_abs).relative_to(root_dir)
 
     if executable_abs not in sources:
         raise ValueError(f"Executable {executable_abs} was not found in the sources to upload.")
-    seml_config['executable'] = str(executable_rel)
-
-    if os.getcwd() != seml_config['project_root_dir']:
-        # set project root dir as base path again
-        os.chdir(seml_config['project_root_dir'])
 
     uploaded_files = []
     for s in sources:

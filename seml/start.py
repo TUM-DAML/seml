@@ -132,14 +132,12 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
 
     # Construct Slurm script
     template = pkg_resources.resource_string(__name__, "slurm_template.sh").decode("utf-8")
-    if 'project_root_dir' in exp_array[0][0]['seml']:
-        project_root = exp_array[0][0]['seml']['project_root_dir']
-    else:
-        project_root = exp_array[0][0]['seml']['config_dir']
+    working_dir = (exp_array[0][0]['seml']['working_dir'] if 'working_dir' in exp_array[0][0]['seml']
+                   else exp_array[0][0]['project_root_dir'])  # backward compatibility
 
     script = template.format(
             sbatch_options=sbatch_options_str,
-            project_root_dir=project_root,
+            working_dir=working_dir,
             use_conda_env=str(use_conda_env).lower(),
             conda_env=exp_array[0][0]['seml']['conda_environment'] if use_conda_env else "",
             exp_ids=' '.join(expid_strings),
@@ -197,12 +195,13 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
     None
     """
 
-    use_stored_sources = ('project_root_dir' in exp['seml'])
+    use_stored_sources = ('source_files' in exp['seml'])
+
     exe, config = get_command_from_exp(exp, collection.name,
                                        verbose=logging.root.level <= logging.VERBOSE,
                                        unobserved=unobserved, post_mortem=post_mortem)
     if not use_stored_sources:
-        os.chdir(exp['seml']['config_dir'])
+        os.chdir(exp['seml']['working_dir'])
 
     cmd = f"python {exe} with {' '.join(config)}"
     if not unobserved:

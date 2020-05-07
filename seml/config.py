@@ -6,6 +6,7 @@ import ast
 import jsonpickle
 import json
 import os
+from pathlib import Path
 
 from seml.sources import import_exe
 from seml.parameters import sample_random_configs, generate_grid, cartesian_product_dict
@@ -199,7 +200,7 @@ def check_config(executable, conda_env, configs):
         logging.error(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
         sys.exit(1)
     elif len(exps) > 1:
-        logging.error("Found more than 1 Sacred experiment in '{executable}'. "
+        logging.error(f"Found more than 1 Sacred experiment in '{executable}'. "
                       "Can't check parameter configs. Disable via --no-config-check.")
         sys.exit(1)
     exp = exps[0]
@@ -270,23 +271,41 @@ def read_config(config_path):
         sys.exit(1)
     seml_dict = config_dict['seml']
     config_dir = os.path.abspath(os.path.dirname(config_path))
-    seml_dict['config_dir'] = config_dir
-    os.chdir(config_dir)
-
-    if 'project_root_dir' in seml_dict:
-        seml_dict['project_root_dir'] = os.path.abspath(os.path.realpath(seml_dict['project_root_dir']))
-        os.chdir(seml_dict['project_root_dir'])  # use project root as base dir from now on
-
-    if 'output_dir' in seml_dict:
-        seml_dict['output_dir'] = os.path.abspath(os.path.realpath(seml_dict['output_dir']))
+    working_dir = config_dir
+    os.chdir(working_dir)
 
     del config_dict['seml']
+
     if "executable" not in seml_dict:
         logging.error("Please specify an executable path for the experiment.")
         sys.exit(1)
+    executable = seml_dict['executable']
     if "db_collection" in seml_dict:
         logging.warning("Specifying a the database collection in the config has been deprecated. "
                         "Please provide it via the command line instead.")
+
+    executable_relative_to_config = os.path.exists(executable)
+    executable_relative_to_project_root = False
+    if 'project_root_dir' in seml_dict:
+        working_dir = os.path.abspath(os.path.realpath(seml_dict['project_root_dir']))
+        seml_dict['has_root_dir'] = True
+        os.chdir(working_dir)  # use project root as base dir from now on
+        executable_relative_to_project_root = os.path.exists(executable)
+        del seml_dict['project_root_dir']  # from now on we use only the working dir
+    else:
+        seml_dict['has_root_dir'] = False
+        logging.warning("'project_root_dir' not defined in seml config. Source files will not be uploaded.")
+    seml_dict['working_dir'] = working_dir
+
+    if not (executable_relative_to_config or executable_relative_to_project_root):
+        logging.error(f"Could not find the executable.")
+        exit(1)
+    executable = os.path.abspath(executable)
+    seml_dict['executable'] = (str(Path(executable).relative_to(working_dir)) if executable_relative_to_project_root
+                               else str(Path(executable).relative_to(config_dir)))
+
+    if 'output_dir' in seml_dict:
+        seml_dict['output_dir'] = os.path.abspath(os.path.realpath(seml_dict['output_dir']))
 
     if 'slurm' in config_dict:
         slurm_dict = config_dict['slurm']
