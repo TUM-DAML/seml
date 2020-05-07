@@ -277,6 +277,9 @@ def read_config(config_path):
         seml_dict['project_root_dir'] = os.path.abspath(os.path.realpath(seml_dict['project_root_dir']))
         os.chdir(seml_dict['project_root_dir'])  # use project root as base dir from now on
 
+    if 'output_dir' in seml_dict:
+        seml_dict['output_dir'] = os.path.abspath(os.path.realpath(seml_dict['output_dir']))
+
     del config_dict['seml']
     if "executable" not in seml_dict:
         logging.error("Please specify an executable path for the experiment.")
