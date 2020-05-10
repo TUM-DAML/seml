@@ -17,7 +17,8 @@ def parse_jsonpickle(db_entry):
 
     jsonpickle_numpy.register_handlers()
     try:
-        parsed = jsonpickle.loads(json.dumps(db_entry, default=json_util.default), keys=False)
+        p = jsonpickle.pickler.Pickler(keys=False)
+        parsed = jsonpickle.loads(json.dumps(db_entry, default=p.flatten), keys=False)
     except IndexError:
         parsed = db_entry
     return parsed
