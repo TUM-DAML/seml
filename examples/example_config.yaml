@@ -49,6 +49,10 @@
 
 
 seml:
+  # Executable path should be relative to the project_root_dir.
+  # For reasons of backward compatibility SEML also supports relative paths to the location of the config file.
+  # In case there is a file present both relative to the project root and the config file,
+  # the former one has precedence.
   executable: examples/example_experiment.py
   name: example_experiment
   output_dir: logs

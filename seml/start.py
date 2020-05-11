@@ -21,6 +21,8 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     if 'executable' not in exp['seml']:
         raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
+    if 'executable_relative' in exp['seml']:  # backwards compatibility
+        exe = exp['seml']['executable_relative']
 
     config = exp['config']
     config['db_collection'] = db_collection_name
@@ -134,8 +136,6 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     template = pkg_resources.resource_string(__name__, "slurm_template.sh").decode("utf-8")
     if 'working_dir' in exp_array[0][0]['seml']:
         working_dir = exp_array[0][0]['seml']['working_dir']
-    elif 'project_root_dir' in exp_array[0][0]['seml']:
-        working_dir = exp_array[0][0]['seml']['project_root_dir']
     else:
         working_dir = "${{SLURM_SUBMIT_DIR}}"
 
