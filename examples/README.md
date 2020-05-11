@@ -131,8 +131,9 @@ There are two special blocks for meta-configuration: `seml` and `slurm`.
 
 ### `seml` block
 The `seml` block is required for every experiment. It has to contain the following values:
-   - `executable`: Name of the Python script containing the experiment. The path should preferably be given relative
-                   to the `project_root_dir`. Alternatively, you can define it relative to the config file.
+   - `executable`: Name of the Python script containing the experiment. The path should be relative to the `project_root_dir`.
+                   For backward compatibility SEML also supports paths relative to the location of the config file.
+                   In case there are files present both relative to the project root and the config file, the former takes precedence.
 Optionally, it can contain
    - `name`: Prefix for output file and Slurm job name. Default: Collection name
    - `output_dir`: Directory to store log files in. Default: Current directory
