@@ -201,7 +201,7 @@ def check_config(executable, conda_env, configs):
         sys.exit(1)
     elif len(exps) > 1:
         logging.error(f"Found more than 1 Sacred experiment in '{executable}'. "
-                      "Can't check parameter configs. Disable via --no-config-check.")
+                      f"Can't check parameter configs. Disable via --no-config-check.")
         sys.exit(1)
     exp = exps[0]
 
@@ -273,8 +273,11 @@ def read_config(config_path):
     seml_dict = config_dict['seml']
     del config_dict['seml']
 
-    determine_working_dir_and_chdir(config_path, seml_dict)
+    set_executable_and_working_dir(config_path, seml_dict)
 
+    if "db_collection" in seml_dict:
+        logging.warning("Specifying a the database collection in the config has been deprecated. "
+                        "Please provide it via the command line instead.")
     if 'output_dir' in seml_dict:
         seml_dict['output_dir'] = os.path.abspath(os.path.realpath(seml_dict['output_dir']))
 
@@ -286,7 +289,7 @@ def read_config(config_path):
         return seml_dict, None, config_dict
 
 
-def determine_working_dir_and_chdir(config_path, seml_dict):
+def set_executable_and_working_dir(config_path, seml_dict):
     """
     Determine the working directory of the project and chdir into the working directory.
     Parameters
@@ -306,9 +309,6 @@ def determine_working_dir_and_chdir(config_path, seml_dict):
         logging.error("Please specify an executable path for the experiment.")
         sys.exit(1)
     executable = seml_dict['executable']
-    if "db_collection" in seml_dict:
-        logging.warning("Specifying a the database collection in the config has been deprecated. "
-                        "Please provide it via the command line instead.")
     executable_relative_to_config = os.path.exists(executable)
     executable_relative_to_project_root = False
     if 'project_root_dir' in seml_dict:
