@@ -5,6 +5,8 @@ import yaml
 import ast
 import jsonpickle
 import json
+import os
+from pathlib import Path
 
 from seml.sources import import_exe
 from seml.parameters import sample_random_configs, generate_grid, cartesian_product_dict
@@ -198,8 +200,8 @@ def check_config(executable, conda_env, configs):
         logging.error(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
         sys.exit(1)
     elif len(exps) > 1:
-        logging.error("Found more than 1 Sacred experiment in '{executable}'. "
-                      "Can't check parameter configs. Disable via --no-config-check.")
+        logging.error(f"Found more than 1 Sacred experiment in '{executable}'. "
+                      f"Can't check parameter configs. Disable via --no-config-check.")
         sys.exit(1)
     exp = exps[0]
 
@@ -267,14 +269,17 @@ def read_config(config_path):
     if "seml" not in config_dict:
         logging.error("Please specify a 'seml' dictionary in the experiment configuration.")
         sys.exit(1)
+
     seml_dict = config_dict['seml']
     del config_dict['seml']
-    if "executable" not in seml_dict:
-        logging.error("Please specify an executable path for the experiment.")
-        sys.exit(1)
+
+    set_executable_and_working_dir(config_path, seml_dict)
+
     if "db_collection" in seml_dict:
         logging.warning("Specifying a the database collection in the config has been deprecated. "
                         "Please provide it via the command line instead.")
+    if 'output_dir' in seml_dict:
+        seml_dict['output_dir'] = os.path.abspath(os.path.realpath(seml_dict['output_dir']))
 
     if 'slurm' in config_dict:
         slurm_dict = config_dict['slurm']
@@ -282,6 +287,46 @@ def read_config(config_path):
         return seml_dict, slurm_dict, config_dict
     else:
         return seml_dict, None, config_dict
+
+
+def set_executable_and_working_dir(config_path, seml_dict):
+    """
+    Determine the working directory of the project and chdir into the working directory.
+    Parameters
+    ----------
+    config_path: Path to the config file
+    seml_dict: SEML config dictionary
+
+    Returns
+    -------
+    None
+    """
+    config_dir = os.path.abspath(os.path.dirname(config_path))
+
+    working_dir = config_dir
+    os.chdir(working_dir)
+    if "executable" not in seml_dict:
+        logging.error("Please specify an executable path for the experiment.")
+        sys.exit(1)
+    executable = seml_dict['executable']
+    executable_relative_to_config = os.path.exists(executable)
+    executable_relative_to_project_root = False
+    if 'project_root_dir' in seml_dict:
+        working_dir = os.path.abspath(os.path.realpath(seml_dict['project_root_dir']))
+        seml_dict['use_uploaded_sources'] = True
+        os.chdir(working_dir)  # use project root as base dir from now on
+        executable_relative_to_project_root = os.path.exists(executable)
+        del seml_dict['project_root_dir']  # from now on we use only the working dir
+    else:
+        seml_dict['use_uploaded_sources'] = False
+        logging.warning("'project_root_dir' not defined in seml config. Source files will not be uploaded.")
+    seml_dict['working_dir'] = working_dir
+    if not (executable_relative_to_config or executable_relative_to_project_root):
+        logging.error(f"Could not find the executable.")
+        exit(1)
+    executable = os.path.abspath(executable)
+    seml_dict['executable'] = (str(Path(executable).relative_to(working_dir)) if executable_relative_to_project_root
+                               else str(Path(executable).relative_to(config_dir)))
 
 
 def remove_prepended_dashes(param_dict):

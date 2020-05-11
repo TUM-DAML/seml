@@ -138,11 +138,10 @@ def queue_experiments(db_collection_name, config_file, force_duplicates, no_hash
     else:
         batch_id = batch_id + 1
 
-    if "project_root_dir" not in seml_config:
-        logging.warning("'project_root_dir' not defined in seml config. Source files will not be uploaded.")
-        uploaded_files = None
-    else:
+    if seml_config['use_uploaded_sources']:
         uploaded_files = upload_sources(seml_config, collection, batch_id)
+    else:
+        uploaded_files = None
 
     if not no_config_check:
         check_config(seml_config['executable'], seml_config['conda_environment'], configs)

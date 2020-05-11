@@ -36,8 +36,7 @@ if __name__ == "__main__":
         load_sources_from_db(exp, collection, to_directory=args.stored_sources_dir)
 
     exe, config = get_command_from_exp(exp, db_collection_name, verbose=args.verbose,
-                                       unobserved=args.unobserved, post_mortem=args.post_mortem,
-                                       relative=use_stored_sources)
+                                       unobserved=args.unobserved, post_mortem=args.post_mortem)
 
     cmd = f"python {exe} with {' '.join(config)}"
     if use_stored_sources:

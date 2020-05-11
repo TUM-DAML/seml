@@ -2,7 +2,8 @@
 #
 # There are two special blocks. The 'seml' block is required for every experiment.
 # It has to contain the following values:
-# executable:    Name of the Python script containing the experiment
+# executable:        Name of the Python script containing the experiment. The path should preferably be given relative
+#                    to the `project_root_dir`. Alternatively, you can define it relative to the config file.
 # It can optionally also contain the following values:
 # name:              Prefix for output file and Slurm job name. Default: Collection name
 # output_dir:        Directory to store log files in. Default: Current directory
@@ -49,7 +50,11 @@
 
 
 seml:
-  executable: example_experiment.py
+  # Executable path should be relative to the project_root_dir.
+  # For reasons of backward compatibility SEML also supports relative paths to the location of the config file.
+  # In case there is a file present both relative to the project root and the config file,
+  # the former one has precedence.
+  executable: examples/example_experiment.py
   name: example_experiment
   output_dir: logs
   project_root_dir: ..
