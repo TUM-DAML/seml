@@ -1,6 +1,7 @@
 import sys
 import logging
 import resource
+import datetime
 
 from seml.database import get_collection
 
@@ -54,6 +55,8 @@ def collect_exp_stats(run):
         return
 
     stats = {}
+
+    stats['real_time'] = (datetime.datetime.utcnow() - run.start_time).total_seconds()
 
     stats['self'] = {}
     stats['self']['user_time'] = resource.getrusage(resource.RUSAGE_SELF).ru_utime
