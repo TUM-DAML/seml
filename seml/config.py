@@ -269,13 +269,38 @@ def read_config(config_path):
     if "seml" not in config_dict:
         logging.error("Please specify a 'seml' dictionary in the experiment configuration.")
         sys.exit(1)
+
     seml_dict = config_dict['seml']
     config_dir = os.path.abspath(os.path.dirname(config_path))
-    working_dir = config_dir
-    os.chdir(working_dir)
-
+    determine_working_dir_and_chdir(config_dir, seml_dict)
     del config_dict['seml']
 
+    if 'output_dir' in seml_dict:
+        seml_dict['output_dir'] = os.path.abspath(os.path.realpath(seml_dict['output_dir']))
+
+    if 'slurm' in config_dict:
+        slurm_dict = config_dict['slurm']
+        del config_dict['slurm']
+        return seml_dict, slurm_dict, config_dict
+    else:
+        return seml_dict, None, config_dict
+
+
+def determine_working_dir_and_chdir(config_dir, seml_dict):
+    """
+    Determine the working directory of the project and chdir into the working directory.
+    Parameters
+    ----------
+    config_dir: path to the config file
+    seml_dict: seml config dir
+
+    Returns
+    -------
+    None
+    """
+
+    working_dir = config_dir
+    os.chdir(working_dir)
     if "executable" not in seml_dict:
         logging.error("Please specify an executable path for the experiment.")
         sys.exit(1)
@@ -283,7 +308,6 @@ def read_config(config_path):
     if "db_collection" in seml_dict:
         logging.warning("Specifying a the database collection in the config has been deprecated. "
                         "Please provide it via the command line instead.")
-
     executable_relative_to_config = os.path.exists(executable)
     executable_relative_to_project_root = False
     if 'project_root_dir' in seml_dict:
@@ -296,23 +320,12 @@ def read_config(config_path):
         seml_dict['has_root_dir'] = False
         logging.warning("'project_root_dir' not defined in seml config. Source files will not be uploaded.")
     seml_dict['working_dir'] = working_dir
-
     if not (executable_relative_to_config or executable_relative_to_project_root):
         logging.error(f"Could not find the executable.")
         exit(1)
     executable = os.path.abspath(executable)
     seml_dict['executable'] = (str(Path(executable).relative_to(working_dir)) if executable_relative_to_project_root
                                else str(Path(executable).relative_to(config_dir)))
-
-    if 'output_dir' in seml_dict:
-        seml_dict['output_dir'] = os.path.abspath(os.path.realpath(seml_dict['output_dir']))
-
-    if 'slurm' in config_dict:
-        slurm_dict = config_dict['slurm']
-        del config_dict['slurm']
-        return seml_dict, slurm_dict, config_dict
-    else:
-        return seml_dict, None, config_dict
 
 
 def remove_prepended_dashes(param_dict):
