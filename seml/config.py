@@ -271,9 +271,9 @@ def read_config(config_path):
         sys.exit(1)
 
     seml_dict = config_dict['seml']
-    config_dir = os.path.abspath(os.path.dirname(config_path))
-    determine_working_dir_and_chdir(config_dir, seml_dict)
     del config_dict['seml']
+
+    determine_working_dir_and_chdir(config_path, seml_dict)
 
     if 'output_dir' in seml_dict:
         seml_dict['output_dir'] = os.path.abspath(os.path.realpath(seml_dict['output_dir']))
@@ -286,18 +286,19 @@ def read_config(config_path):
         return seml_dict, None, config_dict
 
 
-def determine_working_dir_and_chdir(config_dir, seml_dict):
+def determine_working_dir_and_chdir(config_path, seml_dict):
     """
     Determine the working directory of the project and chdir into the working directory.
     Parameters
     ----------
-    config_dir: path to the config file
-    seml_dict: seml config dir
+    config_path: Path to the config file
+    seml_dict: SEML config dictionary
 
     Returns
     -------
     None
     """
+    config_dir = os.path.abspath(os.path.dirname(config_path))
 
     working_dir = config_dir
     os.chdir(working_dir)
