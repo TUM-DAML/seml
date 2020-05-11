@@ -279,7 +279,7 @@ def read_config(config_path):
         logging.warning("Specifying a the database collection in the config has been deprecated. "
                         "Please provide it via the command line instead.")
     if 'output_dir' in seml_dict:
-        seml_dict['output_dir'] = os.path.abspath(os.path.realpath(seml_dict['output_dir']))
+        seml_dict['output_dir'] = os.path.abspath(os.path.expanduser(seml_dict['output_dir']))
 
     if 'slurm' in config_dict:
         slurm_dict = config_dict['slurm']
@@ -312,7 +312,7 @@ def set_executable_and_working_dir(config_path, seml_dict):
     executable_relative_to_config = os.path.exists(executable)
     executable_relative_to_project_root = False
     if 'project_root_dir' in seml_dict:
-        working_dir = os.path.abspath(os.path.realpath(seml_dict['project_root_dir']))
+        working_dir = os.path.abspath(os.path.expanduser(seml_dict['project_root_dir']))
         seml_dict['use_uploaded_sources'] = True
         os.chdir(working_dir)  # use project root as base dir from now on
         executable_relative_to_project_root = os.path.exists(executable)

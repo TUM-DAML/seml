@@ -20,8 +20,8 @@ def is_local_file(filename, root_dir):
     -------
 
     """
-    filename = Path(os.path.abspath(os.path.realpath(filename)))
-    root_path = Path(os.path.abspath(os.path.realpath(root_dir)))
+    filename = Path(os.path.abspath(os.path.expanduser(filename)))
+    root_path = Path(os.path.abspath(os.path.expanduser(root_dir)))
     if root_path not in filename.parents:
         return False
     return True
