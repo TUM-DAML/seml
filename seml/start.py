@@ -134,6 +134,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
                      and exp_array[0][0]['seml']['conda_environment'] is not None)
 
     # Construct Slurm script
+    prepare_experiment_script = pkg_resources.resource_string(__name__, "prepare_experiment.py").decode("utf-8")
     template = pkg_resources.resource_string(__name__, "slurm_template.sh").decode("utf-8")
     if 'working_dir' in exp_array[0][0]['seml']:
         working_dir = exp_array[0][0]['seml']['working_dir']
@@ -147,7 +148,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
             conda_env=exp_array[0][0]['seml']['conda_environment'] if use_conda_env else "",
             exp_ids=' '.join(expid_strings),
             with_sources=str(with_sources).lower(),
-            get_cmd_fname=f"{os.path.dirname(__file__)}/prepare_experiment.py",
+            prepare_experiment_script=prepare_experiment_script,
             db_collection_name=collection.name,
             sources_argument="--stored-sources-dir $tmpdir" if with_sources else "",
             verbose=logging.root.level <= logging.VERBOSE,

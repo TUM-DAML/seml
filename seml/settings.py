@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 import seml
 __all__ = ("SETTINGS",)
-seml_base = os.path.dirname(os.path.abspath(seml.__file__))
 
 SETTINGS = munchify(
     {
