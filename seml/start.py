@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import shutil
 import pkg_resources
+from pathlib import Path
 try:
     from tqdm.autonotebook import tqdm
 except ImportError:
@@ -50,7 +51,7 @@ def get_output_dir_path(config):
         output_dir = config['seml']['output_dir']
     else:
         output_dir = '.'
-    output_dir_path = os.path.abspath(os.path.expanduser(output_dir))
+    output_dir_path = str(Path(output_dir).expanduser().resolve())
     if not os.path.isdir(output_dir_path):
         logging.error(f"Output directory '{output_dir_path}' does not exist.")
         sys.exit(1)

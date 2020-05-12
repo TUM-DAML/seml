@@ -20,11 +20,9 @@ def is_local_file(filename, root_dir):
     -------
 
     """
-    filename = Path(os.path.abspath(os.path.expanduser(filename)))
-    root_path = Path(os.path.abspath(os.path.expanduser(root_dir)))
-    if root_path not in filename.parents:
-        return False
-    return True
+    file_path = Path(filename).expanduser().resolve()
+    root_path = Path(root_dir).expanduser().resolve()
+    return root_path in file_path.parents
 
 
 def import_exe(executable, conda_env):
@@ -47,7 +45,7 @@ def import_exe(executable, conda_env):
         logging.warning(f"Current Anaconda environment does not match the experiment's environment ('{conda_env}').")
 
     # Get experiment as module (which causes Sacred not to start ex.automain)
-    exe_path = os.path.abspath(executable)
+    exe_path = str(Path(executable).expanduser().resolve())
     sys.path.insert(0, os.path.dirname(exe_path))
     orig_handlers = logging.root.handlers
     orig_loglevel = logging.root.level
@@ -61,7 +59,7 @@ def import_exe(executable, conda_env):
 
 def get_imported_sources(executable, root_dir, conda_env):
     import_exe(executable, conda_env)
-    root_path = os.path.abspath(root_dir)
+    root_path = str(Path(root_dir).expanduser().resolve())
 
     sources = set()
     for name, mod in sys.modules.items():
@@ -77,11 +75,11 @@ def get_imported_sources(executable, root_dir, conda_env):
 
 
 def upload_sources(seml_config, collection, batch_id):
-    root_dir = os.path.abspath(os.path.expanduser(seml_config['working_dir']))
+    root_dir = str(Path(seml_config['working_dir']).expanduser().resolve())
 
     sources = get_imported_sources(seml_config['executable'], root_dir=root_dir,
                                    conda_env=seml_config['conda_environment'])
-    executable_abs = os.path.abspath(seml_config['executable'])
+    executable_abs = str(Path(seml_config['executable']).expanduser().resolve())
 
     if executable_abs not in sources:
         raise ValueError(f"Executable {executable_abs} was not found in the sources to upload.")
