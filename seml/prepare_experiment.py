@@ -38,8 +38,9 @@ if __name__ == "__main__":
 
     exe, config = get_command_from_exp(exp, db_collection_name, verbose=args.verbose,
                                        unobserved=args.unobserved, post_mortem=args.post_mortem)
+    config_args = " ".join(config)
 
-    cmd = f"python {exe} with {" ".join(config)}"
+    cmd = f"python {exe} with {config_args}"
     if use_stored_sources:
         # add command without the temp_dir prefix
         # also add the temp dir for debugging purposes
@@ -47,7 +48,7 @@ if __name__ == "__main__":
             {"_id": exp_id},
             {"$set": {"seml.command": cmd, "seml.temp_dir": args.stored_sources_dir}})
         # add the temp_dir prefix to the command
-        cmd = f"python {args.stored_sources_dir}/{exe} with {" ".join(config)}"
+        cmd = f"python {args.stored_sources_dir}/{exe} with {config_args}"
     else:
         collection.update_one(
                 {"_id": exp_id},
