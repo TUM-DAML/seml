@@ -15,7 +15,7 @@ In addition, **`SEML`** offers many more features to make your life easier, such
 * tight integration with MongoDB,
 * automatically saving and loading your source code for reproducibility,
 * providing commands for your debugger, 
-* and keeping track of resource stats.
+* and keeping track of resource usage (experiment runtime, RAM, etc.).
 
 ## Get started
 To get started, install **`SEML`** using the following commands:
