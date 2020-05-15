@@ -4,11 +4,7 @@ import gridfs
 import pymongo
 from pymongo.collection import Collection
 import logging
-try:
-    from tqdm.autonotebook import tqdm
-except ImportError:
-    def tqdm(iterable, total=None):
-        return iterable
+from tqdm.autonotebook import tqdm
 
 from seml.utils import s_if
 from seml.settings import SETTINGS

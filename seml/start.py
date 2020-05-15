@@ -6,11 +6,7 @@ import numpy as np
 import shutil
 import pkg_resources
 from pathlib import Path
-try:
-    from tqdm.autonotebook import tqdm
-except ImportError:
-    def tqdm(iterable, total=None):
-        return iterable
+from tqdm.autonotebook import tqdm
 
 from seml.database import get_collection, build_filter_dict
 from seml.sources import load_sources_from_db

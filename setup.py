@@ -8,6 +8,7 @@ install_requires = [
     "pyyaml",
     "jsonpickle>=1.2, <2.0",
     "munch>=2.0.4",
+    "tqdm>=4.36",
 ]
 
 with open("README.md", "r") as fh:

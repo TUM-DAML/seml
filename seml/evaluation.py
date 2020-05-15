@@ -1,11 +1,6 @@
 import json
 import jsonpickle
-from bson import json_util
-try:
-    from tqdm.autonotebook import tqdm
-except ImportError:
-    def tqdm(iterable, total=None):
-        return iterable
+from tqdm.autonotebook import tqdm
 
 from seml.database import get_collection
 
