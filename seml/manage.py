@@ -3,6 +3,7 @@ import subprocess
 import datetime
 from getpass import getpass
 import sys
+from pathlib import Path
 
 from seml.database import get_collection, build_filter_dict
 from seml.sources import delete_orphaned_sources
@@ -385,6 +386,6 @@ def mongodb_credentials_prompt():
     logging.info(f"Saving the following configuration to {file_path}:\n"
                  f"{config_string.replace(f'password: {password}', 'password: ********')}"
                  )
-
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, 'w') as f:
         f.write(config_string)
