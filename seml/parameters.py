@@ -1,3 +1,4 @@
+import random
 import sys
 import logging
 import itertools
@@ -82,7 +83,7 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
 
     if param_type == "choice":
         choices = parameter['options']
-        sampled_values = np.random.choice(choices, replace=True, size=samples)
+        sampled_values = [random.choice(choices) for _ in range(samples)]
         return_items.append((parent_key, sampled_values))
 
     elif param_type == "uniform":
