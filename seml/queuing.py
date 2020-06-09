@@ -119,7 +119,8 @@ def queue_experiments(db_collection_name, config_file, force_duplicates, no_hash
             seml_config['conda_environment'] = None
 
     # Set Slurm config with default parameters as fall-back option
-
+    if slurm_config is None:
+        slurm_config = {'sbatch_options': {}}
     for k, v in SETTINGS.SLURM_DEFAULT['sbatch_options'].items():
         if k not in slurm_config['sbatch_options']:
             slurm_config['sbatch_options'][k] = v
