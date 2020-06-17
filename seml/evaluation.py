@@ -20,11 +20,11 @@ def parse_jsonpickle(db_entry):
 
 
 def get_results(db_collection_name, fields=['config', 'result'],
-                to_data_frame=False, suffix=None,
+                to_data_frame=False, mongodb_config=None, suffix=None,
                 states=['COMPLETED'], parallel=False):
     import pandas as pd
 
-    collection = get_collection(db_collection_name, suffix=suffix)
+    collection = get_collection(db_collection_name, mongodb_config=mongodb_config, suffix=suffix)
     if len(states) > 0:
         filter = {'status': {'$in': states}}
     else:

@@ -3,7 +3,6 @@ import subprocess
 import datetime
 from getpass import getpass
 import sys
-from pathlib import Path
 
 from seml.database import get_collection, build_filter_dict
 from seml.sources import delete_orphaned_sources
