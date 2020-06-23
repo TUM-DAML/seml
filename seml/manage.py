@@ -342,9 +342,8 @@ def get_slurm_arrays_tasks():
                 if b'[' in task_range_str:
                     job_id_ranges = task_range_str[1:-1].split(b',')
                     for r in job_id_ranges:
-                        if b'-' in r:
-                            lower, upper = r.split(b'-')
-                            job_dict[array_id][0].append(range(int(lower), int(upper) + 1))
+                        lower, upper = r.split(b'-')
+                        job_dict[array_id][0].append(range(int(lower), int(upper) + 1))
                 else:
                     # Single task IDs belong to running jobs
                     task_id = int(task_range_str)
