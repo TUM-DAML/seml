@@ -1,3 +1,4 @@
+import logging
 import json
 import jsonpickle
 from tqdm.autonotebook import tqdm
@@ -21,16 +22,16 @@ def parse_jsonpickle(db_entry):
 
 def get_results(db_collection_name, fields=['config', 'result'],
                 to_data_frame=False, mongodb_config=None, suffix=None,
-                states=['COMPLETED'], db_filter=None, parallel=False):
+                states=['COMPLETED'], db_filter={}, parallel=False):
     import pandas as pd
 
     collection = get_collection(db_collection_name, mongodb_config=mongodb_config, suffix=suffix)
 
-    if db_filter is None:
-        if len(states) > 0:
-            db_filter = {'status': {'$in': states}}
-        else:
-            db_filter = {}
+    if len(states) > 0:
+        if 'status' in db_filter:
+            logging.warning("'states' argument is not empty and will overwrite 'db_filter['status']'.")
+        db_filter['status'] = {'$in': states}
+
     cursor = collection.find(db_filter, fields)
     results = [x for x in tqdm(cursor, total=collection.count_documents(db_filter))]
 
