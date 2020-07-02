@@ -273,7 +273,7 @@ def detect_killed(db_collection_name, print_detected=True):
     nkilled = 0
     for exp in exps:
         exp_running = ('array_id' in exp['slurm'] and exp['slurm']['array_id'] in running_jobs
-                       and (exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][0]
+                       and (any(exp['slurm']['task_id'] in r for r in running_jobs[exp['slurm']['array_id']][0])
                             or exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][1]))
         exp_running |= ('id' in exp['slurm'] and exp['slurm']['id'] in old_running_jobs)
         if not exp_running:
@@ -337,16 +337,19 @@ def get_slurm_arrays_tasks():
             for i, task_range_str in enumerate(task_ids):
                 array_id = int(array_ids_str[i])
                 if array_id not in job_dict:
-                    job_dict[array_id] = [range(0), []]
+                    job_dict[array_id] = [[range(0)], []]
+
                 if b'[' in task_range_str:
-                    # There is only one task range, which is the overall pending job array
-                    limits = task_range_str[1:-1].split(b'-')
-                    task_range = range(int(limits[0]), int(limits[-1]) + 1)
-                    job_dict[array_id][0] = task_range
+                    # The overall pending tasks array can be split into multiple arrays by cancelling jobs
+                    job_id_ranges = task_range_str[1:-1].split(b',')
+                    for r in job_id_ranges:
+                        lower, upper = r.split(b'-')
+                        job_dict[array_id][0].append(range(int(lower), int(upper) + 1))
                 else:
                     # Single task IDs belong to running jobs
                     task_id = int(task_range_str)
                     job_dict[array_id][1].append(task_id)
+
             return job_dict
         else:
             return {}
