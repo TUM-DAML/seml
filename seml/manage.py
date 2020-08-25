@@ -343,7 +343,10 @@ def get_slurm_arrays_tasks():
                     # The overall pending tasks array can be split into multiple arrays by cancelling jobs
                     job_id_ranges = task_range_str[1:-1].split(b',')
                     for r in job_id_ranges:
-                        lower, upper = r.split(b'-')
+                        if b'-' in r:
+                            lower, upper = r.split(b'-')
+                        else:
+                            lower = upper = r
                         job_dict[array_id][0].append(range(int(lower), int(upper) + 1))
                 else:
                     # Single task IDs belong to running jobs
