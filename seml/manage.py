@@ -3,6 +3,7 @@ import subprocess
 import datetime
 from getpass import getpass
 import sys
+import copy
 
 from seml.database import get_collection, build_filter_dict
 from seml.sources import delete_orphaned_sources
@@ -120,7 +121,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             else:
                 logging.info(f"Cancelling {ncancel} experiment{s_if(ncancel)}.")
 
-            filter_dict_new = filter_dict.copy()
+            filter_dict_new = copy.deepcopy(filter_dict)
             filter_dict_new.update({'slurm.array_id': {'$exists': True}})
             exps = list(collection.find(filter_dict_new, {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1}))
             # set of slurm IDs in the database
@@ -141,7 +142,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                     to_cancel.add(f"{a_id}_{t_id}")
 
             # ---------------- Backward compatibility ----------------
-            filter_dict_old = filter_dict.copy()
+            filter_dict_old = copy.deepcopy(filter_dict)
             filter_dict_old.update({'slurm.id': {'$exists': True}})
             exps_old = list(collection.find(filter_dict_old, {'_id': 1, 'status': 1, 'slurm.id': 1}))
             # set of slurm IDs in the database

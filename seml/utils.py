@@ -1,6 +1,6 @@
 import logging
 import json
-
+import copy
 
 def s_if(n):
     return '' if n == 1 else 's'
@@ -99,7 +99,7 @@ def merge_dicts(dict1, dict2):
 
     """
 
-    return_dict = dict1.copy()
+    return_dict = copy.deepcopy(dict1)
     for k, v in dict2.items():
         if k not in dict1:
             return_dict[k] = v
