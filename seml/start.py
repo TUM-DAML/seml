@@ -319,7 +319,7 @@ def batch_chunks(exp_chunks):
 
 
 def start_jobs(db_collection_name, slurm=True, unobserved=False,
-               post_mortem=False, num_exps=-1, filter_dict={}, dry_run=False,
+               post_mortem=False, num_exps=-1, filter_dict=None, dry_run=False,
                output_to_file=True):
     """Pull queued experiments from the database and run them.
 
@@ -348,6 +348,8 @@ def start_jobs(db_collection_name, slurm=True, unobserved=False,
     -------
     None
     """
+    if filter_dict is None:
+        filter_dict = {}
 
     collection = get_collection(db_collection_name)
 

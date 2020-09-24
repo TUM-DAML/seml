@@ -22,8 +22,11 @@ def parse_jsonpickle(db_entry):
 
 def get_results(db_collection_name, fields=['config', 'result'],
                 to_data_frame=False, mongodb_config=None, suffix=None,
-                states=['COMPLETED'], filter_dict={}, parallel=False):
+                states=['COMPLETED'], filter_dict=None, parallel=False):
     import pandas as pd
+
+    if filter_dict is None:
+        filter_dict = {}
 
     collection = get_collection(db_collection_name, mongodb_config=mongodb_config, suffix=suffix)
 
