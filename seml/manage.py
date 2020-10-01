@@ -330,7 +330,7 @@ def get_slurm_arrays_tasks():
 
     """
     try:
-        squeue_out = subprocess.check_output(f"squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`", shell=True)
+        squeue_out = subprocess.check_output(f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`", shell=True)
         jobs = [job_str for job_str in squeue_out.splitlines() if b'_' in job_str]
         if len(jobs) > 0:
             array_ids_str, task_ids = zip(*[job_str.split(b'_') for job_str in jobs])
