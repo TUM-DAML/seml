@@ -7,6 +7,7 @@ import jsonpickle
 import json
 import os
 from pathlib import Path
+from itertools import combinations
 
 from seml.sources import import_exe
 from seml.parameters import sample_random_configs, generate_grid, cartesian_product_dict
@@ -127,23 +128,25 @@ def generate_configs(experiment_config):
     """
 
     reserved, next_level = unpack_config(experiment_config)
-    level_stack = [next_level]
+    level_stack = [('', next_level)]
     config_levels = [reserved]
     final_configs = []
 
     while len(level_stack) > 0:
-        sub_config, sub_levels = unpack_config(level_stack.pop(0))
+        current_sub_name, sub_vals = level_stack.pop(0)
+        sub_config, sub_levels = unpack_config(sub_vals)
         config = merge_dicts(config_levels.pop(0), sub_config)
 
         if len(sub_levels) == 0:
-            final_configs.append(config)
+            final_configs.append((current_sub_name, config))
 
         for sub_name, sub_vals in sub_levels.items():
-            level_stack.append(sub_vals)
+            new_sub_name = f'{current_sub_name}.{sub_name}' if current_sub_name != '' else sub_name
+            level_stack.append((new_sub_name, sub_vals))
             config_levels.append(config)
 
     all_configs = []
-    for conf in final_configs:
+    for subconfig_name, conf in final_configs:
         random_params = conf['random'] if 'random' in conf else {}
         fixed_params = flatten(conf['fixed']) if 'fixed' in conf else {}
         grid_params = conf['grid'] if 'grid' in conf else {}
@@ -155,6 +158,24 @@ def generate_configs(experiment_config):
 
         grids = [generate_grid(v, parent_key=k) for k, v in grid_params.items()]
         grid_configs = dict([sub for item in grids for sub in item])
+
+        random_param_keys = ('random', set(random_params.keys()))
+        fixed_param_keys = ('fixed', set(fixed_params.keys()))
+        grid_param_keys = ('grid', set(grid_configs.keys()))
+        any_duplicates = False
+        for pair in combinations([random_param_keys,
+                                  grid_param_keys,
+                                  fixed_param_keys], r=2):
+            name1, keys1 = pair[0]
+            name2, keys2 = pair[1]
+            intersection = keys1.intersection(keys2)
+            if len(intersection) > 0:
+                logging.error(f"Parameters {intersection} are defined in both '{name1}' and '{name2}' "
+                              f"in subconfig '{subconfig_name}'.")
+                any_duplicates = True
+        if any_duplicates:
+            logging.error(f"Found duplicate parameters in subconfig named '{subconfig_name}'. Aborting.")
+            exit(1)
         grid_product = list(cartesian_product_dict(grid_configs))
 
         with_fixed = [{**d, **fixed_params} for d in grid_product]
