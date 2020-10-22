@@ -68,8 +68,6 @@ slurm:
 ###### BEGIN PARAMETER CONFIGURATION ######
 
 fixed:
-  reg_scale: 0.0
-  keep_prob: 0.5
   max_epochs: 500
   patience: 10
   display_step: 25
@@ -78,7 +76,6 @@ grid:
   regularization_params:
     type: parameter_collection
     params:
-
       dropout:
         type: choice
         options:
@@ -101,11 +98,14 @@ random:
   samples: 3
   seed: 821
 
-  max_epochs:
-    type: randint
-    min: 200
-    max: 1000
-    seed: 222
+  regularization_params:
+    type: parameter_collection
+    params:
+      dropout:
+        type: uniform
+        min: 0.0
+        max: 0.7
+        seed: 222
 
 small_datasets:
 
@@ -126,21 +126,14 @@ small_datasets:
     samples: 3
     seed: 2223
 
-    reg_scale:
-      type: loguniform
-      min: 1e-9
-      max: 1e-1
-
-    keep_prob:
-      type: uniform
-      min: 0.3
-      max: 1
-
-    patience:
-      type: choice
-      options:
-        - 10
-        - 50
+    regularization_params:
+      type: parameter_collection
+      params:
+        dropout:
+          type: uniform
+          min: 0.0
+          max: 0.7
+          seed: 222
 
 large_datasets:
 

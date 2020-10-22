@@ -13,9 +13,9 @@ In `example_config.yaml` we define the parameter configurations that will be run
   
 ```yaml
 seml:
-  executable: example_experiment.py
+  executable: examples/example_experiment.py
   name: example_experiment
-  output_dir: slurm
+  output_dir: examples/logs
   project_root_dir: ..
 
 slurm:
@@ -29,8 +29,6 @@ slurm:
 ###### BEGIN PARAMETER CONFIGURATION ######
 
 fixed:
-  reg_scale: 0.0
-  keep_prob: 0.5
   max_epochs: 500
   patience: 10
   display_step: 25
@@ -39,7 +37,6 @@ grid:
   regularization_params:
     type: parameter_collection
     params:
-
       dropout:
         type: choice
         options:
@@ -62,11 +59,14 @@ random:
   samples: 3
   seed: 821
 
-  max_epochs:
-    type: randint
-    min: 200
-    max: 1000
-    seed: 222
+  regularization_params:
+    type: parameter_collection
+    params:
+      dropout:
+        type: uniform
+        min: 0.0
+        max: 0.7
+        seed: 222
 
 small_datasets:
 
@@ -87,21 +87,14 @@ small_datasets:
     samples: 3
     seed: 2223
 
-    reg_scale:
-      type: loguniform
-      min: 1e-9
-      max: 1e-1
-
-    keep_prob:
-      type: uniform
-      min: 0.3
-      max: 1
-
-    patience:
-      type: choice
-      options:
-        - 10
-        - 50
+    regularization_params:
+      type: parameter_collection
+      params:
+        dropout:
+          type: uniform
+          min: 0.0
+          max: 0.7
+          seed: 222
 
 large_datasets:
 
@@ -151,14 +144,28 @@ The special 'slurm' block contains the slurm parameters. This block and all valu
                        memory and the number of GPUs to be allocated. See [here](https://slurm.schedmd.com/sbatch.html)
                        for possible parameters of `sbatch` (prepended dashes are not required).
 
-### Parameter blocks
+### Sub-configurations
 In the `small_datasets` and `large_datasets` (names are of course only examples; you can name sub-configs as you like) we have specified different sets of parameters to try.
 They will be combined with the parameters in `grid` in the root of the document.
 
-If a specific configuration (e.g. `large_datasets`) defines the same parameters, they will override the ones defined in the root, e.g. the learning rate in the example above.
-This means that for all configurations in the `large_datasets` the learning rate will be `0.001` and not `0.01` or `0.05` as defined in the root of the document.
+If a specific configuration (e.g. `large_datasets`) defines the same parameters **in the same block** (`fixed`, `random`, 
+`grid`), they will override the ones defined before, e.g. the learning rate in the example above.
+This means that for all configurations in the `large_datasets` the learning rate will be `0.001` and not `0.01` or 
+`0.05` as defined in the root of the document.
 
-This can be nested arbitrarily deeply (be aware of combinatorial explosion of the parameter space, though!)
+If a parameter is defined in (at least) two **different blocks** in `[grid, random, fixed]`, `seml` will throw an error to avoid ambiguity.
+This applies across levels, e.g. we can have `param1` in the root `fixed` configuration, and again `param1` in the
+ `grid` configuration of a sub-config (e.g. `small_datasets` in `example_config.yaml`), and `seml` will abort.
+
+This can be nested arbitrarily deeply (be aware of combinatorial explosion of the parameter space, though).
+
+### Conflicting parameters
+If a parameter is defined in at least two of `[grid, random, fixed]`, `seml` will throw an error to avoid ambiguity.
+This applies across levels, e.g. we can have `param1` in the root `fixed` configuration, and again `param1` in the
+ `grid` configuration of a sub-config (e.g. `small_datasets` in `example_config.yaml`), and `seml` will abort.
+ 
+ Note that this does not apply to parameters in the same configuration type (i.e. `fixed`, `grid`, `random`). Here, the 
+ deeper definition overrides all previous definitions of a parameter. 
 
 ### Grid parameters
 In an experiment config, under `grid` you can define parameters that should be sampled from a regular grid. Currently supported
