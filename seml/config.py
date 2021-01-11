@@ -7,46 +7,127 @@ import jsonpickle
 import json
 import os
 from pathlib import Path
+import copy
 from itertools import combinations
 
 from seml.sources import import_exe
 from seml.parameters import sample_random_configs, generate_grid, cartesian_product_dict
 from seml.utils import merge_dicts, flatten, unflatten
 
+RESERVED_KEYS = ['grid', 'fixed', 'random']
 
 def unpack_config(config):
-    reserved_keys = ['grid', 'fixed', 'random']
+    config = convert_parameter_collections(config)
     children = {}
     reserved_dict = {}
     for key, value in config.items():
         if not isinstance(value, dict):
             continue
 
-        if key not in reserved_keys:
+        if key not in RESERVED_KEYS:
             children[key] = value
         else:
-            # value = munch.munchify(value)
             if key == 'random':
                 if 'samples' not in value:
                     logging.error('Random parameters must specify "samples", i.e. the number of random samples.')
                     sys.exit(1)
-                keys = [k for k in value.keys() if k not in ['seed', 'samples']]
-                if 'seed' in value:
-                    seed = value['seed']
-                    rdm_dict = {
-                        k: {'samples': value['samples'],
-                            'seed': seed, **value[k]}
-                        for k in keys
-                    }
-                else:
-                    rdm_dict = {
-                        k: {'samples': value['samples'], **value[k]}
-                        for k in keys
-                    }
-                reserved_dict[key] = rdm_dict
+                reserved_dict[key] = value
             else:
                 reserved_dict[key] = value
     return reserved_dict, children
+
+
+def extract_parameter_set(input_config: dict, key: str):
+    flattened_dict = flatten(input_config.get(key, {}))
+    keys = flattened_dict.keys()
+    if key != 'fixed':
+        keys = [".".join(k.split(".")[:-1]) for k in keys
+                if flattened_dict[k] != 'parameter_collection']
+    return set(keys)
+
+
+def convert_parameter_collections(input_config: dict):
+    flattened_dict = flatten(input_config)
+    parameter_collection_keys = [k for k in flattened_dict.keys()
+                                 if flattened_dict[k] == "parameter_collection"]
+    if len(parameter_collection_keys) > 0:
+        logging.warning("Parameter collections are deprecated. Use dot-notation for nested parameters instead.")
+    while len(parameter_collection_keys) > 0:
+        k = parameter_collection_keys[0]
+        del flattened_dict[k]
+        # sub1.sub2.type ==> # sub1.sub2
+        k = ".".join(k.split(".")[:-1])
+        parameter_collections_params = [param_key for param_key in flattened_dict.keys() if param_key.startswith(k)]
+        for p in parameter_collections_params:
+            if f"{k}.params" in p:
+                new_key = p.replace(f"{k}.params", k)
+                if new_key in flattened_dict:
+                    logging.error(f"Could not convert parameter collections due to key collision: {new_key}.")
+                    raise ValueError()
+                flattened_dict[new_key] = flattened_dict[p]
+                del flattened_dict[p]
+        parameter_collection_keys = [k for k in flattened_dict.keys()
+                                     if flattened_dict[k] == "parameter_collection"]
+    return unflatten(flattened_dict)
+
+
+def standardize_config(config: dict):
+    config = unflatten(flatten(config), levels=[0])
+    out_dict = {}
+    for k in RESERVED_KEYS:
+        if k == "fixed":
+            out_dict[k] = config.get(k, {})
+        else:
+            out_dict[k] = unflatten(config.get(k, {}), levels=[-1])
+    return out_dict
+
+
+def invert_config(config: dict):
+    reserved_sets = [(k, set(config.get(k, {}).keys())) for k in RESERVED_KEYS]
+    inverted_config = {}
+    for k, params in reserved_sets:
+        for p in params:
+            l = inverted_config.get(p, [])
+            l.append(k)
+            inverted_config[p] = l
+    return inverted_config
+
+
+def detect_duplicate_parameters(inverted_config: dict, sub_config_name: str, ignore_keys: dict = None):
+    if ignore_keys is None:
+        ignore_keys = {'random': ('seed', 'samples')}
+
+    duplicate_keys = []
+    for p, l in inverted_config.items():
+        if len(l) > 1:
+            if 'random' in l and p in ignore_keys['random']:
+                continue
+            duplicate_keys.append((p, l))
+
+    if len(duplicate_keys) > 0:
+        logging.error(f"Found duplicate keys in sub_config {sub_config_name}: "
+                      f"{duplicate_keys}")
+        return False
+
+    start_characters = set([x[0] for x in inverted_config.keys()])
+    buckets = {k: {x for x in inverted_config.keys() if x.startswith(k)} for k in start_characters}
+
+    error_str = lambda sub_config_name, p1, p2:  (f"Conflicting parameters in sub_config {sub_config_name}, most likely "
+                                                  f"due to ambiguous use of dot-notation in the config dict. Found "
+                                                  f"parameter '{p1}' in dot-notation starting with other parameter "
+                                                  f"'{p2}', which is ambiguous.")
+
+    no_violation = True
+    for k in buckets.keys():
+        for p1, p2 in combinations(buckets[k], r=2):
+            if p1.startswith(f"{p2}."):   # with "." after p2 to catch cases like "test" and "test1", which are valid.
+                logging.error(error_str(sub_config_name, p1, p2))
+                no_violation = False
+            elif p2.startswith(f"{p1}."):
+                logging.error(error_str(sub_config_name, p2, p1))
+                no_violation = False
+
+    return no_violation
 
 
 def generate_configs(experiment_config):
@@ -77,65 +158,43 @@ def generate_configs(experiment_config):
     all_configs: list of dicts
         Contains the individual combinations of the parameters.
 
-    Examples
-    -------
-    ```yaml
-    fixed:
-      fixed_a: 10
-
-    grid:
-      grid_param_a:
-        type: 'choice'
-        options:
-          - "grid_a"
-          - "grid_b"
-
-    random:
-      samples: 3
-      random_param_a:
-        type: 'uniform'
-        min: 0
-        max: 1
-
-    nested_1:
-      fixed:
-        fixed_b: 20
-
-      grid:
-        grid_param_b:
-          type: 'choice'
-          options:
-            - "grid_c"
-            - "grid_d"
-
-      random:
-        samples: 5
-        random_param_b:
-          type: 'uniform'
-          min: 2
-          max: 3
-
-    nested_2:
-      grid:
-        grid_param_c:
-          type: 'choice'
-          options:
-            - "grid_e"
-            - "grid_f"
-    ```
-    returns 2*max{3,5}*2 + 2*3*2 = 32 configurations.
 
     """
 
     reserved, next_level = unpack_config(experiment_config)
+    reserved = standardize_config(reserved)
     level_stack = [('', next_level)]
     config_levels = [reserved]
     final_configs = []
 
+    no_duplicates = detect_duplicate_parameters(invert_config(reserved), 'root')
+    if not no_duplicates:
+        raise ValueError("Duplicate parameters.")
+
     while len(level_stack) > 0:
         current_sub_name, sub_vals = level_stack.pop(0)
         sub_config, sub_levels = unpack_config(sub_vals)
-        config = merge_dicts(config_levels.pop(0), sub_config)
+        sub_config = standardize_config(sub_config)
+        config_above = config_levels.pop(0)
+
+        inverted_sub_config = invert_config(sub_config)
+        no_duplicates = detect_duplicate_parameters(inverted_sub_config, current_sub_name)
+        if not no_duplicates:
+            raise ValueError("Duplicate parameters.")
+
+        inverted_config_above = invert_config(config_above)
+        redefined_parameters = set(inverted_sub_config.keys()).intersection(set(inverted_config_above.keys()))
+
+        if len(redefined_parameters) > 0:
+            logging.warning(f"Found redefined parameters in {current_sub_name}: {redefined_parameters}. "
+                            f"Redefinitions of parameters override earlier ones.")
+            config_above = copy.deepcopy(config_above)
+            for p in redefined_parameters:
+                sections = inverted_config_above[p]
+                for s in sections:
+                    del config_above[s][p]
+
+        config = merge_dicts(config_above, sub_config)
 
         if len(sub_levels) == 0:
             final_configs.append((current_sub_name, config))
@@ -147,35 +206,18 @@ def generate_configs(experiment_config):
 
     all_configs = []
     for subconfig_name, conf in final_configs:
+        conf = standardize_config(conf)
         random_params = conf['random'] if 'random' in conf else {}
         fixed_params = flatten(conf['fixed']) if 'fixed' in conf else {}
         grid_params = conf['grid'] if 'grid' in conf else {}
 
         if len(random_params) > 0:
-            all_num_samples = np.array([x['samples'] for x in random_params.values() if 'samples' in x])
-            num_samples = np.max(all_num_samples)
-            random_sampled = sample_random_configs(random_params, seed=None, samples=num_samples)
+            num_samples = random_params['samples']
+            root_seed = random_params.get('seed', None)
+            random_sampled = sample_random_configs(flatten(random_params), seed=root_seed, samples=num_samples)
 
         grids = [generate_grid(v, parent_key=k) for k, v in grid_params.items()]
         grid_configs = dict([sub for item in grids for sub in item])
-
-        random_param_keys = ('random', set(random_params.keys()))
-        fixed_param_keys = ('fixed', set(fixed_params.keys()))
-        grid_param_keys = ('grid', set(grid_configs.keys()))
-        any_duplicates = False
-        for pair in combinations([random_param_keys,
-                                  grid_param_keys,
-                                  fixed_param_keys], r=2):
-            name1, keys1 = pair[0]
-            name2, keys2 = pair[1]
-            intersection = keys1.intersection(keys2)
-            if len(intersection) > 0:
-                logging.error(f"Parameters {intersection} are defined in both '{name1}' and '{name2}' "
-                              f"in subconfig '{subconfig_name}'.")
-                any_duplicates = True
-        if any_duplicates:
-            logging.error(f"Found duplicate parameters in subconfig named '{subconfig_name}'. Aborting.")
-            exit(1)
         grid_product = list(cartesian_product_dict(grid_configs))
 
         with_fixed = [{**d, **fixed_params} for d in grid_product]

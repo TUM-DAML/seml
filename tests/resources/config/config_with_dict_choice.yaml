@@ -1,0 +1,23 @@
+grid:
+  coll1:
+    type: parameter_collection
+    params:
+      a:
+        type: choice
+        options:
+          - sub1: 999
+            sub2: 1919
+          - sub1: 1111
+            sub2: 29292
+
+random:
+  samples: 3
+  seed: 821
+
+  coll1:
+    type: parameter_collection
+    params:
+      b:
+        type: uniform
+        min: 0.0
+        max: 0.7

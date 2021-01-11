@@ -3,6 +3,7 @@ import sys
 import logging
 import itertools
 import numpy as np
+from seml.utils import unflatten
 
 
 def sample_random_configs(random_config, samples=1, seed=None):
@@ -30,8 +31,10 @@ def sample_random_configs(random_config, samples=1, seed=None):
         return [{}]
 
     rdm_keys = [k for k in random_config.keys() if k not in ["samples", "seed"]]
-
-    random_samples = [sample_parameter(random_config[k], samples, seed, parent_key=k) for k in rdm_keys]
+    random_config = {k: random_config[k] for k in rdm_keys}
+    random_parameter_dicts = unflatten(random_config, levels=-1)
+    random_samples = [sample_parameter(random_parameter_dicts[k], samples, seed, parent_key=k)
+                      for k in random_parameter_dicts.keys()]
     random_samples = dict([sub for item in random_samples for sub in item])
     random_configurations = [{k: v[ix] for k, v in random_samples.items()} for ix in range(samples)]
 
@@ -73,7 +76,7 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
         logging.error("No type found in parameter {}".format(parameter))
         sys.exit(1)
     return_items = []
-
+    allowed_keys = ['seed', 'type']
     if seed is not None:
         np.random.seed(seed)
     elif 'seed' in parameter:
@@ -83,12 +86,14 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
 
     if param_type == "choice":
         choices = parameter['options']
+        allowed_keys.append("options")
         sampled_values = [random.choice(choices) for _ in range(samples)]
         return_items.append((parent_key, sampled_values))
 
     elif param_type == "uniform":
         min_val = parameter['min']
         max_val = parameter['max']
+        allowed_keys.extend(['min', 'max'])
         sampled_values = np.random.uniform(min_val, max_val, samples)
         return_items.append((parent_key, sampled_values))
 
@@ -98,18 +103,21 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
             sys.exit(1)
         min_val = np.log(parameter['min'])
         max_val = np.log(parameter['max'])
+        allowed_keys.extend(['min', 'max'])
         sampled_values = np.exp(np.random.uniform(min_val, max_val, samples))
         return_items.append((parent_key, sampled_values))
 
     elif param_type == "randint":
         min_val = int(parameter['min'])
         max_val = int(parameter['max'])
+        allowed_keys.extend(['min', 'max'])
         sampled_values = np.random.randint(min_val, max_val, samples)
         return_items.append((parent_key, sampled_values))
 
     elif param_type == "randint_unique":
         min_val = int(parameter['min'])
         max_val = int(parameter['max'])
+        allowed_keys.extend(['min', 'max'])
         sampled_values = np.random.choice(np.arange(min_val, max_val), samples, replace=False)
         return_items.append((parent_key, sampled_values))
 
@@ -121,6 +129,11 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
     else:
         raise NotImplementedError(f"Parameter type {param_type} not implemented.")
 
+    if param_type != "parameter_collection":
+        extra_keys = set(parameter.keys()).difference(set(allowed_keys))
+        if len(extra_keys) > 0:
+            raise ValueError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
+                             f"{allowed_keys}. Unexpected keys: {extra_keys}")
     return return_items
 
 
@@ -154,17 +167,20 @@ def generate_grid(parameter, parent_key=''):
         sys.exit(1)
 
     param_type = parameter['type']
+    allowed_keys = ['type']
 
     return_items = []
 
     if param_type == "choice":
         values = parameter['options']
+        allowed_keys.append('options')
         return_items.append((parent_key, values))
 
     elif param_type == "range":
         min_val = parameter['min']
         max_val = parameter['max']
         step = int(parameter['step'])
+        allowed_keys.extend(['min', 'max', 'step'])
         values = list(np.arange(min_val, max_val, step))
         return_items.append((parent_key, values))
 
@@ -172,6 +188,7 @@ def generate_grid(parameter, parent_key=''):
         min_val = parameter['min']
         max_val = parameter['max']
         num = int(parameter['num'])
+        allowed_keys.extend(['min', 'max', 'num'])
         values = list(np.linspace(min_val, max_val, num, endpoint=True))
         return_items.append((parent_key, values))
 
@@ -179,6 +196,7 @@ def generate_grid(parameter, parent_key=''):
         min_val = parameter['min']
         max_val = parameter['max']
         num = int(parameter['num'])
+        allowed_keys.extend(['min', 'max', 'num'])
         values = np.logspace(np.log10(min_val), np.log10(max_val), num, endpoint=True)
         return_items.append((parent_key, values))
 
@@ -188,6 +206,12 @@ def generate_grid(parameter, parent_key=''):
 
     else:
         raise NotImplementedError(f"Parameter {param_type} not implemented.")
+
+    if param_type != "parameter_collection":
+        extra_keys = set(parameter.keys()).difference(set(allowed_keys))
+        if len(extra_keys) > 0:
+            raise ValueError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
+                             f"{allowed_keys}. Unexpected keys: {extra_keys}")
 
     return return_items
 

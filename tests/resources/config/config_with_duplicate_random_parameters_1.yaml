@@ -1,0 +1,14 @@
+fixed:
+  seed: 33333
+  samples: 99
+
+
+random:
+  seed: 222
+  samples: 5
+
+  a:
+    type: uniform
+    min: 0
+    max: 1
+    seed: 333
