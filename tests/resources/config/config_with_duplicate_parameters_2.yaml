@@ -1,0 +1,16 @@
+fixed:
+  a:
+    b.c: 333
+
+grid:
+  a:
+    type: parameter_collection
+    params:
+      b:
+        type: parameter_collection
+        params:
+          c:
+            type: choice
+            options:
+              - 11
+              - 22

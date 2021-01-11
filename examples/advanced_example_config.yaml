@@ -52,8 +52,8 @@
 
 
 seml:
-  executable: examples/example_experiment.py
-  name: example_experiment
+  executable: examples/advanced_example_experiment.py
+  name: advanced_example_experiment
   output_dir: examples/logs
   project_root_dir: ..
 
@@ -68,79 +68,59 @@ slurm:
 ###### BEGIN PARAMETER CONFIGURATION ######
 
 fixed:
-  max_epochs: 500
-  patience: 10
-  display_step: 25
+  training.patience: 20
+  training.num_epochs: 100
+  optimization:
+    optimizer_type: Adam
 
 grid:
-
-  # SEML supports dot-notation for nested dictionaries.
-  regularization_params.reg_scale:
+  # SEML supports dot-notation for nested parameter dictionaries. E.g., `model.model_type` resolves to
+  # {'model': {'model_type': xxx}}
+  model.model_type:
     type: choice
     options:
-      - 1e-4
-      - 1e-5
+      - variant_1
+      - variant_2
 
-  learning_rate:
+  optimization.regularization.weight_decay:
     type: loguniform
-    min: 1e-5
-    max: 1e-1
-    num: 5
+    min: 1e-6
+    max: 1e-3
+    num: 4
 
 random:
-  samples: 3
-  seed: 821
-
-  regularization_params.dropout:
+  samples: 5
+  seed: 7059
+  model.model_params.dropout:
     type: uniform
     min: 0.0
-    max: 0.7
-    seed: 222
-
-small_datasets:
-
-  grid:
-    dataset:
-      type: choice
-      options:
-        - small_dataset_1
-        - small_dataset_2
-
-    hidden_sizes:
-      type: choice
-      options:
-        - [16]
-        - [32, 16]
-
-  random:
-    samples: 3
-    seed: 2223
-
-    regularization_params.dropout:
-      type: uniform
-      min: 0.0
-      max: 0.7
-      seed: 222
+    max: 0.5
 
 large_datasets:
-
-  fixed:
-    max_epochs: 1000
-
   grid:
-    learning_rate:
-      type: choice
-      options:
-        - 0.001
-
-    dataset:
+    data.dataset:
       type: choice
       options:
         - large_dataset_1
         - large_dataset_2
 
-    hidden_sizes:
+    model.model_params.hidden_sizes:
       type: choice
       options:
         - [64]
         - [64, 32]
+
+
+small_datasets:
+  grid:
+    data.dataset:
+      type: choice
+      options:
+        - small_dataset_1
+        - small_dataset_2
+
+    model.model_params.hidden_sizes:
+      type: choice
+      options:
+        - [32]
+        - [32, 16]

@@ -1,0 +1,9 @@
+fixed:
+  a: ccc
+
+grid:
+  a:
+    type: choice
+    options:
+      - 1
+      - 2

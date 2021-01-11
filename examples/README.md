@@ -8,7 +8,11 @@ Before starting, please make sure you have your MongoDB credentials stored in `$
 
 ## Experiment configuration
 
-In `example_config.yaml` we define the parameter configurations that will be run.
+In `example_config.yaml` we define the parameter configurations that will be run. 
+For a more advanced example with modular structure using 
+[Sacred prefixes](https://sacred.readthedocs.io/en/stable/configuration.html#prefix), 
+see the [advanced example configuration](advanced_example_config.yaml) and the corresponding 
+[experiment](advanced_example_experiment.py).
 <details><summary><b>Example config file</b></summary>
   
 ```yaml
@@ -34,20 +38,12 @@ fixed:
   display_step: 25
 
 grid:
-  regularization_params:
-    type: parameter_collection
-    params:
-      dropout:
-        type: choice
-        options:
-          - 0.5
-          - 0.6
 
-      reg_scale:
-        type: choice
-        options:
-          - 1e-4
-          - 1e-5
+  regularization_params.reg_scale:
+    type: choice
+    options:
+      - 1e-4
+      - 1e-5
 
   learning_rate:
     type: loguniform
@@ -59,14 +55,11 @@ random:
   samples: 3
   seed: 821
 
-  regularization_params:
-    type: parameter_collection
-    params:
-      dropout:
-        type: uniform
-        min: 0.0
-        max: 0.7
-        seed: 222
+  regularization_params.dropout:
+    type: uniform
+    min: 0.0
+    max: 0.7
+    seed: 222
 
 small_datasets:
 
@@ -87,14 +80,11 @@ small_datasets:
     samples: 3
     seed: 2223
 
-    regularization_params:
-      type: parameter_collection
-      params:
-        dropout:
-          type: uniform
-          min: 0.0
-          max: 0.7
-          seed: 222
+    regularization_params.dropout:
+      type: uniform
+      min: 0.0
+      max: 0.7
+      seed: 222
 
 large_datasets:
 
@@ -152,20 +142,10 @@ If a specific configuration (e.g. `large_datasets`) defines the same parameters 
 `grid`), they will override the ones defined before, e.g. the learning rate in the example above.
 This means that for all configurations in the `large_datasets` the learning rate will be `0.001` and not `0.01` or 
 `0.05` as defined in the root of the document.
-
-If a parameter is defined in (at least) two **different blocks** in `[grid, random, fixed]`, `seml` will throw an error to avoid ambiguity.
-This applies across levels, e.g. we can have `param1` in the root `fixed` configuration, and again `param1` in the
- `grid` configuration of a sub-config (e.g. `small_datasets` in `example_config.yaml`), and `seml` will abort.
-
 This can be nested arbitrarily deeply (be aware of combinatorial explosion of the parameter space, though).
 
-### Conflicting parameters
-If a parameter is defined in at least two of `[grid, random, fixed]`, `seml` will throw an error to avoid ambiguity.
-This applies across levels, e.g. we can have `param1` in the root `fixed` configuration, and again `param1` in the
- `grid` configuration of a sub-config (e.g. `small_datasets` in `example_config.yaml`), and `seml` will abort.
- 
- Note that this does not apply to parameters in the same configuration type (i.e. `fixed`, `grid`, `random`). Here, the 
- deeper definition overrides all previous definitions of a parameter. 
+If a parameter is defined in (at least) two **different blocks** in `[grid, random, fixed]`, `seml` will throw an error to avoid ambiguity.
+If a parameter is re-defined in a sub-configuration, the redefinition overrides any previous definitions of that parameter.
 
 ### Grid parameters
 In an experiment config, under `grid` you can define parameters that should be sampled from a regular grid. Currently supported

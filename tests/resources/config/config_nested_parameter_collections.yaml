@@ -1,0 +1,19 @@
+grid:
+
+  a.b.c:
+    type: choice
+    options:
+      - 999
+      - 1111
+
+  a:
+    type: parameter_collection
+    params:
+      b:
+        type: parameter_collection
+        params:
+          c:
+            type: choice
+            options:
+              - 11
+              - 22

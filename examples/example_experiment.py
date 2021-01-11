@@ -23,7 +23,7 @@ def config():
 
 @ex.automain
 def run(dataset, hidden_sizes, learning_rate, max_epochs, patience, display_step,
-        regularization_params):
+        regularization_params: dict):
 
     logging.info('Received the following configuration:')
     logging.info(f'Dataset: {dataset}, hidden sizes: {hidden_sizes}, learning_rate: {learning_rate}, '
