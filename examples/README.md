@@ -34,16 +34,8 @@ slurm:
 
 fixed:
   max_epochs: 500
-  patience: 10
-  display_step: 25
 
 grid:
-
-  regularization_params.reg_scale:
-    type: choice
-    options:
-      - 1e-4
-      - 1e-5
 
   learning_rate:
     type: loguniform
@@ -55,6 +47,7 @@ random:
   samples: 3
   seed: 821
 
+  # SEML supports dot-notation for nested dictionaries.
   regularization_params.dropout:
     type: uniform
     min: 0.0
@@ -74,17 +67,16 @@ small_datasets:
       type: choice
       options:
         - [16]
-        - [32, 16]
+        - [32, 16]  # this will be parsed into a Python list.
 
   random:
     samples: 3
     seed: 2223
 
-    regularization_params.dropout:
-      type: uniform
-      min: 0.0
-      max: 0.7
-      seed: 222
+    max_epochs:
+       type: randint
+       min: 200
+       max: 1000
 
 large_datasets:
 
@@ -138,13 +130,13 @@ The special 'slurm' block contains the slurm parameters. This block and all valu
 In the `small_datasets` and `large_datasets` (names are of course only examples; you can name sub-configs as you like) we have specified different sets of parameters to try.
 They will be combined with the parameters in `grid` in the root of the document.
 
-If a specific configuration (e.g. `large_datasets`) defines the same parameters **in the same block** (`fixed`, `random`, 
-`grid`), they will override the ones defined before, e.g. the learning rate in the example above.
+If a specific configuration (e.g. `large_datasets`) defines the same parameters as a higher-level configuration (e.g., the "root" configuration),
+ they will override the ones defined before, e.g. the learning rate in the example above.
 This means that for all configurations in the `large_datasets` the learning rate will be `0.001` and not `0.01` or 
 `0.05` as defined in the root of the document.
 This can be nested arbitrarily deeply (be aware of combinatorial explosion of the parameter space, though).
 
-If a parameter is defined in (at least) two **different blocks** in `[grid, random, fixed]`, `seml` will throw an error to avoid ambiguity.
+If a parameter is defined in (at least) two **different blocks** in `[grid, random, fixed]` on the same level, `seml` will throw an error to avoid ambiguity.
 If a parameter is re-defined in a sub-configuration, the redefinition overrides any previous definitions of that parameter.
 
 ### Grid parameters

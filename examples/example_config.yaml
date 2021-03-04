@@ -69,17 +69,8 @@ slurm:
 
 fixed:
   max_epochs: 500
-  patience: 10
-  display_step: 25
 
 grid:
-
-  # SEML supports dot-notation for nested dictionaries.
-  regularization_params.reg_scale:
-    type: choice
-    options:
-      - 1e-4
-      - 1e-5
 
   learning_rate:
     type: loguniform
@@ -91,6 +82,7 @@ random:
   samples: 3
   seed: 821
 
+  # SEML supports dot-notation for nested dictionaries.
   regularization_params.dropout:
     type: uniform
     min: 0.0
@@ -110,17 +102,16 @@ small_datasets:
       type: choice
       options:
         - [16]
-        - [32, 16]
+        - [32, 16]  # this will be parsed into a Python list.
 
   random:
     samples: 3
     seed: 2223
 
-    regularization_params.dropout:
-      type: uniform
-      min: 0.0
-      max: 0.7
-      seed: 222
+    max_epochs:
+       type: randint
+       min: 200
+       max: 1000
 
 large_datasets:
 

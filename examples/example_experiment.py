@@ -22,13 +22,12 @@ def config():
 
 
 @ex.automain
-def run(dataset, hidden_sizes, learning_rate, max_epochs, patience, display_step,
+def run(dataset: str, hidden_sizes: list, learning_rate: float, max_epochs: int,
         regularization_params: dict):
-
+    # Note that regularization_params contains the corresponding sub-dictionary from the configuration.
     logging.info('Received the following configuration:')
     logging.info(f'Dataset: {dataset}, hidden sizes: {hidden_sizes}, learning_rate: {learning_rate}, '
-                 f'max_epochs: {max_epochs}, patience:{patience}, '
-                 f'display_step: {display_step}, regularization: {regularization_params}')
+                 f'max_epochs: {max_epochs}, regularization: {regularization_params}')
 
     #  do your processing here
 
