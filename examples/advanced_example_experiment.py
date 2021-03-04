@@ -1,4 +1,10 @@
-import logging
+"""
+This is an advanced experiment example, which makes use of sacred's captured functions with prefixes.
+We wrap all the experiment-specific functionality inside the "ExperimentWrapper" class, and define methods with sacred's
+@ex.capture decorator. This allows a modular design of the configuration, where certain sub-dictionaries (e.g., "data")
+are parsed by a specific method. This avoids having one large "main" function which takes all parameters as input.
+"""
+
 from sacred import Experiment
 import numpy as np
 import seml
@@ -22,18 +28,29 @@ def config():
 
 
 class ModelVariant1:
+    """
+    A dummy model variant 1, which could, e.g., be a certain model or baseline in practice.
+    """
     def __init__(self, hidden_sizes, dropout):
         self.hidden_sizes = hidden_sizes
         self.dropout = dropout
 
 
 class ModelVariant2:
+    """
+    A dummy model variant 2, which could, e.g., be a certain model or baseline in practice.
+    """
     def __init__(self, hidden_sizes, dropout):
         self.hidden_sizes = hidden_sizes
         self.dropout = dropout
 
 
 class ExperimentWrapper:
+    """
+    A simple wrapper around a sacred experiment, making use of sacred's captured functions with prefixes.
+    This allows a modular design of the configuration, where certain sub-dictionaries (e.g., "data") are parsed by
+    specific method. This avoids having one large "main" function which takes all parameters as input.
+    """
 
     def __init__(self, init_all=True):
         if init_all:
@@ -42,6 +59,11 @@ class ExperimentWrapper:
     # With the prefix option we can "filter" the configuration for the sub-dictionary under "data".
     @ex.capture(prefix="data")
     def init_dataset(self, dataset):
+        """
+        Perform dataset loading, preprocessing etc.
+        Since we set prefix="data", this method only gets passed the respective sub-dictionary, enabling a modular
+        experiment design.
+        """
         if dataset == "large_dataset_1":
             self.data = "load_dataset_here"
         elif dataset == "large_dataset_2":
@@ -53,7 +75,8 @@ class ExperimentWrapper:
     @ex.capture(prefix="model")
     def init_model(self, model_type: str, model_params: dict):
         if model_type == "variant_1":
-            # Here we can pass the "model_params" dict to the constructor directly.
+            # Here we can pass the "model_params" dict to the constructor directly, which can be very useful in
+            # practice, since we don't have to do any model-specific processing of the config dictionary.
             self.model = ModelVariant1(**model_params)
         elif model_type == "variant_2":
             self.model = ModelVariant2(**model_params)
@@ -64,6 +87,9 @@ class ExperimentWrapper:
         self.optimizer = optimizer_type  # initialize optimizer
 
     def init_all(self):
+        """
+        Sequentially run the sub-initializers of the experiment.
+        """
         self.init_dataset()
         self.init_model()
         self.init_optimizer()
@@ -72,6 +98,7 @@ class ExperimentWrapper:
     def train(self, patience, num_epochs):
         # everything is set up
         for e in range(num_epochs):
+            # simulate training
             continue
         results = {
             'test_acc': 0.5 + 0.3 * np.random.randn(),
@@ -81,6 +108,8 @@ class ExperimentWrapper:
         return results
 
 
+# We can call this command, e.g., from a Jupyter notebook with init_all=False to get an "empty" experiment wrapper,
+# where we can then for instance load a pretrained model to inspect the performance.
 @ex.command(unobserved=True)
 def get_experiment(init_all=False):
     print('get_experiment')
@@ -88,7 +117,8 @@ def get_experiment(init_all=False):
     return experiment
 
 
-# This function will be called by default.
+# This function will be called by default. Note that we could in principle manually pass an experiment instance,
+# e.g., obtained by loading a model from the database or by calling this from a Jupyter notebook.
 @ex.automain
 def train(experiment=None):
     if experiment is None:
