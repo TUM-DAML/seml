@@ -19,5 +19,13 @@ SETTINGS = munchify(
                 'mem': 8000,
                 },
         },
-    }
+        "SLURM_JUPYTER_JOB_DEFAULT_SBATCH": {
+            'time': '0-08:00',
+            'nodes': 1,
+            'cpus-per-task': 1,
+            'mem': 8000,
+            'gres': "gpu:0",
+            'qos': 'interactive',
+        },
+    },
 )

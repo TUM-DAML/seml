@@ -1,3 +1,17 @@
+# Start a Jupyter job
+To start a Jupyter instance, you can use the convenience function `seml jupyter`. To modify the default Slurm `SBATCH`
+options, see `seml/settings.py`. 
+
+After the Jupyter instance has successfully started, `seml` will provide useful information such as the hostname and 
+port of the instance, e.g.:
+```
+Started Jupyter job in Slurm job with ID 12345.
+The logfile of the job is /nfs/homedirs/zuegnerd/libraries/seml/slurm-6322311.out.
+Trying to fetch the machine and port of the Jupyter instance once the job is running... (ctrl-C to cancel).
+Jupyter instance is starting up...
+Startup completed. The Jupyter instance is running at 'gpuxx.kdd.in.tum.de:8889'.
+To stop the job, run 'scancel 12345'.
+```
 # Experiment tracking example
 This example will show you how to track your experiments using Sacred, how to perform hyperparameter search and how to perform the experiments in a distributed manner on our Slurm cluster.
 

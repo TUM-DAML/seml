@@ -7,7 +7,7 @@ import logging
 from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
                          mongodb_credentials_prompt)
 from seml.queuing import queue_experiments
-from seml.start import start_experiments
+from seml.start import start_experiments, start_jupyter_job
 from seml.config import read_config
 from seml.database import clean_unreferenced_artifacts
 from seml.utils import LoggingFormatter
@@ -27,6 +27,24 @@ def main():
             help='Display more log messages.')
 
     subparsers = parser.add_subparsers(title="Possible operations")
+
+    parser_jupyter = subparsers.add_parser(
+        "jupyter",
+        help="Start a Jupyter slurm job.")
+    parser_jupyter.add_argument(
+        "-l", "--lab", action='store_true',
+        help="Start a jupyter-lab instance instead of jupyter notebook."
+    )
+    parser_jupyter.add_argument(
+        "-c", "--conda_env", type=str, default=None,
+        help="Start the Jupyter instance in a Conda environment."
+    )
+
+    parser_jupyter.add_argument(
+        '-sb', '--sbatch_options', type=json.loads,
+        help="Dictionary (passed as a string, e.g. '{\"gres\": \"gpu:2\"}') to request two GPUs.")
+
+    parser_jupyter.set_defaults(func=start_jupyter_job)
 
     parser_configure = subparsers.add_parser(
         "configure",
@@ -187,6 +205,8 @@ def main():
     logging.root.setLevel(logging_level)
 
     if args.func == mongodb_credentials_prompt:  # launch SEML configure.
+        del args.db_collection_name
+    elif args.func == start_jupyter_job:
         del args.db_collection_name
     else:  # otherwise remove the flag as it is not used elsewhere.
         if not args.db_collection_name:
