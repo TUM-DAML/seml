@@ -1,3 +1,5 @@
+![Github Actions](https://github.com/TUM-DAML/seml/workflows/Test/badge.svg)
+
 # `SEML`: Slurm Experiment Management Library
 **`SEML`** is the missing link between the open-source workload scheduling system `Slurm` and the experiment management tool `sacred`. It is lightweight, hackable, written in pure Python, and scales to thousands of experiments.
 
