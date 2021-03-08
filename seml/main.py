@@ -67,6 +67,13 @@ def main():
             help="Do not check the config for missing/unused arguments. "
                  "Use this if the check fails unexpectedly when using "
                  "advanced Sacred features or to accelerate queueing.")
+
+    parser_queue.add_argument(
+            '-nu', '--no-source-upload', action='store_true',
+            help="Do upload the source files to the MongoDB. "
+                 "When a queued experiment is started, it will use whatever is the current version of the source "
+                 "files.")
+
     parser_queue.add_argument(
             '-f', '--force-duplicates', action='store_true',
             help="Add experiments to the database even when experiments with identical configurations "
