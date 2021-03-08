@@ -131,7 +131,7 @@ Optionally, it can contain
    - `project_root_dir`: (Relative or absolute) path to the root of the project. seml will then upload all the source
                          files imported by the experiment to the MongoDB. Moreover, the uploaded source files will be
                          downloaded before starting an experiment, so any changes to the source files in the project
-                         between queueing and starting the experiment will have no effect.
+                         between staging and starting the experiment will have no effect.
 ### `slurm` block
 The special 'slurm' block contains the slurm parameters. This block and all values are optional. Possible values are:
    - `experiments_per_job`: Number of parallel experiments to run in each Slurm job. Note that only experiments from the same batch share a job. Default: 1
@@ -170,21 +170,21 @@ of samples per parameter with the `samples` value and optionally the random seed
   - `loguniform`:  Uniformly samples in log space between `min` and `max` as specified in the parameter dict.
   - `randint`: Randomly samples integers between `min` (included) and `max` (excluded).
 
-## Add experiments to queue
+## Add experiments to database
 
 All SEML commands follow the pattern
 ```
 seml [database_collection_name] [command] [command_options]
 ```
 
-To insert the experiments the queue in the database, open a terminal on a machine with access to the `Slurm` system. Move to this directory and run
+To insert the experiments to the database, open a terminal on a machine with access to the `Slurm` system. Move to this directory and run
 
 ```
-seml seml_example queue example_config.yaml
+seml seml_example add example_config.yaml
 ```
 
 If you open your MongoDB (e.g. with the software `robo3t`), you should now find a collection `seml_example` with the staged experiments.
-Note that the collection name is specified _before_ the operation (`queue`).
+Note that the collection name is specified _before_ the operation (`add`).
 
 To see what the option `--force-duplicates` does, run the above command again. The output should now read something like:
 
@@ -193,7 +193,7 @@ To see what the option `--force-duplicates` does, run the above command again. T
 ```
 
 That is, the script checks whether experiments with the same configuration are already in the database collection.
-In this case, they are not added to the queue to avoid redundant computations. In order to force add duplicates to the database, use the `--force-duplicates` argument.
+In this case, they are not added to the database to avoid redundant computations. In order to force add duplicates to the database, use the `--force-duplicates` argument.
 
 All experiments are now already in the database collection you specified and in the STAGED state.
 
