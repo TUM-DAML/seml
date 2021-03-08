@@ -4,6 +4,9 @@ import jsonpickle
 from tqdm.autonotebook import tqdm
 
 from seml.database import get_collection
+from seml.settings import SETTINGS
+
+States = SETTINGS.STATES
 
 __all__ = ['get_results']
 
@@ -20,15 +23,43 @@ def parse_jsonpickle(db_entry):
     return parsed
 
 
-def get_results(db_collection_name, fields=['config', 'result'],
-                to_data_frame=False, mongodb_config=None, suffix=None,
-                states=['COMPLETED'], filter_dict=None, parallel=False):
+def get_results(db_collection_name, fields=None,
+                to_data_frame=False, mongodb_config=None,
+                states=None, filter_dict=None, parallel=False):
+    """
+    Get experiment results from the MongoDB.
+    Parameters
+    ----------
+    db_collection_name: str
+        Name of the MongoDB collection.
+    fields: list (optional).
+        Database attributes to extract. Default: ['config', 'result'].
+    to_data_frame: bool, default: False
+        Whether to convert the results into a Pandas DataFrame.
+    mongodb_config: dict (optional)
+        MongoDB credential dictionary. If None, uses the credentials specified by `seml configure`.
+    states: list of strings (optional)
+        Extract only experiments with certain states. Default: ['COMPLETED'].
+    filter_dict: dict (optional)
+        Custom dictionary for filtering results from the MongoDB.
+    parallel: bool, default: False
+        If True, unserialize entries in parallel. Use for very large experiment collections.
+
+    Returns
+    -------
+
+    """
     import pandas as pd
+    if fields is None:
+        fields = ['config', 'result']
+
+    if states is None:
+        states = States.COMPLETED
 
     if filter_dict is None:
         filter_dict = {}
 
-    collection = get_collection(db_collection_name, mongodb_config=mongodb_config, suffix=suffix)
+    collection = get_collection(db_collection_name, mongodb_config=mongodb_config,)
 
     if len(states) > 0:
         if 'status' in filter_dict:

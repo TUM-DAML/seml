@@ -27,5 +27,16 @@ SETTINGS = munchify(
             'gres': "gpu:1",
             'qos': 'interactive',
         },
+        "STATES": {
+            "STAGED": ["STAGED", "QUEUED"],  # QUEUED for backward compatibility
+            "PENDING": ["PENDING"],
+            "RUNNING": ["RUNNING"],
+            "FAILED": ["FAILED"],
+            "KILLED": ["KILLED"],
+            "INTERRUPTED": ["INTERRUPTED"],
+            "COMPLETED": ["COMPLETED"],
+        },
+        "SLURM_ACTIVE_STATES": ['CONFIGURING', 'PENDING', 'RUNNING', 'REQUEUE_FED',
+                       'REQUEUE_HOLD', 'REQUEUED', 'RESIZING', 'SUSPENDED'],
     },
 )

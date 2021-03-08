@@ -183,7 +183,7 @@ To insert the experiments the queue in the database, open a terminal on a machin
 seml seml_example queue example_config.yaml
 ```
 
-If you open your MongoDB (e.g. with the software `robo3t`), you should now find a collection `seml_example` with the queued experiments.
+If you open your MongoDB (e.g. with the software `robo3t`), you should now find a collection `seml_example` with the staged experiments.
 Note that the collection name is specified _before_ the operation (`queue`).
 
 To see what the option `--force-duplicates` does, run the above command again. The output should now read something like:
@@ -195,14 +195,14 @@ To see what the option `--force-duplicates` does, run the above command again. T
 That is, the script checks whether experiments with the same configuration are already in the database collection.
 In this case, they are not added to the queue to avoid redundant computations. In order to force add duplicates to the database, use the `--force-duplicates` argument.
 
-All experiments are now already in the database collection you specified and in the QUEUED state.
+All experiments are now already in the database collection you specified and in the STAGED state.
 
 ## Run experiments using Slurm
-To run the queued experiments on the Slurm cluster, run:
+To run the staged experiments on the Slurm cluster, run:
 ```bash
 seml seml_example start
 ```
-This will start all experiments in the MongoDB collection `seml_example` that currently are in the QUEUED state.
+This will start all experiments in the MongoDB collection `seml_example` that currently are in the STAGED state.
 
 ### Running multiple experiments per Slurm job
 Often a single experiment requires much less GPU RAM than is available on a GPU. Thus, we can often
@@ -228,12 +228,12 @@ You can cancel (interrupt) all pending and running experiments with
 seml seml_example cancel
 ```
 
-You can reset all failed, killed, or interrupted experiments to QUEUED with
+You can reset all failed, killed, or interrupted experiments to STAGED with
 ```bash
 seml seml_example reset
 ```
 
-You can delete all queued, failed, killed, or interrupted experiments with
+You can delete all staged, failed, killed, or interrupted experiments with
 ```bash
 seml seml_example delete
 ```
@@ -252,7 +252,7 @@ seml seml_example detect-killed
 (Detection is run automatically when executing the `status`, `delete`, `reset`, and `cancel` commands and therefore rarely necessary to do manually.)
 
 ### Batches
-`seml` assigns each experiment a batch ID, where all experiments that were queued together get the same batch ID. 
+`seml` assigns each experiment a batch ID, where all experiments that were staged together get the same batch ID. 
 You can use this to cancel all the experiments from the last configuration that you've started, e.g. if you find a bug. 
 Use
 ```bash

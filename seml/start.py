@@ -14,6 +14,8 @@ from seml.sources import load_sources_from_db
 from seml.utils import s_if
 from seml.settings import SETTINGS
 
+States = SETTINGS.STATES
+
 
 def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
                          post_mortem=False, debug=False):
@@ -186,7 +188,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
                 collection.update_one(
                         {'_id': exp['_id']},
                         {'$set': {
-                            'status': 'PENDING',
+                            'status': States.PENDING[0],
                             'slurm.array_id': slurm_array_job_id,
                             'slurm.task_id': task_id,
                             'slurm.sbatch_options': sbatch_options,
@@ -228,13 +230,13 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
     if not unobserved:
         # check also whether PENDING experiments have their Slurm ID set, in this case they are waiting
         # for Slurm execution and we don't start them locally.
-        db_entry = collection.find_one_and_update(filter={'_id': exp['_id'], 'status': 'PENDING',
+        db_entry = collection.find_one_and_update(filter={'_id': exp['_id'], 'status': {"$in": States.PENDING},
                                                           'slurm.array_id': {'$exists': False}},
                                                   update={'$set': {'seml.command': cmd,
-                                                                   'status': 'RUNNING'}},
+                                                                   'status': States.RUNNING[0]}},
                                                   upsert=False)
         if db_entry is None:
-            # another worker already set this entry to PENDING (or at least, it's no longer QUEUED)
+            # another worker already set this entry to PENDING (or at least, it's no longer STAGED)
             # so we ignore it.
             return None
 
@@ -278,7 +280,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
         logging.error(f"Log file {output_file} could not be written.")
         # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
         collection.find_one_and_update(filter={'_id': exp['_id']},
-                                       update={'$set': {'status': 'FAILED'}},
+                                       update={'$set': {'status': States.FAILED[0]}},
                                        upsert=False)
         success = False
 
@@ -339,7 +341,7 @@ def batch_chunks(exp_chunks):
 def start_jobs(db_collection_name, slurm=True, unobserved=False,
                post_mortem=False, num_exps=-1, filter_dict=None, dry_run=False,
                output_to_file=True):
-    """Pull queued experiments from the database and run them.
+    """Pull staged experiments from the database and run them.
 
     Parameters
     ----------
@@ -373,12 +375,14 @@ def start_jobs(db_collection_name, slurm=True, unobserved=False,
 
     if unobserved and not slurm and '_id' in filter_dict:
         query_dict = {}
+    elif not slurm:
+        query_dict = {'status': {"$in": [*States.STAGED, *States.PENDING]}, 'slurm.array_id': {'$exists': False}}
     else:
-        query_dict = {'status': {"$in": ['QUEUED']}}
+        query_dict = {'status': {"$in": States.STAGED}}
     query_dict.update(filter_dict)
 
     if collection.count_documents(query_dict) <= 0:
-        logging.error("No queued experiments.")
+        logging.error("No staged experiments.")
         return
 
     exps_full = list(collection.find(query_dict))
@@ -423,11 +427,12 @@ def start_jobs(db_collection_name, slurm=True, unobserved=False,
             logging.error("Refusing to run a compute experiment on a login node. "
                           "Please use Slurm or a compute node.")
             sys.exit(1)
-        [get_output_dir_path(exp) for exp in exps_list]  # Check if output dir exists
+        # [get_output_dir_path(exp) for exp in exps_list]  # Check if output dir exists
         logging.info(f'Starting local worker thread that will run up to {nexps} experiment{s_if(nexps)}, '
-                     f'until no queued experiments remain.')
+                     f'until no staged experiments remain.')
         if not unobserved:
-            collection.update_many({'_id': {'$in': [e['_id'] for e in exps_list]}}, {"$set": {"status": "PENDING"}})
+            collection.update_many({'_id': {'$in': [e['_id'] for e in exps_list if e['status'] in States.STAGED]}},
+                                   {"$set": {"status": States.PENDING[0]}})
         num_exceptions = 0
         tq = tqdm(enumerate(exps_list))
         for i_exp, exp in tq:
@@ -553,13 +558,14 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     logging.info(f"Trying to fetch the machine and port of the Jupyter instance once the job is running... "
                  f"(ctrl-C to cancel).")
 
-    while job_info_dict['JobState'] == "PENDING":
+    while job_info_dict['JobState'] not in States.PENDING:
         job_output = subprocess.check_output(f'scontrol show job {slurm_array_job_id} -o', shell=True)
         job_output_results = job_output.decode("utf-8").split(" ")
         job_info_dict = {x.split("=")[0]: x.split("=")[1] for x in job_output_results}
         time.sleep(1)
     is_starting_up = True
-    if job_info_dict['JobState'] != "RUNNING":
+    time.sleep(1)
+    if job_info_dict['JobState'] not in States.RUNNING:
         logging.error(f"Job failed. See log file at {log_file} for debug information.")
         exit(1)
 

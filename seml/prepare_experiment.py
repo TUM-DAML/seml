@@ -4,6 +4,9 @@ import os
 from seml.start import get_command_from_exp
 from seml.database import get_collection
 from seml.sources import load_sources_from_db
+from seml.settings import SETTINGS
+
+States = SETTINGS.STATES
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -29,10 +32,11 @@ if __name__ == "__main__":
     collection = get_collection(db_collection_name)
 
     exp = collection.find_one({'_id': exp_id})
+    assert exp is not None
     use_stored_sources = args.stored_sources_dir is not None
     if use_stored_sources and not os.listdir(args.stored_sources_dir):
         assert "source_files" in exp['seml'],\
-               "--stored-sources-dir was supplied but queued experiment does not contain stored source files."
+               "--stored-sources-dir was supplied but staged experiment does not contain stored source files."
         load_sources_from_db(exp, collection, to_directory=args.stored_sources_dir)
 
     exe, config = get_command_from_exp(exp, db_collection_name, verbose=args.verbose,
@@ -55,7 +59,7 @@ if __name__ == "__main__":
 
     if exp is None:
         exit(2)
-    if exp['status'] != 'PENDING':
+    if exp['status'] not in States.PENDING:
         exit(1)
     else:
         print(cmd)

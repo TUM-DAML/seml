@@ -10,20 +10,21 @@ from seml.sources import delete_orphaned_sources
 from seml.utils import s_if, chunker
 from seml.settings import SETTINGS
 
+States = SETTINGS.STATES
 
 def report_status(db_collection_name):
     detect_killed(db_collection_name, print_detected=False)
     collection = get_collection(db_collection_name)
-    queued = collection.count_documents({'status': 'QUEUED'})
-    pending = collection.count_documents({'status': 'PENDING'})
-    failed = collection.count_documents({'status': 'FAILED'})
-    killed = collection.count_documents({'status': 'KILLED'})
-    interrupted = collection.count_documents({'status': 'INTERRUPTED'})
-    running = collection.count_documents({'status': 'RUNNING'})
-    completed = collection.count_documents({'status': 'COMPLETED'})
+    staged = collection.count_documents({'status': {'$in': States.STAGED}})
+    pending = collection.count_documents({'status': {'$in': States.PENDING}})
+    failed = collection.count_documents({'status': {'$in': States.FAILED}})
+    killed = collection.count_documents({'status': {'$in': States.KILLED}})
+    interrupted = collection.count_documents({'status': {'$in': States.INTERRUPTED}})
+    running = collection.count_documents({'status': {'$in': States.RUNNING}})
+    completed = collection.count_documents({'status': {'$in': States.COMPLETED}})
     title = f"********** Report for database collection '{db_collection_name}' **********"
     logging.info(title)
-    logging.info(f"*     - {queued:3d} queued experiment{s_if(queued)}")
+    logging.info(f"*     - {staged:3d} staged experiment{s_if(staged)}")
     logging.info(f"*     - {pending:3d} pending experiment{s_if(pending)}")
     logging.info(f"*     - {running:3d} running experiment{s_if(running)}")
     logging.info(f"*     - {completed:3d} completed experiment{s_if(completed)}")
@@ -52,13 +53,13 @@ def cancel_experiment_by_id(collection, exp_id):
             # Check if job exists
             subprocess.check_output(f"scontrol show jobid -dd {job_str}", shell=True)
             # Set the database state to INTERRUPTED
-            collection.update_one({'_id': exp_id}, {'$set': {'status': 'INTERRUPTED'}})
+            collection.update_one({'_id': exp_id}, {'$set': {'status': {"$in": States.INTERRUPTED}}})
 
             # Check if other experiments are running in the same job
             other_exps = collection.find(filter_dict)
             other_exp_running = False
             for e in other_exps:
-                if e['status'] in ["RUNNING", "PENDING"]:
+                if e['status'] in [*States.RUNNING, States.PENDING]:
                     other_exp_running = True
 
             # Cancel if no other experiments are running in the same job
@@ -66,7 +67,7 @@ def cancel_experiment_by_id(collection, exp_id):
                 subprocess.check_output(f"scancel {job_str}", shell=True)
                 # set state to interrupted again (might have been overwritten by Sacred in the meantime).
                 collection.update_many(filter_dict,
-                                       {'$set': {'status': 'INTERRUPTED',
+                                       {'$set': {'status': {'$in': States.INTERRUPTED},
                                                  'stop_time': datetime.datetime.utcnow()}})
 
         except subprocess.CalledProcessError:
@@ -74,7 +75,6 @@ def cancel_experiment_by_id(collection, exp_id):
                           f"with ID {exp_id} is not pending/running in Slurm.")
     else:
         logging.error(f"No experiment found with ID {exp_id}.")
-
 
 def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict):
     """
@@ -90,7 +90,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         List of statuses to filter for. Will cancel all jobs from the database collection
         with one of the given statuses.
     batch_id: int or None
-        The ID of the batch of experiments to cancel. All experiments that are queued together (i.e. within the same
+        The ID of the batch of experiments to cancel. All experiments that are staged together (i.e. within the same
         command line call) have the same batch ID.
     filter_dict: dict or None
         Arbitrary filter dictionary to use for cancelling experiments. Any experiments whose database entries match all
@@ -108,7 +108,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         # However, it is NOT possible right now to cancel a single experiment in a Slurm job with multiple
         # running experiments.
         try:
-            if len({'PENDING', 'RUNNING', 'KILLED'} & set(filter_states)) > 0:
+            if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
                 detect_killed(db_collection_name, print_detected=False)
 
             filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
@@ -135,7 +135,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                 # find experiments RUNNING under the slurm job
                 jobs_running = [e for e in exps
                                 if (e['slurm']['array_id'] == a_id and e['slurm']['task_id'] == t_id
-                                    and e['status'] in ['RUNNING'])]
+                                    and e['status'] in [*States.RUNNING])]
                 running_exp_ids = set(e['_id'] for e in jobs_running)
                 if len(running_exp_ids.difference(exp_ids)) == 0:
                     # there are no running jobs in this slurm job that should not be canceled.
@@ -154,7 +154,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             for s_id in slurm_ids_old:
                 # find experiments RUNNING under the slurm job
                 jobs_running = [e for e in exps_old
-                                if (e['slurm']['id'] == s_id and e['status'] in ['RUNNING'])]
+                                if (e['slurm']['id'] == s_id and e['status'] in States.RUNNING)]
                 running_exp_ids = set(e['_id'] for e in jobs_running)
                 if len(running_exp_ids.difference(exp_ids_old)) == 0:
                     # there are no running jobs in this slurm job that should not be canceled.
@@ -168,7 +168,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                 [subprocess.check_output(f"scancel {' '.join(chunk)}", shell=True) for chunk in chunks]
 
             # update database status and write the stop_time
-            collection.update_many(filter_dict, {'$set': {"status": "INTERRUPTED",
+            collection.update_many(filter_dict, {'$set': {"status": States.INTERRUPTED[0],
                                                           "stop_time": datetime.datetime.utcnow()}})
         except subprocess.CalledProcessError:
             logging.warning(f"One or multiple Slurm jobs were no longer running when I tried to cancel them.")
@@ -180,7 +180,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
 def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict):
     collection = get_collection(db_collection_name)
     if sacred_id is None:
-        if len({'PENDING', 'RUNNING', 'KILLED'} & set(filter_states)) > 0:
+        if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
             detect_killed(db_collection_name, print_detected=False)
 
         filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
@@ -211,8 +211,8 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
 
 
 def reset_single_experiment(collection, exp):
-    exp['status'] = 'QUEUED'
-    keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'config_hash', 'queue_time', 'git']
+    exp['status'] = States.STAGED[0]
+    keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'config_hash', 'add_time', 'git']
 
     # Clean up SEML dictionary
     keep_seml = {'executable', 'executable_relative', 'conda_environment', 'output_dir', 'source_files', 'working_dir'}
@@ -239,7 +239,7 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
     collection = get_collection(db_collection_name)
 
     if sacred_id is None:
-        if len({'PENDING', 'RUNNING', 'KILLED'} & set(filter_states)) > 0:
+        if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
             detect_killed(db_collection_name, print_detected=False)
 
         filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
@@ -267,7 +267,7 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
 
 def detect_killed(db_collection_name, print_detected=True):
     collection = get_collection(db_collection_name)
-    exps = collection.find({'status': {'$in': ['PENDING', 'RUNNING']},
+    exps = collection.find({'status': {'$in': [*States.PENDING, *States.RUNNING]},
                             '$or': [{'slurm.array_id': {'$exists': True}}, {'slurm.id': {'$exists': True}}]})
     running_jobs = get_slurm_arrays_tasks()
     old_running_jobs = get_slurm_jobs()  # Backwards compatibility
@@ -279,10 +279,10 @@ def detect_killed(db_collection_name, print_detected=True):
         exp_running |= ('id' in exp['slurm'] and exp['slurm']['id'] in old_running_jobs)
         if not exp_running:
             if 'stop_time' in exp:
-                collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'INTERRUPTED'}})
+                collection.update_one({'_id': exp['_id']}, {'$set': {'status': States.INTERRUPTED[0]}})
             else:
                 nkilled += 1
-                collection.update_one({'_id': exp['_id']}, {'$set': {'status': 'KILLED'}})
+                collection.update_one({'_id': exp['_id']}, {'$set': {'status': States.KILLED[0]}})
                 try:
                     seml_config = exp['seml']
                     slurm_config = exp['slurm']
@@ -307,8 +307,7 @@ def detect_killed(db_collection_name, print_detected=True):
         logging.info(f"Detected {nkilled} externally killed experiment{s_if(nkilled)}.")
 
 
-slurm_active_states = ['CONFIGURING', 'PENDING', 'RUNNING', 'REQUEUE_FED',
-                       'REQUEUE_HOLD', 'REQUEUED', 'RESIZING', 'SUSPENDED']
+slurm_active_states = SETTINGS.SLURM_ACTIVE_STATES
 
 
 def get_slurm_jobs():

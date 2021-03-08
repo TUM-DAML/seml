@@ -8,6 +8,7 @@ from seml.sources import upload_sources, get_git_info
 from seml.utils import s_if, make_hash
 from seml.settings import SETTINGS
 
+States = SETTINGS.STATES
 
 def filter_experiments(collection, configurations):
     """Check database collection for already present entries.
@@ -49,8 +50,8 @@ def filter_experiments(collection, configurations):
     return filtered_configs
 
 
-def queue_configs(collection, seml_config, slurm_config, configs, source_files=None,
-                  git_info=None):
+def add_configs(collection, seml_config, slurm_config, configs, source_files=None,
+                git_info=None):
     """Put the input configurations into the database.
 
     Parameters
@@ -89,28 +90,28 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
     else:
         batch_id = batch_id + 1
 
-    logging.info(f"Queueing {len(configs)} configs into the database (batch-ID {batch_id}).")
+    logging.info(f"Adding {len(configs)} configs to the database (batch-ID {batch_id}).")
 
     if source_files is not None:
         seml_config['source_files'] = source_files
     db_dicts = [{'_id': start_id + ix,
                  'batch_id': batch_id,
-                 'status': 'QUEUED',
+                 'status': States.STAGED[0],
                  'seml': seml_config,
                  'slurm': slurm_config,
                  'config': c,
                  'config_hash': make_hash(c),
                  'git': git_info,
-                 'queue_time': datetime.datetime.utcnow()}
+                 'add_time': datetime.datetime.utcnow()}
                 for ix, c in enumerate(configs)]
 
     collection.insert_many(db_dicts)
 
 
-def queue_experiments(db_collection_name, config_file, force_duplicates, no_hash=False, no_config_check=False,
-                      no_code_checkpoint=False):
+def add_experiments(db_collection_name, config_file, force_duplicates, no_hash=False, no_sanity_check=False,
+                    no_code_checkpoint=False):
     """
-    Queue configurations from a config file into the database.
+    Add configurations from a config file into the database.
 
     Parameters
     ----------
@@ -119,7 +120,7 @@ def queue_experiments(db_collection_name, config_file, force_duplicates, no_hash
     force_duplicates: if True, disable duplicate detection.
     no_hash: if True, disable hashing of the configurations for duplicate detection. This is much slower, so use only
         if you have a good reason to.
-    no_config_check: if True, do not check the config for missing/unused arguments.
+    no_sanity_check: if True, do not check the config for missing/unused arguments.
     no_code_checkpoint: if True, do not upload the experiment source code files to the MongoDB.
 
     Returns
@@ -162,7 +163,7 @@ def queue_experiments(db_collection_name, config_file, force_duplicates, no_hash
     else:
         uploaded_files = None
 
-    if not no_config_check:
+    if not no_sanity_check:
         check_config(seml_config['executable'], seml_config['conda_environment'], configs)
 
     path, commit, dirty = get_git_info(seml_config['executable'])
@@ -203,6 +204,6 @@ def queue_experiments(db_collection_name, config_file, force_duplicates, no_hash
 
     # Create an index on the config hash. If the index is already present, this simply does nothing.
     collection.create_index("config_hash")
-    # Add the configurations to the database with QUEUED status.
+    # Add the configurations to the database with STAGED status.
     if len(configs) > 0:
-        queue_configs(collection, seml_config, slurm_config, configs, uploaded_files, git_info)
+        add_configs(collection, seml_config, slurm_config, configs, uploaded_files, git_info)

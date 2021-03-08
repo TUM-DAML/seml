@@ -19,7 +19,7 @@ def create_mongodb_observer(collection,
     mongodb_config: dict
         Dictionary containing the connection details to the MongoDB. See get_mongodb_config().
     overwrite: int
-        ID of an experiment to overwrite, e.g. a queued or failed experiment.
+        ID of an experiment to overwrite, e.g. a staged or failed experiment.
 
     Returns
     -------

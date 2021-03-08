@@ -6,11 +6,14 @@ import logging
 
 from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
                          mongodb_credentials_prompt)
-from seml.queuing import queue_experiments
+from seml.add import add_experiments
 from seml.start import start_experiments, start_jupyter_job
 from seml.config import read_config
 from seml.database import clean_unreferenced_artifacts
 from seml.utils import LoggingFormatter
+from seml.settings import SETTINGS
+
+States = SETTINGS.STATES
 
 
 def main():
@@ -36,12 +39,12 @@ def main():
         help="Start a jupyter-lab instance instead of jupyter notebook."
     )
     parser_jupyter.add_argument(
-        "-c", "--conda_env", type=str, default=None,
+        "-c", "--conda-env", type=str, default=None,
         help="Start the Jupyter instance in a Conda environment."
     )
 
     parser_jupyter.add_argument(
-        '-sb', '--sbatch_options', type=json.loads,
+        '-sb', '--sbatch-options', type=json.loads,
         help="Dictionary (passed as a string, e.g. '{\"gres\": \"gpu:2\"}') to request two GPUs.")
 
     parser_jupyter.set_defaults(func=start_jupyter_job)
@@ -51,38 +54,38 @@ def main():
         help="Provide your MongoDB credentials.")
     parser_configure.set_defaults(func=mongodb_credentials_prompt)
 
-    parser_queue = subparsers.add_parser(
-            "queue",
-            help="Queue the experiments as defined in the configuration.")
-    parser_queue.add_argument(
+    parser_add = subparsers.add_parser(
+            "add", aliases=["queue"],
+            help="Add the experiments to the database as defined in the configuration.")
+    parser_add.add_argument(
             'config_file', type=str, nargs='?', default=None,
             help="Path to the YAML configuration file for the experiment.")
-    parser_queue.add_argument(
+    parser_add.add_argument(
             '-nh', '--no-hash', action='store_true',
             help="Do not use the hash of the config dictionary to filter out duplicates (by comparing all"
-                 "dictionary values individually). This is much  slower, so use only if you have a good reason not to"
+                 "dictionary values individually). This is much slower, so use only if you have a good reason not to"
                  " use the hash.")
-    parser_queue.add_argument(
-            '-nc', '--no-config-check', action='store_true',
+    parser_add.add_argument(
+            '-nsc', '--no-sanity-check', action='store_true',
             help="Do not check the config for missing/unused arguments. "
                  "Use this if the check fails unexpectedly when using "
-                 "advanced Sacred features or to accelerate queueing.")
+                 "advanced Sacred features or to accelerate adding.")
 
-    parser_queue.add_argument(
+    parser_add.add_argument(
         '-ncc', '--no-code-checkpoint', action='store_true',
         help="Do upload the source code files to the MongoDB. "
-             "When a queued experiment is started, it will use whatever is the current version of the code "
+             "When a staged experiment is started, it will use whatever is the current version of the code "
              "files (which might have been updated in the meantime or could fail when started).")
 
-    parser_queue.add_argument(
+    parser_add.add_argument(
             '-f', '--force-duplicates', action='store_true',
             help="Add experiments to the database even when experiments with identical configurations "
                  "are already in the database.")
-    parser_queue.set_defaults(func=queue_experiments)
+    parser_add.set_defaults(func=add_experiments)
 
     parser_start = subparsers.add_parser(
             "start",
-            help="Fetch queued experiments from the database and run them (by default via Slurm).")
+            help="Fetch staged experiments from the database and run them (by default via Slurm).")
     parser_start.add_argument(
             '-l', '--local', action='store_true',
             help="Run the experiments locally (not via Slurm).")
@@ -106,11 +109,11 @@ def main():
             help="Only show the associated commands instead of running the experiments.")
     parser_start.add_argument(
             '-id', '--sacred-id', type=int,
-            help="Sacred ID (_id in the database collection) of the experiment to cancel.")
+            help="Sacred ID (_id in the database collection) of the experiment to start.")
     parser_start.add_argument(
             '-b', '--batch-id', type=int,
-            help="Batch ID (batch_id in the database collection) of the experiments to be cancelled. "
-                 "Experiments that were queued together have the same batch_id.")
+            help="Batch ID (batch_id in the database collection) of the experiments to be started. "
+                 "Experiments that were staged together have the same batch_id.")
     parser_start.add_argument(
         '-f', '--filter-dict', type=json.loads,
         help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by.")
@@ -131,13 +134,13 @@ def main():
             '-id', '--sacred-id', type=int,
             help="Sacred ID (_id in the database collection) of the experiment to cancel.")
     parser_cancel.add_argument(
-            '-s', '--filter-states', type=str, nargs='*', default=['PENDING', 'RUNNING'],
+            '-s', '--filter-states', type=str, nargs='*', default=[*States.PENDING, *States.RUNNING],
             help="List of states to filter experiments by. Cancels all experiments if an empty list is passed. "
                  "Default: Cancel all pending and running experiments.")
     parser_cancel.add_argument(
             '-b', '--batch-id', type=int,
             help="Batch ID (batch_id in the database collection) of the experiments to be cancelled. "
-                 "Experiments that were queued together have the same batch_id.")
+                 "Experiments that were staged together have the same batch_id.")
     parser_cancel.add_argument(
             '-f', '--filter-dict', type=json.loads,
             help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') "
@@ -151,13 +154,14 @@ def main():
             '-id', '--sacred-id', type=int,
             help="Sacred ID (_id in the database collection) of the experiment to delete.")
     parser_delete.add_argument(
-            '-s', '--filter-states', type=str, nargs='*', default=['QUEUED', 'FAILED', 'KILLED', 'INTERRUPTED'],
+            '-s', '--filter-states', type=str, nargs='*', default=[*States.STAGED, *States.FAILED,
+                                                                   *States.KILLED, *States.INTERRUPTED],
             help="List of states to filter experiments by. Deletes all experiments if an empty list is passed. "
-                 "Default: Delete all queued, failed, killed and interrupted experiments.")
+                 "Default: Delete all staged, failed, killed and interrupted experiments.")
     parser_delete.add_argument(
             '-b', '--batch-id', type=int,
             help="Batch ID (batch_id in the database collection) of the experiments to be deleted. "
-                 "Experiments that were queued together have the same batch_id.")
+                 "Experiments that were staged together have the same batch_id.")
     parser_delete.add_argument(
             '-f', '--filter-dict', type=json.loads,
             help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') "
@@ -166,13 +170,14 @@ def main():
 
     parser_reset = subparsers.add_parser(
             "reset",
-            help="Reset the state of experiments (set to QUEUED and clean database entry) "
+            help="Reset the state of experiments (set to STAGED and clean database entry) "
                  "by ID or state (does not cancel Slurm jobs).")
     parser_reset.add_argument(
             '-id', '--sacred-id', type=int,
             help="Sacred ID (_id in the database collection) of the experiment to reset.")
     parser_reset.add_argument(
-            '-s', '--filter-states', type=str, nargs='*', default=['FAILED', 'KILLED', 'INTERRUPTED'],
+            '-s', '--filter-states', type=str, nargs='*', default=[*States.FAILED, *States.KILLED,
+                                                                   *States.INTERRUPTED],
             help="List of states to filter experiments by. "
                  "Resets all experiments if an empty list is passed. "
                  "Default: Reset failed, killed and interrupted experiments.")
@@ -183,7 +188,7 @@ def main():
     parser_reset.add_argument(
             '-b', '--batch-id', type=int,
             help="Batch ID (batch_id in the database collection) of the experiments to be deleted. "
-                 "Experiments that were queued together have the same batch_id.")
+                 "Experiments that were staged together have the same batch_id.")
     parser_reset.set_defaults(func=reset_experiments)
 
     parser_detect = subparsers.add_parser(
@@ -223,11 +228,11 @@ def main():
                 logging.warning("Loading the collection name from a config file. This has been deprecated. "
                                 "Please instead provide a database collection name in the command line.")
                 seml_config, _, _ = read_config(args.db_collection_name)
-                if args.func == queue_experiments:
+                if args.func == add_experiments:
                     args.config_file = args.db_collection_name
                 args.db_collection_name = seml_config['db_collection']
-            elif args.func == queue_experiments and not args.config_file:
-                parser_queue.error("the following arguments are required: config_file")
+            elif args.func == add_experiments and not args.config_file:
+                parser_add.error("the following arguments are required: config_file")
 
     f = args.func
     del args.func
