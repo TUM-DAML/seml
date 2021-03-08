@@ -69,10 +69,10 @@ def main():
                  "advanced Sacred features or to accelerate queueing.")
 
     parser_queue.add_argument(
-            '-ncc', '--no-code-checkpoint', action='store_true',
-            help="Do upload the source code files to the MongoDB. "
-                 "When a queued experiment is started, it will use whatever is the current version of the code "
-                 "files (which might have been updated in the meantime or could fail when started).")
+            '-nu', '--no-source-upload', action='store_true',
+            help="Do upload the source files to the MongoDB. "
+                 "When a queued experiment is started, it will use whatever is the current version of the source "
+                 "files.")
 
     parser_queue.add_argument(
             '-f', '--force-duplicates', action='store_true',

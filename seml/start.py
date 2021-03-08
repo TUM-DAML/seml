@@ -373,8 +373,6 @@ def start_jobs(db_collection_name, slurm=True, unobserved=False,
 
     if unobserved and not slurm and '_id' in filter_dict:
         query_dict = {}
-    elif not slurm:
-        query_dict = {'status': {"$in": ['QUEUED', 'PENDING']}}#, 'slurm.array_id': {'$exists': False}}
     else:
         query_dict = {'status': {"$in": ['QUEUED']}}
     query_dict.update(filter_dict)
