@@ -108,7 +108,7 @@ def queue_configs(collection, seml_config, slurm_config, configs, source_files=N
 
 
 def queue_experiments(db_collection_name, config_file, force_duplicates, no_hash=False, no_config_check=False,
-                      no_source_upload=False):
+                      no_code_checkpoint=False):
     """
     Queue configurations from a config file into the database.
 
@@ -120,7 +120,7 @@ def queue_experiments(db_collection_name, config_file, force_duplicates, no_hash
     no_hash: if True, disable hashing of the configurations for duplicate detection. This is much slower, so use only
         if you have a good reason to.
     no_config_check: if True, do not check the config for missing/unused arguments.
-    no_source_upload: if True, do not upload the experiment source files to the MongoDB.
+    no_code_checkpoint: if True, do not upload the experiment source code files to the MongoDB.
 
     Returns
     -------
@@ -157,7 +157,7 @@ def queue_experiments(db_collection_name, config_file, force_duplicates, no_hash
     else:
         batch_id = batch_id + 1
 
-    if seml_config['use_uploaded_sources'] and not no_source_upload:
+    if seml_config['use_uploaded_sources'] and not no_code_checkpoint:
         uploaded_files = upload_sources(seml_config, collection, batch_id)
     else:
         uploaded_files = None
