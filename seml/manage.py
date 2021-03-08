@@ -212,7 +212,8 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
 
 def reset_single_experiment(collection, exp):
     exp['status'] = States.STAGED[0]
-    keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'config_hash', 'add_time', 'git']
+    # queue_time for backward compatibility.
+    keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'config_hash', 'add_time', 'queue_time', 'git']
 
     # Clean up SEML dictionary
     keep_seml = {'executable', 'executable_relative', 'conda_environment', 'output_dir', 'source_files', 'working_dir'}
@@ -231,6 +232,8 @@ def reset_single_experiment(collection, exp):
     sbatch_keys = set(exp['slurm']['sbatch_options'].keys())
     for key in remove_sbatch & sbatch_keys:
         del exp['slurm']['sbatch_options'][key]
+    collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries if entry in exp},
+                           upsert=False)
 
     collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries}, upsert=False)
 

@@ -29,7 +29,7 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     config['db_collection'] = db_collection_name
     if not unobserved:
         config['overwrite'] = exp['_id']
-    config_strings = [f'{key}="{val}"' for key, val in config.items()]
+    config_strings = [f'{key}="{val}"' if type(val) != str else f'{key}="\'{val}\'"' for key, val in config.items()]
     if not verbose:
         config_strings.append("--force")
     if unobserved:
