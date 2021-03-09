@@ -235,8 +235,8 @@ def reset_single_experiment(collection, exp):
     collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries if entry in exp},
                            upsert=False)
 
-    collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries}, upsert=False)
-
+    collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries if entry in exp},
+                           upsert=False)
 
 def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict):
     collection = get_collection(db_collection_name)
@@ -244,6 +244,9 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
     if sacred_id is None:
         if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
             detect_killed(db_collection_name, print_detected=False)
+
+        if isinstance(filter_states, str):
+            filter_states = [filter_states]
 
         filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
 
