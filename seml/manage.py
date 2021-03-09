@@ -1,10 +1,11 @@
 import itertools
 import logging
-import os
 import subprocess
 import datetime
 from getpass import getpass
 import copy
+import shutil
+import os
 import shutil
 import gridfs
 
@@ -248,6 +249,7 @@ def reset_single_experiment(collection, exp):
 
     collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries if entry in exp},
                            upsert=False)
+    delete_file_observer_dir(exp)
 
 
 def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
