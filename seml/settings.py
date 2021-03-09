@@ -38,5 +38,12 @@ SETTINGS = munchify(
         },
         "SLURM_ACTIVE_STATES": ['CONFIGURING', 'PENDING', 'RUNNING', 'REQUEUE_FED',
                        'REQUEUE_HOLD', 'REQUEUED', 'RESIZING', 'SUSPENDED'],
+
+        "OBSERVERS": {
+            "FILE": {
+                "DEFAULT_BASE_DIR": f"{Path.home()}/seml/runs",
+            },
+        },
+
     },
 )
