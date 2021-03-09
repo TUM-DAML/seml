@@ -5,6 +5,7 @@ import subprocess
 import datetime
 from getpass import getpass
 import copy
+import shutil
 import gridfs
 
 from seml.config import check_config
@@ -165,6 +166,20 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         cancel_experiment_by_id(collection, sacred_id)
 
 
+def delete_file_observer_dir(run):
+    if ('config' in run and 'file_observer_base_dir' in run['config']
+            and 'runs_folder_name' in run['config']):
+        if run['config']['file_observer_base_dir'] is None:
+            file_observer_base = SETTINGS.OBSERVERS.FILE.DEFAULT_BASE_DIR
+        else:
+            file_observer_base = run['config']['file_observer_base_dir']
+        runs_folder_name = run['config']['runs_folder_name']
+        observer_dir = f"{file_observer_base}/{runs_folder_name}/{run['_id']}"
+        if os.path.isdir(observer_dir):
+            shutil.rmtree(observer_dir)
+            logging.info(f"Removed file observer directory {observer_dir}")
+
+
 def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
     collection = get_collection(db_collection_name)
     if sacred_id is None:
@@ -180,7 +195,10 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         if ndelete >= SETTINGS.CONFIRM_DELETE_THRESHOLD:
             if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
                 exit()
+        for run in collection.find(filter_dict, {'config.file_observer_base_dir': 1, '_id': 1}):
+            delete_file_observer_dir(run)
         collection.delete_many(filter_dict)
+
     else:
         exp = collection.find_one({'_id': sacred_id})
         if exp is None:
@@ -191,6 +209,8 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                 if not yes and input('Are you sure? (y/n)').lower() != 'y':
                     exit()
             batch_ids_in_del = set([exp['batch_id']])
+            run = collection.find_one({'_id': sacred_id})
+            delete_file_observer_dir(run)
             collection.delete_one({'_id': sacred_id})
 
     if len(batch_ids_in_del) > 0:
@@ -376,7 +396,7 @@ def mongodb_credentials_prompt():
 
 def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False):
     collection = get_collection(db_collection_name)
-    
+
     if batch_ids is not None:
         filter_dict = {'batch_id': {'$in': list(batch_ids)}}
     else:
@@ -445,7 +465,7 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
             for to_delete in source_files:
                 fs.delete(to_delete[1])
             raise e
-        
+
         # Delete the old source files
         if not keep_old:
             fs_filter_dict = {
