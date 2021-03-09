@@ -78,7 +78,10 @@ SETTINGS = munchify(
             "MATTERMOST": {
                 "WEBHOOK": "YOUR_WEBHOOK",
                 "DEFAULT_CHANNEL": "YOUR_DEFAULT_CHANNEL",
-            }
+            },
+            "FILE": {
+                "DEFAULT_BASE_DIR": f"{Path.home()}/seml/runs",
+            },
         },
 
         "CONFIRM_CANCEL_THRESHOLD": 10,

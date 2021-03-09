@@ -3,6 +3,8 @@ import subprocess
 import datetime
 from getpass import getpass
 import copy
+import shutil
+import os
 
 from seml.database import get_collection, build_filter_dict
 from seml.sources import delete_orphaned_sources
@@ -163,6 +165,20 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         cancel_experiment_by_id(collection, sacred_id)
 
 
+def delete_file_observer_dir(run):
+    if ('config' in run and 'file_observer_base_dir' in run['config']
+            and 'runs_folder_name' in run['config']):
+        if run['config']['file_observer_base_dir'] is None:
+            file_observer_base = SETTINGS.OBSERVERS.FILE.DEFAULT_BASE_DIR
+        else:
+            file_observer_base = run['config']['file_observer_base_dir']
+        runs_folder_name = run['config']['runs_folder_name']
+        observer_dir = f"{file_observer_base}/{runs_folder_name}/{run['_id']}"
+        if os.path.isdir(observer_dir):
+            shutil.rmtree(observer_dir)
+            logging.info(f"Removed file observer directory {observer_dir}")
+
+
 def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict):
     collection = get_collection(db_collection_name)
     if sacred_id is None:
@@ -180,6 +196,9 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                 exit()
         else:
             logging.info(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection.")
+        for run in collection.find(filter_dict, {'config.file_observer_base_dir': 1, '_id': 1}):
+            delete_file_observer_dir(run)
+
         collection.delete_many(filter_dict)
     else:
         exp = collection.find_one({'_id': sacred_id})
@@ -188,6 +207,8 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         else:
             logging.info(f"Deleting experiment with ID {sacred_id}.")
             batch_ids_in_del = set([exp['batch_id']])
+            run = collection.find_one({'_id': sacred_id})
+            delete_file_observer_dir(run)
             collection.delete_one({'_id': sacred_id})
 
     if len(batch_ids_in_del) > 0:
