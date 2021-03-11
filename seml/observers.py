@@ -4,7 +4,7 @@ import logging
 from seml.database import get_mongodb_config
 from seml.settings import SETTINGS
 
-__all__ = ['create_mongodb_observer', 'create_slack_observer', 'create_neptune_observer']
+__all__ = ['create_mongodb_observer', 'create_slack_observer', 'create_neptune_observer', 'create_mattermost_observer']
 
 
 def create_mongodb_observer(collection,
@@ -59,6 +59,28 @@ def create_slack_observer(webhook=None):
     if slack_obs is None:
         logging.warning('Failed to create Slack observer.')
     return slack_obs
+
+
+def create_mattermost_observer(webhook=None, channel=None):
+    from seml.mattermost_observer import MattermostObserver
+
+    mattermost_observer = None
+    if channel is None:
+        if "OBSERVERS" in SETTINGS and "MATTERMOST" in SETTINGS.OBSERVERS:
+            if channel is None and "DEFAULT_CHANNEL" in SETTINGS.OBSERVERS.MATTERMOST:
+                channel = SETTINGS.OBSERVERS.MATTERMOST.DEFAULT_CHANNEL
+    if webhook is None:
+        if "OBSERVERS" in SETTINGS and "MATTERMOST" in SETTINGS.OBSERVERS:
+            if channel is None and "DEFAULT_CHANNEL" in SETTINGS.OBSERVERS.MATTERMOST:
+                channel = SETTINGS.OBSERVERS.MATTERMOST.DEFAULT_CHANNEL
+            if "WEBHOOK" in SETTINGS.OBSERVERS.MATTERMOST:
+                webhook = SETTINGS.OBSERVERS.MATTERMOST.WEBHOOK
+
+    mattermost_observer = MattermostObserver(webhook, channel=channel)
+
+    if mattermost_observer is None:
+        logging.warning('Failed to create Slack observer.')
+    return mattermost_observer
 
 
 def create_neptune_observer(project_name, api_token=None,
