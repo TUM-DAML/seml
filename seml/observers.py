@@ -99,7 +99,10 @@ def create_neptune_observer(project_name, api_token=None,
 
 
 class MattermostObserver(RunObserver):
-    """Sends a message to Mattermost upon completion/failing of an experiment."""
+    """
+    Based on Sacred's Slack observer: https://github.com/IDSIA/sacred/blob/master/sacred/observers/slack.py
+    Sends a message to Mattermost upon completion/failing of an experiment.
+    """
 
     @classmethod
     def from_config(cls, filename):
