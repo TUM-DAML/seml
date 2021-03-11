@@ -31,8 +31,18 @@ if __name__ == "__main__":
 
     collection = get_collection(db_collection_name)
 
-    exp = collection.find_one({'_id': exp_id})
-    assert exp is not None
+    # this returns the document as it was BEFORE the update. So we first have to check whether its state was
+    # PENDING. Otherwise, we reset the state and abort. This is to avoid race conditions, since find_one_and_update
+    # is an atomic operation.
+    exp = collection.find_one_and_update({'_id': exp_id},
+                                         {"$set": {"status": States.RUNNING[0]}})
+    if exp is None:
+        exit(2)
+    if exp['status'] not in States.PENDING:
+        # reset state to the previous state before we updated it to RUNNING.
+        exp = collection.find_one_and_update({'_id': exp_id},
+                                             {"$set": {"status": exp['status']}})
+        exit(1)
     use_stored_sources = args.stored_sources_dir is not None
     if use_stored_sources and not os.listdir(args.stored_sources_dir):
         assert "source_files" in exp['seml'],\
@@ -57,10 +67,5 @@ if __name__ == "__main__":
                 {'_id': exp_id},
                 {'$set': {'seml.command': cmd}})
 
-    if exp is None:
-        exit(2)
-    if exp['status'] not in States.PENDING:
-        exit(1)
-    else:
-        print(cmd)
-        exit(0)
+    print(cmd)
+    exit(0)
