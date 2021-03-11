@@ -38,5 +38,18 @@ SETTINGS = munchify(
         },
         "SLURM_ACTIVE_STATES": ['CONFIGURING', 'PENDING', 'RUNNING', 'REQUEUE_FED',
                        'REQUEUE_HOLD', 'REQUEUED', 'RESIZING', 'SUSPENDED'],
+
+        "OBSERVERS": {
+            "NEPTUNE": {
+                "AUTH_TOKEN": "YOUR_AUTH_TOKEN",
+            },
+            "SLACK": {
+                "WEBHOOK": "YOUR_WEBHOOK",
+            },
+            "MATTERMOST": {
+                "WEBHOOK": "YOUR_WEBHOOK",
+                "DEFAULT_CHANNEL": "YOUR_DEFAULT_CHANNEL",
+            }
+        },
     },
 )
