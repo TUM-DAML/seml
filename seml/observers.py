@@ -7,7 +7,8 @@ import json
 from seml.database import get_mongodb_config
 from seml.settings import SETTINGS
 
-__all__ = ['create_mongodb_observer', 'create_slack_observer', 'create_neptune_observer', 'create_mattermost_observer']
+__all__ = ['create_mongodb_observer', 'create_slack_observer', 'create_neptune_observer', 'create_mattermost_observer',
+           'MattermostObserver']
 
 
 def create_mongodb_observer(collection,
