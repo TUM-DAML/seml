@@ -123,7 +123,7 @@ def main():
              "effect for Slurm jobs.",
     )
     parser_start_launch_parent.add_argument(
-        '-wk', '--worker-kwargs', type=json.loads,
+        '-we', '--worker-environment-vars', type=json.loads,
         help="Further environment variables to be set for the local worker. Has no effect for Slurm jobs.",
     )
 

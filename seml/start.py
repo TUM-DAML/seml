@@ -588,7 +588,7 @@ def print_commands(collection, unobserved, post_mortem, num_exps, filter_dict):
 def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
                       num_exps, unobserved, post_mortem, debug, dry_run,
                       output_to_console, no_file_output, local_steal_slurm,
-                      no_worker, set_to_pending=True, worker_gpus=None, worker_cpus=None, worker_kwargs=None):
+                      no_worker, set_to_pending=True, worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
 
     use_slurm = not local
     output_to_file = not no_file_output
@@ -646,7 +646,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
         start_local_worker(collection=collection, num_exps=num_exps, filter_dict=filter_dict, unobserved=unobserved,
                            post_mortem=post_mortem, local_steal_slurm_jobs=local_steal_slurm,
                            output_to_console=output_to_console, output_to_file=output_to_file,
-                           gpus=worker_gpus, cpus=worker_cpus, **worker_kwargs)
+                           gpus=worker_gpus, cpus=worker_cpus, environment_variables=worker_environment_vars)
 
 
 def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: bool = False):
