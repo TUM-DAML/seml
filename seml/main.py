@@ -131,9 +131,7 @@ def main():
     parser_start.add_argument(
             '-d', '--debug', action='store_true',
             help="Run a single experiment locally without Sacred observers and with post-mortem debugging. "
-                 "This is equivalent to  "
-                 "`--verbose --local --num-exps 1 --post-mortem --output-to-console`, "
-                 "and additionally we suppress Sacred observers by passing --unobserved to the experiments.")
+                 "Implies `--verbose --local --num-exps 1 --post-mortem --output-to-console`.")
     parser_start.add_argument(
             '-dr', '--dry-run', action='store_true',
             help="Only show the associated commands instead of running the experiments.")
