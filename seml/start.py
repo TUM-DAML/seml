@@ -137,7 +137,10 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     if 'output' in sbatch_options:
         logging.error(f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
         sys.exit(1)
-    sbatch_options['output'] = f'{output_dir_path}/{name}_%A_%a.out'
+    elif output_dir_path != "/dev/null":
+        sbatch_options['output'] = f'{output_dir_path}/{name}_%A_%a.out'
+    else:
+        sbatch_options['output'] = output_dir_path
 
     # Construct sbatch options string
     sbatch_options_str = create_sbatch_options_string(sbatch_options)
@@ -197,7 +200,8 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     os.remove(path)
 
 
-def start_local_job(collection, exp, unobserved=False, post_mortem=False, output_dir_path='.'):
+def start_local_job(collection, exp, unobserved=False, post_mortem=False,
+                    output_dir_path='.', output_to_console=False):
     """Run an experiment locally.
 
     Parameters
@@ -212,10 +216,13 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
         Activate post-mortem debugging.
     output_dir_path: str
         Write the output to a file in `output_dir` given by the SEML config or in the current directory.
+    output_to_console:
+        Pipe all output (stdout and stderr) to the console.
 
     Returns
     -------
-    None
+    True if job was executed successfully; False if it failed; None if job was not started because the database entry
+    was not in the PENDING state.
     """
 
     use_stored_sources = ('source_files' in exp['seml'])
@@ -227,18 +234,6 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
         os.chdir(exp['seml']['working_dir'])
 
     cmd = f"python {exe} with {' '.join(config)}"
-    if not unobserved:
-        # check also whether PENDING experiments have their Slurm ID set, in this case they are waiting
-        # for Slurm execution and we don't start them locally.
-        db_entry = collection.find_one_and_update(filter={'_id': exp['_id'], 'status': {"$in": States.PENDING},
-                                                          'slurm.array_id': {'$exists': False}},
-                                                  update={'$set': {'seml.command': cmd,
-                                                                   'status': States.RUNNING[0]}},
-                                                  upsert=False)
-        if db_entry is None:
-            # another worker already set this entry to PENDING (or at least, it's no longer STAGED)
-            # so we ignore it.
-            return None
 
     success = True
     try:
@@ -256,6 +251,15 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
             # update the command to use the temp dir
             cmd = f'PYTHONPATH="{temp_dir}:$PYTHONPATH" python {temp_dir}/{exe} with {" ".join(config)}'
 
+        if output_dir_path:
+            exp_name = get_exp_name(exp, collection.name)
+            output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
+            collection.find_one_and_update({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
+            if output_to_console:
+                # redirect output to logfile AND output to console. See https://stackoverflow.com/a/34604684.
+                # Alternatively, we could go with subprocess.Popen, but this could conflict with pdb.
+                cmd = f"{cmd} 2>&1 | tee -a {output_file}"
+
         if 'conda_environment' in seml_config and seml_config['conda_environment'] is not None:
             cmd = (f". $(conda info --base)/etc/profile.d/conda.sh "
                    f"&& conda activate {seml_config['conda_environment']} "
@@ -265,12 +269,12 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
         logging.verbose(f'Running the following command:\n {cmd}')
 
         if output_dir_path:
-            exp_name = get_exp_name(exp, collection.name)
-            output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
-            collection.find_and_modify({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
-            with open(output_file, "w") as log_file:
-                # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
-                subprocess.check_call(cmd, shell=True, stderr=log_file, stdout=log_file)
+            if output_to_console:
+                subprocess.check_call(cmd, shell=True,)
+            else:  # redirect output to logfile
+                with open(output_file, "w") as log_file:
+                    # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
+                    subprocess.check_call(cmd, shell=True, stderr=log_file, stdout=log_file)
         else:
             subprocess.check_call(cmd, shell=True)
 
@@ -283,12 +287,11 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False, output
                                        update={'$set': {'status': States.FAILED[0]}},
                                        upsert=False)
         success = False
-
     finally:
         if use_stored_sources and 'temp_dir' in locals():
             # clean up temp directory
             shutil.rmtree(temp_dir)
-        return success
+    return success
 
 
 def chunk_list(exps):
@@ -338,124 +341,216 @@ def batch_chunks(exp_chunks):
     return exp_arrays
 
 
-def start_jobs(db_collection_name, slurm=True, unobserved=False,
-               post_mortem=False, num_exps=-1, filter_dict=None, dry_run=False,
-               output_to_file=True):
-    """Pull staged experiments from the database and run them.
+def get_staged_experiments(collection, filter_dict=None, num_exps=0, slurm=True, set_to_pending=True):
+    """
+    Load experiments with state STAGED from the input MongoDB collection. If set_to_pending is True, we also set their
+    status to PENDING.
 
     Parameters
     ----------
-    db_collection_name: str
-        Name of the collection in the MongoDB.
+    collection: pymongo.collection.Collection
+        The MongoDB collection with STAGED experiments.
+    filter_dict: dict
+        Optional dict with custom database filters.
+    num_exps: int
+        Only set <num_exps> experiments' state to PENDING. If 0, set all STAGED experiments to PENDING.
     slurm: bool
-        Use the Slurm cluster.
+        If True, we also set 'slurm.array_id' in order to prevent these jobs from being executed by local workers.
+    set_to_pending: bool
+        Whether to update the database entries to status PENDING.
+
+    Returns
+    -------
+    The list of database entries with status STAGED.
+    """
+    if filter_dict is None:
+        filter_dict = {}
+
+    query_dict = {'status': {"$in": States.STAGED}}
+    query_dict.update(filter_dict)
+
+    staged_experiments = list(collection.find(query_dict, limit=num_exps))
+    if set_to_pending:
+        update_dict = {"$set": {"status": States.PENDING[0]}}
+        if slurm:
+            # set slurm.array_id so that local workers don't start these jobs.
+            update_dict['$set']['slurm.array_id'] = None
+
+        if num_exps > 0:
+            # only set the experiments to PENDING which will be run.
+            collection.update_many({'_id': {'$in': [e['_id'] for e in staged_experiments
+                                                    if e['status'] in States.STAGED]}},
+                                   update_dict, )
+        else:
+            collection.update_many(query_dict, update_dict)
+
+    return staged_experiments
+
+
+def set_environment_variables(gpus=None, cpus=None, environment_variables=None):
+    if environment_variables is None:
+        environment_variables = {}
+
+    if gpus is not None:
+        if isinstance(gpus, list):
+            logging.info('Received an input of type list to set CUDA_VISIBLE_DEVICES.'
+                         'Please pass a string for input "gpus", e.g. "1,2" if you want to use GPUs with IDs 1 and 2.')
+            exit(1)
+        environment_variables['CUDA_VISIBLE_DEVICES'] = str(gpus)
+    if cpus is not None:
+        environment_variables['OMP_NUM_THREADS'] = str(cpus)
+    os.environ.update(environment_variables)
+
+
+def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=False,
+                       output_to_file=True, output_to_console=False):
+    """
+    Send the input list of experiments to the Slurm system for execution.
+
+    Parameters
+    ----------
+    collection: pymongo.collection.Collection
+        The MongoDB collection containing the experiments.
+    exps_list: list of dicts
+        The list of database entries corresponding to experiments to be executed.
     unobserved: bool
-        Disable all Sacred observers (nothing written to MongoDB).
+        Whether to suppress observation by Sacred observers.
     post_mortem: bool
         Activate post-mortem debugging.
-    num_exps: int, default: -1
-        If >0, will only submit the specified number of experiments to the cluster.
-        This is useful when you only want to test your setup.
-    filter_dict: dict
-        Dictionary for filtering the entries in the collection.
-    dry_run: bool
-        Just return the executables and configurations instead of running them.
     output_to_file: bool
-        Pipe all output (stdout and stderr) to an output file.
-        Can only be False if slurm is False.
+        Whether to capture output in a logfile.
+    output_to_console: bool
+        Whether to capture output in the console. This is currently not supported for Slurm jobs and will raise an
+        error if set to True.
 
     Returns
     -------
     None
     """
-    if filter_dict is None:
-        filter_dict = {}
 
-    collection = get_collection(db_collection_name)
+    if output_to_console:
+        logging.error("Output cannot be written to stdout in Slurm mode. "
+                      "Remove the '--output-to-console' argument.")
+        sys.exit(1)
+    nexps = len(exps_list)
+    exp_chunks = chunk_list(exps_list)
+    exp_arrays = batch_chunks(exp_chunks)
+    njobs = len(exp_chunks)
+    narrays = len(exp_arrays)
 
-    if unobserved and not slurm and '_id' in filter_dict:
-        query_dict = {}
-    elif not slurm:
-        query_dict = {'status': {"$in": [*States.STAGED, *States.PENDING]}, 'slurm.array_id': {'$exists': False}}
-    else:
-        query_dict = {'status': {"$in": States.STAGED}}
-    query_dict.update(filter_dict)
+    logging.info(f"Starting {nexps} experiment{s_if(nexps)} in "
+                 f"{njobs} Slurm job{s_if(njobs)} in {narrays} Slurm job array{s_if(narrays)}.")
 
-    if collection.count_documents(query_dict) <= 0:
-        logging.error("No staged experiments.")
-        return
-
-    exps_full = list(collection.find(query_dict))
-
-    nexps = num_exps if num_exps > 0 else len(exps_full)
-    exps_list = exps_full[:nexps]
-
-    if dry_run:
-        configs = []
-        for exp in exps_list:
-            exe, config = get_command_from_exp(exp, db_collection_name,
-                                               verbose=logging.root.level <= logging.VERBOSE,
-                                               unobserved=unobserved, post_mortem=post_mortem)
-            if 'conda_environment' in exp['seml']:
-                configs.append((exe, exp['seml']['conda_environment'], config))
-            else:
-                configs.append((exe, None, config))
-        return configs
-    elif slurm:
-        if not output_to_file:
-            logging.error("Output cannot be written to stdout in Slurm mode. "
-                          "Remove the '--output-to-console' argument.")
-            sys.exit(1)
-        exp_chunks = chunk_list(exps_list)
-        exp_arrays = batch_chunks(exp_chunks)
-        njobs = len(exp_chunks)
-        narrays = len(exp_arrays)
-
-        logging.info(f"Starting {nexps} experiment{s_if(nexps)} in "
-                     f"{njobs} Slurm job{s_if(njobs)} in {narrays} Slurm job array{s_if(narrays)}.")
-
-        for exp_array in exp_arrays:
-            job_name = get_exp_name(exp_array[0][0], collection.name)
+    for exp_array in exp_arrays:
+        job_name = get_exp_name(exp_array[0][0], collection.name)
+        if output_to_file:
             output_dir_path = get_output_dir_path(exp_array[0][0])
-            slurm_config = exp_array[0][0]['slurm']
-            del slurm_config['experiments_per_job']
-            start_slurm_job(collection, exp_array, unobserved, post_mortem,
-                            name=job_name, output_dir_path=output_dir_path, **slurm_config)
-    else:
-        login_node_name = 'fs'
-        if login_node_name in os.uname()[1]:
-            logging.error("Refusing to run a compute experiment on a login node. "
-                          "Please use Slurm or a compute node.")
-            sys.exit(1)
-        # [get_output_dir_path(exp) for exp in exps_list]  # Check if output dir exists
-        logging.info(f'Starting local worker thread that will run up to {nexps} experiment{s_if(nexps)}, '
+        else:
+            output_dir_path = "/dev/null"
+        slurm_config = exp_array[0][0]['slurm']
+        del slurm_config['experiments_per_job']
+        start_slurm_job(collection, exp_array, unobserved, post_mortem,
+                        name=job_name, output_dir_path=output_dir_path,
+                        **slurm_config)
+
+
+def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=False, post_mortem=False,
+                       steal_slurm=False, output_to_console=False, output_to_file=True,
+                       gpus=None, cpus=None, environment_variables=None):
+    """
+    Start a local worker on the current machine that pulls PENDING experiments from the database and executes them.
+
+    Parameters
+    ----------
+    collection: pymongo.collection.Collection
+        The MongoDB collection containing the experiments.
+    num_exps: int
+        The maximum number of experiments run by this worker before terminating.
+    filter_dict: dict
+        Optional dict with custom database filters.
+    unobserved: bool
+        Whether to suppress observation by Sacred observers.
+    post_mortem: bool
+        Activate post-mortem debugging.
+    steal_slurm: bool
+        If True, the local worker will also execute jobs waiting for execution in Slurm.
+    output_to_console: bool
+        Whether to capture output in the console.
+    output_to_file: bool
+        Whether to capture output in a logfile.
+    gpus: str
+        Comma-separated list of GPU IDs to be used by this worker (e.g., "2,3"). Will be passed to CUDA_VISIBLE_DEVICES.
+    cpus: int
+        Number of CPU cores to be used by this worker. If None, use all cores.
+    environment_variables: dict
+        Optional dict of additional environment variables to be set.
+
+    Returns
+    -------
+    None
+    """
+    login_node_name = 'fs'
+    if login_node_name in os.uname()[1]:
+        logging.error("Refusing to run a compute experiment on a login node. "
+                      "Please use Slurm or a compute node.")
+        sys.exit(1)
+
+    if num_exps > 0:
+        logging.info(f'Starting local worker thread that will run up to {num_exps} experiment{s_if(num_exps)}, '
                      f'until no staged experiments remain.')
-        if not unobserved:
-            collection.update_many({'_id': {'$in': [e['_id'] for e in exps_list if e['status'] in States.STAGED]}},
-                                   {"$set": {"status": States.PENDING[0]}})
-        num_exceptions = 0
-        tq = tqdm(enumerate(exps_list))
-        for i_exp, exp in tq:
-            if output_to_file:
-                output_dir_path = get_output_dir_path(exp)
-            else:
-                output_dir_path = None
-            success = start_local_job(collection, exp, unobserved, post_mortem, output_dir_path)
+    else:
+        logging.info(f'Starting local worker thread that will run experiments until no staged experiments remain.')
+        num_exps = int(1e30)
+
+    set_environment_variables(gpus, cpus, environment_variables)
+
+    num_exceptions = 0
+    jobs_counter = 0
+
+    if not steal_slurm:
+        staged_query = {'status': {"$in": States.PENDING}, 'slurm.array_id': {'$exists': False}}
+    else:
+        staged_query = {'status': {"$in": States.PENDING}}
+
+    staged_query.update(filter_dict)
+
+    tq = tqdm()
+    while collection.count_documents(staged_query) > 0 and jobs_counter < num_exps:
+        exp = collection.find_one_and_update(staged_query, {"$set": {"status": States.RUNNING[0]}})
+        if exp is None:
+            continue
+
+        if output_to_file:
+            output_dir_path = get_output_dir_path(exp)
+        else:
+            output_dir_path = None
+        try:
+            success = start_local_job(collection=collection, exp=exp, unobserved=unobserved, post_mortem=post_mortem,
+                                      output_dir_path=output_dir_path, output_to_console=output_to_console)
             if success is False:
                 num_exceptions += 1
-            tq.set_postfix(failed=f"{num_exceptions}/{i_exp} experiments")
+        except KeyboardInterrupt:
+            logging.info("Caught KeyboardInterrupt signal. Aborting.")
+            exit(1)
+        jobs_counter += 1
+        tq.set_postfix(failed=f"{num_exceptions}/{jobs_counter} experiments")
 
 
-def print_commands(db_collection_name, unobserved, post_mortem, num_exps, filter_dict):
+def print_commands(collection, unobserved, post_mortem, num_exps, filter_dict):
     orig_level = logging.root.level
     logging.root.setLevel(logging.VERBOSE)
-    configs = start_jobs(db_collection_name, slurm=False,
-                         unobserved=True, post_mortem=False,
-                         num_exps=1, filter_dict=filter_dict, dry_run=True)
-    if configs is None:
+    exps_list = get_staged_experiments(collection=collection, filter_dict=filter_dict, num_exps=num_exps,
+                                       set_to_pending=False)
+    if len(exps_list) == 0:
         return
+
+    exp = exps_list[0]
+    exe, config = get_command_from_exp(exp, collection.name,
+                                       verbose=logging.root.level <= logging.VERBOSE,
+                                       unobserved=unobserved, post_mortem=False)
+    env = exp['seml']['conda_environment'] if 'conda_environment' in exp['seml'] else None
+
     logging.info("********** First experiment **********")
-    exe, env, config = configs[0]
     logging.info(f"Executable: {exe}")
     if env is not None:
         logging.info(f"Anaconda environment: {env}")
@@ -472,27 +567,32 @@ def print_commands(db_collection_name, unobserved, post_mortem, num_exps, filter
     logging.info(" ".join(config))
 
     logging.info("\nCommand for running locally with post-mortem debugging:")
-    configs = start_jobs(db_collection_name, slurm=False,
-                         unobserved=True, post_mortem=True,
-                         num_exps=1, filter_dict=filter_dict, dry_run=True)
-    exe, _, config = configs[0]
+    exe, config = get_command_from_exp(exps_list[0], collection.name,
+                                       verbose=logging.root.level <= logging.VERBOSE,
+                                       unobserved=unobserved, post_mortem=True)
     logging.info(f"python {exe} with {' '.join(config)}")
 
     logging.info("\n********** All raw commands **********")
     logging.root.setLevel(orig_level)
-    configs = start_jobs(db_collection_name, slurm=False,
-                         unobserved=unobserved, post_mortem=post_mortem,
-                         num_exps=num_exps, filter_dict=filter_dict, dry_run=True)
-    for (exe, _, config) in configs:
+    start_experiments(collection, local=True,
+                      unobserved=unobserved, post_mortem=post_mortem,
+                      num_exps=num_exps, filter_dict=filter_dict, dry_run=True)
+    for exp in exps_list:
+        exe, config = get_command_from_exp(exp, collection.name,
+                                           unobserved=unobserved, post_mortem=post_mortem)
         logging.info(f"python {exe} with {' '.join(config)}")
 
 
 def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
-                      num_exps, unobserved, post_mortem, debug, dry_run,
-                      output_to_console):
-    use_slurm = not local
-    output_to_file = not output_to_console
+                      num_exps, post_mortem, debug, dry_run,
+                      output_to_console, no_file_output, steal_slurm,
+                      no_worker, set_to_pending=True, worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
 
+    use_slurm = not local
+    output_to_file = not no_file_output
+    launch_worker = not no_worker
+
+    unobserved = False
     if debug:
         num_exps = 1
         use_slurm = False
@@ -501,19 +601,46 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
         output_to_file = False
         logging.root.setLevel(logging.VERBOSE)
 
+    if filter_dict is None:
+        filter_dict = {}
+
+    if unobserved:
+        set_to_pending = False
+
+    if worker_environment_vars is None:
+        worker_environment_vars = {}
+
     if sacred_id is None:
         filter_dict = build_filter_dict([], batch_id, filter_dict)
     else:
-        filter_dict = {'_id': sacred_id}
+        # if we have a specific sacred ID, we ignore the state of the experiment and run it in any case.
+        all_states = (States.PENDING + States.STAGED + States.RUNNING + States.FAILED + States.INTERRUPTED
+                      + States.KILLED + States.COMPLETED)
+        filter_dict.update({'_id': sacred_id, "status": {"$in": all_states}})
+
+    collection = get_collection(db_collection_name)
 
     if dry_run:
-        print_commands(db_collection_name, unobserved=unobserved, post_mortem=post_mortem,
+        print_commands(collection, unobserved=unobserved, post_mortem=post_mortem,
                        num_exps=num_exps, filter_dict=filter_dict)
-    else:
-        start_jobs(db_collection_name, slurm=use_slurm,
-                   unobserved=unobserved, post_mortem=post_mortem,
-                   num_exps=num_exps, filter_dict=filter_dict, dry_run=dry_run,
-                   output_to_file=output_to_file)
+        return
+
+    staged_experiments = get_staged_experiments(collection=collection, filter_dict=filter_dict, num_exps=num_exps,
+                                                slurm=use_slurm, set_to_pending=set_to_pending)
+
+    if len(staged_experiments) == 0 and use_slurm:
+        logging.error("No staged experiments.")
+        return
+
+    if use_slurm:
+        add_to_slurm_queue(collection=collection, exps_list=staged_experiments, unobserved=unobserved,
+                           post_mortem=post_mortem, output_to_file=output_to_file, output_to_console=output_to_console)
+
+    elif launch_worker:
+        start_local_worker(collection=collection, num_exps=num_exps, filter_dict=filter_dict, unobserved=unobserved,
+                           post_mortem=post_mortem, steal_slurm=steal_slurm,
+                           output_to_console=output_to_console, output_to_file=output_to_file,
+                           gpus=worker_gpus, cpus=worker_cpus, environment_variables=worker_environment_vars)
 
 
 def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: bool = False):
@@ -547,7 +674,6 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
 
     slurm_array_job_id = int(output.split(b' ')[-1])
     logging.info(f"Started Jupyter job in Slurm job with ID {slurm_array_job_id}.")
-
 
     job_output = subprocess.check_output(f'scontrol show job {slurm_array_job_id} -o', shell=True)
     job_output_results = job_output.decode("utf-8").split(" ")

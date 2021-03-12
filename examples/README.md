@@ -204,6 +204,21 @@ seml seml_example start
 ```
 This will start all experiments in the MongoDB collection `seml_example` that currently are in the STAGED state.
 
+## Run experiments locally
+You can also run your experiments locally without Slurm. For this, add the `--local` option:
+```bash
+seml seml_example start --local
+```
+You can even have multiple local workers running jobs in parallel. To add a local worker, run
+```bash
+seml seml_example launch-worker --worker-gpus="1" --worker-cpus=8
+```
+In this example, the worker will use the GPU with ID 1 (i.e., set `CUDA_VISIBLE_DEVICES="1"`) and can use 8 CPU cores.
+
+The `--steal-slurm` option allows local workers to pop experiments from the Slurm queue. Since SEML checks the
+database state of each experiment before actually executing it via Slurm, there is no risk of running duplicate 
+experiments.
+
 ### Running multiple experiments per Slurm job
 Often a single experiment requires much less GPU RAM than is available on a GPU. Thus, we can often
 run multiple experiments per Slurm job (which commonly uses a single GPU) to increase the throughput of our experiments.
