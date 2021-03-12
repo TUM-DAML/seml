@@ -592,14 +592,6 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     output_to_file = not no_file_output
     launch_worker = not no_worker
 
-    if filter_dict is None:
-        filter_dict = {}
-
-    if use_slurm and not set_to_pending:
-        logging.error("use_slurm is True but set_to_pending is False, which are incompatible. Either perform local"
-                      "processing and set set_to_pending to False, or have set_to_pending=True and use_slurm=True.")
-        return
-
     if debug:
         num_exps = 1
         use_slurm = False
@@ -607,6 +599,14 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
         post_mortem = True
         output_to_file = False
         logging.root.setLevel(logging.VERBOSE)
+
+    if filter_dict is None:
+        filter_dict = {}
+
+    if use_slurm and not set_to_pending:
+        logging.error("use_slurm is True but set_to_pending is False, which are incompatible. Either perform local"
+                      "processing and set set_to_pending to False, or have set_to_pending=True and use_slurm=True.")
+        return
 
     if unobserved:
         set_to_pending = False
