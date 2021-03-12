@@ -584,7 +584,7 @@ def print_commands(collection, unobserved, post_mortem, num_exps, filter_dict):
 
 
 def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
-                      num_exps, unobserved, post_mortem, debug, dry_run,
+                      num_exps, post_mortem, debug, dry_run,
                       output_to_console, no_file_output, steal_slurm,
                       no_worker, set_to_pending=True, worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
 
@@ -592,6 +592,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     output_to_file = not no_file_output
     launch_worker = not no_worker
 
+    unobserved = False
     if debug:
         num_exps = 1
         use_slurm = False

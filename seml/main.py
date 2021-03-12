@@ -129,10 +129,6 @@ def main():
             '-nw', '--no-worker', action='store_true',
             help="Do not launch a local worker after setting experiments' state to PENDING.")
     parser_start.add_argument(
-            '-u', '--unobserved', action='store_true',
-            help="Run the experiments without Sacred observers (no changes to the database). "
-                 "This also disables output capturing by Sacred, facilitating the use of debuggers (pdb, ipdb).")
-    parser_start.add_argument(
             '-d', '--debug', action='store_true',
             help="Run a single experiment locally without Sacred observers and with post-mortem debugging. "
                  "This is equivalent to "
@@ -147,7 +143,7 @@ def main():
         parents=[parser_start_launch_parent],
         help="Launch a local worker that runs PENDING jobs.")
     parser_launch_worker.set_defaults(func=start_experiments, set_to_pending=False, no_worker=False, local=True,
-                                      unobserved=False, debug=False, dry_run=False)
+                                      debug=False, dry_run=False)
 
     parser_status = subparsers.add_parser(
             "status",
