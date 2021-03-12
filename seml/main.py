@@ -22,7 +22,7 @@ def main():
                         "Each experiment is represented as a record in the database. "
                         "See examples/README.md for more details.",
             formatter_class=argparse.RawTextHelpFormatter,
-            add_help=False)
+            add_help=True)
     parser.add_argument(
             'db_collection_name', type=str, nargs='?', default=None,
             help="Name of the database collection for the experiment.")
@@ -33,26 +33,22 @@ def main():
     subparsers = parser.add_subparsers(title="Possible operations")
 
     parser_jupyter = subparsers.add_parser(
-        "jupyter",
-        help="Start a Jupyter slurm job.")
+            "jupyter",
+            help="Start a Jupyter slurm job.")
     parser_jupyter.add_argument(
-        "-l", "--lab", action='store_true',
-        help="Start a jupyter-lab instance instead of jupyter notebook."
-    )
+            "-l", "--lab", action='store_true',
+            help="Start a jupyter-lab instance instead of jupyter notebook.")
     parser_jupyter.add_argument(
-        "-c", "--conda-env", type=str, default=None,
-        help="Start the Jupyter instance in a Conda environment."
-    )
-
+            "-c", "--conda-env", type=str, default=None,
+            help="Start the Jupyter instance in a Conda environment.")
     parser_jupyter.add_argument(
-        '-sb', '--sbatch-options', type=json.loads,
-        help="Dictionary (passed as a string, e.g. '{\"gres\": \"gpu:2\"}') to request two GPUs.")
-
+            '-sb', '--sbatch-options', type=json.loads,
+            help="Dictionary (passed as a string, e.g. '{\"gres\": \"gpu:2\"}') to request two GPUs.")
     parser_jupyter.set_defaults(func=start_jupyter_job)
 
     parser_configure = subparsers.add_parser(
-        "configure",
-        help="Provide your MongoDB credentials.")
+            "configure",
+            help="Provide your MongoDB credentials.")
     parser_configure.set_defaults(func=mongodb_credentials_prompt)
 
     parser_add = subparsers.add_parser(
@@ -71,13 +67,11 @@ def main():
             help="Do not check the config for missing/unused arguments. "
                  "Use this if the check fails unexpectedly when using "
                  "advanced Sacred features or to accelerate adding.")
-
     parser_add.add_argument(
-        '-ncc', '--no-code-checkpoint', action='store_true',
-        help="Do upload the source code files to the MongoDB. "
-             "When a staged experiment is started, it will use whatever is the current version of the code "
-             "files (which might have been updated in the meantime or could fail when started).")
-
+            '-ncc', '--no-code-checkpoint', action='store_true',
+            help="Do upload the source code files to the MongoDB. "
+                 "When a staged experiment is started, it will use whatever is the current version of the code "
+                 "files (which might have been updated in the meantime or could fail when started).")
     parser_add.add_argument(
             '-f', '--force-duplicates', action='store_true',
             help="Add experiments to the database even when experiments with identical configurations "
@@ -85,11 +79,10 @@ def main():
     parser_add.set_defaults(func=add_experiments)
 
     parser_start_launch_parent = argparse.ArgumentParser(add_help=False)
-
     parser_start_launch_parent.add_argument(
-        '-lss', '--local-steal-slurm', action='store_true',
-        help="Local jobs 'steal' from the Slurm queue, i.e. also execute experiments waiting for execution via Slurm."
-             "Has no effect if --local is not active.")
+            '-ss', '--steal-slurm', action='store_true',
+            help="Local jobs 'steal' from the Slurm queue, i.e. also execute experiments waiting for execution via "
+                 "Slurm. Has no effect if --local is not active.")
     parser_start_launch_parent.add_argument(
             '-n', '--num-exps', type=int, default=0,
             help="Only start the specified number of experiments. 0: run all staged experiments.")
@@ -104,40 +97,35 @@ def main():
             help="Batch ID (batch_id in the database collection) of the experiments to be started. "
                  "Experiments that were staged together have the same batch_id.")
     parser_start_launch_parent.add_argument(
-        '-f', '--filter-dict', type=json.loads,
-        help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter the experiments by.")
+            '-f', '--filter-dict', type=json.loads,
+            help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter "
+                 "the experiments by.")
     parser_start_launch_parent.add_argument(
-        '-o', '--output-to-console', action='store_true',
-        help="Print output to console.")
+            '-o', '--output-to-console', action='store_true',
+            help="Print output to console.")
     parser_start_launch_parent.add_argument(
-        '-nf', '--no-file-output', action='store_true',
-        help="Print output to console.")
+            '-nf', '--no-file-output', action='store_true',
+            help="Print output to console.")
     parser_start_launch_parent.add_argument(
-        '-wg', '--worker-gpus', type=str,
-        help="The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES. Has no "
-             "effect for Slurm jobs.",
-    )
+            '-wg', '--worker-gpus', type=str,
+            help="The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES. "
+                 "Has no effect for Slurm jobs.")
     parser_start_launch_parent.add_argument(
-        '-wc', '--worker-cpus', type=int,
-        help="The number of CPU cores used by the local worker. Will be directly passed to OMP_NUM_THREADS. Has no "
-             "effect for Slurm jobs.",
-    )
+            '-wc', '--worker-cpus', type=int,
+            help="The number of CPU cores used by the local worker. Will be directly passed to OMP_NUM_THREADS. Has no "
+                 "effect for Slurm jobs.")
     parser_start_launch_parent.add_argument(
-        '-we', '--worker-environment-vars', type=json.loads,
-        help="Further environment variables to be set for the local worker. Has no effect for Slurm jobs.",
-    )
-
+            '-we', '--worker-environment-vars', type=json.loads,
+            help="Further environment variables to be set for the local worker. Has no effect for Slurm jobs.")
     parser_start_launch_parent.add_argument(
-        '-u', '--unobserved', action='store_true',
-        help="Run the experiments without Sacred observers (no changes to the database). "
-             "This also disables output capturing by Sacred, facilitating the use of debuggers (pdb, ipdb).")
-
+            '-u', '--unobserved', action='store_true',
+            help="Run the experiments without Sacred observers (no changes to the database). "
+                 "This also disables output capturing by Sacred, facilitating the use of debuggers (pdb, ipdb).")
     parser_start_launch_parent.add_argument(
             '-d', '--debug', action='store_true',
             help="Run a single experiment locally without Sacred observers and with post-mortem debugging. "
                  "This is equivalent to "
                  "`--verbose --local --num-exps 1 --set_to_pending --post-mortem --output-to-console`.")
-
     parser_start_launch_parent.add_argument(
             '-dr', '--dry-run', action='store_true',
             help="Only show the associated commands instead of running the experiments.")
@@ -149,10 +137,9 @@ def main():
     parser_start.add_argument(
             '-l', '--local', action='store_true',
             help="Run the experiments locally (not via Slurm).")
-
     parser_start.add_argument(
-        '-nw', '--no-worker', action='store_true',
-        help="Do not launch a local worker after setting experiments' state to PENDING.")
+            '-nw', '--no-worker', action='store_true',
+            help="Do not launch a local worker after setting experiments' state to PENDING.")
 
     parser_start.set_defaults(func=start_experiments, set_to_pending=True)
 
@@ -237,11 +224,11 @@ def main():
     parser_detect.set_defaults(func=detect_killed)
 
     parser_clean_db = subparsers.add_parser(
-        "clean-db",
-        help="Remove orphaned artifacts in the DB from runs which have been deleted.")
+            "clean-db",
+            help="Remove orphaned artifacts in the DB from runs which have been deleted.")
     parser_clean_db.add_argument(
-        '-a', '--all-collections', action='store_true',
-        help="Scan all collections for orphaned artifacts (not just the one provided in the config).")
+            '-a', '--all-collections', action='store_true',
+            help="Scan all collections for orphaned artifacts (not just the one provided in the config).")
     parser_clean_db.set_defaults(func=clean_unreferenced_artifacts)
 
     args = parser.parse_args()

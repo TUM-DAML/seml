@@ -455,7 +455,7 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
 
 
 def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=False, post_mortem=False,
-                       local_steal_slurm_jobs=False, output_to_console=False, output_to_file=True,
+                       steal_slurm=False, output_to_console=False, output_to_file=True,
                        gpus=None, cpus=None, environment_variables=None):
     """
     Start a local worker on the current machine that pulls PENDING experiments from the database and executes them.
@@ -472,7 +472,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
         Whether to suppress observation by Sacred observers.
     post_mortem: bool
         Activate post-mortem debugging.
-    local_steal_slurm_jobs: bool
+    steal_slurm: bool
         If True, the local worker will also execute jobs waiting for execution in Slurm.
     output_to_console: bool
         Whether to capture output in the console.
@@ -507,7 +507,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     num_exceptions = 0
     jobs_counter = 0
 
-    if not local_steal_slurm_jobs:
+    if not steal_slurm:
         staged_query = {'status': {"$in": States.PENDING}, 'slurm.array_id': {'$exists': False}}
     else:
         staged_query = {'status': {"$in": States.PENDING}}
@@ -517,9 +517,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     tq = tqdm()
     while collection.count_documents(staged_query) > 0 and jobs_counter < num_exps:
         exp = collection.find_one_and_update(staged_query, {"$set": {"status": States.RUNNING[0]}})
-        if exp['status'] not in States.PENDING:
-            # reset to its old state.
-            collection.find_one_and_update({'_id': exp['_id']}, {"$set": {"status": exp['status']}})
+        if exp is None:
             continue
 
         if output_to_file:
@@ -587,7 +585,7 @@ def print_commands(collection, unobserved, post_mortem, num_exps, filter_dict):
 
 def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
                       num_exps, unobserved, post_mortem, debug, dry_run,
-                      output_to_console, no_file_output, local_steal_slurm,
+                      output_to_console, no_file_output, steal_slurm,
                       no_worker, set_to_pending=True, worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
 
     use_slurm = not local
@@ -605,8 +603,8 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     if unobserved:
         set_to_pending = False
 
-    if worker_kwargs is None:
-        worker_kwargs = {}
+    if worker_environment_vars is None:
+        worker_environment_vars = {}
 
     if debug:
         num_exps = 1
@@ -644,7 +642,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
 
     elif launch_worker:
         start_local_worker(collection=collection, num_exps=num_exps, filter_dict=filter_dict, unobserved=unobserved,
-                           post_mortem=post_mortem, local_steal_slurm_jobs=local_steal_slurm,
+                           post_mortem=post_mortem, steal_slurm=steal_slurm,
                            output_to_console=output_to_console, output_to_file=output_to_file,
                            gpus=worker_gpus, cpus=worker_cpus, environment_variables=worker_environment_vars)
 
@@ -680,7 +678,6 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
 
     slurm_array_job_id = int(output.split(b' ')[-1])
     logging.info(f"Started Jupyter job in Slurm job with ID {slurm_array_job_id}.")
-
 
     job_output = subprocess.check_output(f'scontrol show job {slurm_array_job_id} -o', shell=True)
     job_output_results = job_output.decode("utf-8").split(" ")

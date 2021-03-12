@@ -215,7 +215,7 @@ seml seml_example launch-worker --worker-gpus="1" --worker-cpus=8
 ```
 In this example, the worker will use the GPU with ID 1 (i.e., set `CUDA_VISIBLE_DEVICES="1"`) and can use 8 CPU cores.
 
-The `--local-steal-slurm` option allows local workers to pop experiments from the Slurm queue. Since SEML checks the
+The `--steal-slurm` option allows local workers to pop experiments from the Slurm queue. Since SEML checks the
 database state of each experiment before actually executing it via Slurm, there is no risk of running duplicate 
 experiments.
 
