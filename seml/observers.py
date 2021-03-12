@@ -65,7 +65,7 @@ def create_slack_observer(webhook=None):
     return slack_obs
 
 
-def create_mattermost_observer(webhook=None, channel=None):
+def create_mattermost_observer(webhook=None, channel=None, **kwargs):
 
     if channel is None:
         if "OBSERVERS" in SETTINGS and "MATTERMOST" in SETTINGS.OBSERVERS:
@@ -78,7 +78,7 @@ def create_mattermost_observer(webhook=None, channel=None):
             if "WEBHOOK" in SETTINGS.OBSERVERS.MATTERMOST:
                 webhook = SETTINGS.OBSERVERS.MATTERMOST.WEBHOOK
 
-    mattermost_observer = MattermostObserver(webhook, channel=channel)
+    mattermost_observer = MattermostObserver(webhook, channel=channel, **kwargs)
     return mattermost_observer
 
 
@@ -126,9 +126,11 @@ class MattermostObserver(RunObserver):
         completed_text=None,
         interrupted_text=None,
         failed_text=None,
+        started_text=None,
         notify_on_completed=True,
-        notify_on_interrupted=True,
+        notify_on_interrupted=False,
         notify_on_failed=True,
+        notify_on_started=False,
     ):
         """
         Create a Sacred observer that will send notifications to Mattermost.
@@ -148,12 +150,16 @@ class MattermostObserver(RunObserver):
             Text to be sent upon interruption.
         failed_text: str
             Text to be sent upon failure.
+        started_text: str
+            Text to be sent when the experiment starts.
         notify_on_completed: bool
             Whether to send a notification upon completion.
         notify_on_interrupted: bool
             Whether to send a notification when the experiment is interrupted.
         notify_on_failed: bool
             Whether to send a notification when the experiment fails.
+        notify_on_started: bool
+            Whether to send a notification when the experiment starts.
         """
         self.webhook_url = webhook_url
         self.bot_name = bot_name
@@ -161,6 +167,10 @@ class MattermostObserver(RunObserver):
         self.completed_text = completed_text or (
             ":white_check_mark: *{experiment[name]}* "
             "completed after _{elapsed_time}_ with result=`{result}`"
+        )
+        self.started_text = started_text or (
+            ":hourglass_flowing_sand: *{experiment[name]}* "
+            "started on host `{host_info[hostname]}` at _{start_time}_."
         )
         self.interrupted_text = interrupted_text or (
             ":warning: *{experiment[name]}* " "interrupted after _{elapsed_time}_"
@@ -174,10 +184,12 @@ class MattermostObserver(RunObserver):
         self.notify_on_completed = notify_on_completed
         self.notify_on_failed = notify_on_failed
         self.notify_on_interrupted = notify_on_interrupted
+        self.notify_on_started = notify_on_started
 
     def started_event(
         self, ex_info, command, host_info, start_time, config, meta_info, _id
     ):
+        import requests
         self.run = {
             "_id": _id,
             "config": config,
@@ -186,9 +198,24 @@ class MattermostObserver(RunObserver):
             "command": command,
             "host_info": host_info,
         }
+        if not self.notify_on_started:
+            return
+        data = {
+            "username": self.bot_name,
+            "icon_emoji": self.icon,
+            "text": self.get_started_text(),
+        }
+
+        if self.channel is not None:
+            data['channel'] = self.channel
+        headers = {"Content-type": "application/json", "Accept": "text/plain"}
+        requests.post(self.webhook_url, data=json.dumps(data), headers=headers)
 
     def get_completed_text(self):
         return self.completed_text.format(**self.run)
+
+    def get_started_text(self):
+        return self.started_text.format(**self.run)
 
     def get_interrupted_text(self):
         return self.interrupted_text.format(**self.run)
