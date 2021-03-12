@@ -126,6 +126,9 @@ class MattermostObserver(RunObserver):
         completed_text=None,
         interrupted_text=None,
         failed_text=None,
+        notify_on_completed=True,
+        notify_on_interrupted=True,
+        notify_on_failed=True,
     ):
         """
         Create a Sacred observer that will send notifications to Mattermost.
@@ -140,11 +143,17 @@ class MattermostObserver(RunObserver):
         icon: str
             The icon of the bot.
         completed_text: str
-            Text to be sent upoon completion.
+            Text to be sent upon completion.
         interrupted_text: str
             Text to be sent upon interruption.
         failed_text: str
             Text to be sent upon failure.
+        notify_on_completed: bool
+            Whether to send a notification upon completion.
+        notify_on_interrupted: bool
+            Whether to send a notification when the experiment is interrupted.
+        notify_on_failed: bool
+            Whether to send a notification when the experiment fails.
         """
         self.webhook_url = webhook_url
         self.bot_name = bot_name
@@ -161,6 +170,10 @@ class MattermostObserver(RunObserver):
         )
         self.run = None
         self.channel = channel
+
+        self.notify_on_completed = notify_on_completed
+        self.notify_on_failed = notify_on_failed
+        self.notify_on_interrupted = notify_on_interrupted
 
     def started_event(
         self, ex_info, command, host_info, start_time, config, meta_info, _id
@@ -186,7 +199,7 @@ class MattermostObserver(RunObserver):
     def completed_event(self, stop_time, result):
         import requests
 
-        if self.completed_text is None:
+        if self.completed_text is None or not self.notify_on_completed:
             return
 
         self.run["result"] = result
@@ -206,7 +219,7 @@ class MattermostObserver(RunObserver):
     def interrupted_event(self, interrupt_time, status):
         import requests
 
-        if self.interrupted_text is None:
+        if self.interrupted_text is None or not self.notify_on_interrupted:
             return
 
         self.run["status"] = status
@@ -226,7 +239,7 @@ class MattermostObserver(RunObserver):
     def failed_event(self, fail_time, fail_trace):
         import requests
 
-        if self.failed_text is None:
+        if self.failed_text is None or not self.notify_on_failed:
             return
 
         self.run["fail_trace"] = fail_trace
