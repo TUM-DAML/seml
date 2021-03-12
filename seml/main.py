@@ -117,18 +117,6 @@ def main():
     parser_start_launch_parent.add_argument(
             '-we', '--worker-environment-vars', type=json.loads,
             help="Further environment variables to be set for the local worker. Has no effect for Slurm jobs.")
-    parser_start_launch_parent.add_argument(
-            '-u', '--unobserved', action='store_true',
-            help="Run the experiments without Sacred observers (no changes to the database). "
-                 "This also disables output capturing by Sacred, facilitating the use of debuggers (pdb, ipdb).")
-    parser_start_launch_parent.add_argument(
-            '-d', '--debug', action='store_true',
-            help="Run a single experiment locally without Sacred observers and with post-mortem debugging. "
-                 "This is equivalent to "
-                 "`--verbose --local --num-exps 1 --set_to_pending --post-mortem --output-to-console`.")
-    parser_start_launch_parent.add_argument(
-            '-dr', '--dry-run', action='store_true',
-            help="Only show the associated commands instead of running the experiments.")
 
     parser_start = subparsers.add_parser(
             "start",
@@ -140,14 +128,26 @@ def main():
     parser_start.add_argument(
             '-nw', '--no-worker', action='store_true',
             help="Do not launch a local worker after setting experiments' state to PENDING.")
-
+    parser_start.add_argument(
+            '-u', '--unobserved', action='store_true',
+            help="Run the experiments without Sacred observers (no changes to the database). "
+                 "This also disables output capturing by Sacred, facilitating the use of debuggers (pdb, ipdb).")
+    parser_start.add_argument(
+            '-d', '--debug', action='store_true',
+            help="Run a single experiment locally without Sacred observers and with post-mortem debugging. "
+                 "This is equivalent to "
+                 "`--verbose --local --num-exps 1 --set_to_pending --post-mortem --output-to-console`.")
+    parser_start.add_argument(
+            '-dr', '--dry-run', action='store_true',
+            help="Only show the associated commands instead of running the experiments.")
     parser_start.set_defaults(func=start_experiments, set_to_pending=True)
 
     parser_launch_worker = subparsers.add_parser(
         "launch-worker",
         parents=[parser_start_launch_parent],
         help="Launch a local worker that runs PENDING jobs.")
-    parser_launch_worker.set_defaults(func=start_experiments, set_to_pending=False, no_worker=False, local=True)
+    parser_launch_worker.set_defaults(func=start_experiments, set_to_pending=False, no_worker=False, local=True,
+                                      unobserved=False, debug=False, dry_run=False)
 
     parser_status = subparsers.add_parser(
             "status",
