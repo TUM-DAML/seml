@@ -600,12 +600,6 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
                       "processing and set set_to_pending to False, or have set_to_pending=True and use_slurm=True.")
         return
 
-    if unobserved:
-        set_to_pending = False
-
-    if worker_environment_vars is None:
-        worker_environment_vars = {}
-
     if debug:
         num_exps = 1
         use_slurm = False
@@ -613,6 +607,12 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
         post_mortem = True
         output_to_file = False
         logging.root.setLevel(logging.VERBOSE)
+
+    if unobserved:
+        set_to_pending = False
+
+    if worker_environment_vars is None:
+        worker_environment_vars = {}
 
     if sacred_id is None:
         filter_dict = build_filter_dict([], batch_id, filter_dict)
