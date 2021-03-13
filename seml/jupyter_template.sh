@@ -2,7 +2,7 @@
 {sbatch_options}
 
 # Move either to project root dir or the config file path.
-cd {working_dir}
+cd ${{SLURM_SUBMIT_DIR}}
 
 # Print job information
 echo "Starting job ${{SLURM_JOBID}}"

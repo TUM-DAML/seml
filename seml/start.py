@@ -655,7 +655,6 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
 
     script = template.format(
             sbatch_options=sbatch_options_str,
-            working_dir="${SLURM_SUBMIT_DIR}",
             use_conda_env=str(conda_env is not None).lower(),
             conda_env=conda_env,
             notebook_or_lab=" notebook" if lab is False else "-lab",
