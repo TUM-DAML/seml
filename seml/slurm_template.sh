@@ -47,11 +47,7 @@ for exp_id in "${{exp_ids[@]}}"; do
 
     ret=$?
     if [ $ret -eq 0 ]; then
-        if {parallel_processing}; then
-            eval $cmd &
-        else
-            eval $cmd
-        fi
+        eval $cmd &
         process_ids+=($!)
     elif [ $ret -eq 1 ]; then
         echo "WARNING: Experiment with ID ${{exp_id}} does not have status PENDING and will not be run."
