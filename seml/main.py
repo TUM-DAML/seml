@@ -133,7 +133,7 @@ def main():
             help="Run a single experiment without Sacred observers and with post-mortem debugging. "
                  "Implies `--verbose --num-exps 1 --post-mortem --output-to-console`.")
     parser_start.add_argument(
-            '-dr', '--dry-run', action='store_true',
+            '-pc', '--print-command', action='store_true',
             help="Only show the associated commands instead of running the experiments.")
     parser_start.set_defaults(func=start_experiments, set_to_pending=True)
 
@@ -142,7 +142,7 @@ def main():
         parents=[parser_start_launch_parent],
         help="Launch a local worker that runs PENDING jobs.")
     parser_launch_worker.set_defaults(func=start_experiments, set_to_pending=False, no_worker=False, local=True,
-                                      debug=False, dry_run=False)
+                                      debug=False, print_command=False)
 
     parser_status = subparsers.add_parser(
             "status",
