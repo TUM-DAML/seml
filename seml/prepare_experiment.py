@@ -54,8 +54,7 @@ if __name__ == "__main__":
                               find_dict, {"$set": {"status": States.RUNNING[0]}})
     if exp is None:
         # check whether experiment is actually missing from the DB or has the wrong state
-        exp = collection.find_one({'_id': exp_id})
-        if exp is None:
+        if collection.count_documents({'_id': exp_id}) == 0:
             exit(2)
         else:
             exit(1)
