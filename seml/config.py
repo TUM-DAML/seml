@@ -63,7 +63,7 @@ def convert_parameter_collections(input_config: dict):
                 new_key = p.replace(f"{k}.params", k)
                 if new_key in flattened_dict:
                     logging.error(f"Could not convert parameter collections due to key collision: {new_key}.")
-                    raise ValueError()
+                    sys.exit(1)
                 flattened_dict[new_key] = flattened_dict[p]
                 del flattened_dict[p]
         parameter_collection_keys = [k for k in flattened_dict.keys()
@@ -93,7 +93,7 @@ def invert_config(config: dict):
     return inverted_config
 
 
-def detect_duplicate_parameters(inverted_config: dict, sub_config_name: str, ignore_keys: dict = None):
+def detect_duplicate_parameters(inverted_config: dict, sub_config_name: str = None, ignore_keys: dict = None):
     if ignore_keys is None:
         ignore_keys = {'random': ('seed', 'samples')}
 
@@ -105,29 +105,35 @@ def detect_duplicate_parameters(inverted_config: dict, sub_config_name: str, ign
             duplicate_keys.append((p, l))
 
     if len(duplicate_keys) > 0:
-        logging.error(f"Found duplicate keys in sub_config {sub_config_name}: "
-                      f"{duplicate_keys}")
-        return False
+        if sub_config_name:
+            logging.error(f"Found duplicate keys in sub-config {sub_config_name}: "
+                          f"{duplicate_keys}")
+        else:
+            logging.error(f"Found duplicate keys in config: {duplicate_keys}")
+        sys.exit(1)
 
     start_characters = set([x[0] for x in inverted_config.keys()])
     buckets = {k: {x for x in inverted_config.keys() if x.startswith(k)} for k in start_characters}
 
-    error_str = lambda sub_config_name, p1, p2:  (f"Conflicting parameters in sub_config {sub_config_name}, most likely "
-                                                  f"due to ambiguous use of dot-notation in the config dict. Found "
-                                                  f"parameter '{p1}' in dot-notation starting with other parameter "
-                                                  f"'{p2}', which is ambiguous.")
+    if sub_config_name:
+        error_str = (f"Conflicting parameters in sub-config {sub_config_name}, most likely "
+                     "due to ambiguous use of dot-notation in the config dict. Found "
+                     "parameter '{p1}' in dot-notation starting with other parameter "
+                     "'{p2}', which is ambiguous.")
+    else:
+        error_str = (f"Conflicting parameters in config, most likely "
+                     "due to ambiguous use of dot-notation in the config dict. Found "
+                     "parameter '{p1}' in dot-notation starting with other parameter "
+                     "'{p2}', which is ambiguous.")
 
-    no_violation = True
     for k in buckets.keys():
         for p1, p2 in combinations(buckets[k], r=2):
             if p1.startswith(f"{p2}."):   # with "." after p2 to catch cases like "test" and "test1", which are valid.
-                logging.error(error_str(sub_config_name, p1, p2))
-                no_violation = False
+                logging.error(error_str.format(p1=p1, p2=p2))
+                sys.exit(1)
             elif p2.startswith(f"{p1}."):
-                logging.error(error_str(sub_config_name, p2, p1))
-                no_violation = False
-
-    return no_violation
+                logging.error(error_str.format(p1=p1, p2=p2))
+                sys.exit(1)
 
 
 def generate_configs(experiment_config):
@@ -167,9 +173,7 @@ def generate_configs(experiment_config):
     config_levels = [reserved]
     final_configs = []
 
-    no_duplicates = detect_duplicate_parameters(invert_config(reserved), 'root')
-    if not no_duplicates:
-        raise ValueError("Duplicate parameters.")
+    detect_duplicate_parameters(invert_config(reserved), None)
 
     while len(level_stack) > 0:
         current_sub_name, sub_vals = level_stack.pop(0)
@@ -178,9 +182,7 @@ def generate_configs(experiment_config):
         config_above = config_levels.pop(0)
 
         inverted_sub_config = invert_config(sub_config)
-        no_duplicates = detect_duplicate_parameters(inverted_sub_config, current_sub_name)
-        if not no_duplicates:
-            raise ValueError("Duplicate parameters.")
+        detect_duplicate_parameters(inverted_sub_config, current_sub_name)
 
         inverted_config_above = invert_config(config_above)
         redefined_parameters = set(inverted_sub_config.keys()).intersection(set(inverted_config_above.keys()))
@@ -386,7 +388,7 @@ def set_executable_and_working_dir(config_path, seml_dict):
     seml_dict['working_dir'] = working_dir
     if not (executable_relative_to_config or executable_relative_to_project_root):
         logging.error(f"Could not find the executable.")
-        exit(1)
+        sys.exit(1)
     executable = str(Path(executable).expanduser().resolve())
     seml_dict['executable'] = (str(Path(executable).relative_to(working_dir)) if executable_relative_to_project_root
                                else str(Path(executable).relative_to(config_dir)))
