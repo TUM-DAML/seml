@@ -9,6 +9,7 @@ install_requires = [
     "jsonpickle>=1.2, <2.0",
     "munch>=2.0.4",
     "tqdm>=4.36",
+    "debugpy>=1.2.1"
 ]
 
 with open("README.md", "r") as fh:

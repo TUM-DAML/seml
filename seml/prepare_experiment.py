@@ -1,5 +1,6 @@
 import argparse
 import os
+import logging
 
 from seml.start import get_command_from_exp
 from seml.database import get_collection, find_one_and_update
@@ -24,7 +25,18 @@ if __name__ == "__main__":
                         help="Activate post-mortem debugging with pdb.")
     parser.add_argument("--stored-sources-dir", default=None, type=str,
                         help="Load source files into this directory before starting.")
+    parser.add_argument('--debug-server', default=False, type=lambda x: (str(x).lower() == 'true'),
+                        help="Run the experiment with a debug server.")
     args = parser.parse_args()
+
+    # Set up logging
+    logger = logging.getLogger()
+    logger.handlers = []
+    ch = logging.StreamHandler()
+    formatter = logging.Formatter(fmt='%(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    logger.setLevel('INFO')
 
     exp_id = args.experiment_id
     db_collection_name = args.db_collection_name
@@ -54,11 +66,12 @@ if __name__ == "__main__":
                "--stored-sources-dir was supplied but staged experiment does not contain stored source files."
         load_sources_from_db(exp, collection, to_directory=args.stored_sources_dir)
 
-    exe, config = get_command_from_exp(exp, db_collection_name, verbose=args.verbose,
-                                       unobserved=args.unobserved, post_mortem=args.post_mortem)
+    interpreter, exe, config = get_command_from_exp(exp, db_collection_name, verbose=args.verbose,
+                                                    unobserved=args.unobserved, post_mortem=args.post_mortem,
+                                                    debug_server=args.debug_server)
     config_args = ' '.join(config)
 
-    cmd = f"python {exe} with {config_args}"
+    cmd = f"{interpreter} {exe} with {config_args}"
     if use_stored_sources:
         # add command without the temp_dir prefix
         # also add the temp dir for debugging purposes
@@ -67,7 +80,7 @@ if __name__ == "__main__":
                 {'_id': exp_id},
                 {'$set': {'seml.command': cmd, 'seml.temp_dir': args.stored_sources_dir}})
         # add the temp_dir prefix to the command
-        cmd = f"python {args.stored_sources_dir}/{exe} with {config_args}"
+        cmd = f"{interpreter} {args.stored_sources_dir}/{exe} with {config_args}"
     else:
         if not args.unobserved:
             collection.update_one(
