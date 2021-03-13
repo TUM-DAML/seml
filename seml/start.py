@@ -9,7 +9,7 @@ from pathlib import Path
 from tqdm.autonotebook import tqdm
 import time
 
-from seml.database import get_collection, build_filter_dict
+from seml.database import get_collection, build_filter_dict, find_one_and_update
 from seml.sources import load_sources_from_db
 from seml.utils import s_if
 from seml.settings import SETTINGS
@@ -254,7 +254,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
         if output_dir_path:
             exp_name = get_exp_name(exp, collection.name)
             output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
-            collection.find_one_and_update({'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
+            find_one_and_update(collection, unobserved, {'_id': exp['_id']}, {"$set": {"seml.output_file": output_file}})
             if output_to_console:
                 # redirect output to logfile AND output to console. See https://stackoverflow.com/a/34604684.
                 # Alternatively, we could go with subprocess.Popen, but this could conflict with pdb.
@@ -283,9 +283,8 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
     except IOError:
         logging.error(f"Log file {output_file} could not be written.")
         # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
-        collection.find_one_and_update(filter={'_id': exp['_id']},
-                                       update={'$set': {'status': States.FAILED[0]}},
-                                       upsert=False)
+        find_one_and_update(collection, unobserved, filter={'_id': exp['_id']},
+                            update={'$set': {'status': States.FAILED[0]}})
         success = False
     finally:
         if use_stored_sources and 'temp_dir' in locals():
@@ -507,16 +506,17 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     num_exceptions = 0
     jobs_counter = 0
 
+    staged_query = {}
+    if not unobserved:
+        staged_query['status'] = {"$in": States.PENDING}
     if not steal_slurm:
-        staged_query = {'status': {"$in": States.PENDING}, 'slurm.array_id': {'$exists': False}}
-    else:
-        staged_query = {'status': {"$in": States.PENDING}}
+        staged_query['slurm.array_id'] = {'$exists': False}
 
     staged_query.update(filter_dict)
 
     tq = tqdm()
     while collection.count_documents(staged_query) > 0 and jobs_counter < num_exps:
-        exp = collection.find_one_and_update(staged_query, {"$set": {"status": States.RUNNING[0]}})
+        exp = find_one_and_update(collection, unobserved, staged_query, {"$set": {"status": States.RUNNING[0]}})
         if exp is None:
             continue
 
@@ -598,7 +598,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
         use_slurm = False
         unobserved = True
         post_mortem = True
-        output_to_file = False
+        output_to_console = True
         logging.root.setLevel(logging.VERBOSE)
 
     if filter_dict is None:
