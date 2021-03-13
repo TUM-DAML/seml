@@ -2,7 +2,7 @@ import argparse
 import os
 
 from seml.start import get_command_from_exp
-from seml.database import get_collection
+from seml.database import get_collection, find_one_and_update
 from seml.sources import load_sources_from_db
 from seml.settings import SETTINGS
 
@@ -31,11 +31,15 @@ if __name__ == "__main__":
 
     collection = get_collection(db_collection_name)
 
+    if args.unobserved:
+        find_dict = {'_id': exp_id}
+    else:
+        find_dict = {'_id': exp_id, "status": {"$in": States.PENDING}}
+
     # this returns the document as it was BEFORE the update. So we first have to check whether its state was
     # PENDING. This is to avoid race conditions, since find_one_and_update is an atomic operation.
-    exp = collection.find_one_and_update({'_id': exp_id,
-                                          "status": {"$in": States.PENDING}},
-                                         {"$set": {"status": States.RUNNING[0]}})
+    exp = find_one_and_update(collection, args.unobserved,
+                              find_dict, {"$set": {"status": States.RUNNING[0]}})
     if exp is None:
         # check whether experiment is actually missing from the DB or has the wrong state
         exp = collection.find_one({'_id': exp_id})
@@ -58,15 +62,17 @@ if __name__ == "__main__":
     if use_stored_sources:
         # add command without the temp_dir prefix
         # also add the temp dir for debugging purposes
-        collection.update_one(
-            {'_id': exp_id},
-            {'$set': {'seml.command': cmd, 'seml.temp_dir': args.stored_sources_dir}})
+        if not args.unobserved:
+            collection.update_one(
+                {'_id': exp_id},
+                {'$set': {'seml.command': cmd, 'seml.temp_dir': args.stored_sources_dir}})
         # add the temp_dir prefix to the command
         cmd = f"python {args.stored_sources_dir}/{exe} with {config_args}"
     else:
-        collection.update_one(
-                {'_id': exp_id},
-                {'$set': {'seml.command': cmd}})
+        if not args.unobserved:
+            collection.update_one(
+                    {'_id': exp_id},
+                    {'$set': {'seml.command': cmd}})
 
     print(cmd)
     exit(0)
