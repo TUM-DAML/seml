@@ -78,20 +78,20 @@ def get_exp_name(config, db_collection_name):
     return name
 
 
-def create_sbatch_options_string(sbatch_options: dict, command_line: bool = False):
+def create_sbatch_options_string(sbatch_options: dict, srun: bool = False):
     """
     Convert a dictionary with sbatch_options into a string that can be used in a bash script.
 
     Parameters
     ----------
     sbatch_options: Dictionary containing the sbatch options.
-    command_line: Construct options for the command line instead of the script.
+    srun: Construct options for an srun command instead of an sbatch script.
 
     Returns
     -------
     sbatch_options_str: sbatch option string.
     """
-    if command_line:
+    if srun:
         option_structure = " {prepend}{key}={value}"
     else:
         option_structure = "#SBATCH {prepend}{key}={value}\n"
@@ -109,7 +109,7 @@ def create_sbatch_options_string(sbatch_options: dict, command_line: bool = Fals
 
 def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, name=None,
                     output_dir_path=".", sbatch_options=None, max_jobs_per_batch=None,
-                    interactive=False, debug_server=False):
+                    srun=False, debug_server=False):
     """Run a list of experiments as a job on the Slurm cluster.
 
     Parameters
@@ -130,8 +130,8 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
         A dictionary that contains options for #SBATCH, e.g., {'mem': 8000} to limit the job's memory to 8,000 MB.
     max_jobs_per_batch: int
         Maximum number of Slurm jobs running per experiment batch.
-    interactive: bool
-        Run job interactively via salloc instead of using sbatch.
+    srun: bool
+        Run job interactively via srun instead of using sbatch.
     debug_server: bool
         Run jobs with a debug server.
 
@@ -149,27 +149,28 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     sbatch_options['job-name'] = job_name
 
     # Set Slurm job array options
-    if not interactive:
+    if not srun:
         sbatch_options['array'] = f"0-{len(exp_array) - 1}"
         if max_jobs_per_batch is not None:
             sbatch_options['array'] += f"%{max_jobs_per_batch}"
 
     # Set Slurm output parameter
-    if 'output' in sbatch_options:
-        logging.error(f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
-        sys.exit(1)
-    elif output_dir_path == "/dev/null":
-        output_file = output_dir_path
-    elif interactive:
-        output_file = f'{output_dir_path}/{name}_%A.out'
-    else:
-        output_file = f'{output_dir_path}/{name}_%A_%a.out'
-    if not interactive:
+    if not srun:
+        if 'output' in sbatch_options:
+            logging.error(f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
+            sys.exit(1)
+        elif output_dir_path == "/dev/null":
+            output_file = output_dir_path
+        else:
+            output_file = f'{output_dir_path}/{name}_%A_%a.out'
         sbatch_options['output'] = output_file
 
     # Construct sbatch options string
-    if interactive:
-        salloc_options_str = create_sbatch_options_string(sbatch_options, True)
+    if srun:
+        # srun will run 2 processes in parallel when ntasks is not specified. Probably because of hyperthreading.
+        if 'ntasks' not in sbatch_options:
+            sbatch_options['ntasks'] = 1
+        srun_options_str = create_sbatch_options_string(sbatch_options, True)
         sbatch_options_str = ""
     else:
         sbatch_options_str = create_sbatch_options_string(sbatch_options, False)
@@ -203,7 +204,6 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
             verbose=logging.root.level <= logging.VERBOSE,
             unobserved=unobserved,
             post_mortem=post_mortem,
-            parallel_processing=str(not interactive).lower(),
             debug_server=debug_server,
     )
 
@@ -214,16 +214,11 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
         path = f"/tmp/{random_int}.sh"
     with open(path, "w") as f:
         f.write(script)
-
-    if interactive:
-        assert unobserved
-        cmd = f"salloc{salloc_options_str} bash {path}"
-        if True:  # TODO: Print both to console and to file
-            subprocess.check_call(cmd, shell=True,)
-        else:  # redirect output to logfile
-            with open(output_file, "w") as log_file:
-                # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
-                subprocess.check_call(cmd, shell=True, stderr=log_file, stdout=log_file)
+    if srun:
+        assert len(exp_array) == 1
+        assert len(exp_array[0]) == 1
+        cmd = (f"srun{srun_options_str} seml {' '.join(sys.argv[1:])} --local --sacred-id {exp_array[0][0]['_id']}")
+        subprocess.check_call(cmd, shell=True,)
     else:
         output = subprocess.check_output(f'sbatch {path}', shell=True)
         slurm_array_job_id = int(output.split(b' ')[-1])
@@ -239,7 +234,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
                                 'slurm.sbatch_options': sbatch_options,
                                 'seml.output_file': f"{output_dir_path}/{name}_{slurm_array_job_id}_{task_id}.out"}})
                 logging.verbose(f"Started experiment with array job ID {slurm_array_job_id}, task ID {task_id}.")
-    # os.remove(path)
+    os.remove(path)
 
 
 def start_local_job(collection, exp, unobserved=False, post_mortem=False,
@@ -447,7 +442,7 @@ def set_environment_variables(gpus=None, cpus=None, environment_variables=None):
 
 
 def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=False,
-                       output_to_file=True, output_to_console=False, interactive=False,
+                       output_to_file=True, output_to_console=False, srun=False,
                        debug_server=False):
     """
     Send the input list of experiments to the Slurm system for execution.
@@ -467,8 +462,8 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
     output_to_console: bool
         Whether to capture output in the console. This is currently not supported for Slurm jobs and will raise an
         error if set to True.
-    interactive: bool
-        Run jobs interactively via salloc instead of using sbatch.
+    srun: bool
+        Run jobs interactively via srun instead of using sbatch.
     debug_server: bool
         Run jobs with a debug server.
 
@@ -477,7 +472,7 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
     None
     """
 
-    if output_to_console and not interactive:
+    if output_to_console and not srun:
         logging.error("Output cannot be written to stdout in Slurm mode. "
                       "Remove the '--output-to-console' argument.")
         sys.exit(1)
@@ -500,7 +495,7 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
         del slurm_config['experiments_per_job']
         start_slurm_job(collection, exp_array, unobserved, post_mortem,
                         name=job_name, output_dir_path=output_dir_path,
-                        interactive=interactive, debug_server=debug_server,
+                        srun=srun, debug_server=debug_server,
                         **slurm_config)
 
 
@@ -657,7 +652,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
         unobserved = True
         post_mortem = True
         output_to_console = True
-        slurm_interactive = True
+        srun = True
         logging.root.setLevel(logging.VERBOSE)
 
     if filter_dict is None:
@@ -695,7 +690,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     if use_slurm:
         add_to_slurm_queue(collection=collection, exps_list=staged_experiments, unobserved=unobserved,
                            post_mortem=post_mortem, output_to_file=output_to_file,
-                           output_to_console=output_to_console, interactive=slurm_interactive,
+                           output_to_console=output_to_console, srun=srun,
                            debug_server=debug_server)
 
     elif launch_worker:
