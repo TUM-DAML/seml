@@ -611,7 +611,7 @@ def print_commands(collection, unobserved, post_mortem, num_exps, filter_dict):
     logging.root.setLevel(orig_level)
     start_experiments(collection, local=True,
                       unobserved=unobserved, post_mortem=post_mortem,
-                      num_exps=num_exps, filter_dict=filter_dict, dry_run=True)
+                      num_exps=num_exps, filter_dict=filter_dict, print_command=True)
     for exp in exps_list:
         exe, config = get_command_from_exp(exp, collection.name,
                                            unobserved=unobserved, post_mortem=post_mortem)
@@ -619,7 +619,7 @@ def print_commands(collection, unobserved, post_mortem, num_exps, filter_dict):
 
 
 def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
-                      num_exps, post_mortem, debug, dry_run,
+                      num_exps, post_mortem, debug, print_command,
                       output_to_console, no_file_output, steal_slurm,
                       no_worker, set_to_pending=True, worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
 
@@ -655,7 +655,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
 
     collection = get_collection(db_collection_name)
 
-    if dry_run:
+    if print_command:
         print_commands(collection, unobserved=unobserved, post_mortem=post_mortem,
                        num_exps=num_exps, filter_dict=filter_dict)
         return
