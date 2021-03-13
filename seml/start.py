@@ -473,8 +473,8 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
     """
 
     if output_to_console and not srun:
-        logging.error("Output cannot be written to stdout in Slurm mode. "
-                      "Remove the '--output-to-console' argument.")
+        logging.error("Output cannot be written to stdout in regular Slurm mode. "
+                      "Remove the '--output-to-console' argument or use '--debug'.")
         sys.exit(1)
     nexps = len(exps_list)
     exp_chunks = chunk_list(exps_list)
@@ -642,12 +642,9 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     use_slurm = not local
     output_to_file = not no_file_output
     launch_worker = not no_worker
-
-    if debug_server:
-        debug = True
-
     unobserved = False
-    if debug:
+
+    if debug or debug_server:
         num_exps = 1
         unobserved = True
         post_mortem = True
