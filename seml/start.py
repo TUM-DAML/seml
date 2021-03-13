@@ -12,13 +12,14 @@ import time
 from seml.database import get_collection, build_filter_dict, find_one_and_update
 from seml.sources import load_sources_from_db
 from seml.utils import s_if
+from seml.network import find_free_port
 from seml.settings import SETTINGS
 
 States = SETTINGS.STATES
 
 
 def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
-                         post_mortem=False, debug=False):
+                         post_mortem=False, debug=False, debug_server=False):
     if 'executable' not in exp['seml']:
         raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
@@ -39,7 +40,14 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     if debug:
         config_strings.append("--debug")
 
-    return exe, config_strings
+    if debug_server:
+        ip_address, port = find_free_port()
+        logging.info(f"Starting debug server with IP {ip_address} and port {port}.")
+        interpreter = f"python -m debugpy --listen {ip_address}:{port} --wait-for-client"
+    else:
+        interpreter = "python"
+
+    return interpreter, exe, config_strings
 
 
 def get_output_dir_path(config):
@@ -101,7 +109,7 @@ def create_sbatch_options_string(sbatch_options: dict, command_line: bool = Fals
 
 def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, name=None,
                     output_dir_path=".", sbatch_options=None, max_jobs_per_batch=None,
-                    interactive=False):
+                    interactive=False, debug_server=False):
     """Run a list of experiments as a job on the Slurm cluster.
 
     Parameters
@@ -124,6 +132,8 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
         Maximum number of Slurm jobs running per experiment batch.
     interactive: bool
         Run job interactively via salloc instead of using sbatch.
+    debug_server: bool
+        Run jobs with a debug server.
 
     Returns
     -------
@@ -194,6 +204,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
             unobserved=unobserved,
             post_mortem=post_mortem,
             parallel_processing=str(not interactive).lower(),
+            debug_server=debug_server,
     )
 
     random_int = np.random.randint(0, 999999)
@@ -207,7 +218,6 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     if interactive:
         assert unobserved
         cmd = f"salloc{salloc_options_str} bash {path}"
-        print(cmd)
         if True:  # TODO: Print both to console and to file
             subprocess.check_call(cmd, shell=True,)
         else:  # redirect output to logfile
@@ -233,7 +243,7 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
 
 
 def start_local_job(collection, exp, unobserved=False, post_mortem=False,
-                    output_dir_path='.', output_to_console=False):
+                    output_dir_path='.', output_to_console=False, debug_server=False):
     """Run an experiment locally.
 
     Parameters
@@ -250,6 +260,8 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
         Write the output to a file in `output_dir` given by the SEML config or in the current directory.
     output_to_console:
         Pipe all output (stdout and stderr) to the console.
+    debug_server: bool
+        Run job with a debug server.
 
     Returns
     -------
@@ -259,13 +271,14 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
 
     use_stored_sources = ('source_files' in exp['seml'])
 
-    exe, config = get_command_from_exp(exp, collection.name,
-                                       verbose=logging.root.level <= logging.VERBOSE,
-                                       unobserved=unobserved, post_mortem=post_mortem)
+    interpreter, exe, config = get_command_from_exp(exp, collection.name,
+                                                    verbose=logging.root.level <= logging.VERBOSE,
+                                                    unobserved=unobserved, post_mortem=post_mortem,
+                                                    debug_server=debug_server)
     if not use_stored_sources:
         os.chdir(exp['seml']['working_dir'])
 
-    cmd = f"python {exe} with {' '.join(config)}"
+    cmd = f"{interpreter} {exe} with {' '.join(config)}"
 
     success = True
     try:
@@ -281,7 +294,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
             os.mkdir(temp_dir, mode=0o700)
             load_sources_from_db(exp, collection, to_directory=temp_dir)
             # update the command to use the temp dir
-            cmd = f'PYTHONPATH="{temp_dir}:$PYTHONPATH" python {temp_dir}/{exe} with {" ".join(config)}'
+            cmd = f'PYTHONPATH="{temp_dir}:$PYTHONPATH" {interpreter} {temp_dir}/{exe} with {" ".join(config)}'
 
         if output_dir_path:
             exp_name = get_exp_name(exp, collection.name)
@@ -434,7 +447,8 @@ def set_environment_variables(gpus=None, cpus=None, environment_variables=None):
 
 
 def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=False,
-                       output_to_file=True, output_to_console=False, interactive=False):
+                       output_to_file=True, output_to_console=False, interactive=False,
+                       debug_server=False):
     """
     Send the input list of experiments to the Slurm system for execution.
 
@@ -455,6 +469,8 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
         error if set to True.
     interactive: bool
         Run jobs interactively via salloc instead of using sbatch.
+    debug_server: bool
+        Run jobs with a debug server.
 
     Returns
     -------
@@ -484,13 +500,13 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
         del slurm_config['experiments_per_job']
         start_slurm_job(collection, exp_array, unobserved, post_mortem,
                         name=job_name, output_dir_path=output_dir_path,
-                        interactive=interactive,
+                        interactive=interactive, debug_server=debug_server,
                         **slurm_config)
 
 
 def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=False, post_mortem=False,
                        steal_slurm=False, output_to_console=False, output_to_file=True,
-                       gpus=None, cpus=None, environment_variables=None):
+                       gpus=None, cpus=None, environment_variables=None, debug_server=False):
     """
     Start a local worker on the current machine that pulls PENDING experiments from the database and executes them.
 
@@ -518,6 +534,8 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
         Number of CPU cores to be used by this worker. If None, use all cores.
     environment_variables: dict
         Optional dict of additional environment variables to be set.
+    debug_server: bool
+        Run jobs with a debug server.
 
     Returns
     -------
@@ -561,7 +579,8 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
             output_dir_path = None
         try:
             success = start_local_job(collection=collection, exp=exp, unobserved=unobserved, post_mortem=post_mortem,
-                                      output_dir_path=output_dir_path, output_to_console=output_to_console)
+                                      output_dir_path=output_dir_path, output_to_console=output_to_console,
+                                      debug_server=debug_server)
             if success is False:
                 num_exceptions += 1
         except KeyboardInterrupt:
@@ -571,7 +590,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
         tq.set_postfix(failed=f"{num_exceptions}/{jobs_counter} experiments")
 
 
-def print_commands(collection, unobserved, post_mortem, num_exps, filter_dict):
+def print_commands(collection, unobserved, post_mortem, debug_server, num_exps, filter_dict):
     orig_level = logging.root.level
     logging.root.setLevel(logging.VERBOSE)
     exps_list = get_staged_experiments(collection=collection, filter_dict=filter_dict, num_exps=num_exps,
@@ -580,9 +599,9 @@ def print_commands(collection, unobserved, post_mortem, num_exps, filter_dict):
         return
 
     exp = exps_list[0]
-    exe, config = get_command_from_exp(exp, collection.name,
-                                       verbose=logging.root.level <= logging.VERBOSE,
-                                       unobserved=unobserved, post_mortem=False)
+    _, exe, config = get_command_from_exp(exp, collection.name,
+                                          verbose=logging.root.level <= logging.VERBOSE,
+                                          unobserved=unobserved, post_mortem=False)
     env = exp['seml']['conda_environment'] if 'conda_environment' in exp['seml'] else None
 
     logging.info("********** First experiment **********")
@@ -602,10 +621,10 @@ def print_commands(collection, unobserved, post_mortem, num_exps, filter_dict):
     logging.info(" ".join(config))
 
     logging.info("\nCommand for running locally with post-mortem debugging:")
-    exe, config = get_command_from_exp(exps_list[0], collection.name,
-                                       verbose=logging.root.level <= logging.VERBOSE,
-                                       unobserved=unobserved, post_mortem=True)
-    logging.info(f"python {exe} with {' '.join(config)}")
+    interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
+                                                    verbose=logging.root.level <= logging.VERBOSE,
+                                                    unobserved=unobserved, post_mortem=True)
+    logging.info(f"{interpreter} {exe} with {' '.join(config)}")
 
     logging.info("\n********** All raw commands **********")
     logging.root.setLevel(orig_level)
@@ -613,19 +632,24 @@ def print_commands(collection, unobserved, post_mortem, num_exps, filter_dict):
                       unobserved=unobserved, post_mortem=post_mortem,
                       num_exps=num_exps, filter_dict=filter_dict, print_command=True)
     for exp in exps_list:
-        exe, config = get_command_from_exp(exp, collection.name,
-                                           unobserved=unobserved, post_mortem=post_mortem)
-        logging.info(f"python {exe} with {' '.join(config)}")
+        interpreter, exe, config = get_command_from_exp(
+                exp, collection.name, unobserved=unobserved,
+                post_mortem=post_mortem, debug_server=debug_server)
+        logging.info(f"{interpreter} {exe} with {' '.join(config)}")
 
 
 def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
-                      num_exps, post_mortem, debug, print_command,
+                      num_exps, post_mortem, debug, debug_server, print_command,
                       output_to_console, no_file_output, steal_slurm,
-                      no_worker, set_to_pending=True, worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
+                      no_worker, set_to_pending=True,
+                      worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
 
     use_slurm = not local
     output_to_file = not no_file_output
     launch_worker = not no_worker
+
+    if debug_server:
+        debug = True
 
     unobserved = False
     if debug:
@@ -656,7 +680,8 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     collection = get_collection(db_collection_name)
 
     if print_command:
-        print_commands(collection, unobserved=unobserved, post_mortem=post_mortem,
+        print_commands(collection, unobserved=unobserved,
+                       post_mortem=post_mortem, debug_server=debug_server,
                        num_exps=num_exps, filter_dict=filter_dict)
         return
 
@@ -670,13 +695,15 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     if use_slurm:
         add_to_slurm_queue(collection=collection, exps_list=staged_experiments, unobserved=unobserved,
                            post_mortem=post_mortem, output_to_file=output_to_file,
-                           output_to_console=output_to_console, interactive=slurm_interactive)
+                           output_to_console=output_to_console, interactive=slurm_interactive,
+                           debug_server=debug_server)
 
     elif launch_worker:
         start_local_worker(collection=collection, num_exps=num_exps, filter_dict=filter_dict, unobserved=unobserved,
                            post_mortem=post_mortem, steal_slurm=steal_slurm,
                            output_to_console=output_to_console, output_to_file=output_to_file,
-                           gpus=worker_gpus, cpus=worker_cpus, environment_variables=worker_environment_vars)
+                           gpus=worker_gpus, cpus=worker_cpus, environment_variables=worker_environment_vars,
+                           debug_server=debug_server)
 
 
 def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: bool = False):

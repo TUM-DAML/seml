@@ -43,7 +43,7 @@ fi
 # Start experiments in separate processes
 process_ids=()
 for exp_id in "${{exp_ids[@]}}"; do
-    cmd=$(python -c '{prepare_experiment_script}' --experiment_id ${{exp_id}} --db_collection_name {db_collection_name} {sources_argument} --verbose {verbose} --unobserved {unobserved} --post-mortem {post_mortem})
+    cmd=$(python -c '{prepare_experiment_script}' --experiment_id ${{exp_id}} --db_collection_name {db_collection_name} {sources_argument} --verbose {verbose} --unobserved {unobserved} --post-mortem {post_mortem} --debug-server {debug_server})
 
     ret=$?
     if [ $ret -eq 0 ]; then
