@@ -130,8 +130,8 @@ def main():
             help="Do not launch a local worker after setting experiments' state to PENDING.")
     parser_start.add_argument(
             '-d', '--debug', action='store_true',
-            help="Run a single experiment locally without Sacred observers and with post-mortem debugging. "
-                 "Implies `--verbose --local --num-exps 1 --post-mortem --output-to-console`.")
+            help="Run a single experiment without Sacred observers and with post-mortem debugging. "
+                 "Implies `--verbose --num-exps 1 --post-mortem --output-to-console`.")
     parser_start.add_argument(
             '-dr', '--dry-run', action='store_true',
             help="Only show the associated commands instead of running the experiments.")
