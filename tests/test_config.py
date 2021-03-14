@@ -68,15 +68,15 @@ class TestParseConfigDicts(unittest.TestCase):
 
     def test_duplicate_parameters(self):
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_1)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(SystemExit):
             configs = config.generate_configs(config_dict)
 
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_2)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(SystemExit):
             configs = config.generate_configs(config_dict)
 
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_3)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(SystemExit):
             configs = config.generate_configs(config_dict)
 
 
