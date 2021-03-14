@@ -218,9 +218,9 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
         assert len(exp_array) == 1
         assert len(exp_array[0]) == 1
         cmd = (f"srun{srun_options_str} seml {' '.join(sys.argv[1:])} --local --sacred-id {exp_array[0][0]['_id']}")
-        subprocess.check_call(cmd, shell=True,)
+        subprocess.run(cmd, shell=True, check=True)
     else:
-        output = subprocess.check_output(f'sbatch {path}', shell=True)
+        output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
         slurm_array_job_id = int(output.split(b' ')[-1])
         for task_id, chunk in enumerate(exp_array):
             for exp in chunk:
@@ -310,13 +310,12 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
 
         if output_dir_path:
             if output_to_console:
-                subprocess.check_call(cmd, shell=True,)
+                subprocess.run(cmd, shell=True, check=True)
             else:  # redirect output to logfile
                 with open(output_file, "w") as log_file:
-                    # pdb works with check_call but not with check_output. Maybe because of stdout/stdin.
-                    subprocess.check_call(cmd, shell=True, stderr=log_file, stdout=log_file)
+                    subprocess.run(cmd, shell=True, stderr=log_file, stdout=log_file, check=True)
         else:
-            subprocess.check_call(cmd, shell=True)
+            subprocess.run(cmd, shell=True, check=True)
 
     except subprocess.CalledProcessError:
         success = False
@@ -723,13 +722,14 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     with open(path, "w") as f:
         f.write(script)
 
-    output = subprocess.check_output(f'sbatch {path}', shell=True)
+    output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
     os.remove(path)
 
     slurm_array_job_id = int(output.split(b' ')[-1])
     logging.info(f"Started Jupyter job in Slurm job with ID {slurm_array_job_id}.")
 
-    job_output = subprocess.check_output(f'scontrol show job {slurm_array_job_id} -o', shell=True)
+    job_output = subprocess.run(f'scontrol show job {slurm_array_job_id} -o',
+                                shell=True, check=True, capture_output=True).stdout
     job_output_results = job_output.decode("utf-8").split(" ")
     job_info_dict = {x.split("=")[0]: x.split("=")[1] for x in job_output_results}
     log_file = job_info_dict['StdOut']
@@ -739,7 +739,8 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
                  f"(ctrl-C to cancel).")
 
     while job_info_dict['JobState'] not in States.PENDING:
-        job_output = subprocess.check_output(f'scontrol show job {slurm_array_job_id} -o', shell=True)
+        job_output = subprocess.run(f'scontrol show job {slurm_array_job_id} -o',
+                                    shell=True, check=True, capture_output=True).stdout
         job_output_results = job_output.decode("utf-8").split(" ")
         job_info_dict = {x.split("=")[0]: x.split("=")[1] for x in job_output_results}
         time.sleep(1)

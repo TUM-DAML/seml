@@ -51,7 +51,7 @@ def cancel_experiment_by_id(collection, exp_id):
 
         try:
             # Check if job exists
-            subprocess.check_output(f"scontrol show jobid -dd {job_str}", shell=True)
+            subprocess.run(f"scontrol show jobid -dd {job_str}", shell=True, check=True)
             # Set the database state to INTERRUPTED
             collection.update_one({'_id': exp_id}, {'$set': {'status': {"$in": States.INTERRUPTED}}})
 
@@ -64,7 +64,7 @@ def cancel_experiment_by_id(collection, exp_id):
 
             # Cancel if no other experiments are running in the same job
             if not other_exp_running:
-                subprocess.check_output(f"scancel {job_str}", shell=True)
+                subprocess.run(f"scancel {job_str}", shell=True, check=True)
                 # set state to interrupted again (might have been overwritten by Sacred in the meantime).
                 collection.update_many(filter_dict,
                                        {'$set': {'status': {'$in': States.INTERRUPTED},
@@ -165,7 +165,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             if len(to_cancel) > 0:
                 chunk_size = 100
                 chunks = chunker(list(to_cancel), chunk_size)
-                [subprocess.check_output(f"scancel {' '.join(chunk)}", shell=True) for chunk in chunks]
+                [subprocess.run(f"scancel {' '.join(chunk)}", shell=True, check=True) for chunk in chunks]
 
             # update database status and write the stop_time
             collection.update_many(filter_dict, {'$set': {"status": States.INTERRUPTED[0],
@@ -318,7 +318,8 @@ slurm_active_states = SETTINGS.SLURM_ACTIVE_STATES
 
 def get_slurm_jobs():
     try:
-        squeue_out = subprocess.check_output(f"squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`", shell=True)
+        squeue_out = subprocess.run(f"squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`",
+                                    shell=True, check=True, capture_output=True).stdout
         return {int(job_str) for job_str in squeue_out.splitlines() if b'_' not in job_str}
     except subprocess.CalledProcessError:
         return set()
@@ -335,7 +336,8 @@ def get_slurm_arrays_tasks():
 
     """
     try:
-        squeue_out = subprocess.check_output(f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`", shell=True)
+        squeue_out = subprocess.run(f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`",
+                                    shell=True, check=True, capture_output=True).stdout
         jobs = [job_str for job_str in squeue_out.splitlines() if b'_' in job_str]
         if len(jobs) > 0:
             array_ids_str, task_ids = zip(*[job_str.split(b'_') for job_str in jobs])
