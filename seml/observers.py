@@ -2,6 +2,7 @@ import urllib.parse
 import logging
 from sacred.observers.base import RunObserver, td_format
 from sacred.config.config_files import load_config_file
+from bson import json_util
 import json
 from datetime import datetime, timedelta, timezone
 import re
@@ -156,7 +157,7 @@ class MattermostObserver(RunObserver):
         completed_text: str
             Text to be sent upon completion. If None, this default will be used:
             ":white_check_mark: *{experiment[name]}* "
-            "completed after _{elapsed_time}_ with result=`{result}`"
+            "completed after _{elapsed_time}_ with result: \n```json\n{result}\n````\n"
         interrupted_text: str
             Text to be sent upon interruption. If None, this default will be used:
             ":warning: *{experiment[name]}* " "interrupted after _{elapsed_time}_"
@@ -170,6 +171,7 @@ class MattermostObserver(RunObserver):
         heartbeat_text: str
             Text to be sent to notify that the experiment is still running. If None, this default will be used:
             ":heartpulse: *{experiment[name]}* has been up and running for " "_{elapsed_time}_. "
+            "Current info dict: \n```json\n{info}\n```\n"
             "Next heartbeat will be sent in about _{heartbeat_interval}_, i.e., on _{next_heartbeat_date}_."
         notify_on_completed: bool
             Whether to send a notification upon completion.
@@ -191,7 +193,7 @@ class MattermostObserver(RunObserver):
         self.icon = icon
         self.completed_text = completed_text or (
             ":white_check_mark: *{experiment[name]}* "
-            "completed after _{elapsed_time}_ with result=`{result}`"
+            "completed after _{elapsed_time}_ with result: \n```json\n{result}\n````\n"
         )
         self.started_text = started_text or (
             ":hourglass_flowing_sand: *{experiment[name]}* "
@@ -205,6 +207,7 @@ class MattermostObserver(RunObserver):
         )
         self.heartbeat_text = heartbeat_text or (
             ":heartpulse: *{experiment[name]}* has been up and running for " "_{elapsed_time}_. "
+            "Current info dict: \n```json\n{info}\n```\n"
             "Next heartbeat will be sent in about _{heartbeat_interval}_, i.e., on _{next_heartbeat_date}_."
         )
 
@@ -285,7 +288,7 @@ class MattermostObserver(RunObserver):
         if self.convert_utc_to_local_timezone:
             stop_time = to_local_timezone(stop_time)
 
-        self.run["result"] = result
+        self.run["result"] = json.dumps(result, indent=4, default=json_util.default)
         self.run["stop_time"] = stop_time
         self.run["elapsed_time"] = td_format(stop_time - self.run["start_time"])
 
@@ -351,12 +354,13 @@ class MattermostObserver(RunObserver):
         if self.convert_utc_to_local_timezone:
             beat_time = to_local_timezone(beat_time)
 
-        if beat_time < self.last_heartbeat_notification + self.heartbeat_interval:
+        if beat_time < self.last_heartbeat_notification + self.heartbeat_interval and False:
             return
 
         next_heartbeat_notification = beat_time + self.heartbeat_interval
         self.run['next_heartbeat_date'] = datetime.strftime(next_heartbeat_notification, "%Y-%m-%d %H:%M")
         self.run["elapsed_time"] = td_format(beat_time - self.run["start_time"])
+        self.run["info"] = json.dumps(info, indent=4, default=json_util.default)
 
         data = {
             "username": self.bot_name,
