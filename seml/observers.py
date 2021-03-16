@@ -354,7 +354,7 @@ class MattermostObserver(RunObserver):
         if self.convert_utc_to_local_timezone:
             beat_time = to_local_timezone(beat_time)
 
-        if beat_time < self.last_heartbeat_notification + self.heartbeat_interval and False:
+        if beat_time < self.last_heartbeat_notification + self.heartbeat_interval:
             return
 
         next_heartbeat_notification = beat_time + self.heartbeat_interval
