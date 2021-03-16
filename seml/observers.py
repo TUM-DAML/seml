@@ -3,6 +3,8 @@ import logging
 from sacred.observers.base import RunObserver, td_format
 from sacred.config.config_files import load_config_file
 import json
+from datetime import datetime, timedelta, timezone
+import re
 
 from seml.database import get_mongodb_config
 from seml.settings import SETTINGS
@@ -98,6 +100,10 @@ def create_neptune_observer(project_name, api_token=None,
     return neptune_obs
 
 
+def to_local_timezone(dtime):
+    return dtime.replace(tzinfo=timezone.utc).astimezone(tz=None)
+
+
 class MattermostObserver(RunObserver):
     """
     Based on Sacred's Slack observer: https://github.com/IDSIA/sacred/blob/master/sacred/observers/slack.py
@@ -127,10 +133,13 @@ class MattermostObserver(RunObserver):
         interrupted_text=None,
         failed_text=None,
         started_text=None,
+        heartbeat_text=None,
         notify_on_completed=True,
         notify_on_interrupted=False,
         notify_on_failed=True,
         notify_on_started=False,
+        heartbeat_interval=None,
+        convert_utc_to_local_timezone=True,
     ):
         """
         Create a Sacred observer that will send notifications to Mattermost.
@@ -145,13 +154,23 @@ class MattermostObserver(RunObserver):
         icon: str
             The icon of the bot.
         completed_text: str
-            Text to be sent upon completion.
+            Text to be sent upon completion. If None, this default will be used:
+            ":white_check_mark: *{experiment[name]}* "
+            "completed after _{elapsed_time}_ with result=`{result}`"
         interrupted_text: str
-            Text to be sent upon interruption.
+            Text to be sent upon interruption. If None, this default will be used:
+            ":warning: *{experiment[name]}* " "interrupted after _{elapsed_time}_"
         failed_text: str
-            Text to be sent upon failure.
+            Text to be sent upon failure. If None, this default will be used:
+            ":x: *{experiment[name]}* failed after " "_{elapsed_time}_ with `{error}`"
         started_text: str
-            Text to be sent when the experiment starts.
+            Text to be sent when the experiment starts. If None, this default will be used:
+            ":hourglass_flowing_sand: *{experiment[name]}* "
+            "started on host `{host_info[hostname]}` at _{start_time}_."
+        heartbeat_text: str
+            Text to be sent to notify that the experiment is still running. If None, this default will be used:
+            ":heartpulse: *{experiment[name]}* has been up and running for " "_{elapsed_time}_. "
+            "Next heartbeat will be sent in about _{heartbeat_interval}_, i.e., on _{next_heartbeat_date}_."
         notify_on_completed: bool
             Whether to send a notification upon completion.
         notify_on_interrupted: bool
@@ -160,7 +179,13 @@ class MattermostObserver(RunObserver):
             Whether to send a notification when the experiment fails.
         notify_on_started: bool
             Whether to send a notification when the experiment starts.
+        heartbeat_interval: str
+            String in the format hh:mm indicating how often to send heartbeat notifications. If None, send no
+            notifications.
+        convert_utc_to_local_timezone: bool
+            Whether to convert UTC times to local timezone in the notifications.
         """
+
         self.webhook_url = webhook_url
         self.bot_name = bot_name
         self.icon = icon
@@ -178,6 +203,11 @@ class MattermostObserver(RunObserver):
         self.failed_text = failed_text or (
             ":x: *{experiment[name]}* failed after " "_{elapsed_time}_ with `{error}`"
         )
+        self.heartbeat_text = heartbeat_text or (
+            ":heartpulse: *{experiment[name]}* has been up and running for " "_{elapsed_time}_. "
+            "Next heartbeat will be sent in about _{heartbeat_interval}_, i.e., on _{next_heartbeat_date}_."
+        )
+
         self.run = None
         self.channel = channel
 
@@ -185,11 +215,26 @@ class MattermostObserver(RunObserver):
         self.notify_on_failed = notify_on_failed
         self.notify_on_interrupted = notify_on_interrupted
         self.notify_on_started = notify_on_started
+        self.notify_on_heartbeat = False
+        self.last_heartbeat_notification = None
+        self.convert_utc_to_local_timezone = convert_utc_to_local_timezone
+
+        self.heartbeat_interval = None
+        if heartbeat_interval is not None:
+            # unfortunately datetime.strptime() doesn't work with timedeltas, so we parse the date ourselves:
+            pattern = re.compile('([0-9]+)-([0-9]+):([0-9]+)')
+            days, hours, minutes = pattern.match(heartbeat_interval).groups()
+            self.heartbeat_interval = timedelta(days=int(days), hours=int(hours), minutes=int(minutes))
+            self.notify_on_heartbeat = True
 
     def started_event(
         self, ex_info, command, host_info, start_time, config, meta_info, _id
     ):
         import requests
+
+        if self.convert_utc_to_local_timezone:
+            start_time = to_local_timezone(start_time)
+
         self.run = {
             "_id": _id,
             "config": config,
@@ -198,8 +243,13 @@ class MattermostObserver(RunObserver):
             "command": command,
             "host_info": host_info,
         }
+        if self.heartbeat_interval is not None:
+            self.run['heartbeat_interval'] = td_format(self.heartbeat_interval)
+            self.last_heartbeat_notification = start_time
+
         if not self.notify_on_started:
             return
+
         data = {
             "username": self.bot_name,
             "icon_emoji": self.icon,
@@ -223,11 +273,17 @@ class MattermostObserver(RunObserver):
     def get_failed_text(self):
         return self.failed_text.format(**self.run)
 
+    def get_heartbeat_text(self):
+        return self.heartbeat_text.format(**self.run)
+
     def completed_event(self, stop_time, result):
         import requests
 
         if self.completed_text is None or not self.notify_on_completed:
             return
+
+        if self.convert_utc_to_local_timezone:
+            stop_time = to_local_timezone(stop_time)
 
         self.run["result"] = result
         self.run["stop_time"] = stop_time
@@ -248,6 +304,9 @@ class MattermostObserver(RunObserver):
 
         if self.interrupted_text is None or not self.notify_on_interrupted:
             return
+
+        if self.convert_utc_to_local_timezone:
+            interrupt_time = to_local_timezone(interrupt_time)
 
         self.run["status"] = status
         self.run["interrupt_time"] = interrupt_time
@@ -283,3 +342,29 @@ class MattermostObserver(RunObserver):
             data['channel'] = self.channel
         headers = {"Content-type": "application/json", "Accept": "text/plain"}
         requests.post(self.webhook_url, data=json.dumps(data), headers=headers)
+
+    def heartbeat_event(self, info, captured_out, beat_time, result):
+        import requests
+        if self.heartbeat_text is None or not self.notify_on_heartbeat:
+            return
+
+        if self.convert_utc_to_local_timezone:
+            beat_time = to_local_timezone(beat_time)
+
+        if beat_time < self.last_heartbeat_notification + self.heartbeat_interval:
+            return
+
+        next_heartbeat_notification = beat_time + self.heartbeat_interval
+        self.run['next_heartbeat_date'] = datetime.strftime(next_heartbeat_notification, "%Y-%m-%d %H:%M")
+        self.run["elapsed_time"] = td_format(beat_time - self.run["start_time"])
+
+        data = {
+            "username": self.bot_name,
+            "icon_emoji": self.icon,
+            "text": self.get_heartbeat_text(),
+        }
+        if self.channel is not None:
+            data['channel'] = self.channel
+        headers = {"Content-type": "application/json", "Accept": "text/plain"}
+        requests.post(self.webhook_url, data=json.dumps(data), headers=headers)
+        self.last_heartbeat_notification = beat_time
