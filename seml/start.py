@@ -307,6 +307,13 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
                    f"&& {cmd} "
                    f"&& conda deactivate")
 
+        if 'SLURM_JOBID' in os.environ and not unobserved:
+            collection.update_one(
+                    {'_id': exp['_id']},
+                    {'$set': {
+                        'slurm.array_id': os.environ['SLURM_JOBID'],
+                        'slurm.task_id': 0}})
+
         logging.verbose(f'Running the following command:\n {cmd}')
 
         if output_dir_path:
