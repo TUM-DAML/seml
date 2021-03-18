@@ -78,56 +78,12 @@ def main():
                  "are already in the database.")
     parser_add.set_defaults(func=add_experiments)
 
-    parser_start_launch_parent = argparse.ArgumentParser(add_help=False)
-    parser_start_launch_parent.add_argument(
-            '-ss', '--steal-slurm', action='store_true',
-            help="Local jobs 'steal' from the Slurm queue, i.e. also execute experiments waiting for execution via "
-                 "Slurm. Has no effect if --local is not active.")
-    parser_start_launch_parent.add_argument(
-            '-n', '--num-exps', type=int, default=0,
-            help="Only start the specified number of experiments. 0: run all staged experiments.")
-    parser_start_launch_parent.add_argument(
-            '-pm', '--post-mortem', action='store_true',
-            help="Activate post-mortem debugging with pdb.")
-    parser_start_launch_parent.add_argument(
-            '-id', '--sacred-id', type=int,
-            help="Sacred ID (_id in the database collection) of the experiment to start.")
-    parser_start_launch_parent.add_argument(
-            '-b', '--batch-id', type=int,
-            help="Batch ID (batch_id in the database collection) of the experiments to be started. "
-                 "Experiments that were staged together have the same batch_id.")
-    parser_start_launch_parent.add_argument(
-            '-f', '--filter-dict', type=json.loads,
-            help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter "
-                 "the experiments by.")
-    parser_start_launch_parent.add_argument(
-            '-o', '--output-to-console', action='store_true',
-            help="Print output to console.")
-    parser_start_launch_parent.add_argument(
-            '-nf', '--no-file-output', action='store_true',
-            help="Print output to console.")
-    parser_start_launch_parent.add_argument(
-            '-wg', '--worker-gpus', type=str,
-            help="The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES. "
-                 "Has no effect for Slurm jobs.")
-    parser_start_launch_parent.add_argument(
-            '-wc', '--worker-cpus', type=int,
-            help="The number of CPU cores used by the local worker. Will be directly passed to OMP_NUM_THREADS. Has no "
-                 "effect for Slurm jobs.")
-    parser_start_launch_parent.add_argument(
-            '-we', '--worker-environment-vars', type=json.loads,
-            help="Further environment variables to be set for the local worker. Has no effect for Slurm jobs.")
-
     parser_start = subparsers.add_parser(
             "start",
-            parents=[parser_start_launch_parent],
             help="Fetch staged experiments from the database and run them (by default via Slurm).")
     parser_start.add_argument(
-            '-l', '--local', action='store_true',
-            help="Run the experiments locally (not via Slurm).")
-    parser_start.add_argument(
-            '-nw', '--no-worker', action='store_true',
-            help="Do not launch a local worker after setting experiments' state to PENDING.")
+            '-pc', '--print-command', action='store_true',
+            help="Only show the associated commands instead of running the experiments.")
     parser_start.add_argument(
             '-d', '--debug', action='store_true',
             help="Run a single experiment without Sacred observers and with post-mortem debugging. "
@@ -137,16 +93,50 @@ def main():
             help="Run the experiment with a debug server, to which you can remotely connect with e.g. VS Code. "
                  "Implies `--debug`.")
     parser_start.add_argument(
-            '-pc', '--print-command', action='store_true',
-            help="Only show the associated commands instead of running the experiments.")
+            '-nf', '--no-file-output', action='store_true',
+            help="Do not save the console output in a file.")
+    parser_start_local = parser_start.add_argument_group("optional arguments for local jobs")
+    parser_start_local.add_argument(
+            '-l', '--local', action='store_true',
+            help="Run the experiments locally (not via Slurm).")
+    parser_start_local.add_argument(
+            '-nw', '--no-worker', action='store_true',
+            help="Do not launch a local worker after setting experiments' state to PENDING.")
     parser_start.set_defaults(func=start_experiments, set_to_pending=True)
 
     parser_launch_worker = subparsers.add_parser(
         "launch-worker",
-        parents=[parser_start_launch_parent],
         help="Launch a local worker that runs PENDING jobs.")
     parser_launch_worker.set_defaults(func=start_experiments, set_to_pending=False, no_worker=False, local=True,
                                       debug=False, debug_server=False, print_command=False)
+
+    for subparser in [parser_start, parser_launch_worker]:
+        subparser.add_argument(
+                '-n', '--num-exps', type=int, default=0,
+                help="Only start the specified number of experiments. 0: run all staged experiments.")
+        subparser.add_argument(
+                '-pm', '--post-mortem', action='store_true',
+                help="Activate post-mortem debugging with pdb.")
+
+    for subparser in [parser_start_local, parser_launch_worker]:
+        subparser.add_argument(
+                '-ss', '--steal-slurm', action='store_true',
+                help="Local jobs 'steal' from the Slurm queue, i.e. also execute experiments waiting for execution via "
+                    "Slurm. Has no effect if --local is not active.")
+        subparser.add_argument(
+                '-wg', '--worker-gpus', type=str,
+                help="The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES. "
+                    "Has no effect for Slurm jobs.")
+        subparser.add_argument(
+                '-wc', '--worker-cpus', type=int,
+                help="The number of CPU cores used by the local worker. Will be directly passed to OMP_NUM_THREADS. Has no "
+                    "effect for Slurm jobs.")
+        subparser.add_argument(
+                '-we', '--worker-environment-vars', type=json.loads,
+                help="Further environment variables to be set for the local worker. Has no effect for Slurm jobs.")
+        subparser.add_argument(
+                '-o', '--output-to-console', action='store_true',
+                help="Print output to console.")
 
     parser_status = subparsers.add_parser(
             "status",
@@ -157,41 +147,19 @@ def main():
             "cancel",
             help="Cancel the Slurm job/job step corresponding to experiments, filtered by ID or state.")
     parser_cancel.add_argument(
-            '-id', '--sacred-id', type=int,
-            help="Sacred ID (_id in the database collection) of the experiment to cancel.")
-    parser_cancel.add_argument(
             '-s', '--filter-states', type=str, nargs='*', default=[*States.PENDING, *States.RUNNING],
             help="List of states to filter experiments by. Cancels all experiments if an empty list is passed. "
                  "Default: Cancel all pending and running experiments.")
-    parser_cancel.add_argument(
-            '-b', '--batch-id', type=int,
-            help="Batch ID (batch_id in the database collection) of the experiments to be cancelled. "
-                 "Experiments that were staged together have the same batch_id.")
-    parser_cancel.add_argument(
-            '-f', '--filter-dict', type=json.loads,
-            help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') "
-                 "to filter the experiments by.")
     parser_cancel.set_defaults(func=cancel_experiments)
 
     parser_delete = subparsers.add_parser(
             "delete",
             help="Delete experiments by ID or state (does not cancel Slurm jobs).")
     parser_delete.add_argument(
-            '-id', '--sacred-id', type=int,
-            help="Sacred ID (_id in the database collection) of the experiment to delete.")
-    parser_delete.add_argument(
             '-s', '--filter-states', type=str, nargs='*', default=[*States.STAGED, *States.FAILED,
                                                                    *States.KILLED, *States.INTERRUPTED],
             help="List of states to filter experiments by. Deletes all experiments if an empty list is passed. "
                  "Default: Delete all staged, failed, killed and interrupted experiments.")
-    parser_delete.add_argument(
-            '-b', '--batch-id', type=int,
-            help="Batch ID (batch_id in the database collection) of the experiments to be deleted. "
-                 "Experiments that were staged together have the same batch_id.")
-    parser_delete.add_argument(
-            '-f', '--filter-dict', type=json.loads,
-            help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') "
-                 "to filter the experiments by.")
     parser_delete.set_defaults(func=delete_experiments)
 
     parser_reset = subparsers.add_parser(
@@ -199,22 +167,11 @@ def main():
             help="Reset the state of experiments (set to STAGED and clean database entry) "
                  "by ID or state (does not cancel Slurm jobs).")
     parser_reset.add_argument(
-            '-id', '--sacred-id', type=int,
-            help="Sacred ID (_id in the database collection) of the experiment to reset.")
-    parser_reset.add_argument(
             '-s', '--filter-states', type=str, nargs='*', default=[*States.FAILED, *States.KILLED,
                                                                    *States.INTERRUPTED],
             help="List of states to filter experiments by. "
                  "Resets all experiments if an empty list is passed. "
                  "Default: Reset failed, killed and interrupted experiments.")
-    parser_reset.add_argument(
-            '-f', '--filter-dict', type=json.loads,
-            help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') "
-                 "to filter the experiments by.")
-    parser_reset.add_argument(
-            '-b', '--batch-id', type=int,
-            help="Batch ID (batch_id in the database collection) of the experiments to be deleted. "
-                 "Experiments that were staged together have the same batch_id.")
     parser_reset.set_defaults(func=reset_experiments)
 
     parser_detect = subparsers.add_parser(
@@ -229,6 +186,19 @@ def main():
             '-a', '--all-collections', action='store_true',
             help="Scan all collections for orphaned artifacts (not just the one provided in the config).")
     parser_clean_db.set_defaults(func=clean_unreferenced_artifacts)
+
+    for subparser in [parser_start, parser_launch_worker, parser_cancel, parser_delete, parser_reset]:
+        subparser.add_argument(
+                '-id', '--sacred-id', type=int,
+                help="Sacred ID (_id in the database collection) of the experiment to start.")
+        subparser.add_argument(
+                '-b', '--batch-id', type=int,
+                help="Batch ID (batch_id in the database collection) of the experiments to be started. "
+                    "Experiments that were staged together have the same batch_id.")
+        subparser.add_argument(
+                '-f', '--filter-dict', type=json.loads,
+                help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter "
+                    "the experiments by.")
 
     args = parser.parse_args()
 
