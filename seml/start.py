@@ -593,6 +593,12 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
                       "Please use Slurm or a compute node.")
         sys.exit(1)
 
+    if 'SLURM_JOBID' in os.environ:
+        node_str = subprocess.run("squeue -j ${SLURM_JOBID} -O nodelist:1000",
+                                  shell=True, check=True, capture_output=True).stdout
+        node_id = node_str.decode("utf-8").split('\n')[1].strip()
+        logging.info(f"SLURM assigned me the node(s): {node_id}")
+
     if num_exps > 0:
         logging.info(f'Starting local worker thread that will run up to {num_exps} experiment{s_if(num_exps)}, '
                      f'or until no pending experiments remain.')
