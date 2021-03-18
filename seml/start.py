@@ -612,6 +612,11 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
 
     tq = tqdm()
     while collection.count_documents(staged_query) > 0 and jobs_counter < num_exps:
+
+        # Add newline if we need to avoid tqdm's output
+        if debug_server or output_to_console or logging.root.level <= logging.VERBOSE:
+            print(file=sys.stderr)
+
         if unobserved:
             exp = collection.find_one(staged_query)
         else:
