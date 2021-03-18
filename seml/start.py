@@ -116,7 +116,7 @@ def create_slurm_options_string(slurm_options: dict, srun: bool = False):
     return slurm_options_str
 
 
-def start_sbatch_job(collection, exp_array, unobserved=False, post_mortem=False, name=None,
+def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
                      output_dir_path=".", sbatch_options=None, max_jobs_per_batch=None,
                      debug_server=False):
     """Run a list of experiments as a job on the Slurm cluster.
@@ -129,8 +129,6 @@ def start_sbatch_job(collection, exp_array, unobserved=False, post_mortem=False,
         List of chunks of experiments to run. Each chunk is a list of experiments.
     unobserved: bool
         Disable all Sacred observers (nothing written to MongoDB).
-    post_mortem: bool
-        Activate post-mortem debugging.
     name: str
         Job name, used by Slurm job and output file.
     output_dir_path: str
@@ -193,7 +191,6 @@ def start_sbatch_job(collection, exp_array, unobserved=False, post_mortem=False,
             sources_argument="--stored-sources-dir $tmpdir" if with_sources else "",
             verbose=logging.root.level <= logging.VERBOSE,
             unobserved=unobserved,
-            post_mortem=post_mortem,
             debug_server=debug_server,
     )
 
@@ -729,10 +726,15 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
             if val:
                 logging.error(f"The argument '{key}' only works in local mode, not in Slurm mode.")
                 sys.exit(1)
-        if output_to_console and not srun:
-            logging.error("Output cannot be written to stdout in regular Slurm mode. "
-                          "Remove the '--output-to-console' argument or use '--debug'.")
-            sys.exit(1)
+    if not local and not srun:
+        non_sbatch_kwargs = {
+                "--post-mortem": post_mortem,
+                "--output-to-console": output_to_console}
+        for key, val in non_sbatch_kwargs.items():
+            if val:
+                logging.error(f"The argument '{key}' does not work in regular Slurm mode. "
+                              "Remove the argument or use '--debug'.")
+                sys.exit(1)
 
     if filter_dict is None:
         filter_dict = {}

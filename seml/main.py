@@ -86,7 +86,7 @@ def main():
             help="Only show the associated commands instead of running the experiments.")
     parser_start.add_argument(
             '-d', '--debug', action='store_true',
-            help="Run a single experiment without Sacred observers and with post-mortem debugging. "
+            help="Run a single interactive experiment without Sacred observers and with post-mortem debugging. "
                  "Implies `--verbose --num-exps 1 --post-mortem --output-to-console`.")
     parser_start.add_argument(
             '-ds', '--debug-server', action='store_true',
@@ -112,9 +112,6 @@ def main():
                 '-n', '--num-exps', type=int, default=0,
                 help="Only start the specified number of experiments. 0: run all staged experiments.")
         subparser.add_argument(
-                '-pm', '--post-mortem', action='store_true',
-                help="Activate post-mortem debugging with pdb.")
-        subparser.add_argument(
                 '-nf', '--no-file-output', action='store_true',
                 help="Do not save the console output in a file.")
 
@@ -134,6 +131,9 @@ def main():
         subparser.add_argument(
                 '-we', '--worker-environment-vars', type=json.loads,
                 help="Further environment variables to be set for the local worker. Has no effect for Slurm jobs.")
+        subparser.add_argument(
+                '-pm', '--post-mortem', action='store_true',
+                help="Activate post-mortem debugging with pdb.")
         subparser.add_argument(
                 '-o', '--output-to-console', action='store_true',
                 help="Print output to console.")
