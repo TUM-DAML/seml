@@ -66,50 +66,59 @@ def get_output_dir_path(config):
     return output_dir_path
 
 
-def get_exp_name(config, db_collection_name):
-    if 'name' in config['slurm']:
+def get_exp_name(exp_config, db_collection_name):
+    if 'name' in exp_config['slurm']:
         logging.warning("'name' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
                         "by moving the 'name' parameter from 'slurm' to 'seml'.")
-        name = config['slurm']['name']
-    elif 'name' in config['seml']:
-        name = config['seml']['name']
+        name = exp_config['slurm']['name']
+    elif 'name' in exp_config['seml']:
+        name = exp_config['seml']['name']
     else:
         name = db_collection_name
     return name
 
 
-def create_sbatch_options_string(sbatch_options: dict, srun: bool = False):
+def set_slurm_job_name(sbatch_options, name, exp):
+    if 'job-name' in sbatch_options:
+        logging.error("Can't set sbatch `job-name` parameter explicitly. "
+                      "Use `name` parameter instead and SEML will do that for you.")
+        sys.exit(1)
+    job_name = f"{name}_{exp['batch_id']}"
+    sbatch_options['job-name'] = job_name
+
+
+def create_slurm_options_string(slurm_options: dict, srun: bool = False):
     """
     Convert a dictionary with sbatch_options into a string that can be used in a bash script.
 
     Parameters
     ----------
-    sbatch_options: Dictionary containing the sbatch options.
+    slurm_options: Dictionary containing the sbatch options.
     srun: Construct options for an srun command instead of an sbatch script.
 
     Returns
     -------
-    sbatch_options_str: sbatch option string.
+    slurm_options_str: sbatch option string.
     """
     if srun:
         option_structure = " {prepend}{key}={value}"
     else:
         option_structure = "#SBATCH {prepend}{key}={value}\n"
 
-    sbatch_options_str = ""
-    for key, value_raw in sbatch_options.items():
+    slurm_options_str = ""
+    for key, value_raw in slurm_options.items():
         prepend = '-' if len(key) == 1 else '--'
         if key in ['partition', 'p'] and isinstance(value_raw, list):
             value = ','.join(value_raw)
         else:
             value = value_raw
-        sbatch_options_str += option_structure.format(prepend=prepend, key=key, value=value)
-    return sbatch_options_str
+        slurm_options_str += option_structure.format(prepend=prepend, key=key, value=value)
+    return slurm_options_str
 
 
-def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, name=None,
-                    output_dir_path=".", sbatch_options=None, max_jobs_per_batch=None,
-                    srun=False, debug_server=False):
+def start_sbatch_job(collection, exp_array, unobserved=False, post_mortem=False, name=None,
+                     output_dir_path=".", sbatch_options=None, max_jobs_per_batch=None,
+                     debug_server=False):
     """Run a list of experiments as a job on the Slurm cluster.
 
     Parameters
@@ -127,11 +136,9 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     output_dir_path: str
         Directory (relative to home directory) where to store the slurm output files.
     sbatch_options: dict
-        A dictionary that contains options for #SBATCH, e.g., {'mem': 8000} to limit the job's memory to 8,000 MB.
+        A dictionary that contains options for #SBATCH, e.g. {'mem': 8000} to limit the job's memory to 8,000 MB.
     max_jobs_per_batch: int
         Maximum number of Slurm jobs running per experiment batch.
-    srun: bool
-        Run job interactively via srun instead of using sbatch.
     debug_server: bool
         Run jobs with a debug server.
 
@@ -140,40 +147,23 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
     None
     """
 
-    # Set Slurm job-name parameter
-    if 'job-name' in sbatch_options:
-        logging.error("Can't set sbatch `job-name` Parameter explicitly. "
-                      "Use `name` parameter instead and SEML will do that for you.")
-        sys.exit(1)
-    job_name = f"{name}_{exp_array[0][0]['batch_id']}"
-    sbatch_options['job-name'] = job_name
-
     # Set Slurm job array options
-    if not srun:
-        sbatch_options['array'] = f"0-{len(exp_array) - 1}"
-        if max_jobs_per_batch is not None:
-            sbatch_options['array'] += f"%{max_jobs_per_batch}"
+    sbatch_options['array'] = f"0-{len(exp_array) - 1}"
+    if max_jobs_per_batch is not None:
+        sbatch_options['array'] += f"%{max_jobs_per_batch}"
 
     # Set Slurm output parameter
-    if not srun:
-        if 'output' in sbatch_options:
-            logging.error(f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
-            sys.exit(1)
-        elif output_dir_path == "/dev/null":
-            output_file = output_dir_path
-        else:
-            output_file = f'{output_dir_path}/{name}_%A_%a.out'
-        sbatch_options['output'] = output_file
+    if 'output' in sbatch_options:
+        logging.error(f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
+        sys.exit(1)
+    elif output_dir_path == "/dev/null":
+        output_file = output_dir_path
+    else:
+        output_file = f'{output_dir_path}/{name}_%A_%a.out'
+    sbatch_options['output'] = output_file
 
     # Construct sbatch options string
-    if srun:
-        # srun will run 2 processes in parallel when ntasks is not specified. Probably because of hyperthreading.
-        if 'ntasks' not in sbatch_options:
-            sbatch_options['ntasks'] = 1
-        srun_options_str = create_sbatch_options_string(sbatch_options, True)
-        sbatch_options_str = ""
-    else:
-        sbatch_options_str = create_sbatch_options_string(sbatch_options, False)
+    sbatch_options_str = create_slurm_options_string(sbatch_options, False)
 
     # Construct chunked list with all experiment IDs
     expid_strings = [('"' + ';'.join([str(exp['_id']) for exp in chunk]) + '"') for chunk in exp_array]
@@ -214,27 +204,64 @@ def start_slurm_job(collection, exp_array, unobserved=False, post_mortem=False, 
         path = f"/tmp/{random_int}.sh"
     with open(path, "w") as f:
         f.write(script)
-    if srun:
-        assert len(exp_array) == 1
-        assert len(exp_array[0]) == 1
-        cmd = (f"srun{srun_options_str} seml {' '.join(sys.argv[1:])} --local --sacred-id {exp_array[0][0]['_id']}")
-        subprocess.run(cmd, shell=True, check=True)
-    else:
-        output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
-        slurm_array_job_id = int(output.split(b' ')[-1])
-        for task_id, chunk in enumerate(exp_array):
-            for exp in chunk:
-                if not unobserved:
-                    collection.update_one(
-                            {'_id': exp['_id']},
-                            {'$set': {
-                                'status': States.PENDING[0],
-                                'slurm.array_id': slurm_array_job_id,
-                                'slurm.task_id': task_id,
-                                'slurm.sbatch_options': sbatch_options,
-                                'seml.output_file': f"{output_dir_path}/{name}_{slurm_array_job_id}_{task_id}.out"}})
-                logging.verbose(f"Started experiment with array job ID {slurm_array_job_id}, task ID {task_id}.")
+
+    output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+
+    slurm_array_job_id = int(output.split(b' ')[-1])
+    for task_id, chunk in enumerate(exp_array):
+        for exp in chunk:
+            if not unobserved:
+                collection.update_one(
+                        {'_id': exp['_id']},
+                        {'$set': {
+                            'status': States.PENDING[0],
+                            'slurm.array_id': slurm_array_job_id,
+                            'slurm.task_id': task_id,
+                            'slurm.sbatch_options': sbatch_options,
+                            'seml.output_file': f"{output_dir_path}/{name}_{slurm_array_job_id}_{task_id}.out"}})
+            logging.verbose(f"Started experiment with array job ID {slurm_array_job_id}, task ID {task_id}.")
     os.remove(path)
+
+
+def start_srun_job(collection, exp, unobserved=False,
+                   srun_options=None, seml_arguments=None):
+    """Run a list of experiments as a job on the Slurm cluster.
+
+    Parameters
+    ----------
+    collection: pymongo.collection.Collection
+        The MongoDB collection containing the experiments.
+    exp: dict
+        Experiment to run.
+    unobserved: bool
+        Disable all Sacred observers (nothing written to MongoDB).
+    srun_options: dict
+        A dictionary that contains arguments for srun, e.g. {'mem': 8000} to limit the job's memory to 8,000 MB.
+    seml_arguments: list
+        A list that contains arguments for seml, e.g. ['--debug-server']
+
+    Returns
+    -------
+    None
+    """
+
+    # Construct srun options string
+    # srun will run 2 processes in parallel when ntasks is not specified. Probably because of hyperthreading.
+    if 'ntasks' not in srun_options:
+        srun_options['ntasks'] = 1
+    srun_options_str = create_slurm_options_string(srun_options, True)
+
+    if not unobserved:
+        collection.update_one(
+                {'_id': exp['_id']},
+                {'$set': {'slurm.sbatch_options': srun_options}})
+
+    # Set command args for job inside Slurm
+    cmd_args = f"--local --sacred-id {exp['_id']} "
+    cmd_args += ' '.join(seml_arguments)
+
+    cmd = (f"srun{srun_options_str} seml {collection.name} start {cmd_args}")
+    subprocess.run(cmd, shell=True, check=True)
 
 
 def start_local_job(collection, exp, unobserved=False, post_mortem=False,
@@ -490,17 +517,34 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
                  f"{njobs} Slurm job{s_if(njobs)} in {narrays} Slurm job array{s_if(narrays)}.")
 
     for exp_array in exp_arrays:
+        sbatch_options = exp_array[0][0]['slurm']['sbatch_options']
         job_name = get_exp_name(exp_array[0][0], collection.name)
-        if output_to_file:
-            output_dir_path = get_output_dir_path(exp_array[0][0])
+        set_slurm_job_name(sbatch_options, job_name, exp_array[0][0])
+        if srun:
+            assert len(exp_array) == 1
+            assert len(exp_array[0]) == 1
+            seml_arguments = []
+            seml_arguments.append("--debug")
+            if post_mortem:
+                seml_arguments.append("--post-mortem")
+            if output_to_console:
+                seml_arguments.append("--output-to-console")
+            if not output_to_file:
+                seml_arguments.append("--no-file-output")
+            if debug_server:
+                seml_arguments.append("--debug-server")
+            start_srun_job(collection, exp_array[0][0], unobserved,
+                           srun_options=sbatch_options,
+                           seml_arguments=seml_arguments)
         else:
-            output_dir_path = "/dev/null"
-        slurm_config = exp_array[0][0]['slurm']
-        del slurm_config['experiments_per_job']
-        start_slurm_job(collection, exp_array, unobserved, post_mortem,
-                        name=job_name, output_dir_path=output_dir_path,
-                        srun=srun, debug_server=debug_server,
-                        **slurm_config)
+            if output_to_file:
+                output_dir_path = get_output_dir_path(exp_array[0][0])
+            else:
+                output_dir_path = "/dev/null"
+            start_sbatch_job(collection, exp_array, unobserved, post_mortem,
+                             name=job_name, output_dir_path=output_dir_path,
+                             sbatch_options=sbatch_options,
+                             debug_server=debug_server)
 
 
 def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=False, post_mortem=False,
@@ -729,7 +773,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     default_sbatch = SETTINGS.SLURM_JUPYTER_JOB_DEFAULT_SBATCH
     default_sbatch.update(sbatch_options)
     # Construct sbatch options string
-    sbatch_options_str = create_sbatch_options_string(default_sbatch)
+    sbatch_options_str = create_slurm_options_string(default_sbatch)
 
     template = pkg_resources.resource_string(__name__, "jupyter_template.sh").decode("utf-8")
 
