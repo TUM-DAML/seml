@@ -92,9 +92,6 @@ def main():
             '-ds', '--debug-server', action='store_true',
             help="Run the experiment with a debug server, to which you can remotely connect with e.g. VS Code. "
                  "Implies `--debug`.")
-    parser_start.add_argument(
-            '-nf', '--no-file-output', action='store_true',
-            help="Do not save the console output in a file.")
     parser_start_local = parser_start.add_argument_group("optional arguments for local jobs")
     parser_start_local.add_argument(
             '-l', '--local', action='store_true',
@@ -117,6 +114,9 @@ def main():
         subparser.add_argument(
                 '-pm', '--post-mortem', action='store_true',
                 help="Activate post-mortem debugging with pdb.")
+        subparser.add_argument(
+                '-nf', '--no-file-output', action='store_true',
+                help="Do not save the console output in a file.")
 
     for subparser in [parser_start_local, parser_launch_worker]:
         subparser.add_argument(
