@@ -3,7 +3,7 @@ import os
 import logging
 
 from seml.start import get_command_from_exp
-from seml.database import get_collection, find_one_and_update
+from seml.database import get_collection
 from seml.sources import load_sources_from_db
 from seml.settings import SETTINGS
 
@@ -43,15 +43,14 @@ if __name__ == "__main__":
 
     collection = get_collection(db_collection_name)
 
-    if args.unobserved:
-        find_dict = {'_id': exp_id}
-    else:
-        find_dict = {'_id': exp_id, "status": {"$in": States.PENDING}}
-
-    # this returns the document as it was BEFORE the update. So we first have to check whether its state was
+    # This returns the document as it was BEFORE the update. So we first have to check whether its state was
     # PENDING. This is to avoid race conditions, since find_one_and_update is an atomic operation.
-    exp = find_one_and_update(collection, args.unobserved,
-                              find_dict, {"$set": {"status": States.RUNNING[0]}})
+    if args.unobserved:
+        exp = collection.find_one({'_id': exp_id})
+    else:
+        exp = collection.find_one_and_update({'_id': exp_id, "status": {"$in": States.PENDING}},
+                                             {"$set": {"status": States.RUNNING[0]}})
+
     if exp is None:
         # check whether experiment is actually missing from the DB or has the wrong state
         if collection.count_documents({'_id': exp_id}) == 0:
