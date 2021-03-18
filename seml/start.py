@@ -471,10 +471,6 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
     None
     """
 
-    if output_to_console and not srun:
-        logging.error("Output cannot be written to stdout in regular Slurm mode. "
-                      "Remove the '--output-to-console' argument or use '--debug'.")
-        sys.exit(1)
     nexps = len(exps_list)
     exp_chunks = chunk_list(exps_list)
     exp_arrays = batch_chunks(exp_chunks)
@@ -641,7 +637,6 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     use_slurm = not local
     output_to_file = not no_file_output
     launch_worker = not no_worker
-    unobserved = False
 
     if debug or debug_server:
         num_exps = 1
@@ -650,6 +645,25 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
         output_to_console = True
         srun = True
         logging.root.setLevel(logging.VERBOSE)
+    else:
+        unobserved = False
+        srun = False
+
+    if not local:
+        local_kwargs = {
+                "--no-worker": no_worker,
+                "--steal-slurm": steal_slurm,
+                "--worker-gpus": worker_gpus,
+                "--worker-cpus": worker_cpus,
+                "--worker-environment-vars": worker_environment_vars}
+        for key, val in local_kwargs.items():
+            if val:
+                logging.error(f"The argument '{key}' only works in local mode, not in Slurm mode.")
+                sys.exit(1)
+        if output_to_console and not srun:
+            logging.error("Output cannot be written to stdout in regular Slurm mode. "
+                          "Remove the '--output-to-console' argument or use '--debug'.")
+            sys.exit(1)
 
     if filter_dict is None:
         filter_dict = {}
@@ -679,11 +693,11 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     staged_experiments = get_staged_experiments(collection=collection, filter_dict=filter_dict, num_exps=num_exps,
                                                 slurm=use_slurm, set_to_pending=set_to_pending)
 
-    if len(staged_experiments) == 0 and use_slurm:
-        logging.error("No staged experiments.")
-        return
-
     if use_slurm:
+        if len(staged_experiments) == 0:
+            logging.error("No staged experiments.")
+            return
+
         add_to_slurm_queue(collection=collection, exps_list=staged_experiments, unobserved=unobserved,
                            post_mortem=post_mortem, output_to_file=output_to_file,
                            output_to_console=output_to_console, srun=srun,
