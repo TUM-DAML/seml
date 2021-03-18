@@ -388,7 +388,7 @@ def batch_chunks(exp_chunks):
     return exp_arrays
 
 
-def get_staged_experiments(collection, filter_dict=None, num_exps=0, slurm=True, set_to_pending=True):
+def prepare_staged_experiments(collection, filter_dict=None, num_exps=0, slurm=True, set_to_pending=True):
     """
     Load experiments with state STAGED from the input MongoDB collection. If set_to_pending is True, we also set their
     status to PENDING.
@@ -595,8 +595,8 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
 def print_commands(collection, unobserved, post_mortem, debug_server, num_exps, filter_dict):
     orig_level = logging.root.level
     logging.root.setLevel(logging.VERBOSE)
-    exps_list = get_staged_experiments(collection=collection, filter_dict=filter_dict, num_exps=num_exps,
-                                       set_to_pending=False)
+    exps_list = prepare_staged_experiments(collection=collection, filter_dict=filter_dict, num_exps=num_exps,
+                                           set_to_pending=False)
     if len(exps_list) == 0:
         return
 
@@ -702,8 +702,8 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
                        num_exps=num_exps, filter_dict=filter_dict)
         return
 
-    staged_experiments = get_staged_experiments(collection=collection, filter_dict=filter_dict, num_exps=num_exps,
-                                                slurm=use_slurm, set_to_pending=set_to_pending)
+    staged_experiments = prepare_staged_experiments(collection=collection, filter_dict=filter_dict, num_exps=num_exps,
+                                                    slurm=use_slurm, set_to_pending=set_to_pending)
 
     if use_slurm:
         if len(staged_experiments) == 0:
