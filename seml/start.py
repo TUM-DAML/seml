@@ -415,7 +415,7 @@ def batch_chunks(exp_chunks):
     return exp_arrays
 
 
-def prepare_staged_experiments(collection, filter_dict=None, num_exps=0, slurm=True, set_to_pending=True):
+def prepare_staged_experiments(collection, filter_dict=None, num_exps=0, slurm=True, set_to_pending=True, print_pending=False):
     """
     Load experiments with state STAGED from the input MongoDB collection. If set_to_pending is True, we also set their
     status to PENDING.
@@ -432,10 +432,12 @@ def prepare_staged_experiments(collection, filter_dict=None, num_exps=0, slurm=T
         If True, we also set 'slurm.array_id' in order to prevent these jobs from being executed by local workers.
     set_to_pending: bool
         Whether to update the database entries to status PENDING.
+    print_pending: bool
+        Print the number of experiments set to PENDING.
 
     Returns
     -------
-    The list of database entries with status STAGED.
+    The filtered list of database entries with status STAGED.
     """
     if filter_dict is None:
         filter_dict = {}
@@ -454,9 +456,13 @@ def prepare_staged_experiments(collection, filter_dict=None, num_exps=0, slurm=T
             # only set the experiments to PENDING which will be run.
             collection.update_many({'_id': {'$in': [e['_id'] for e in staged_experiments
                                                     if e['status'] in States.STAGED]}},
-                                   update_dict, )
+                                   update_dict)
+            nexps_set = min(num_exps, len(staged_experiments))
         else:
             collection.update_many(query_dict, update_dict)
+            nexps_set = len(staged_experiments)
+        if print_pending:
+            logging.info(f"Setting {nexps_set} experiment{s_if(nexps_set)} to pending.")
 
     return staged_experiments
 
@@ -592,9 +598,9 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
 
     if num_exps > 0:
         logging.info(f'Starting local worker thread that will run up to {num_exps} experiment{s_if(num_exps)}, '
-                     f'until no staged experiments remain.')
+                     f'or until no pending experiments remain.')
     else:
-        logging.info(f'Starting local worker thread that will run experiments until no staged experiments remain.')
+        logging.info(f'Starting local worker thread that will run experiments until no pending experiments remain.')
         num_exps = int(1e30)
 
     set_environment_variables(gpus, cpus, environment_variables)
@@ -602,27 +608,28 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     num_exceptions = 0
     jobs_counter = 0
 
-    staged_query = {}
+    exp_query = {}
     if not unobserved:
-        staged_query['status'] = {"$in": States.PENDING}
+        exp_query['status'] = {"$in": States.PENDING}
     if not steal_slurm:
-        staged_query['slurm.array_id'] = {'$exists': False}
+        exp_query['slurm.array_id'] = {'$exists': False}
 
-    staged_query.update(filter_dict)
+    exp_query.update(filter_dict)
 
     tq = tqdm()
-    while collection.count_documents(staged_query) > 0 and jobs_counter < num_exps:
+    while collection.count_documents(exp_query) > 0 and jobs_counter < num_exps:
+        if unobserved:
+            exp = collection.find_one(exp_query)
+        else:
+            exp = collection.find_one_and_update(exp_query, {"$set": {"status": States.RUNNING[0]}})
+        if exp is None:
+            continue
+
+        tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
 
         # Add newline if we need to avoid tqdm's output
         if debug_server or output_to_console or logging.root.level <= logging.VERBOSE:
             print(file=sys.stderr)
-
-        if unobserved:
-            exp = collection.find_one(staged_query)
-        else:
-            exp = collection.find_one_and_update(staged_query, {"$set": {"status": States.RUNNING[0]}})
-        if exp is None:
-            continue
 
         if output_to_file:
             output_dir_path = get_output_dir_path(exp)
@@ -639,7 +646,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
             exit(1)
         jobs_counter += 1
         tq.update()
-        tq.set_postfix(failed=f"{num_exceptions}/{jobs_counter} experiments")
+        tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
 
 
 def print_commands(collection, unobserved, post_mortem, debug_server, num_exps, filter_dict):
@@ -752,15 +759,15 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
                        num_exps=num_exps, filter_dict=filter_dict)
         return
 
-    staged_experiments = prepare_staged_experiments(collection=collection, filter_dict=filter_dict, num_exps=num_exps,
-                                                    slurm=use_slurm, set_to_pending=set_to_pending)
+    staged_experiments = prepare_staged_experiments(
+            collection=collection, filter_dict=filter_dict, num_exps=num_exps,
+            slurm=use_slurm, set_to_pending=set_to_pending, print_pending=not use_slurm)
 
     if use_slurm:
         add_to_slurm_queue(collection=collection, exps_list=staged_experiments, unobserved=unobserved,
                            post_mortem=post_mortem, output_to_file=output_to_file,
                            output_to_console=output_to_console, srun=srun,
                            debug_server=debug_server)
-
     elif launch_worker:
         start_local_worker(collection=collection, num_exps=num_exps, filter_dict=filter_dict, unobserved=unobserved,
                            post_mortem=post_mortem, steal_slurm=steal_slurm,
