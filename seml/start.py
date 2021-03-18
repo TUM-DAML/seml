@@ -638,6 +638,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
             logging.info("Caught KeyboardInterrupt signal. Aborting.")
             exit(1)
         jobs_counter += 1
+        tq.update()
         tq.set_postfix(failed=f"{num_exceptions}/{jobs_counter} experiments")
 
 
