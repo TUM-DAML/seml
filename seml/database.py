@@ -254,33 +254,3 @@ def clean_unreferenced_artifacts(db_collection_name, all_collections=False):
     for to_delete in tqdm(not_referenced_artifacts):
         fs.delete(to_delete)
     logging.info(f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.')
-
-
-def find_one_and_update(collection, unobserved, *pymongo_args, **pymongo_kwargs):
-    """
-    Run find_one_and_update only if unobserved is False
-    Parameters
-    ----------
-    collection: Collection
-        Database collection to be scanned
-    unobserved: bool
-        Whether to change the collection
-    pymongo_args: list
-        Arguments passed to find_one_and_update
-    pymongo_kwargs: dict
-        Arguments passed to find_one_and_update
-
-    Returns
-    -------
-    list[dict]: Found MongoDB entries
-    """
-
-    if unobserved:
-        if len(pymongo_args) >= 2:
-            pymongo_args = list(pymongo_args)
-            del pymongo_args[1]
-        if 'update' in pymongo_kwargs:
-            del pymongo_kwargs['update']
-        return collection.find_one(*pymongo_args, **pymongo_kwargs)
-    else:
-        return collection.find_one_and_update(*pymongo_args, **pymongo_kwargs)
