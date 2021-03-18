@@ -10,8 +10,7 @@ import re
 from seml.database import get_mongodb_config
 from seml.settings import SETTINGS
 
-__all__ = ['create_mongodb_observer', 'create_slack_observer', 'create_neptune_observer', 'create_mattermost_observer',
-           'MattermostObserver']
+__all__ = ['create_mongodb_observer', 'create_slack_observer', 'create_neptune_observer', 'create_mattermost_observer']
 
 
 def create_mongodb_observer(collection,
@@ -69,6 +68,23 @@ def create_slack_observer(webhook=None):
 
 
 def create_mattermost_observer(webhook=None, channel=None, **kwargs):
+    """
+    Create a Mattermost observer, which sends notifications via Mattermost.
+
+    Parameters
+    ----------
+    webhook: str
+        The webhook of the Mattermost instance. If you don't know this, ask your Mattermost administrator.
+    channel: str
+        The channel to send notifications to. This should usually be  @your.username (starting with '@').
+    kwargs: dict
+        Additional arguments (see class MattermostObserver for options.
+
+    Returns
+    -------
+    The observer.
+
+    """
 
     if channel is None:
         if "OBSERVERS" in SETTINGS and "MATTERMOST" in SETTINGS.OBSERVERS:
