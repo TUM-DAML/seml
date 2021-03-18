@@ -42,7 +42,7 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
 
     if debug_server:
         ip_address, port = find_free_port()
-        logging.info(f"Starting debug server with IP {ip_address} and port {port}.")
+        logging.info(f"Starting debug server with IP {ip_address} and port {port}. Experiment will wait for a debug client to attach.")
         interpreter = f"python -m debugpy --listen {ip_address}:{port} --wait-for-client"
     else:
         interpreter = "python"
