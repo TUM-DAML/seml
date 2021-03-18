@@ -69,8 +69,8 @@ def main():
                  "advanced Sacred features or to accelerate adding.")
     parser_add.add_argument(
             '-ncc', '--no-code-checkpoint', action='store_true',
-            help="Do upload the source code files to the MongoDB. "
-                 "When a staged experiment is started, it will use whatever is the current version of the code "
+            help="Do not save the source code files in the MongoDB. "
+                 "When a staged experiment is started, it will instead use the current version of the code "
                  "files (which might have been updated in the meantime or could fail when started).")
     parser_add.add_argument(
             '-f', '--force-duplicates', action='store_true',
@@ -164,8 +164,8 @@ def main():
 
     parser_reset = subparsers.add_parser(
             "reset",
-            help="Reset the state of experiments (set to STAGED and clean database entry) "
-                 "by ID or state (does not cancel Slurm jobs).")
+            help="Reset the state of experiments by setting their state to staged and cleaning their database entry. "
+                 "Does not cancel Slurm jobs.")
     parser_reset.add_argument(
             '-s', '--filter-states', type=str, nargs='*', default=[*States.FAILED, *States.KILLED,
                                                                    *States.INTERRUPTED],
