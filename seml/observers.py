@@ -78,7 +78,7 @@ def create_mattermost_observer(webhook=None, channel=None, **kwargs):
     channel: str
         The channel to send notifications to. This should usually be  @your.username (starting with '@').
     kwargs: dict
-        Additional arguments (see class MattermostObserver for options.
+        Keyword arguments that are passed to the MattermostObserver. See MattermostObserver.__init__ for details.
 
     Returns
     -------
