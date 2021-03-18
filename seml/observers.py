@@ -130,16 +130,16 @@ class MattermostObserver(RunObserver):
         channel=None,
         bot_name="sacredbot",
         icon=":angel:",
-        completed_text=None,
-        interrupted_text=None,
-        failed_text=None,
-        started_text=None,
-        heartbeat_text=None,
-        notify_on_completed=True,
-        notify_on_interrupted=False,
-        notify_on_failed=True,
         notify_on_started=False,
+        notify_on_completed=True,
+        notify_on_failed=True,
+        notify_on_interrupted=False,
         heartbeat_interval=None,
+        started_text=None,
+        completed_text=None,
+        failed_text=None,
+        interrupted_text=None,
+        heartbeat_text=None,
         convert_utc_to_local_timezone=True,
     ):
         """
@@ -154,36 +154,36 @@ class MattermostObserver(RunObserver):
             The name of the bot.
         icon: str
             The icon of the bot.
-        completed_text: str
-            Text to be sent upon completion. If None, this default will be used:
-            ":white_check_mark: *{experiment[name]}* "
-            "completed after _{elapsed_time}_ with result: \n```json\n{result}\n````\n"
-        interrupted_text: str
-            Text to be sent upon interruption. If None, this default will be used:
-            ":warning: *{experiment[name]}* " "interrupted after _{elapsed_time}_"
-        failed_text: str
-            Text to be sent upon failure. If None, this default will be used:
-            ":x: *{experiment[name]}* failed after " "_{elapsed_time}_ with `{error}`"
+        notify_on_started: bool
+            Whether to send a notification when the experiment starts.
+        notify_on_completed: bool
+            Whether to send a notification upon completion.
+        notify_on_failed: bool
+            Whether to send a notification when the experiment fails.
+        notify_on_interrupted: bool
+            Whether to send a notification when the experiment is interrupted.
+        heartbeat_interval: str
+            String in the format hh:mm indicating how often to send heartbeat notifications. If None, send no
+            notifications.
         started_text: str
             Text to be sent when the experiment starts. If None, this default will be used:
             ":hourglass_flowing_sand: *{experiment[name]}* "
             "started on host `{host_info[hostname]}` at _{start_time}_."
+        completed_text: str
+            Text to be sent upon completion. If None, this default will be used:
+            ":white_check_mark: *{experiment[name]}* "
+            "completed after _{elapsed_time}_ with result: \n```json\n{result}\n````\n"
+        failed_text: str
+            Text to be sent upon failure. If None, this default will be used:
+            ":x: *{experiment[name]}* failed after " "_{elapsed_time}_ with `{error}`"
+        interrupted_text: str
+            Text to be sent upon interruption. If None, this default will be used:
+            ":warning: *{experiment[name]}* " "interrupted after _{elapsed_time}_"
         heartbeat_text: str
             Text to be sent to notify that the experiment is still running. If None, this default will be used:
             ":heartpulse: *{experiment[name]}* has been up and running for " "_{elapsed_time}_. "
             "Current info dict: \n```json\n{info}\n```\n"
             "Next heartbeat will be sent in about _{heartbeat_interval}_, i.e., on _{next_heartbeat_date}_."
-        notify_on_completed: bool
-            Whether to send a notification upon completion.
-        notify_on_interrupted: bool
-            Whether to send a notification when the experiment is interrupted.
-        notify_on_failed: bool
-            Whether to send a notification when the experiment fails.
-        notify_on_started: bool
-            Whether to send a notification when the experiment starts.
-        heartbeat_interval: str
-            String in the format hh:mm indicating how often to send heartbeat notifications. If None, send no
-            notifications.
         convert_utc_to_local_timezone: bool
             Whether to convert UTC times to local timezone in the notifications.
         """
