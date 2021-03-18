@@ -756,10 +756,6 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
                                                     slurm=use_slurm, set_to_pending=set_to_pending)
 
     if use_slurm:
-        if len(staged_experiments) == 0:
-            logging.error("No staged experiments.")
-            return
-
         add_to_slurm_queue(collection=collection, exps_list=staged_experiments, unobserved=unobserved,
                            post_mortem=post_mortem, output_to_file=output_to_file,
                            output_to_console=output_to_console, srun=srun,
