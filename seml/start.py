@@ -544,7 +544,8 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
                 output_dir_path = get_output_dir_path(exp_array[0][0])
             else:
                 output_dir_path = "/dev/null"
-            start_sbatch_job(collection, exp_array, unobserved, post_mortem,
+            assert not post_mortem
+            start_sbatch_job(collection, exp_array, unobserved,
                              name=job_name, output_dir_path=output_dir_path,
                              sbatch_options=sbatch_options,
                              debug_server=debug_server)
