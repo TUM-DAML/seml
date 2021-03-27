@@ -14,6 +14,7 @@ from seml.sources import load_sources_from_db
 from seml.utils import s_if
 from seml.network import find_free_port
 from seml.settings import SETTINGS
+from seml.manage import reset_slurm_dict
 
 States = SETTINGS.STATES
 
@@ -616,7 +617,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     if not unobserved:
         exp_query['status'] = {"$in": States.PENDING}
     if not steal_slurm:
-        exp_query['slurm.array_id'] = {'$exists': False}
+        exp_query['$and'] = [{'slurm.array_id': {'$exists': False}}, {'slurm.id': {'$exists': False}}]
 
     exp_query.update(filter_dict)
 
@@ -628,6 +629,12 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
             exp = collection.find_one_and_update(exp_query, {"$set": {"status": States.RUNNING[0]}})
         if exp is None:
             continue
+        if 'array_id' in exp['slurm']:
+            # Clean up MongoDB entry
+            slurm_ids = {'array_id': exp['slurm']['array_id'],
+                         'task_id': exp['slurm']['task_id']}
+            reset_slurm_dict(exp)
+            collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
 
         tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
 

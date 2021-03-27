@@ -12,6 +12,7 @@ from seml.settings import SETTINGS
 
 States = SETTINGS.STATES
 
+
 def report_status(db_collection_name):
     detect_killed(db_collection_name, print_detected=False)
     collection = get_collection(db_collection_name)
@@ -210,6 +211,19 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         delete_orphaned_sources(collection, batch_ids_in_del)
 
 
+def reset_slurm_dict(exp):
+    keep_slurm = {'name', 'output_dir', 'experiments_per_job', 'sbatch_options'}
+    slurm_keys = set(exp['slurm'].keys())
+    for key in slurm_keys - keep_slurm:
+        del exp['slurm'][key]
+
+    # Clean up sbatch_options dictionary
+    remove_sbatch = {'job-name', 'output', 'array'}
+    sbatch_keys = set(exp['slurm']['sbatch_options'].keys())
+    for key in remove_sbatch & sbatch_keys:
+        del exp['slurm']['sbatch_options'][key]
+
+
 def reset_single_experiment(collection, exp):
     exp['status'] = States.STAGED[0]
     # queue_time for backward compatibility.
@@ -221,22 +235,11 @@ def reset_single_experiment(collection, exp):
     for key in seml_keys - keep_seml:
         del exp['seml'][key]
 
-    # Clean up Slurm dictionary
-    keep_slurm = {'name', 'output_dir', 'experiments_per_job', 'sbatch_options'}
-    slurm_keys = set(exp['slurm'].keys())
-    for key in slurm_keys - keep_slurm:
-        del exp['slurm'][key]
-
-    # Clean up sbatch_options dictionary
-    remove_sbatch = {'job-name', 'output'}
-    sbatch_keys = set(exp['slurm']['sbatch_options'].keys())
-    for key in remove_sbatch & sbatch_keys:
-        del exp['slurm']['sbatch_options'][key]
-    collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries if entry in exp},
-                           upsert=False)
+    reset_slurm_dict(exp)
 
     collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in keep_entries if entry in exp},
                            upsert=False)
+
 
 def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict):
     collection = get_collection(db_collection_name)
