@@ -1,11 +1,11 @@
 ![Github Actions](https://github.com/TUM-DAML/seml/workflows/Test/badge.svg)
 
 # `SEML`: Slurm Experiment Management Library
-**`SEML`** is the missing link between the open-source workload scheduling system `Slurm` and the experiment management tool `sacred`. It is lightweight, hackable, written in pure Python, and scales to thousands of experiments.
+**`SEML`** is the missing link between the open-source workload scheduling system `Slurm`, the experiment management tool `sacred`, and a `MongoDB` experiment database. It is lightweight, hackable, written in pure Python, and scales to thousands of experiments.
 
 Keeping track of computational experiments can be annoying and failure to do so can lead to lost results, duplicate running of the same experiments, and lots of headaches.
 While workload scheduling systems such as [`Slurm`](https://slurm.schedmd.com/overview.html) make it easy to run many experiments in parallel on a cluster, it can be hard to keep track of which parameter configurations are running, failed, or completed.
-[`sacred`](https://github.com/IDSIA/sacred) is a great tool to collect and manage experiments and their results, but is lacking integration with workload schedulers.
+[`sacred`](https://github.com/IDSIA/sacred) is a great tool to collect and manage experiments and their results, especially when used with a [`MongoDB`](https://www.mongodb.com/). However, it is lacking integration with workload schedulers.
 
 **`SEML`** enables you to 
 * very easily define hyperparameter search spaces using YAML files,
@@ -14,9 +14,10 @@ While workload scheduling systems such as [`Slurm`](https://slurm.schedmd.com/ov
 
 
 In addition, **`SEML`** offers many more features to make your life easier, such as
-* tight integration with MongoDB,
 * automatically saving and loading your source code for reproducibility,
-* providing commands for your debugger, 
+* easy debugging on Slurm or locally,
+* automatically checking your experiment configurations,
+* extending Slurm with local workers,
 * and keeping track of resource usage (experiment runtime, RAM, etc.).
 
 ## Get started
