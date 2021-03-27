@@ -10,7 +10,7 @@ While workload scheduling systems such as [`Slurm`](https://slurm.schedmd.com/ov
 **`SEML`** enables you to 
 * very easily define hyperparameter search spaces using YAML files,
 * run these hyperparameter configurations on a compute cluster using `Slurm`,
-* and to track the experimental results using `sacred` and [`MongoDB`](https://www.mongodb.com/).
+* and to track the experimental results using `sacred` and `MongoDB`.
 
 
 In addition, **`SEML`** offers many more features to make your life easier, such as
