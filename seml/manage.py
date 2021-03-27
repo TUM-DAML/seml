@@ -2,13 +2,13 @@ import logging
 import subprocess
 import datetime
 from getpass import getpass
-import sys
 import copy
 
 from seml.database import get_collection, build_filter_dict
 from seml.sources import delete_orphaned_sources
 from seml.utils import s_if, chunker
 from seml.settings import SETTINGS
+from seml.errors import ArgumentError, MongoDBError
 
 States = SETTINGS.STATES
 
@@ -129,7 +129,8 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
 
             filter_dict_new = copy.deepcopy(filter_dict)
             filter_dict_new.update({'slurm.array_id': {'$exists': True}})
-            exps = list(collection.find(filter_dict_new, {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1}))
+            exps = list(collection.find(filter_dict_new,
+                                        {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1}))
             # set of slurm IDs in the database
             slurm_ids = set([(e['slurm']['array_id'], e['slurm']['task_id']) for e in exps])
             # set of experiment IDs to be cancelled.
@@ -204,8 +205,7 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
     else:
         exp = collection.find_one({'_id': sacred_id})
         if exp is None:
-            logging.error(f"No experiment found with ID {sacred_id}.")
-            sys.exit(1)
+            raise MongoDBError(f"No experiment found with ID {sacred_id}.")
         else:
             logging.info(f"Deleting experiment with ID {sacred_id}.")
             batch_ids_in_del = set([exp['batch_id']])
@@ -272,8 +272,7 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
     else:
         exp = collection.find_one({'_id': sacred_id})
         if exp is None:
-            logging.error(f"No experiment found with ID {sacred_id}.")
-            sys.exit(1)
+            raise MongoDBError(f"No experiment found with ID {sacred_id}.")
         else:
             logging.info(f"Resetting the state of experiment with ID {sacred_id}.")
             reset_single_experiment(collection, exp)
@@ -344,8 +343,9 @@ def get_slurm_arrays_tasks():
 
     """
     try:
-        squeue_out = subprocess.run(f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`",
-                                    shell=True, check=True, capture_output=True).stdout
+        squeue_out = subprocess.run(
+                f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`",
+                shell=True, check=True, capture_output=True).stdout
         jobs = [job_str for job_str in squeue_out.splitlines() if b'_' in job_str]
         if len(jobs) > 0:
             array_ids_str, task_ids = zip(*[job_str.split(b'_') for job_str in jobs])
@@ -385,8 +385,7 @@ def get_nonempty_input(field_name, num_trials=3):
         field = get_input(f"Please input the {field_name}: ")
         trials += 1
     if field is None or len(field) == 0:
-        logging.error(f"Did not receive an input for {num_trials} times. Aborting.")
-        sys.exit(1)
+        raise ArgumentError(f"Did not receive an input for {num_trials} times. Aborting.")
     return field
 
 

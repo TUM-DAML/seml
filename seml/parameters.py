@@ -1,9 +1,9 @@
 import random
-import sys
-import logging
 import itertools
 import numpy as np
+
 from seml.utils import unflatten
+from seml.errors import ConfigError
 
 
 def sample_random_configs(random_config, samples=1, seed=None):
@@ -73,8 +73,7 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
     """
 
     if "type" not in parameter:
-        logging.error("No type found in parameter {}".format(parameter))
-        sys.exit(1)
+        raise ConfigError("No type found in parameter {}".format(parameter))
     return_items = []
     allowed_keys = ['seed', 'type']
     if seed is not None:
@@ -99,8 +98,7 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
 
     elif param_type == "loguniform":
         if parameter['min'] <= 0:
-            logging.error("Cannot take log of values <= 0")
-            sys.exit(1)
+            raise ConfigError("Cannot take log of values <= 0")
         min_val = np.log(parameter['min'])
         max_val = np.log(parameter['max'])
         allowed_keys.extend(['min', 'max'])
@@ -127,13 +125,13 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
         return_items.extend([sub_item for item in sub_items for sub_item in item])
 
     else:
-        raise NotImplementedError(f"Parameter type {param_type} not implemented.")
+        raise ConfigError(f"Parameter type {param_type} not implemented.")
 
     if param_type != "parameter_collection":
         extra_keys = set(parameter.keys()).difference(set(allowed_keys))
         if len(extra_keys) > 0:
-            raise ValueError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
-                             f"{allowed_keys}. Unexpected keys: {extra_keys}")
+            raise ConfigError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
+                              f"{allowed_keys}. Unexpected keys: {extra_keys}")
     return return_items
 
 
@@ -163,8 +161,7 @@ def generate_grid(parameter, parent_key=''):
 
     """
     if "type" not in parameter:
-        logging.error("No type found in parameter {}".format(parameter))
-        sys.exit(1)
+        raise ConfigError("No type found in parameter {}".format(parameter))
 
     param_type = parameter['type']
     allowed_keys = ['type']
@@ -205,13 +202,13 @@ def generate_grid(parameter, parent_key=''):
         return_items.extend([sub_item for item in sub_items for sub_item in item])
 
     else:
-        raise NotImplementedError(f"Parameter {param_type} not implemented.")
+        raise ConfigError(f"Parameter {param_type} not implemented.")
 
     if param_type != "parameter_collection":
         extra_keys = set(parameter.keys()).difference(set(allowed_keys))
         if len(extra_keys) > 0:
-            raise ValueError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
-                             f"{allowed_keys}. Unexpected keys: {extra_keys}")
+            raise ConfigError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
+                              f"{allowed_keys}. Unexpected keys: {extra_keys}")
 
     return return_items
 

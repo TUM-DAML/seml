@@ -193,11 +193,11 @@ def main():
         subparser.add_argument(
                 '-b', '--batch-id', type=int,
                 help="Batch ID (batch_id in the database collection) of the experiments to be started. "
-                    "Experiments that were staged together have the same batch_id.")
+                     "Experiments that were staged together have the same batch_id.")
         subparser.add_argument(
                 '-f', '--filter-dict', type=json.loads,
                 help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter "
-                    "the experiments by.")
+                     "the experiments by.")
 
     args = parser.parse_args()
 

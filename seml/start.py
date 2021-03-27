@@ -15,6 +15,7 @@ from seml.utils import s_if
 from seml.network import find_free_port
 from seml.settings import SETTINGS
 from seml.manage import cancel_experiment_by_id, reset_slurm_dict
+from seml.errors import ConfigError, ArgumentError, MongoDBError
 
 States = SETTINGS.STATES
 
@@ -22,7 +23,7 @@ States = SETTINGS.STATES
 def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
                          post_mortem=False, debug=False, debug_server=False):
     if 'executable' not in exp['seml']:
-        raise ValueError(f"No executable found for experiment {exp['_id']}. Aborting.")
+        raise MongoDBError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
     if 'executable_relative' in exp['seml']:  # backwards compatibility
         exe = exp['seml']['executable_relative']
@@ -43,7 +44,8 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
 
     if debug_server:
         ip_address, port = find_free_port()
-        logging.info(f"Starting debug server with IP {ip_address} and port {port}. Experiment will wait for a debug client to attach.")
+        logging.info(f"Starting debug server with IP {ip_address} and port {port}. "
+                     f"Experiment will wait for a debug client to attach.")
         interpreter = f"python -m debugpy --listen {ip_address}:{port} --wait-for-client"
     else:
         interpreter = "python"
@@ -62,8 +64,7 @@ def get_output_dir_path(config):
         output_dir = '.'
     output_dir_path = str(Path(output_dir).expanduser().resolve())
     if not os.path.isdir(output_dir_path):
-        logging.error(f"Output directory '{output_dir_path}' does not exist.")
-        sys.exit(1)
+        raise ConfigError(f"Output directory '{output_dir_path}' does not exist.")
     return output_dir_path
 
 
@@ -81,9 +82,8 @@ def get_exp_name(exp_config, db_collection_name):
 
 def set_slurm_job_name(sbatch_options, name, exp):
     if 'job-name' in sbatch_options:
-        logging.error("Can't set sbatch `job-name` parameter explicitly. "
-                      "Use `name` parameter instead and SEML will do that for you.")
-        sys.exit(1)
+        raise ConfigError("Can't set sbatch `job-name` parameter explicitly. "
+                          "Use `name` parameter instead and SEML will do that for you.")
     job_name = f"{name}_{exp['batch_id']}"
     sbatch_options['job-name'] = job_name
 
@@ -153,8 +153,7 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
 
     # Set Slurm output parameter
     if 'output' in sbatch_options:
-        logging.error(f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
-        sys.exit(1)
+        raise ConfigError(f"Can't set sbatch `output` Parameter explicitly. SEML will do that for you.")
     elif output_dir_path == "/dev/null":
         output_file = output_dir_path
     else:
@@ -413,7 +412,8 @@ def batch_chunks(exp_chunks):
     return exp_arrays
 
 
-def prepare_staged_experiments(collection, filter_dict=None, num_exps=0, slurm=True, set_to_pending=True, print_pending=False):
+def prepare_staged_experiments(collection, filter_dict=None, num_exps=0,
+                               slurm=True, set_to_pending=True, print_pending=False):
     """
     Load experiments with state STAGED from the input MongoDB collection. If set_to_pending is True, we also set their
     status to PENDING.
@@ -591,9 +591,8 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     """
     login_node_name = 'fs'
     if login_node_name in os.uname()[1]:
-        logging.error("Refusing to run a compute experiment on a login node. "
-                      "Please use Slurm or a compute node.")
-        sys.exit(1)
+        raise ArgumentError("Refusing to run a compute experiment on a login node. "
+                            "Please use Slurm or a compute node.")
 
     if 'SLURM_JOBID' in os.environ:
         node_str = subprocess.run("squeue -j ${SLURM_JOBID} -O nodelist:1000",
@@ -742,17 +741,15 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
                 "--worker-environment-vars": worker_environment_vars}
         for key, val in local_kwargs.items():
             if val:
-                logging.error(f"The argument '{key}' only works in local mode, not in Slurm mode.")
-                sys.exit(1)
+                raise ArgumentError(f"The argument '{key}' only works in local mode, not in Slurm mode.")
     if not local and not srun:
         non_sbatch_kwargs = {
                 "--post-mortem": post_mortem,
                 "--output-to-console": output_to_console}
         for key, val in non_sbatch_kwargs.items():
             if val:
-                logging.error(f"The argument '{key}' does not work in regular Slurm mode. "
-                              "Remove the argument or use '--debug'.")
-                sys.exit(1)
+                raise ArgumentError(f"The argument '{key}' does not work in regular Slurm mode. "
+                                    "Remove the argument or use '--debug'.")
 
     if filter_dict is None:
         filter_dict = {}
