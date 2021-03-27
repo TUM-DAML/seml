@@ -327,9 +327,38 @@ def convert_values(val):
     return val
 
 
+class YamlUniqueLoader(yaml.FullLoader):
+    """
+    Custom YAML loader that disallows duplicate keys
+
+    From https://github.com/encukou/naucse_render/commit/658197ed142fec2fe31574f1ff24d1ff6d268797
+    Workaround for PyYAML issue: https://github.com/yaml/pyyaml/issues/165
+    This disables some uses of YAML merge (`<<`)
+    """
+
+
+def construct_mapping(loader, node, deep=False):
+    """Construct a YAML mapping node, avoiding duplicates"""
+    loader.flatten_mapping(node)
+    result = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in result:
+            logging.error(f"Found duplicate keys in config: {key}")
+            sys.exit(1)
+        result[key] = loader.construct_object(value_node, deep=deep)
+    return result
+
+
+YamlUniqueLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    construct_mapping,
+)
+
+
 def read_config(config_path):
     with open(config_path, 'r') as conf:
-        config_dict = convert_values(yaml.load(conf, Loader=yaml.FullLoader))
+        config_dict = convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
 
     if "seml" not in config_dict:
         logging.error("Please specify a 'seml' dictionary in the experiment configuration.")

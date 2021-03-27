@@ -8,7 +8,8 @@ class TestParseConfigDicts(unittest.TestCase):
     SIMPLE_CONFIG_WITH_PARAMETER_COLLECTIONS_RANDOM = "resources/config/config_with_parameter_collections_random.yaml"
     CONFIG_WITH_DUPLICATE_PARAMETERS_1 = "resources/config/config_with_duplicate_parameters_1.yaml"
     CONFIG_WITH_DUPLICATE_PARAMETERS_2 = "resources/config/config_with_duplicate_parameters_2.yaml"
-    CONFIG_WITH_DUPLICATE_PARAMETERS_3 = "resources/config/config_nested_parameter_collections.yaml"
+    CONFIG_WITH_DUPLICATE_PARAMETERS_3 = "resources/config/config_with_duplicate_parameters_3.yaml"
+    CONFIG_WITH_DUPLICATE_PARAMETERS_NESTED = "resources/config/config_nested_parameter_collections.yaml"
     CONFIG_WITH_DUPLICATE_RDM_PARAMETERS_2 = "resources/config/config_with_duplicate_random_parameters_1.yaml"
     CONFIG_WITH_ALL_TYPES = "resources/config/config_with_all_types.yaml"
 
@@ -75,10 +76,12 @@ class TestParseConfigDicts(unittest.TestCase):
         with self.assertRaises(SystemExit):
             configs = config.generate_configs(config_dict)
 
-        config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_3)
+        with self.assertRaises(SystemExit):
+            configs = config.read_config(self.CONFIG_WITH_DUPLICATE_PARAMETERS_3)
+
+        config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_NESTED)
         with self.assertRaises(SystemExit):
             configs = config.generate_configs(config_dict)
-
 
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_RDM_PARAMETERS_2)
         configs = config.generate_configs(config_dict)
