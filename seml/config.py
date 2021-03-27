@@ -108,7 +108,7 @@ def detect_duplicate_parameters(inverted_config: dict, sub_config_name: str = No
             raise ConfigError(f"Found duplicate keys in sub-config {sub_config_name}: "
                               f"{duplicate_keys}")
         else:
-            raise ConfigError(f"Found duplicate keys in config: {duplicate_keys}")
+            raise ConfigError(f"Found duplicate keys: {duplicate_keys}")
 
     start_characters = set([x[0] for x in inverted_config.keys()])
     buckets = {k: {x for x in inverted_config.keys() if x.startswith(k)} for k in start_characters}
@@ -119,7 +119,7 @@ def detect_duplicate_parameters(inverted_config: dict, sub_config_name: str = No
                      "parameter '{p1}' in dot-notation starting with other parameter "
                      "'{p2}', which is ambiguous.")
     else:
-        error_str = (f"Conflicting parameters in config, most likely "
+        error_str = (f"Conflicting parameters, most likely "
                      "due to ambiguous use of dot-notation in the config dict. Found "
                      "parameter '{p1}' in dot-notation starting with other parameter "
                      "'{p2}', which is ambiguous.")
@@ -338,7 +338,7 @@ def construct_mapping(loader, node, deep=False):
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=deep)
         if key in result:
-            raise ConfigError(f"Found duplicate keys in config: '{key}'")
+            raise ConfigError(f"Found duplicate keys: '{key}'")
         result[key] = loader.construct_object(value_node, deep=deep)
     return result
 
@@ -354,7 +354,7 @@ def read_config(config_path):
         config_dict = convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
 
     if "seml" not in config_dict:
-        raise ConfigError("Please specify a 'seml' dictionary in the experiment configuration.")
+        raise ConfigError("Please specify a 'seml' dictionary.")
 
     seml_dict = config_dict['seml']
     del config_dict['seml']

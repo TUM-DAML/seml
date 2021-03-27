@@ -135,7 +135,7 @@ def load_sources_from_db(exp, collection, to_directory):
     db = collection.database
     fs = gridfs.GridFS(db)
     if 'source_files' not in exp['seml']:
-        raise MongoDBError(f'No source files found for experiment with ID {exp["_id"]}')
+        raise MongoDBError(f'No source files found for experiment with ID {exp["_id"]}.')
     source_files = exp['seml']['source_files']
     for path, _id in source_files:
         _dir = f"{to_directory}/{os.path.dirname(path)}"
@@ -144,7 +144,7 @@ def load_sources_from_db(exp, collection, to_directory):
         with open(f'{to_directory}/{path}', 'wb') as f:
             file = fs.find_one(_id)
             if file is None:
-                raise MongoDBError(f"Source file with ID '{_id}' was not found in the MongoDB.")
+                raise MongoDBError(f"Could not find source file with ID '{_id}' for experiment with ID {exp['_id']}.")
             f.write(file.read())
 
 
