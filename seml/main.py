@@ -118,19 +118,17 @@ def main():
     for subparser in [parser_start_local, parser_launch_worker]:
         subparser.add_argument(
                 '-ss', '--steal-slurm', action='store_true',
-                help="Local jobs 'steal' from the Slurm queue, i.e. also execute experiments waiting for execution via "
-                    "Slurm. Has no effect if --local is not active.")
+                help="Local jobs 'steal' from the Slurm queue, "
+                     "i.e. also execute experiments waiting for execution via Slurm.")
         subparser.add_argument(
                 '-wg', '--worker-gpus', type=str,
-                help="The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES. "
-                    "Has no effect for Slurm jobs.")
+                help="The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.")
         subparser.add_argument(
                 '-wc', '--worker-cpus', type=int,
-                help="The number of CPU cores used by the local worker. Will be directly passed to OMP_NUM_THREADS. Has no "
-                    "effect for Slurm jobs.")
+                help="The number of CPU cores used by the local worker. Will be directly passed to OMP_NUM_THREADS.")
         subparser.add_argument(
                 '-we', '--worker-environment-vars', type=json.loads,
-                help="Further environment variables to be set for the local worker. Has no effect for Slurm jobs.")
+                help="Further environment variables to be set for the local worker.")
         subparser.add_argument(
                 '-pm', '--post-mortem', action='store_true',
                 help="Activate post-mortem debugging with pdb.")
