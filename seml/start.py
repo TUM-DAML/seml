@@ -14,7 +14,7 @@ from seml.sources import load_sources_from_db
 from seml.utils import s_if
 from seml.network import find_free_port
 from seml.settings import SETTINGS
-from seml.manage import reset_slurm_dict
+from seml.manage import cancel_experiment_by_id, reset_slurm_dict
 
 States = SETTINGS.STATES
 
@@ -635,6 +635,9 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
                          'task_id': exp['slurm']['task_id']}
             reset_slurm_dict(exp)
             collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
+
+            # Cancel Slurm job; after cleaning up to prevent race conditions
+            cancel_experiment_by_id(collection, exp['_id'], set_interrupted=False, slurm_dict=slurm_ids)
 
         tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
 

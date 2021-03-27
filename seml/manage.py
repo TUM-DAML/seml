@@ -35,8 +35,11 @@ def report_status(db_collection_name):
     logging.info("*" * len(title))
 
 
-def cancel_experiment_by_id(collection, exp_id):
+def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict=None):
     exp = collection.find_one({'_id': exp_id})
+    if slurm_dict:
+        exp['slurm'].update(slurm_dict)
+
     if exp is not None:
         if 'array_id' in exp['slurm']:
             job_str = f"{exp['slurm']['array_id']}_{exp['slurm']['task_id']}"
@@ -53,29 +56,31 @@ def cancel_experiment_by_id(collection, exp_id):
         try:
             # Check if job exists
             subprocess.run(f"scontrol show jobid -dd {job_str}", shell=True, check=True)
-            # Set the database state to INTERRUPTED
-            collection.update_one({'_id': exp_id}, {'$set': {'status': {"$in": States.INTERRUPTED}}})
+            if set_interrupted:
+                # Set the database state to INTERRUPTED
+                collection.update_one({'_id': exp_id}, {'$set': {'status': {"$in": States.INTERRUPTED}}})
 
             # Check if other experiments are running in the same job
-            other_exps = collection.find(filter_dict)
-            other_exp_running = False
-            for e in other_exps:
-                if e['status'] in [*States.RUNNING, States.PENDING]:
-                    other_exp_running = True
+            other_exps_filter = filter_dict.copy()
+            other_exps_filter['_id'] = {'$ne': exp_id}
+            other_exps_filter['status'] = {'$in': [*States.RUNNING, States.PENDING]}
+            other_exp_running = (collection.count_documents(other_exps_filter) >= 1)
 
             # Cancel if no other experiments are running in the same job
             if not other_exp_running:
                 subprocess.run(f"scancel {job_str}", shell=True, check=True)
-                # set state to interrupted again (might have been overwritten by Sacred in the meantime).
-                collection.update_many(filter_dict,
-                                       {'$set': {'status': {'$in': States.INTERRUPTED},
-                                                 'stop_time': datetime.datetime.utcnow()}})
+                if set_interrupted:
+                    # set state to interrupted again (might have been overwritten by Sacred in the meantime).
+                    collection.update_many(filter_dict,
+                                           {'$set': {'status': {'$in': States.INTERRUPTED},
+                                                     'stop_time': datetime.datetime.utcnow()}})
 
         except subprocess.CalledProcessError:
             logging.error(f"Slurm job {job_str} of experiment "
                           f"with ID {exp_id} is not pending/running in Slurm.")
     else:
         logging.error(f"No experiment found with ID {exp_id}.")
+
 
 def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict):
     """
