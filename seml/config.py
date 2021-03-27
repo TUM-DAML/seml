@@ -196,7 +196,7 @@ def generate_configs(experiment_config):
 
         if len(redefined_parameters) > 0:
             logging.warning(f"Found redefined parameters in {current_sub_name}: {redefined_parameters}. "
-                            f"Redefinitions of parameters override earlier ones.")
+                            f"Definitions in sub-configs override higher (more general) ones.")
             config_above = copy.deepcopy(config_above)
             for p in redefined_parameters:
                 sections = inverted_config_above[p]
