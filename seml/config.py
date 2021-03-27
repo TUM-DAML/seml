@@ -1,4 +1,3 @@
-import sys
 import logging
 import numpy as np
 import yaml
@@ -13,8 +12,10 @@ from itertools import combinations
 from seml.sources import import_exe
 from seml.parameters import sample_random_configs, generate_grid, cartesian_product_dict
 from seml.utils import merge_dicts, flatten, unflatten
+from seml.errors import ConfigError, ExecutableError
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
+
 
 def unpack_config(config):
     config = convert_parameter_collections(config)
@@ -29,8 +30,7 @@ def unpack_config(config):
         else:
             if key == 'random':
                 if 'samples' not in value:
-                    logging.error('Random parameters must specify "samples", i.e. the number of random samples.')
-                    sys.exit(1)
+                    raise ConfigError('Random parameters must specify "samples", i.e. the number of random samples.')
                 reserved_dict[key] = value
             else:
                 reserved_dict[key] = value
@@ -62,8 +62,7 @@ def convert_parameter_collections(input_config: dict):
             if f"{k}.params" in p:
                 new_key = p.replace(f"{k}.params", k)
                 if new_key in flattened_dict:
-                    logging.error(f"Could not convert parameter collections due to key collision: {new_key}.")
-                    sys.exit(1)
+                    raise ConfigError(f"Could not convert parameter collections due to key collision: {new_key}.")
                 flattened_dict[new_key] = flattened_dict[p]
                 del flattened_dict[p]
         parameter_collection_keys = [k for k in flattened_dict.keys()
@@ -106,11 +105,10 @@ def detect_duplicate_parameters(inverted_config: dict, sub_config_name: str = No
 
     if len(duplicate_keys) > 0:
         if sub_config_name:
-            logging.error(f"Found duplicate keys in sub-config {sub_config_name}: "
-                          f"{duplicate_keys}")
+            raise ConfigError(f"Found duplicate keys in sub-config {sub_config_name}: "
+                              f"{duplicate_keys}")
         else:
-            logging.error(f"Found duplicate keys in config: {duplicate_keys}")
-        sys.exit(1)
+            raise ConfigError(f"Found duplicate keys in config: {duplicate_keys}")
 
     start_characters = set([x[0] for x in inverted_config.keys()])
     buckets = {k: {x for x in inverted_config.keys() if x.startswith(k)} for k in start_characters}
@@ -129,11 +127,9 @@ def detect_duplicate_parameters(inverted_config: dict, sub_config_name: str = No
     for k in buckets.keys():
         for p1, p2 in combinations(buckets[k], r=2):
             if p1.startswith(f"{p2}."):   # with "." after p2 to catch cases like "test" and "test1", which are valid.
-                logging.error(error_str.format(p1=p1, p2=p2))
-                sys.exit(1)
+                raise ConfigError(error_str.format(p1=p1, p2=p2))
             elif p2.startswith(f"{p1}."):
-                logging.error(error_str.format(p1=p1, p2=p2))
-                sys.exit(1)
+                raise ConfigError(error_str.format(p1=p1, p2=p2))
 
 
 def generate_configs(experiment_config):
@@ -262,12 +258,10 @@ def check_config(executable, conda_env, configs):
     # Extract experiment from module
     exps = [v for k, v in exp_module.__dict__.items() if type(v) == sacred.Experiment]
     if len(exps) == 0:
-        logging.error(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
-        sys.exit(1)
+        raise ExecutableError(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
     elif len(exps) > 1:
-        logging.error(f"Found more than 1 Sacred experiment in '{executable}'. "
-                      f"Can't check parameter configs. Disable via --no-config-check.")
-        sys.exit(1)
+        raise ExecutableError(f"Found more than 1 Sacred experiment in '{executable}'. "
+                              f"Can't check parameter configs. Disable via --no-config-check.")
     exp = exps[0]
 
     empty_run = sacred.initialize.create_run(exp, exp.default_command, config_updates=None, named_configs=())
@@ -344,8 +338,7 @@ def construct_mapping(loader, node, deep=False):
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=deep)
         if key in result:
-            logging.error(f"Found duplicate keys in config: {key}")
-            sys.exit(1)
+            raise ConfigError(f"Found duplicate keys in config: '{key}'")
         result[key] = loader.construct_object(value_node, deep=deep)
     return result
 
@@ -361,8 +354,7 @@ def read_config(config_path):
         config_dict = convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
 
     if "seml" not in config_dict:
-        logging.error("Please specify a 'seml' dictionary in the experiment configuration.")
-        sys.exit(1)
+        raise ConfigError("Please specify a 'seml' dictionary in the experiment configuration.")
 
     seml_dict = config_dict['seml']
     del config_dict['seml']
@@ -400,8 +392,7 @@ def set_executable_and_working_dir(config_path, seml_dict):
     working_dir = config_dir
     os.chdir(working_dir)
     if "executable" not in seml_dict:
-        logging.error("Please specify an executable path for the experiment.")
-        sys.exit(1)
+        raise ConfigError("Please specify an executable path for the experiment.")
     executable = seml_dict['executable']
     executable_relative_to_config = os.path.exists(executable)
     executable_relative_to_project_root = False
@@ -416,8 +407,7 @@ def set_executable_and_working_dir(config_path, seml_dict):
         logging.warning("'project_root_dir' not defined in seml config. Source files will not be uploaded.")
     seml_dict['working_dir'] = working_dir
     if not (executable_relative_to_config or executable_relative_to_project_root):
-        logging.error(f"Could not find the executable.")
-        sys.exit(1)
+        raise ExecutableError(f"Could not find the executable.")
     executable = str(Path(executable).expanduser().resolve())
     seml_dict['executable'] = (str(Path(executable).relative_to(working_dir)) if executable_relative_to_project_root
                                else str(Path(executable).relative_to(config_dir)))

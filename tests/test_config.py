@@ -1,6 +1,9 @@
 import unittest
-from seml import config, utils
 import yaml
+
+from seml import config, utils
+from seml.errors import ConfigError
+
 
 class TestParseConfigDicts(unittest.TestCase):
 
@@ -69,18 +72,18 @@ class TestParseConfigDicts(unittest.TestCase):
 
     def test_duplicate_parameters(self):
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_1)
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(ConfigError):
             configs = config.generate_configs(config_dict)
 
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_2)
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(ConfigError):
             configs = config.generate_configs(config_dict)
 
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(ConfigError):
             configs = config.read_config(self.CONFIG_WITH_DUPLICATE_PARAMETERS_3)
 
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_NESTED)
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(ConfigError):
             configs = config.generate_configs(config_dict)
 
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_RDM_PARAMETERS_2)
@@ -93,12 +96,11 @@ class TestParseConfigDicts(unittest.TestCase):
         assert len(configs) == 22
         expected_configs = [
             *(5*[{'a': 9999, 'b': 7777, 'c': 1234, 'd': 1.0, 'e': 2.0},
-               {'a': 9999, 'b': 7777, 'c': 5678, 'd': 1.0, 'e': 2.0}]),
-
+                 {'a': 9999, 'b': 7777, 'c': 5678, 'd': 1.0, 'e': 2.0}]),
             *(3*[{'a': 333, 'b': 444, 'c': 555, 'd': 1.0, 'f': 9199},
-             {'a': 333, 'b': 444, 'c': 555, 'd': 1.0, 'f': 1099},
-             {'a': 333, 'b': 444, 'c': 666, 'd': 1.0, 'f': 9199},
-             {'a': 333, 'b': 444, 'c': 666, 'd': 1.0, 'f': 1099}]),
+                 {'a': 333, 'b': 444, 'c': 555, 'd': 1.0, 'f': 1099},
+                 {'a': 333, 'b': 444, 'c': 666, 'd': 1.0, 'f': 9199},
+                 {'a': 333, 'b': 444, 'c': 666, 'd': 1.0, 'f': 1099}]),
         ]
         expected_config_hashes = sorted([utils.make_hash(x) for x in expected_configs])
         actual_config_hashes = sorted([utils.make_hash(x) for x in configs])

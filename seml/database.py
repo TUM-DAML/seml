@@ -1,5 +1,3 @@
-import sys
-import os
 import gridfs
 import pymongo
 from pymongo.collection import Collection
@@ -8,6 +6,7 @@ from tqdm.autonotebook import tqdm
 
 from seml.utils import s_if
 from seml.settings import SETTINGS
+from seml.errors import MongoDBError
 
 
 def get_collection(collection_name, mongodb_config=None, suffix=None):
@@ -56,8 +55,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     config_str = "\nPlease run `seml configure` to provide your credentials."
 
     if not path.exists():
-        logging.error(f"MongoDB credentials could not be read at '{path}'.{config_str}")
-        sys.exit(1)
+        raise MongoDBError(f"MongoDB credentials could not be read at '{path}'.{config_str}")
 
     with open(path, 'r') as f:
         for line in f.readlines():
@@ -71,8 +69,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     required_entries = ['username', 'password', 'port', 'host', 'database']
     for entry in required_entries:
         if entry not in access_dict:
-            logging.error(f"No {entry} found in '{path}'.{config_str}")
-            sys.exit(1)
+            raise MongoDBError(f"No {entry} found in '{path}'.{config_str}")
 
     db_port = access_dict['port']
     db_name = access_dict['database']
