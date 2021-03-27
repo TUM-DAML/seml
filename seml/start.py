@@ -617,7 +617,8 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     if not unobserved:
         exp_query['status'] = {"$in": States.PENDING}
     if not steal_slurm:
-        exp_query['$and'] = [{'slurm.array_id': {'$exists': False}}, {'slurm.id': {'$exists': False}}]
+        exp_query['slurm.array_id'] = {'$exists': False}
+        exp_query['slurm.id'] = {'$exists': False}
 
     exp_query.update(filter_dict)
 
