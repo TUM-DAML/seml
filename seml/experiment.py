@@ -78,7 +78,8 @@ def collect_exp_stats(run):
         stats['tensorflow'] = {}
         if int(tf.__version__.split('.')[0]) < 2:
             if tf.test.is_gpu_available():
-                stats['tensorflow']['gpu_max_memory_bytes'] = tf.contrib.memory_stats.MaxBytesInUse()
+                with tf.Session() as sess:
+                    stats['tensorflow']['gpu_max_memory_bytes'] = int(sess.run(tf.contrib.memory_stats.MaxBytesInUse()))
         else:
             if len(tf.config.experimental.list_physical_devices('GPU')) >= 1:
                 logging.info("SEML stats: There is currently no way to get actual GPU memory usage in TensorFlow 2.")
