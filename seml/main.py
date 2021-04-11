@@ -34,7 +34,8 @@ def main():
 
     parser_jupyter = subparsers.add_parser(
             "jupyter",
-            help="Start a Jupyter slurm job.")
+            help="Start a Jupyter slurm job. Uses SBATCH options defined in settings.py under "
+                 "BATCH_OPTIONS_TEMPLATES.JUPYTER_JOB")
     parser_jupyter.add_argument(
             "-l", "--lab", action='store_true',
             help="Start a jupyter-lab instance instead of jupyter notebook.")
@@ -59,9 +60,9 @@ def main():
             help="Path to the YAML configuration file for the experiment.")
     parser_add.add_argument(
             '-nh', '--no-hash', action='store_true',
-            help="Do not use the hash of the config dictionary to filter out duplicates (by comparing all"
-                 "dictionary values individually). This is much slower, so use only if you have a good reason not to"
-                 " use the hash.")
+            help="Do not use the hash of the config dictionary to filter out duplicates (by comparing all "
+                 "dictionary values individually). This is much slower, so use only if you have a good reason not to "
+                 "use the hash.")
     parser_add.add_argument(
             '-nsc', '--no-sanity-check', action='store_true',
             help="Do not check the config for missing/unused arguments. "

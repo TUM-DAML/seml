@@ -165,6 +165,9 @@ def generate_configs(experiment_config):
 
     reserved, next_level = unpack_config(experiment_config)
     reserved = standardize_config(reserved)
+    if not any([len(reserved.get(k, {})) > 0 for k in RESERVED_KEYS]):
+        logging.error("No parameters defined under grid, fixed, or random in the config file. Aborting.")
+        sys.exit(1)
     level_stack = [('', next_level)]
     config_levels = [reserved]
     final_configs = []
@@ -174,6 +177,10 @@ def generate_configs(experiment_config):
     while len(level_stack) > 0:
         current_sub_name, sub_vals = level_stack.pop(0)
         sub_config, sub_levels = unpack_config(sub_vals)
+        if current_sub_name != '' and not any([len(sub_config.get(k, {})) > 0 for k in RESERVED_KEYS]):
+            logging.error(f"No parameters defined under grid, fixed, or random in sub_config {current_sub_name}. "
+                          f"Aborting.")
+            sys.exit(1)
         sub_config = standardize_config(sub_config)
         config_above = config_levels.pop(0)
 
