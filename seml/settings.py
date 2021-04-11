@@ -19,13 +19,22 @@ SETTINGS = munchify(
                 'mem': 8000,
                 },
         },
-        "SLURM_JUPYTER_JOB_DEFAULT_SBATCH": {
-            'time': '0-08:00',
-            'nodes': 1,
-            'cpus-per-task': 1,
-            'mem': 16000,
-            'gres': "gpu:1",
-            'qos': 'interactive',
+        "SBATCH_OPTIONS_TEMPLATES": {
+            # Extend this with your custom templates.
+            "GPU": {
+                'gres': "gpu:1",
+                'mem': 16000,
+                'nodes': 1,
+                'cpus-per-task': 2,
+            },
+            "JUPYTER_JOB": {
+                'time': '0-08:00',
+                'nodes': 1,
+                'cpus-per-task': 1,
+                'mem': 16000,
+                'gres': "gpu:1",
+                'qos': 'interactive',
+            },
         },
         "STATES": {
             "STAGED": ["STAGED", "QUEUED"],  # QUEUED for backward compatibility
@@ -37,7 +46,7 @@ SETTINGS = munchify(
             "COMPLETED": ["COMPLETED"],
         },
         "SLURM_ACTIVE_STATES": ['CONFIGURING', 'PENDING', 'RUNNING', 'REQUEUE_FED',
-                       'REQUEUE_HOLD', 'REQUEUED', 'RESIZING', 'SUSPENDED'],
+                                'REQUEUE_HOLD', 'REQUEUED', 'RESIZING', 'SUSPENDED'],
 
         "OBSERVERS": {
             "NEPTUNE": {

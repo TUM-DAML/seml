@@ -798,7 +798,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
 def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: bool = False):
 
     sbatch_options = sbatch_options if sbatch_options is not None else {}
-    default_sbatch = SETTINGS.SLURM_JUPYTER_JOB_DEFAULT_SBATCH
+    default_sbatch = SETTINGS.SBATCH_OPTIONS_TEMPLATES.JUPYTER_JOB
     default_sbatch.update(sbatch_options)
     # Construct sbatch options string
     sbatch_options_str = create_slurm_options_string(default_sbatch)

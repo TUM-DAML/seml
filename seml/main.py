@@ -34,7 +34,8 @@ def main():
 
     parser_jupyter = subparsers.add_parser(
             "jupyter",
-            help="Start a Jupyter slurm job.")
+            help="Start a Jupyter slurm job. Uses SBATCH options defined in settings.py under "
+                 "BATCH_OPTIONS_TEMPLATES.JUPYTER_JOB")
     parser_jupyter.add_argument(
             "-l", "--lab", action='store_true',
             help="Start a jupyter-lab instance instead of jupyter notebook.")

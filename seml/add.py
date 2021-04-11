@@ -1,6 +1,7 @@
 import os
 import datetime
 import logging
+import sys
 
 from seml.database import get_max_in_collection, get_collection
 from seml.config import remove_prepended_dashes, read_config, generate_configs, check_config
@@ -147,6 +148,16 @@ def add_experiments(db_collection_name, config_file, force_duplicates, no_hash=F
     for k, v in SETTINGS.SLURM_DEFAULT.items():
         if k not in slurm_config:
             slurm_config[k] = v
+
+    sbatch_options_template = slurm_config.get('sbatch_options_template', None)
+    if sbatch_options_template is not None:
+        if sbatch_options_template not in SETTINGS.SBATCH_OPTIONS_TEMPLATES:
+            logging.error(f"sbatch_options template: {sbatch_options_template} not found in settings.py.")
+            sys.exit(1)
+        for k, v in SETTINGS.SBATCH_OPTIONS_TEMPLATES[sbatch_options_template].items():
+            if k not in slurm_config['sbatch_options']:
+                slurm_config['sbatch_options'][k] = v
+        del slurm_config['sbatch_options_template']
 
     slurm_config['sbatch_options'] = remove_prepended_dashes(slurm_config['sbatch_options'])
     configs = generate_configs(experiment_config)
