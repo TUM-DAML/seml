@@ -268,7 +268,7 @@ def check_config(executable, conda_env, configs):
         raise ExecutableError(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
     elif len(exps) > 1:
         raise ExecutableError(f"Found more than 1 Sacred experiment in '{executable}'. "
-                              f"Can't check parameter configs. Disable via --no-config-check.")
+                              f"Can't check parameter configs. Disable via --no-sanity-check.")
     exp = exps[0]
 
     empty_run = sacred.initialize.create_run(exp, exp.default_command, config_updates=None, named_configs=())
