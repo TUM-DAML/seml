@@ -1,7 +1,5 @@
 from munch import munchify
-import os
 from pathlib import Path
-import seml
 __all__ = ("SETTINGS",)
 
 SETTINGS = munchify(
