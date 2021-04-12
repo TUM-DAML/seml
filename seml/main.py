@@ -1,4 +1,3 @@
-import os
 import sys
 import argparse
 import json
@@ -8,7 +7,6 @@ from seml.manage import (report_status, cancel_experiments, delete_experiments, 
                          mongodb_credentials_prompt)
 from seml.add import add_experiments
 from seml.start import start_experiments, start_jupyter_job
-from seml.config import read_config
 from seml.database import clean_unreferenced_artifacts
 from seml.utils import LoggingFormatter
 from seml.settings import SETTINGS
@@ -56,7 +54,7 @@ def main():
             "add",
             help="Add the experiments to the database as defined in the configuration.")
     parser_add.add_argument(
-            'config_file', type=str, nargs='?', default=None,
+            'config_file', type=str,
             help="Path to the YAML configuration file for the experiment.")
     parser_add.add_argument(
             '-nh', '--no-hash', action='store_true',
@@ -211,23 +209,11 @@ def main():
     logging.root.addHandler(hdlr)
     logging.root.setLevel(logging_level)
 
-    if args.func == mongodb_credentials_prompt:  # launch SEML configure.
+    if args.func in [mongodb_credentials_prompt, start_jupyter_job]:
+        # No collection name required
         del args.db_collection_name
-    elif args.func == start_jupyter_job:
-        del args.db_collection_name
-    else:  # otherwise remove the flag as it is not used elsewhere.
-        if not args.db_collection_name:
-            parser.error("the following arguments are required: db_collection_name")
-        else:
-            if os.path.isfile(args.db_collection_name):
-                logging.warning("Loading the collection name from a config file. This has been deprecated. "
-                                "Please instead provide a database collection name in the command line.")
-                seml_config, _, _ = read_config(args.db_collection_name)
-                if args.func == add_experiments:
-                    args.config_file = args.db_collection_name
-                args.db_collection_name = seml_config['db_collection']
-            elif args.func == add_experiments and not args.config_file:
-                parser_add.error("the following arguments are required: config_file")
+    elif not args.db_collection_name:
+        parser.error("the following arguments are required: db_collection_name")
 
     f = args.func
     del args.func
