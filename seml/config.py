@@ -13,6 +13,7 @@ from seml.sources import import_exe
 from seml.parameters import sample_random_configs, generate_grid, cartesian_product_dict
 from seml.utils import merge_dicts, flatten, unflatten
 from seml.errors import ConfigError, ExecutableError
+from seml.settings import SETTINGS
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
 
@@ -363,17 +364,23 @@ def read_config(config_path):
     seml_dict = config_dict['seml']
     del config_dict['seml']
 
+    for k in seml_dict.keys():
+        if k not in SETTINGS.VALID_SEML_CONFIG_VALUES:
+            raise ConfigError(f"{k} is not a valid value in the `seml` config block.")
+
     set_executable_and_working_dir(config_path, seml_dict)
 
-    if "db_collection" in seml_dict:
-        logging.warning("Specifying a the database collection in the config has been deprecated. "
-                        "Please provide it via the command line instead.")
     if 'output_dir' in seml_dict:
         seml_dict['output_dir'] = str(Path(seml_dict['output_dir']).expanduser().resolve())
 
     if 'slurm' in config_dict:
         slurm_dict = config_dict['slurm']
         del config_dict['slurm']
+
+        for k in slurm_dict.keys():
+            if k not in SETTINGS.VALID_SLURM_CONFIG_VALUES:
+                raise ConfigError(f"{k} is not a valid value in the `slurm` config block.")
+
         return seml_dict, slurm_dict, config_dict
     else:
         return seml_dict, None, config_dict
