@@ -53,7 +53,7 @@ def main():
     parser_configure.set_defaults(func=mongodb_credentials_prompt)
 
     parser_add = subparsers.add_parser(
-            "add", aliases=["queue"],
+            "add",
             help="Add the experiments to the database as defined in the configuration.")
     parser_add.add_argument(
             'config_file', type=str, nargs='?', default=None,
