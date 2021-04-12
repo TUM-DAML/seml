@@ -1,15 +1,16 @@
 import os
 import datetime
 import logging
-import sys
 
 from seml.database import get_max_in_collection, get_collection
 from seml.config import remove_prepended_dashes, read_config, generate_configs, check_config
 from seml.sources import upload_sources, get_git_info
 from seml.utils import s_if, make_hash
 from seml.settings import SETTINGS
+from seml.errors import ConfigError
 
 States = SETTINGS.STATES
+
 
 def filter_experiments(collection, configurations):
     """Check database collection for already present entries.
@@ -149,11 +150,11 @@ def add_experiments(db_collection_name, config_file, force_duplicates, no_hash=F
         if k not in slurm_config:
             slurm_config[k] = v
 
+    # Check for and use sbatch options template
     sbatch_options_template = slurm_config.get('sbatch_options_template', None)
     if sbatch_options_template is not None:
         if sbatch_options_template not in SETTINGS.SBATCH_OPTIONS_TEMPLATES:
-            logging.error(f"sbatch_options template: {sbatch_options_template} not found in settings.py.")
-            sys.exit(1)
+            raise ConfigError(f"sbatch options template '{sbatch_options_template}' not found in settings.py.")
         for k, v in SETTINGS.SBATCH_OPTIONS_TEMPLATES[sbatch_options_template].items():
             if k not in slurm_config['sbatch_options']:
                 slurm_config['sbatch_options'][k] = v
