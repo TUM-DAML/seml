@@ -471,9 +471,8 @@ def set_environment_variables(gpus=None, cpus=None, environment_variables=None):
 
     if gpus is not None:
         if isinstance(gpus, list):
-            logging.info('Received an input of type list to set CUDA_VISIBLE_DEVICES.'
-                         'Please pass a string for input "gpus", e.g. "1,2" if you want to use GPUs with IDs 1 and 2.')
-            exit(1)
+            raise ArgumentError('Received an input of type list to set CUDA_VISIBLE_DEVICES.'
+                                'Please pass a string for input "gpus", e.g. "1,2" if you want to use GPUs with IDs 1 and 2.')
         environment_variables['CUDA_VISIBLE_DEVICES'] = str(gpus)
     if cpus is not None:
         environment_variables['OMP_NUM_THREADS'] = str(cpus)
@@ -831,10 +830,10 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     log_file = job_info_dict['StdOut']
 
     logging.info(f"The logfile of the job is {log_file}.")
-    logging.info(f"Trying to fetch the machine and port of the Jupyter instance once the job is running... "
-                 f"(ctrl-C to cancel).")
+    logging.info(f"Waiting to fetch the machine and port of the Jupyter instance once the job is running... "
+                 f"(ctrl-C to cancel fetching).")
 
-    while job_info_dict['JobState'] not in States.PENDING:
+    while job_info_dict['JobState'] in States.PENDING:
         job_output = subprocess.run(f'scontrol show job {slurm_array_job_id} -o',
                                     shell=True, check=True, capture_output=True).stdout
         job_output_results = job_output.decode("utf-8").split(" ")
