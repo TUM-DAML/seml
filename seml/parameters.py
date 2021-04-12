@@ -73,7 +73,7 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
     """
 
     if "type" not in parameter:
-        raise ConfigError("No type found in parameter {}".format(parameter))
+        raise ConfigError(f"No type found in parameter {parameter}")
     return_items = []
     allowed_keys = ['seed', 'type']
     if seed is not None:
@@ -161,7 +161,7 @@ def generate_grid(parameter, parent_key=''):
 
     """
     if "type" not in parameter:
-        raise ConfigError("No type found in parameter {}".format(parameter))
+        raise ConfigError(f"No type found in parameter {parameter}")
 
     param_type = parameter['type']
     allowed_keys = ['type']
