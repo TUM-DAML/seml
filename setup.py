@@ -5,7 +5,7 @@ install_requires = [
     "pymongo>=3.7",
     "pandas",
     "sacred>=0.8.1",
-    "pyyaml",
+    "pyyaml>=5.1",
     "jsonpickle>=1.2, <2.0",
     "munch>=2.0.4",
     "tqdm>=4.36",
