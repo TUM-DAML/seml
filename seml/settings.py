@@ -1,9 +1,18 @@
+import imp
 from munch import munchify
 from pathlib import Path
+
+from seml.utils import merge_dicts
+
 __all__ = ("SETTINGS",)
 
 SETTINGS = munchify(
     {
+        # Location of user-specific settings.py file containing a SETTINGS dict.
+        # With this dict you can change anything that is set here, conveniently from your home directory.
+        # Default: $HOME/.config/seml/settings.py
+        "USER_SETTINGS_PATH": Path.home() / ".config/seml/settings.py",
+
         "DATABASE": {
             # location of the MongoDB config. Default: $HOME/.config/seml/monogdb.config
             "MONGODB_CONFIG_PATH": Path.home() / ".config/seml/mongodb.config"
@@ -64,3 +73,8 @@ SETTINGS = munchify(
         },
     },
 )
+
+# Load user settings
+if SETTINGS.USER_SETTINGS_PATH.exists():
+    user_settings_source = imp.load_source('SETTINGS', str(SETTINGS.USER_SETTINGS_PATH))
+    SETTINGS = munchify(merge_dicts(SETTINGS, user_settings_source.SETTINGS))
