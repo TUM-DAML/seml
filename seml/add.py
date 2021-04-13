@@ -165,6 +165,7 @@ def add_experiments(db_collection_name, config_file, force_duplicates, no_hash=F
         uploaded_files = upload_sources(seml_config, collection, batch_id)
     else:
         uploaded_files = None
+    del seml_config['use_uploaded_sources']
 
     if not no_sanity_check:
         check_config(seml_config['executable'], seml_config['conda_environment'], configs)

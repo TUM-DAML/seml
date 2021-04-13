@@ -415,7 +415,7 @@ def set_executable_and_working_dir(config_path, seml_dict):
         del seml_dict['project_root_dir']  # from now on we use only the working dir
     else:
         seml_dict['use_uploaded_sources'] = False
-        logging.warning("'project_root_dir' not defined in seml config. Source files will not be uploaded.")
+        logging.warning("'project_root_dir' not defined in seml config. Source files will not be saved in MongoDB.")
     seml_dict['working_dir'] = working_dir
     if not (executable_relative_to_config or executable_relative_to_project_root):
         raise ExecutableError(f"Could not find the executable.")
