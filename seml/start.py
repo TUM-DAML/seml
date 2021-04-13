@@ -465,8 +465,9 @@ def set_environment_variables(gpus=None, cpus=None, environment_variables=None):
 
     if gpus is not None:
         if isinstance(gpus, list):
-            raise ArgumentError('Received an input of type list to set CUDA_VISIBLE_DEVICES.'
-                                'Please pass a string for input "gpus", e.g. "1,2" if you want to use GPUs with IDs 1 and 2.')
+            raise ArgumentError('Received an input of type list to set CUDA_VISIBLE_DEVICES. '
+                                'Please pass a string for input "gpus", '
+                                'e.g. "1,2" if you want to use GPUs with IDs 1 and 2.')
         environment_variables['CUDA_VISIBLE_DEVICES'] = str(gpus)
     if cpus is not None:
         environment_variables['OMP_NUM_THREADS'] = str(cpus)
@@ -789,7 +790,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
 def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: bool = False):
 
     sbatch_options = sbatch_options if sbatch_options is not None else {}
-    sbatch_options_merged = SETTINGS.SLURM_DEFAULT
+    sbatch_options_merged = SETTINGS.SLURM_DEFAULT['sbatch_options']
     sbatch_options_merged.update(SETTINGS.SBATCH_OPTIONS_TEMPLATES.JUPYTER_JOB)
     sbatch_options_merged.update(sbatch_options)
     # Construct sbatch options string
