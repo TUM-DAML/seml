@@ -5,7 +5,7 @@ import logging
 from seml.database import get_max_in_collection, get_collection
 from seml.config import remove_prepended_dashes, read_config, generate_configs, check_config
 from seml.sources import upload_sources, get_git_info
-from seml.utils import s_if, make_hash
+from seml.utils import merge_dicts, s_if, make_hash
 from seml.settings import SETTINGS
 from seml.errors import ConfigError
 
@@ -140,15 +140,7 @@ def add_experiments(db_collection_name, config_file, force_duplicates, no_hash=F
             seml_config['conda_environment'] = None
 
     # Set Slurm config with default parameters as fall-back option
-    if slurm_config is None:
-        slurm_config = {'sbatch_options': {}}
-    for k, v in SETTINGS.SLURM_DEFAULT['sbatch_options'].items():
-        if k not in slurm_config['sbatch_options']:
-            slurm_config['sbatch_options'][k] = v
-    del SETTINGS.SLURM_DEFAULT['sbatch_options']
-    for k, v in SETTINGS.SLURM_DEFAULT.items():
-        if k not in slurm_config:
-            slurm_config[k] = v
+    slurm_config = merge_dicts(SETTINGS.SLURM_DEFAULT, slurm_config)
 
     # Check for and use sbatch options template
     sbatch_options_template = slurm_config.get('sbatch_options_template', None)

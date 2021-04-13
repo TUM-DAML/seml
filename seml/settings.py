@@ -29,15 +29,12 @@ SETTINGS = munchify(
         "SBATCH_OPTIONS_TEMPLATES": {
             # Extend this with your custom templates.
             "GPU": {
-                'gres': "gpu:1",
-                'mem': 16000,
-                'nodes': 1,
                 'cpus-per-task': 2,
+                'mem': 16000,
+                'gres': "gpu:1",
             },
             "JUPYTER_JOB": {
-                'time': '0-08:00',
-                'nodes': 1,
-                'cpus-per-task': 1,
+                'cpus-per-task': 2,
                 'mem': 16000,
                 'gres': "gpu:1",
                 'qos': 'interactive',
