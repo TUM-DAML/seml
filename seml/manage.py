@@ -217,7 +217,8 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
 
 
 def reset_slurm_dict(exp):
-    keep_slurm = {'name', 'output_dir', 'experiments_per_job', 'sbatch_options'}
+    keep_slurm = {}
+    keep_slurm.update(SETTINGS.VALID_SLURM_CONFIG_VALUES)
     slurm_keys = set(exp['slurm'].keys())
     for key in slurm_keys - keep_slurm:
         del exp['slurm'][key]
@@ -235,7 +236,8 @@ def reset_single_experiment(collection, exp):
     keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'config_hash', 'add_time', 'queue_time', 'git']
 
     # Clean up SEML dictionary
-    keep_seml = {'executable', 'executable_relative', 'conda_environment', 'output_dir', 'source_files', 'working_dir'}
+    keep_seml = {'source_files', 'working_dir'}
+    keep_seml.update(SETTINGS.VALID_SEML_CONFIG_VALUES)
     seml_keys = set(exp['seml'].keys())
     for key in seml_keys - keep_seml:
         del exp['seml'][key]

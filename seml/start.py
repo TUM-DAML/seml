@@ -25,8 +25,6 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     if 'executable' not in exp['seml']:
         raise MongoDBError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
-    if 'executable_relative' in exp['seml']:  # backwards compatibility
-        exe = exp['seml']['executable_relative']
 
     config = exp['config']
     config['db_collection'] = db_collection_name
@@ -69,11 +67,7 @@ def get_output_dir_path(config):
 
 
 def get_exp_name(exp_config, db_collection_name):
-    if 'name' in exp_config['slurm']:
-        logging.warning("'name' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
-                        "by moving the 'name' parameter from 'slurm' to 'seml'.")
-        name = exp_config['slurm']['name']
-    elif 'name' in exp_config['seml']:
+    if 'name' in exp_config['seml']:
         name = exp_config['seml']['name']
     else:
         name = db_collection_name
