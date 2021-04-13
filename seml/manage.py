@@ -45,10 +45,6 @@ def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict
             job_str = f"{exp['slurm']['array_id']}_{exp['slurm']['task_id']}"
             filter_dict = {'slurm.array_id': exp['slurm']['array_id'],
                            'slurm.task_id': exp['slurm']['task_id']}
-        elif 'id' in exp['slurm']:
-            # Backward compatibility
-            job_str = str(exp['slurm']['id'])
-            filter_dict = {'slurm.id': exp['slurm']['id']}
         else:
             logging.error(f"Experiment with ID {exp_id} has not been started using Slurm.")
             return
@@ -147,26 +143,6 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                 if len(running_exp_ids.difference(exp_ids)) == 0:
                     # there are no running jobs in this slurm job that should not be canceled.
                     to_cancel.add(f"{a_id}_{t_id}")
-
-            # ---------------- Backward compatibility ----------------
-            filter_dict_old = copy.deepcopy(filter_dict)
-            filter_dict_old.update({'slurm.id': {'$exists': True}})
-            exps_old = list(collection.find(filter_dict_old, {'_id': 1, 'status': 1, 'slurm.id': 1}))
-            # set of slurm IDs in the database
-            slurm_ids_old = set([e['slurm']['id'] for e in exps_old])
-            # set of experiment IDs to be cancelled.
-            exp_ids_old = set([e['_id'] for e in exps_old])
-
-            # iterate over slurm IDs to check which slurm jobs can be cancelled altogether
-            for s_id in slurm_ids_old:
-                # find experiments RUNNING under the slurm job
-                jobs_running = [e for e in exps_old
-                                if (e['slurm']['id'] == s_id and e['status'] in States.RUNNING)]
-                running_exp_ids = set(e['_id'] for e in jobs_running)
-                if len(running_exp_ids.difference(exp_ids_old)) == 0:
-                    # there are no running jobs in this slurm job that should not be canceled.
-                    to_cancel.add(str(s_id))
-            # -------------- Backward compatibility end --------------
 
             # cancel all Slurm jobs for which no running experiment remains.
             if len(to_cancel) > 0:
@@ -285,13 +261,11 @@ def detect_killed(db_collection_name, print_detected=True):
     exps = collection.find({'status': {'$in': [*States.PENDING, *States.RUNNING]},
                             '$or': [{'slurm.array_id': {'$exists': True}}, {'slurm.id': {'$exists': True}}]})
     running_jobs = get_slurm_arrays_tasks()
-    old_running_jobs = get_slurm_jobs()  # Backwards compatibility
     nkilled = 0
     for exp in exps:
         exp_running = ('array_id' in exp['slurm'] and exp['slurm']['array_id'] in running_jobs
                        and (any(exp['slurm']['task_id'] in r for r in running_jobs[exp['slurm']['array_id']][0])
                             or exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][1]))
-        exp_running |= ('id' in exp['slurm'] and exp['slurm']['id'] in old_running_jobs)
         if not exp_running:
             if 'stop_time' in exp:
                 collection.update_one({'_id': exp['_id']}, {'$set': {'status': States.INTERRUPTED[0]}})
@@ -299,39 +273,13 @@ def detect_killed(db_collection_name, print_detected=True):
                 nkilled += 1
                 collection.update_one({'_id': exp['_id']}, {'$set': {'status': States.KILLED[0]}})
                 try:
-                    seml_config = exp['seml']
-                    slurm_config = exp['slurm']
-                    if 'output_file' in seml_config:
-                        output_file = seml_config['output_file']
-                    elif 'output_file' in slurm_config:
-                        # Backward compatibility, we used to store the path in 'slurm'
-                        output_file = slurm_config['output_file']
-                    else:
-                        continue
-                    with open(output_file, 'r') as f:
+                    with open(exp['seml']['output_file'], 'r') as f:
                         all_lines = f.readlines()
                     collection.update_one({'_id': exp['_id']}, {'$set': {'fail_trace': all_lines[-4:]}})
                 except IOError:
-                    if 'output_file' in seml_config:
-                        output_file = seml_config['output_file']
-                    elif 'output_file' in slurm_config:
-                        # Backward compatibility
-                        output_file = slurm_config['output_file']
-                    logging.warning(f"File {output_file} could not be read.")
+                    logging.warning(f"File {exp['seml']['output_file']} could not be read.")
     if print_detected:
         logging.info(f"Detected {nkilled} externally killed experiment{s_if(nkilled)}.")
-
-
-slurm_active_states = SETTINGS.SLURM_ACTIVE_STATES
-
-
-def get_slurm_jobs():
-    try:
-        squeue_out = subprocess.run(f"squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`",
-                                    shell=True, check=True, capture_output=True).stdout
-        return {int(job_str) for job_str in squeue_out.splitlines() if b'_' not in job_str}
-    except subprocess.CalledProcessError:
-        return set()
 
 
 def get_slurm_arrays_tasks():
@@ -346,7 +294,7 @@ def get_slurm_arrays_tasks():
     """
     try:
         squeue_out = subprocess.run(
-                f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`",
+                f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(SETTINGS.SLURM_ACTIVE_STATES)} -h -o %i -u `whoami`",
                 shell=True, check=True, capture_output=True).stdout
         jobs = [job_str for job_str in squeue_out.splitlines() if b'_' in job_str]
         if len(jobs) > 0:
