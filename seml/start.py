@@ -22,7 +22,7 @@ SlurmStates = SETTINGS.SLURM_STATES
 
 
 def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
-                         post_mortem=False, debug=False, debug_server=False):
+                         post_mortem=False, debug=False, debug_server=False, print_info=True):
     if 'executable' not in exp['seml']:
         raise MongoDBError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
@@ -43,8 +43,9 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
 
     if debug_server:
         ip_address, port = find_free_port()
-        logging.info(f"Starting debug server with IP {ip_address} and port {port}. "
-                     f"Experiment will wait for a debug client to attach.")
+        if print_info:
+            logging.info(f"Starting debug server with IP {ip_address} and port {port}. "
+                         f"Experiment will wait for a debug client to attach.")
         interpreter = f"python -m debugpy --listen {ip_address}:{port} --wait-for-client"
     else:
         interpreter = "python"
@@ -456,7 +457,7 @@ def prepare_experiments(collection, filter_dict=None, num_exps=0,
     return staged_experiments
 
 
-def set_environment_variables(gpus=None, cpus=None, environment_variables=None):
+def get_environment_variables(gpus=None, cpus=None, environment_variables=None):
     if environment_variables is None:
         environment_variables = {}
 
@@ -468,7 +469,7 @@ def set_environment_variables(gpus=None, cpus=None, environment_variables=None):
         environment_variables['CUDA_VISIBLE_DEVICES'] = str(gpus)
     if cpus is not None:
         environment_variables['OMP_NUM_THREADS'] = str(cpus)
-    os.environ.update(environment_variables)
+    return environment_variables
 
 
 def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=False,
@@ -598,7 +599,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
         logging.info(f'Starting local worker thread that will run experiments until no pending experiments remain.')
         num_exps = int(1e30)
 
-    set_environment_variables(gpus, cpus, environment_variables)
+    os.environ.update(get_environment_variables(gpus, cpus, environment_variables))
 
     num_exceptions = 0
     jobs_counter = 0
@@ -654,18 +655,34 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
         tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
 
 
-def print_commands(collection, unobserved, post_mortem, debug_server, num_exps, filter_dict):
+def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps,
+                  worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
+
+    collection = get_collection(db_collection_name)
+
+    if sacred_id is None:
+        filter_dict = build_filter_dict([], batch_id, filter_dict)
+        if 'status' not in filter_dict:
+            filter_dict['status'] = {"$in": States.STAGED}
+    else:
+        filter_dict = {'_id': sacred_id}
+
+    env_dict = get_environment_variables(worker_gpus, worker_cpus, worker_environment_vars)
+    env_str = " ".join([f"{k}={v}" for k, v in env_dict.items()])
+    if len(env_str) >= 1:
+        env_str += " "
+
     orig_level = logging.root.level
     logging.root.setLevel(logging.VERBOSE)
-    exps_list = prepare_staged_experiments(collection=collection, filter_dict=filter_dict, num_exps=num_exps,
-                                           set_to_pending=False)
+
+    exps_list = list(collection.find(filter_dict, limit=num_exps))
     if len(exps_list) == 0:
         return
 
     exp = exps_list[0]
     _, exe, config = get_command_from_exp(exp, collection.name,
                                           verbose=logging.root.level <= logging.VERBOSE,
-                                          unobserved=unobserved, post_mortem=False)
+                                          unobserved=True, post_mortem=False)
     env = exp['seml']['conda_environment'] if 'conda_environment' in exp['seml'] else None
 
     logging.info("********** First experiment **********")
@@ -684,26 +701,28 @@ def print_commands(collection, unobserved, post_mortem, debug_server, num_exps, 
     logging.info("Arguments for PyCharm debugger:")
     logging.info(" ".join(config))
 
-    logging.info("\nCommand for running locally with post-mortem debugging:")
+    logging.info("\nCommand for post-mortem debugging:")
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
                                                     verbose=logging.root.level <= logging.VERBOSE,
-                                                    unobserved=unobserved, post_mortem=True)
-    logging.info(f"{interpreter} {exe} with {' '.join(config)}")
+                                                    unobserved=True, post_mortem=True)
+    logging.info(f"{env_str}{interpreter} {exe} with {' '.join(config)}")
+
+    logging.info("\nCommand for remote debugging:")
+    interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
+                                                    verbose=logging.root.level <= logging.VERBOSE,
+                                                    unobserved=True, debug_server=True, print_info=False)
+    logging.info(f"{env_str}{interpreter} {exe} with {' '.join(config)}")
 
     logging.info("\n********** All raw commands **********")
     logging.root.setLevel(orig_level)
-    start_experiments(collection, local=True,
-                      unobserved=unobserved, post_mortem=post_mortem,
-                      num_exps=num_exps, filter_dict=filter_dict, print_command=True)
     for exp in exps_list:
         interpreter, exe, config = get_command_from_exp(
-                exp, collection.name, unobserved=unobserved,
-                post_mortem=post_mortem, debug_server=debug_server)
-        logging.info(f"{interpreter} {exe} with {' '.join(config)}")
+                exp, collection.name, verbose=logging.root.level <= logging.VERBOSE)
+        logging.info(f"{env_str}{interpreter} {exe} with {' '.join(config)}")
 
 
 def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
-                      num_exps, post_mortem, debug, debug_server, print_command,
+                      num_exps, post_mortem, debug, debug_server,
                       output_to_console, no_file_output, steal_slurm,
                       no_worker, set_to_pending=True,
                       worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
@@ -753,12 +772,6 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
         filter_dict = {'_id': sacred_id}
 
     collection = get_collection(db_collection_name)
-
-    if print_command:
-        print_commands(collection, unobserved=unobserved,
-                       post_mortem=post_mortem, debug_server=debug_server,
-                       num_exps=num_exps, filter_dict=filter_dict)
-        return
 
     staged_experiments = prepare_experiments(
             collection=collection, filter_dict=filter_dict, num_exps=num_exps,

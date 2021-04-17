@@ -6,7 +6,7 @@ import logging
 from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
                          mongodb_credentials_prompt)
 from seml.add import add_experiments
-from seml.start import start_experiments, start_jupyter_job
+from seml.start import start_experiments, start_jupyter_job, print_command
 from seml.database import clean_unreferenced_artifacts
 from seml.utils import LoggingFormatter
 from seml.settings import SETTINGS
@@ -81,9 +81,6 @@ def main():
             "start",
             help="Fetch staged experiments from the database and run them (by default via Slurm).")
     parser_start.add_argument(
-            '-pc', '--print-command', action='store_true',
-            help="Only show the associated commands instead of running the experiments.")
-    parser_start.add_argument(
             '-d', '--debug', action='store_true',
             help="Run a single interactive experiment without Sacred observers and with post-mortem debugging. "
                  "Implies `--verbose --num-exps 1 --post-mortem --output-to-console`.")
@@ -106,10 +103,17 @@ def main():
     parser_launch_worker.set_defaults(func=start_experiments, set_to_pending=False, no_worker=False, local=True,
                                       debug=False, debug_server=False, print_command=False)
 
-    for subparser in [parser_start, parser_launch_worker]:
+    parser_print_command = subparsers.add_parser(
+        "print-command",
+        help="Print the commands for running the experiments.")
+    parser_print_command.set_defaults(func=print_command)
+
+    for subparser in [parser_start, parser_launch_worker, parser_print_command]:
         subparser.add_argument(
                 '-n', '--num-exps', type=int, default=0,
-                help="Only start the specified number of experiments. 0: run all staged experiments.")
+                help="Only start the specified number of experiments. 0: run all (staged) experiments.")
+
+    for subparser in [parser_start, parser_launch_worker]:
         subparser.add_argument(
                 '-nf', '--no-file-output', action='store_true',
                 help="Do not save the console output in a file.")
@@ -120,6 +124,14 @@ def main():
                 help="Local jobs 'steal' from the Slurm queue, "
                      "i.e. also execute experiments waiting for execution via Slurm.")
         subparser.add_argument(
+                '-pm', '--post-mortem', action='store_true',
+                help="Activate post-mortem debugging with pdb.")
+        subparser.add_argument(
+                '-o', '--output-to-console', action='store_true',
+                help="Print output to console.")
+
+    for subparser in [parser_start_local, parser_launch_worker, parser_print_command]:
+        subparser.add_argument(
                 '-wg', '--worker-gpus', type=str,
                 help="The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.")
         subparser.add_argument(
@@ -128,12 +140,6 @@ def main():
         subparser.add_argument(
                 '-we', '--worker-environment-vars', type=json.loads,
                 help="Further environment variables to be set for the local worker.")
-        subparser.add_argument(
-                '-pm', '--post-mortem', action='store_true',
-                help="Activate post-mortem debugging with pdb.")
-        subparser.add_argument(
-                '-o', '--output-to-console', action='store_true',
-                help="Print output to console.")
 
     parser_status = subparsers.add_parser(
             "status",
@@ -184,7 +190,8 @@ def main():
             help="Scan all collections for orphaned artifacts (not just the one provided in the config).")
     parser_clean_db.set_defaults(func=clean_unreferenced_artifacts)
 
-    for subparser in [parser_start, parser_launch_worker, parser_cancel, parser_delete, parser_reset]:
+    for subparser in [parser_start, parser_launch_worker, parser_print_command,
+                      parser_cancel, parser_delete, parser_reset]:
         subparser.add_argument(
                 '-id', '--sacred-id', type=int,
                 help="Sacred ID (_id in the database collection) of the experiment. "
