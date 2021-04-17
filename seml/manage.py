@@ -59,7 +59,7 @@ def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict
             # Check if other experiments are running in the same job
             other_exps_filter = filter_dict.copy()
             other_exps_filter['_id'] = {'$ne': exp_id}
-            other_exps_filter['status'] = {'$in': [*States.RUNNING, States.PENDING]}
+            other_exps_filter['status'] = {'$in': [*States.RUNNING, *States.PENDING]}
             other_exp_running = (collection.count_documents(other_exps_filter) >= 1)
 
             # Cancel if no other experiments are running in the same job
@@ -138,7 +138,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                 # find experiments RUNNING under the slurm job
                 jobs_running = [e for e in exps
                                 if (e['slurm']['array_id'] == a_id and e['slurm']['task_id'] == t_id
-                                    and e['status'] in [*States.RUNNING])]
+                                    and e['status'] in States.RUNNING)]
                 running_exp_ids = set(e['_id'] for e in jobs_running)
                 if len(running_exp_ids.difference(exp_ids)) == 0:
                     # there are no running jobs in this slurm job that should not be canceled.
