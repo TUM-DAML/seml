@@ -28,7 +28,7 @@ SETTINGS = munchify(
         },
         "SBATCH_OPTIONS_TEMPLATES": {
             # This is a special template used for `seml jupyter`
-            "JUPYTER_JOB": {
+            "JUPYTER": {
                 'cpus-per-task': 2,
                 'mem': 16000,
                 'gres': "gpu:1",
