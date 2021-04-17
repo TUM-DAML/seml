@@ -407,11 +407,11 @@ def batch_chunks(exp_chunks):
     return exp_arrays
 
 
-def prepare_staged_experiments(collection, filter_dict=None, num_exps=0,
-                               slurm=True, set_to_pending=True, print_pending=False):
+def prepare_experiments(collection, filter_dict=None, num_exps=0,
+                        slurm=True, set_to_pending=True, print_pending=False):
     """
-    Load experiments with state STAGED from the input MongoDB collection. If set_to_pending is True, we also set their
-    status to PENDING.
+    Load experiments from the input MongoDB collection, and prepare them for running.
+    If set_to_pending is True, we set their status to PENDING.
 
     Parameters
     ----------
@@ -430,15 +430,13 @@ def prepare_staged_experiments(collection, filter_dict=None, num_exps=0,
 
     Returns
     -------
-    The filtered list of database entries with status STAGED.
+    The filtered list of database entries.
     """
     if filter_dict is None:
         filter_dict = {}
 
-    query_dict = {'status': {"$in": States.STAGED}}
-    query_dict.update(filter_dict)
+    staged_experiments = list(collection.find(filter_dict, limit=num_exps))
 
-    staged_experiments = list(collection.find(query_dict, limit=num_exps))
     if set_to_pending:
         update_dict = {"$set": {"status": States.PENDING[0]}}
         if slurm:
@@ -446,14 +444,12 @@ def prepare_staged_experiments(collection, filter_dict=None, num_exps=0,
             update_dict['$set']['slurm.array_id'] = None
 
         if num_exps > 0:
-            # only set the experiments to PENDING which will be run.
-            collection.update_many({'_id': {'$in': [e['_id'] for e in staged_experiments
-                                                    if e['status'] in States.STAGED]}},
+            # Set only those experiments to PENDING which will be run.
+            collection.update_many({'_id': {'$in': [e['_id'] for e in staged_experiments]}},
                                    update_dict)
-            nexps_set = min(num_exps, len(staged_experiments))
         else:
-            collection.update_many(query_dict, update_dict)
-            nexps_set = len(staged_experiments)
+            collection.update_many(filter_dict, update_dict)
+        nexps_set = len(staged_experiments)
         if print_pending:
             logging.info(f"Setting {nexps_set} experiment{s_if(nexps_set)} to pending.")
 
@@ -746,22 +742,15 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
                 raise ArgumentError(f"The argument '{key}' does not work in regular Slurm mode. "
                                     "Remove the argument or use '--debug'.")
 
-    if filter_dict is None:
-        filter_dict = {}
-
     if unobserved:
         set_to_pending = False
 
-    if worker_environment_vars is None:
-        worker_environment_vars = {}
-
     if sacred_id is None:
         filter_dict = build_filter_dict([], batch_id, filter_dict)
+        if 'status' not in filter_dict:
+            filter_dict['status'] = {"$in": States.STAGED}
     else:
-        # if we have a specific sacred ID, we ignore the state of the experiment and run it in any case.
-        all_states = (States.PENDING + States.STAGED + States.RUNNING + States.FAILED + States.INTERRUPTED
-                      + States.KILLED + States.COMPLETED)
-        filter_dict.update({'_id': sacred_id, "status": {"$in": all_states}})
+        filter_dict = {'_id': sacred_id}
 
     collection = get_collection(db_collection_name)
 
@@ -771,7 +760,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
                        num_exps=num_exps, filter_dict=filter_dict)
         return
 
-    staged_experiments = prepare_staged_experiments(
+    staged_experiments = prepare_experiments(
             collection=collection, filter_dict=filter_dict, num_exps=num_exps,
             slurm=use_slurm, set_to_pending=set_to_pending, print_pending=not use_slurm)
 

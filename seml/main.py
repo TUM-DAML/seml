@@ -187,10 +187,11 @@ def main():
     for subparser in [parser_start, parser_launch_worker, parser_cancel, parser_delete, parser_reset]:
         subparser.add_argument(
                 '-id', '--sacred-id', type=int,
-                help="Sacred ID (_id in the database collection) of the experiment to start.")
+                help="Sacred ID (_id in the database collection) of the experiment. "
+                     "Takes precedence over other filters.")
         subparser.add_argument(
                 '-b', '--batch-id', type=int,
-                help="Batch ID (batch_id in the database collection) of the experiments to be started. "
+                help="Batch ID (batch_id in the database collection) of the experiments. "
                      "Experiments that were staged together have the same batch_id.")
         subparser.add_argument(
                 '-f', '--filter-dict', type=json.loads,
