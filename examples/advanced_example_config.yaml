@@ -62,7 +62,7 @@ slurm:
   sbatch_options:
     gres: gpu:1       # num GPUs
     mem: 16G          # memory
-    cpus-per-task: 1  # num cores
+    cpus-per-task: 2  # num cores
     time: 0-08:00     # max time, D-HH:MM
 
 ###### BEGIN PARAMETER CONFIGURATION ######

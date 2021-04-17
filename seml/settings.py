@@ -23,14 +23,14 @@ SETTINGS = munchify(
                 'time': '0-08:00',
                 'nodes': 1,
                 'cpus-per-task': 1,
-                'mem': 8000,
+                'mem': '8G',
                 },
         },
         "SBATCH_OPTIONS_TEMPLATES": {
             # This is a special template used for `seml jupyter`
             "JUPYTER": {
                 'cpus-per-task': 2,
-                'mem': 16000,
+                'mem': '16G',
                 'gres': "gpu:1",
                 'qos': 'interactive',
                 'job-name': 'jupyter',
@@ -39,7 +39,7 @@ SETTINGS = munchify(
             # Extend this with your custom templates.
             "GPU": {
                 'cpus-per-task': 2,
-                'mem': 16000,
+                'mem': '16G',
                 'gres': "gpu:1",
             },
         },
