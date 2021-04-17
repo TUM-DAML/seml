@@ -817,7 +817,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     os.remove(path)
 
     slurm_array_job_id = int(output.split(b' ')[-1])
-    logging.info(f"Started Jupyter job in Slurm job with ID {slurm_array_job_id}.")
+    logging.info(f"Queued Jupyter instance in Slurm job with ID {slurm_array_job_id}.")
 
     job_output = subprocess.run(f'scontrol show job {slurm_array_job_id} -o',
                                 shell=True, check=True, capture_output=True).stdout
@@ -825,9 +825,9 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     job_info_dict = {x.split("=")[0]: x.split("=")[1] for x in job_output_results}
     log_file = job_info_dict['StdOut']
 
-    logging.info(f"The logfile of the job is {log_file}.")
-    logging.info(f"Waiting to fetch the machine and port of the Jupyter instance once the job is running... "
-                 f"(ctrl-C to cancel fetching).")
+    logging.info(f"The job's log-file is '{log_file}'.")
+    logging.info("Waiting until start-up to fetch the machine and port of the Jupyter instance... "
+                 "(ctrl-C to cancel fetching)")
 
     while job_info_dict['JobState'] in States.PENDING:
         job_output = subprocess.run(f'scontrol show job {slurm_array_job_id} -o',
@@ -838,10 +838,10 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     is_starting_up = True
     time.sleep(1)
     if job_info_dict['JobState'] not in States.RUNNING:
-        logging.error(f"Job failed. See log file at {log_file} for debug information.")
+        logging.error(f"Slurm job failed. See log-file '{log_file}' for more information.")
         exit(1)
 
-    logging.info("Jupyter instance is starting up...")
+    logging.info("Slurm job is running. Jupyter instance is starting up...")
     while is_starting_up:
         with open(log_file, "r") as f:
             log_file_contents = f.read()
@@ -856,5 +856,5 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
         url = url.replace("https://", "")
         url = url.replace("http://", "")
         url = url.replace("/", "")
-    logging.info(f"Startup completed. The Jupyter instance is running at '{url}'.")
+    logging.info(f"Start-up completed. The Jupyter instance is running at '{url}'.")
     logging.info(f"To stop the job, run 'scancel {slurm_array_job_id}'.")
