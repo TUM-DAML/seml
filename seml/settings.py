@@ -54,7 +54,13 @@ SETTINGS = munchify(
         },
         "SLURM_STATES": {
             "PENDING": ["PENDING", "CONFIGURING", "REQUEUE_FED", "REQUEUE_HOLD", "REQUEUED", "RESIZING"],
-            "RUNNING": ["RUNNING", "SUSPENDED"],
+            "RUNNING": ["RUNNING", "SIGNALING"],  # Python code can still be executed while in SIGNALING
+            "PAUSED": ["RESV_DEL_HOLD", "STOPPED", "SUSPENDED", "SPECIAL_EXIT"],
+            "INTERRUPTED": ["CANCELLED"],  # Caused by user command
+            "FAILED": ["FAILED", "BOOT_FAIL", "DEADLINE", "NODE_FAIL",
+                       "OUT_OF_MEMORY", "PREEMPTED", "REVOKED", "TIMEOUT"],
+            # REVOKED is not failed, but would need code that handles multi-cluster operation
+            "COMPLETED": ["COMPLETED", "COMPLETING", "STAGE_OUT"],
         },
         "VALID_SEML_CONFIG_VALUES": ['executable', 'name', 'output_dir',
                                      'conda_environment', 'project_root_dir'],
@@ -80,3 +86,6 @@ SETTINGS = munchify(
 if SETTINGS.USER_SETTINGS_PATH.exists():
     user_settings_source = imp.load_source('SETTINGS', str(SETTINGS.USER_SETTINGS_PATH))
     SETTINGS = munchify(merge_dicts(SETTINGS, user_settings_source.SETTINGS))
+
+SETTINGS.SLURM_STATES.ACTIVE = (
+        SETTINGS.SLURM_STATES.PENDING + SETTINGS.SLURM_STATES.RUNNING + SETTINGS.SLURM_STATES.PAUSED)

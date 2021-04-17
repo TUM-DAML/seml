@@ -293,9 +293,8 @@ def get_slurm_arrays_tasks():
 
     """
     try:
-        slurm_active_states = SETTINGS.SLURM_STATES.PENDING + SETTINGS.SLURM_STATES.RUNNING
         squeue_out = subprocess.run(
-                f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(slurm_active_states)} -h -o %i -u `whoami`",
+                f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(SETTINGS.SLURM_STATES.ACTIVE)} -h -o %i -u `whoami`",
                 shell=True, check=True, capture_output=True).stdout
         jobs = [job_str for job_str in squeue_out.splitlines() if b'_' in job_str]
         if len(jobs) > 0:
