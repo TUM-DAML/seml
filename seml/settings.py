@@ -52,8 +52,10 @@ SETTINGS = munchify(
             "INTERRUPTED": ["INTERRUPTED"],
             "COMPLETED": ["COMPLETED"],
         },
-        "SLURM_ACTIVE_STATES": ['CONFIGURING', 'PENDING', 'RUNNING', 'REQUEUE_FED',
-                                'REQUEUE_HOLD', 'REQUEUED', 'RESIZING', 'SUSPENDED'],
+        "SLURM_STATES": {
+            "PENDING": ["PENDING", "CONFIGURING", "REQUEUE_FED", "REQUEUE_HOLD", "REQUEUED", "RESIZING"],
+            "RUNNING": ["RUNNING", "SUSPENDED"],
+        },
         "VALID_SEML_CONFIG_VALUES": ['executable', 'name', 'output_dir',
                                      'conda_environment', 'project_root_dir'],
         "VALID_SLURM_CONFIG_VALUES": ['experiments_per_job', 'max_jobs_per_batch',

@@ -18,6 +18,7 @@ from seml.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.errors import ConfigError, ArgumentError, MongoDBError
 
 States = SETTINGS.STATES
+SlurmStates = SETTINGS.SLURM_STATES
 
 
 def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
@@ -829,7 +830,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     logging.info("Waiting until start-up to fetch the machine and port of the Jupyter instance... "
                  "(ctrl-C to cancel fetching)")
 
-    while job_info_dict['JobState'] in States.PENDING:
+    while job_info_dict['JobState'] in SlurmStates.PENDING:
         job_output = subprocess.run(f'scontrol show job {slurm_array_job_id} -o',
                                     shell=True, check=True, capture_output=True).stdout
         job_output_results = job_output.decode("utf-8").split(" ")
@@ -837,7 +838,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
         time.sleep(1)
     is_starting_up = True
     time.sleep(1)
-    if job_info_dict['JobState'] not in States.RUNNING:
+    if job_info_dict['JobState'] not in SlurmStates.RUNNING:
         logging.error(f"Slurm job failed. See log-file '{log_file}' for more information.")
         exit(1)
 
