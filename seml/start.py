@@ -436,7 +436,7 @@ def prepare_experiments(collection, filter_dict=None, num_exps=0,
     if filter_dict is None:
         filter_dict = {}
 
-    staged_experiments = list(collection.find(filter_dict, limit=num_exps))
+    experiments = list(collection.find(filter_dict, limit=num_exps))
 
     if set_to_pending:
         update_dict = {"$set": {"status": States.PENDING[0]}}
@@ -446,15 +446,15 @@ def prepare_experiments(collection, filter_dict=None, num_exps=0,
 
         if num_exps > 0:
             # Set only those experiments to PENDING which will be run.
-            collection.update_many({'_id': {'$in': [e['_id'] for e in staged_experiments]}},
+            collection.update_many({'_id': {'$in': [e['_id'] for e in experiments]}},
                                    update_dict)
         else:
             collection.update_many(filter_dict, update_dict)
-        nexps_set = len(staged_experiments)
+        nexps_set = len(experiments)
         if print_pending:
             logging.info(f"Setting {nexps_set} experiment{s_if(nexps_set)} to pending.")
 
-    return staged_experiments
+    return experiments
 
 
 def get_environment_variables(gpus=None, cpus=None, environment_variables=None):
