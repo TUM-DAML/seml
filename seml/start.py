@@ -838,20 +838,19 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
         job_output_results = job_output.decode("utf-8").split(" ")
         job_info_dict = {x.split("=")[0]: x.split("=")[1] for x in job_output_results}
         time.sleep(1)
-    is_starting_up = True
     time.sleep(1)
     if job_info_dict['JobState'] not in SlurmStates.RUNNING:
         logging.error(f"Slurm job failed. See log-file '{log_file}' for more information.")
         exit(1)
 
     logging.info("Slurm job is running. Jupyter instance is starting up...")
-    while is_starting_up:
-        with open(log_file, "r") as f:
-            log_file_contents = f.read()
-        if " is running at" in log_file_contents:
-            is_starting_up = False
-        else:
-            time.sleep(0.5)
+    while True:
+        if os.path.exists(log_file):
+            with open(log_file, "r") as f:
+                log_file_contents = f.read()
+            if " is running at" in log_file_contents:
+                break
+        time.sleep(0.5)
     log_file_split = log_file_contents.split("\n")
     url_line = [x for x in log_file_split if "http" in x]
     if len(url_line) == 1:
