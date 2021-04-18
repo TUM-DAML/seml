@@ -805,7 +805,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
             sbatch_options=sbatch_options_str,
             use_conda_env=str(conda_env is not None).lower(),
             conda_env=conda_env,
-            notebook_or_lab=" notebook" if lab is False else "-lab",
+            notebook_or_lab=" notebook" if not lab else "-lab",
     )
 
     random_int = np.random.randint(0, 999999)
@@ -852,11 +852,10 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
                 break
         time.sleep(0.5)
     log_file_split = log_file_contents.split("\n")
-    url_line = [x for x in log_file_split if "http" in x]
-    if len(url_line) == 1:
-        url = url_line[0].split(" ")[3]
-        url = url.replace("https://", "")
-        url = url.replace("http://", "")
-        url = url.replace("/", "")
+    url_lines = [x for x in log_file_split if "http" in x]
+    url = url_lines[0].split(" ")[3]
+    url = url.replace("https://", "")
+    url = url.replace("http://", "")
+    url = url[:-1] if url[-1] == '/' else url
     logging.info(f"Start-up completed. The Jupyter instance is running at '{url}'.")
     logging.info(f"To stop the job, run 'scancel {slurm_array_job_id}'.")
