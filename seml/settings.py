@@ -55,7 +55,7 @@ SETTINGS = munchify(
         "SLURM_STATES": {
             "PENDING": ["PENDING", "CONFIGURING", "REQUEUE_FED", "REQUEUE_HOLD", "REQUEUED", "RESIZING"],
             "RUNNING": ["RUNNING", "SIGNALING"],  # Python code can still be executed while in SIGNALING
-            "PAUSED": ["RESV_DEL_HOLD", "STOPPED", "SUSPENDED", "SPECIAL_EXIT"],
+            "PAUSED": ["STOPPED", "SUSPENDED", "SPECIAL_EXIT"],
             "INTERRUPTED": ["CANCELLED"],  # Caused by user command
             "FAILED": ["FAILED", "BOOT_FAIL", "DEADLINE", "NODE_FAIL",
                        "OUT_OF_MEMORY", "PREEMPTED", "REVOKED", "TIMEOUT"],
