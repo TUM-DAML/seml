@@ -66,6 +66,7 @@ SETTINGS = munchify(
                                      'conda_environment', 'project_root_dir'],
         "VALID_SLURM_CONFIG_VALUES": ['experiments_per_job', 'max_jobs_per_batch',
                                       'sbatch_options_template', 'sbatch_options'],
+        "LOGIN_NODE_NAMES": ["fs"],
 
         "OBSERVERS": {
             "NEPTUNE": {

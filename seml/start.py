@@ -544,6 +544,12 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
                              debug_server=debug_server)
 
 
+def check_compute_node():
+    if os.uname()[1] in SETTINGS.LOGIN_NODE_NAMES:
+        raise ArgumentError("Refusing to run a compute experiment on a login node. "
+                            "Please use Slurm or a compute node.")
+
+
 def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=False, post_mortem=False,
                        steal_slurm=False, output_to_console=False, output_to_file=True,
                        gpus=None, cpus=None, environment_variables=None, debug_server=False):
@@ -581,10 +587,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     -------
     None
     """
-    login_node_name = 'fs'
-    if login_node_name in os.uname()[1]:
-        raise ArgumentError("Refusing to run a compute experiment on a login node. "
-                            "Please use Slurm or a compute node.")
+    check_compute_node()
 
     if 'SLURM_JOBID' in os.environ:
         node_str = subprocess.run("squeue -j ${SLURM_JOBID} -O nodelist:1000",
@@ -727,7 +730,6 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
                       no_worker, set_to_pending=True,
                       worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
 
-    use_slurm = not local
     output_to_file = not no_file_output
     launch_worker = not no_worker
 
@@ -741,6 +743,9 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     else:
         unobserved = False
         srun = False
+
+    if local:
+        check_compute_node()
 
     if not local:
         local_kwargs = {
@@ -775,9 +780,9 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
 
     staged_experiments = prepare_experiments(
             collection=collection, filter_dict=filter_dict, num_exps=num_exps,
-            slurm=use_slurm, set_to_pending=set_to_pending, print_pending=not use_slurm)
+            slurm=not local, set_to_pending=set_to_pending, print_pending=local)
 
-    if use_slurm:
+    if not local:
         add_to_slurm_queue(collection=collection, exps_list=staged_experiments, unobserved=unobserved,
                            post_mortem=post_mortem, output_to_file=output_to_file,
                            output_to_console=output_to_console, srun=srun,
