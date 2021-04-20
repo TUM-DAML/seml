@@ -212,7 +212,7 @@ def reset_single_experiment(collection, exp):
     keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'config_hash', 'add_time', 'queue_time', 'git']
 
     # Clean up SEML dictionary
-    keep_seml = set('source_files', 'working_dir')
+    keep_seml = set(['source_files', 'working_dir'])
     keep_seml.update(SETTINGS.VALID_SEML_CONFIG_VALUES)
     seml_keys = set(exp['seml'].keys())
     for key in seml_keys - keep_seml:
