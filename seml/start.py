@@ -656,6 +656,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
         jobs_counter += 1
         tq.update()
         tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
+    tq.close()
 
 
 def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps,
