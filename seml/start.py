@@ -44,7 +44,7 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     if debug_server:
         ip_address, port = find_free_port()
         if print_info:
-            logging.info(f"Starting debug server with IP {ip_address} and port {port}. "
+            logging.info(f"Starting debug server with IP '{ip_address}' and port '{port}'. "
                          f"Experiment will wait for a debug client to attach.")
         interpreter = f"python -m debugpy --listen {ip_address}:{port} --wait-for-client"
     else:
@@ -782,6 +782,12 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     staged_experiments = prepare_experiments(
             collection=collection, filter_dict=filter_dict, num_exps=num_exps,
             slurm=not local, set_to_pending=set_to_pending, print_pending=local)
+
+    if debug_server:
+        use_stored_sources = ('source_files' in staged_experiments[0]['seml'])
+        if use_stored_sources:
+            raise ArgumentError("Cannot use a debug server with source code that is loaded from the MongoDB. "
+                                "Use the `--no-code-checkpoint` option when adding the experiment.")
 
     if not local:
         add_to_slurm_queue(collection=collection, exps_list=staged_experiments, unobserved=unobserved,

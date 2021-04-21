@@ -83,7 +83,7 @@ def upload_sources(seml_config, collection, batch_id):
     executable_abs = str(Path(seml_config['executable']).expanduser().resolve())
 
     if executable_abs not in sources:
-        raise ExecutableError(f"Executable {executable_abs} was not found in the sources to upload.")
+        raise ExecutableError(f"Executable {executable_abs} was not found in the source code files to upload.")
 
     uploaded_files = []
     for s in sources:
