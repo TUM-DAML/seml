@@ -223,6 +223,45 @@ The `--steal-slurm` option allows local workers to pop experiments from the Slur
 database state of each experiment before actually executing it via Slurm, there is no risk of running duplicate 
 experiments.
 
+## Debugging experiments on Slurm
+
+To run an interactive debug session on Slurm you can start any stagged experiment with the `--debug` option.
+
+For even more convenience you can also use VS Code for a remote debug session. First make sure that your experiments were added to the database with the `--no-code-checkpoint` option:
+
+```
+seml seml_example add example_config.yaml --ncc
+```
+
+This will prevent the caching of your code in the MongoDB and allow you to run the current version of the code that is in your working directory, set breakpoints and interactively step through your code in VS Code.
+
+To start a remote debug server run:
+
+```
+seml seml_example start --debug-server
+```
+
+This will add your experiment to the queue, wait for the necessary resources to be assigned, spawn a debug process on the server and prompt you with the debug server's `ip` and `port`. As soon as you've attached to the debug server via VS Code the experiment will run.
+
+To be able to attach to the debug server you'll need to edit the `.vscode/launch.json` config:
+```
+{
+    "configurations": [
+        {
+            "name": "Python: Attach",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+                "host": "YOUR_DEBUG_SERVER_IP",
+                "port": YOUR_DEBUG_SERVER_PORT
+            }
+        }
+    ]
+}
+```
+The ip and port of the debug server might change at every start, so make sure to update the `host` and `port` launch config. 
+Note: The "restart" operation of the VS Code Debugger is not supported. 
+
 ### Running multiple experiments per Slurm job
 Often a single experiment requires much less GPU RAM than is available on a GPU. Thus, we can often
 run multiple experiments per Slurm job (which commonly uses a single GPU) to increase the throughput of our experiments.
