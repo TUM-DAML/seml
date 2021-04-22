@@ -241,7 +241,7 @@ To start a remote debug server run:
 seml seml_example start --debug-server
 ```
 
-This will add your experiment to the queue, wait for the necessary resources to be assigned, spawn a debug process on the server and prompt you with the debug server's `ip` and `port`. As soon as you've attached to the debug server via VS Code the experiment will run.
+This will add your experiment to the queue, wait for the necessary resources to be assigned, spawn a debug process on the server and prompt you with the debug server's ip and port. As soon as you've attached to the debug server via VS Code the experiment will run.
 
 To be able to attach to the debug server you'll need to edit the `.vscode/launch.json` config:
 ```
