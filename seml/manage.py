@@ -277,7 +277,8 @@ def detect_killed(db_collection_name, print_detected=True):
                         all_lines = f.readlines()
                     collection.update_one({'_id': exp['_id']}, {'$set': {'fail_trace': all_lines[-4:]}})
                 except IOError:
-                    logging.warning(f"File {exp['seml']['output_file']} could not be read.")
+                    # If the experiment is cancelled before starting (e.g. when still queued), there is not output file.
+                    logging.verbose(f"File {exp['seml']['output_file']} could not be read.")
     if print_detected:
         logging.info(f"Detected {nkilled} externally killed experiment{s_if(nkilled)}.")
 
