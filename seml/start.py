@@ -409,10 +409,10 @@ def batch_chunks(exp_chunks):
     return exp_arrays
 
 
-def prepare_experiments(collection, filter_dict=None, num_exps=0,
-                        set_to_pending=True):
+def prepare_staged_experiments(collection, filter_dict=None, num_exps=0, set_to_pending=True):
     """
     Load experiments from the input MongoDB collection, and prepare them for running.
+    If the filter_dict contains no status or ID, we filter the status by STAGED.
     If set_to_pending is True, we set their status to PENDING.
 
     Parameters
@@ -433,11 +433,11 @@ def prepare_experiments(collection, filter_dict=None, num_exps=0,
     if filter_dict is None:
         filter_dict = {}
 
-    staged_filter = copy.deepcopy(filter_dict)
-    if '_id' not in staged_filter and 'status' not in staged_filter:
-        staged_filter['status'] = {"$in": States.STAGED}
+    query_dict = copy.deepcopy(filter_dict)
+    if '_id' not in query_dict and 'status' not in query_dict:
+        query_dict['status'] = {"$in": States.STAGED}
 
-    experiments = list(collection.find(staged_filter, limit=num_exps))
+    experiments = list(collection.find(query_dict, limit=num_exps))
 
     if set_to_pending:
         update_dict = {"$set": {"status": States.PENDING[0]}}
@@ -447,7 +447,7 @@ def prepare_experiments(collection, filter_dict=None, num_exps=0,
             collection.update_many({'_id': {'$in': [e['_id'] for e in experiments]}},
                                    update_dict)
         else:
-            collection.update_many(staged_filter, update_dict)
+            collection.update_many(query_dict, update_dict)
 
         nexps_set = len(experiments)
         logging.info(f"Setting {nexps_set} experiment{s_if(nexps_set)} to pending.")
@@ -767,7 +767,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
 
     collection = get_collection(db_collection_name)
 
-    staged_experiments = prepare_experiments(
+    staged_experiments = prepare_staged_experiments(
             collection=collection, filter_dict=filter_dict, num_exps=num_exps,
             set_to_pending=set_to_pending and local)
 
