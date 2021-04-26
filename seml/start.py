@@ -410,7 +410,7 @@ def batch_chunks(exp_chunks):
 
 
 def prepare_experiments(collection, filter_dict=None, num_exps=0,
-                        slurm=True, set_to_pending=True, print_pending=False):
+                        set_to_pending=True):
     """
     Load experiments from the input MongoDB collection, and prepare them for running.
     If set_to_pending is True, we set their status to PENDING.
@@ -423,12 +423,8 @@ def prepare_experiments(collection, filter_dict=None, num_exps=0,
         Optional dict with custom database filters.
     num_exps: int
         Only set <num_exps> experiments' state to PENDING. If 0, set all STAGED experiments to PENDING.
-    slurm: bool
-        If True, we also set 'slurm.array_id' in order to prevent these jobs from being executed by local workers.
     set_to_pending: bool
         Whether to update the database entries to status PENDING.
-    print_pending: bool
-        Print the number of experiments set to PENDING.
 
     Returns
     -------
@@ -445,9 +441,6 @@ def prepare_experiments(collection, filter_dict=None, num_exps=0,
 
     if set_to_pending:
         update_dict = {"$set": {"status": States.PENDING[0]}}
-        if slurm:
-            # set slurm.array_id so that local workers don't start these jobs.
-            update_dict['$set']['slurm.array_id'] = None
 
         if num_exps > 0:
             # Set only those experiments to PENDING which will be run.
@@ -455,9 +448,9 @@ def prepare_experiments(collection, filter_dict=None, num_exps=0,
                                    update_dict)
         else:
             collection.update_many(staged_filter, update_dict)
+
         nexps_set = len(experiments)
-        if print_pending:
-            logging.info(f"Setting {nexps_set} experiment{s_if(nexps_set)} to pending.")
+        logging.info(f"Setting {nexps_set} experiment{s_if(nexps_set)} to pending.")
 
     return experiments
 
@@ -669,12 +662,7 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
 
     collection = get_collection(db_collection_name)
 
-    if sacred_id is None:
-        filter_dict = build_filter_dict([], batch_id, filter_dict)
-        if 'status' not in filter_dict:
-            filter_dict['status'] = {"$in": States.STAGED}
-    else:
-        filter_dict = {'_id': sacred_id}
+    filter_dict = build_filter_dict(States.STAGED, batch_id, filter_dict, sacred_id)
 
     env_dict = get_environment_variables(worker_gpus, worker_cpus, worker_environment_vars)
     env_str = " ".join([f"{k}={v}" for k, v in env_dict.items()])
@@ -775,16 +763,13 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
     if unobserved:
         set_to_pending = False
 
-    if sacred_id is None:
-        filter_dict = build_filter_dict([], batch_id, filter_dict)
-    else:
-        filter_dict = {'_id': sacred_id}
+    filter_dict = build_filter_dict([], batch_id, filter_dict, sacred_id)
 
     collection = get_collection(db_collection_name)
 
     staged_experiments = prepare_experiments(
             collection=collection, filter_dict=filter_dict, num_exps=num_exps,
-            slurm=not local, set_to_pending=set_to_pending, print_pending=local)
+            set_to_pending=set_to_pending and local)
 
     if debug_server:
         use_stored_sources = ('source_files' in staged_experiments[0]['seml'])
@@ -869,6 +854,6 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     url = url_lines[0].split(" ")[3]
     url = url.replace("https://", "")
     url = url.replace("http://", "")
-    url = url[:-1] if url[-1] == '/' else url
+    url = url.rstrip('/')
     logging.info(f"Start-up completed. The Jupyter instance is running at '{url}'.")
     logging.info(f"To stop the job, run 'scancel {slurm_array_job_id}'.")

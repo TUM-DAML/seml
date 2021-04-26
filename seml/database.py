@@ -80,7 +80,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     return {'password': db_password, 'username': db_username, 'host': db_host, 'db_name': db_name, 'port': db_port}
 
 
-def build_filter_dict(filter_states, batch_id, filter_dict):
+def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
     """
     Construct a dictionary to be used for filtering a MongoDB collection.
 
@@ -93,11 +93,16 @@ def build_filter_dict(filter_states, batch_id, filter_dict):
     filter_dict: dict
         The filter dict passed via the command line. Values in here take precedence over values passed via
         batch_id or filter_states.
+    sacred_id: int
+        Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
 
     Returns
     -------
     filter_dict: dict
     """
+
+    if sacred_id is not None:
+        return {'_id': sacred_id}
 
     if filter_dict is None:
         filter_dict = {}
