@@ -101,7 +101,7 @@ def main():
         "launch-worker",
         help="Launch a local worker that runs PENDING jobs.")
     parser_launch_worker.set_defaults(func=start_experiments, set_to_pending=False, no_worker=False, local=True,
-                                      debug=False, debug_server=False, print_command=False)
+                                      debug=False, debug_server=False)
 
     parser_print_command = subparsers.add_parser(
         "print-command",
