@@ -6,8 +6,9 @@ import numpy as np
 import shutil
 import pkg_resources
 from pathlib import Path
-from tqdm.autonotebook import tqdm
 import time
+import copy
+from tqdm.autonotebook import tqdm
 
 from seml.database import get_collection, build_filter_dict
 from seml.sources import load_sources_from_db
@@ -436,7 +437,11 @@ def prepare_experiments(collection, filter_dict=None, num_exps=0,
     if filter_dict is None:
         filter_dict = {}
 
-    experiments = list(collection.find(filter_dict, limit=num_exps))
+    staged_filter = copy.deepcopy(filter_dict)
+    if '_id' not in staged_filter and 'status' not in staged_filter:
+        staged_filter['status'] = {"$in": States.STAGED}
+
+    experiments = list(collection.find(staged_filter, limit=num_exps))
 
     if set_to_pending:
         update_dict = {"$set": {"status": States.PENDING[0]}}
@@ -449,7 +454,7 @@ def prepare_experiments(collection, filter_dict=None, num_exps=0,
             collection.update_many({'_id': {'$in': [e['_id'] for e in experiments]}},
                                    update_dict)
         else:
-            collection.update_many(filter_dict, update_dict)
+            collection.update_many(staged_filter, update_dict)
         nexps_set = len(experiments)
         if print_pending:
             logging.info(f"Setting {nexps_set} experiment{s_if(nexps_set)} to pending.")
@@ -772,8 +777,6 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
 
     if sacred_id is None:
         filter_dict = build_filter_dict([], batch_id, filter_dict)
-        if 'status' not in filter_dict:
-            filter_dict['status'] = {"$in": States.STAGED}
     else:
         filter_dict = {'_id': sacred_id}
 
