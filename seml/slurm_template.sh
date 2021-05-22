@@ -24,17 +24,7 @@ IFS=";" read -r -a exp_ids <<< "$exp_ids_str"
 
 # Create directory for the source files in MongoDB
 if {with_sources}; then
-    rdm=$RANDOM # Random number for temp dir
-    tmpdir="/tmp/$rdm"
-    declare -i ctr=0
-    while [ -d $tmpdir -a $ctr -le 100 ]; do
-        tmpdir="/tmp/$RANDOM"
-        ctr=$ctr+1
-    done
-    if [ $ctr -ge 100 ]; then
-        echo "Could not create a temp dir"
-        exit 99
-    fi
+    tmpdir="/tmp/$(uuidgen)"  # unique temp dir based on UUID
     mkdir $tmpdir
     # Prepend the temp dir to $PYTHONPATH so it will be used by python.
     export PYTHONPATH="$tmpdir:$PYTHONPATH"

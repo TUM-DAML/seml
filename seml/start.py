@@ -8,6 +8,7 @@ import pkg_resources
 from pathlib import Path
 import time
 import copy
+import uuid
 from tqdm.autonotebook import tqdm
 
 from seml.database import get_collection, build_filter_dict
@@ -191,11 +192,7 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
             debug_server=debug_server,
     )
 
-    random_int = np.random.randint(0, 999999)
-    path = f"/tmp/{random_int}.sh"
-    while os.path.exists(path):
-        random_int = np.random.randint(0, 999999)
-        path = f"/tmp/{random_int}.sh"
+    path = f"/tmp/{uuid.uuid4()}.sh"
     with open(path, "w") as f:
         f.write(script)
 
@@ -302,11 +299,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
         slurm_config = exp['slurm']
 
         if use_stored_sources:
-            random_int = np.random.randint(0, 999999)
-            temp_dir = f"/tmp/{random_int}"
-            while os.path.exists(temp_dir):
-                random_int = np.random.randint(0, 999999)
-                temp_dir = f"/tmp/{random_int}"
+            temp_dir = f"/tmp/{uuid.uuid4()}"
             os.mkdir(temp_dir, mode=0o700)
             load_sources_from_db(exp, collection, to_directory=temp_dir)
             # update the command to use the temp dir
@@ -809,11 +802,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
             notebook_or_lab=" notebook" if not lab else "-lab",
     )
 
-    random_int = np.random.randint(0, 999999)
-    path = f"/tmp/{random_int}.sh"
-    while os.path.exists(path):
-        random_int = np.random.randint(0, 999999)
-        path = f"/tmp/{random_int}.sh"
+    path = f"/tmp/{uuid.uuid4()}.sh"
     with open(path, "w") as f:
         f.write(script)
 
