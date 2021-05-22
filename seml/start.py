@@ -826,7 +826,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     job_output = subprocess.run(f'scontrol show job {slurm_array_job_id} -o',
                                 shell=True, check=True, capture_output=True).stdout
     job_output_results = job_output.decode("utf-8").split(" ")
-    job_info_dict = {x.split("=")[0]: x.split("=")[1] for x in job_output_results}
+    job_info_dict = {x.split('=')[0]: x.split('=')[1] for x in job_output_results if '=' in x}
     log_file = job_info_dict['StdOut']
 
     logging.info(f"The job's log-file is '{log_file}'.")
@@ -837,7 +837,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
         job_output = subprocess.run(f'scontrol show job {slurm_array_job_id} -o',
                                     shell=True, check=True, capture_output=True).stdout
         job_output_results = job_output.decode("utf-8").split(" ")
-        job_info_dict = {x.split("=")[0]: x.split("=")[1] for x in job_output_results}
+        job_info_dict = {x.split('=')[0]: x.split('=')[1] for x in job_output_results if '=' in x}
         time.sleep(1)
     if job_info_dict['JobState'] not in SlurmStates.RUNNING:
         logging.error(f"Slurm job failed. See log-file '{log_file}' for more information.")
