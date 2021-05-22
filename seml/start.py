@@ -115,7 +115,7 @@ def create_slurm_options_string(slurm_options: dict, srun: bool = False):
 
 
 def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
-                     output_dir_path=".", sbatch_options=None, max_jobs_per_batch=None,
+                     output_dir_path=".", sbatch_options=None, max_simultaneous_jobs=None,
                      debug_server=False):
     """Run a list of experiments as a job on the Slurm cluster.
 
@@ -133,8 +133,8 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
         Directory (relative to home directory) where to store the slurm output files.
     sbatch_options: dict
         A dictionary that contains options for #SBATCH, e.g. {'mem': 8000} to limit the job's memory to 8,000 MB.
-    max_jobs_per_batch: int
-        Maximum number of Slurm jobs running per experiment batch.
+    max_simultaneous_jobs: int
+        Maximum number of Slurm jobs running simultaneously.
     debug_server: bool
         Run jobs with a debug server.
 
@@ -145,8 +145,8 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
 
     # Set Slurm job array options
     sbatch_options['array'] = f"0-{len(exp_array) - 1}"
-    if max_jobs_per_batch is not None:
-        sbatch_options['array'] += f"%{max_jobs_per_batch}"
+    if max_simultaneous_jobs is not None:
+        sbatch_options['array'] += f"%{max_simultaneous_jobs}"
 
     # Set Slurm output parameter
     if 'output' in sbatch_options:
@@ -536,9 +536,14 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
             else:
                 output_dir_path = "/dev/null"
             assert not post_mortem
+            if 'simultaneous_jobs' in exp_array[0][0]['slurm']:
+                max_simultaneous_jobs = exp_array[0][0]['slurm']['simultaneous_jobs']
+            else:
+                max_simultaneous_jobs = None
             start_sbatch_job(collection, exp_array, unobserved,
                              name=job_name, output_dir_path=output_dir_path,
                              sbatch_options=sbatch_options,
+                             max_simultaneous_jobs=max_simultaneous_jobs,
                              debug_server=debug_server)
 
 

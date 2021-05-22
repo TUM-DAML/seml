@@ -307,8 +307,10 @@ def get_slurm_arrays_tasks():
                     job_dict[array_id] = [[range(0)], []]
 
                 if b'[' in task_range_str:
+                    # Remove brackets and maximum number of simultaneous jobs
+                    task_range_str = task_range_str[1:-1].split(b'%')[0]
                     # The overall pending tasks array can be split into multiple arrays by cancelling jobs
-                    job_id_ranges = task_range_str[1:-1].split(b',')
+                    job_id_ranges = task_range_str.split(b',')
                     for r in job_id_ranges:
                         if b'-' in r:
                             lower, upper = r.split(b'-')

@@ -136,7 +136,7 @@ Optionally, it can contain
 ### `slurm` block
 The special 'slurm' block contains the slurm parameters. This block and all values are optional. Possible values are:
    - `experiments_per_job`: Number of parallel experiments to run in each Slurm job. Note that only experiments from the same batch share a job. Default: 1
-   - `max_jobs_per_batch`: Maximum number of Slurm jobs running per experiment batch. Default: No restriction
+   - `simultaneous_jobs`: Maximum number of simultaneously running Slurm jobs per job array. Default: No restriction
    - `sbatch_options_template`: Name of a custom template of `SBATCH` options. Define your own templates in `settings.py`
      under `SBATCH_OPTIONS_TEMPLATES`, e.g. for long-running jobs, CPU-only jobs, etc.
    - `sbatch_options`: dictionary that contains custom values that will be passed to `sbatch`, specifying e.g. the

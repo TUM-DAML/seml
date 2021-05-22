@@ -64,7 +64,7 @@ SETTINGS = munchify(
         },
         "VALID_SEML_CONFIG_VALUES": ['executable', 'name', 'output_dir',
                                      'conda_environment', 'project_root_dir'],
-        "VALID_SLURM_CONFIG_VALUES": ['experiments_per_job', 'max_jobs_per_batch',
+        "VALID_SLURM_CONFIG_VALUES": ['experiments_per_job', 'simultaneous_jobs',
                                       'sbatch_options_template', 'sbatch_options'],
         "LOGIN_NODE_NAMES": ["fs"],
 
