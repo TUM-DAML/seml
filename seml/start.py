@@ -536,14 +536,10 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
             else:
                 output_dir_path = "/dev/null"
             assert not post_mortem
-            if 'simultaneous_jobs' in exp_array[0][0]['slurm']:
-                max_simultaneous_jobs = exp_array[0][0]['slurm']['simultaneous_jobs']
-            else:
-                max_simultaneous_jobs = None
             start_sbatch_job(collection, exp_array, unobserved,
                              name=job_name, output_dir_path=output_dir_path,
                              sbatch_options=sbatch_options,
-                             max_simultaneous_jobs=max_simultaneous_jobs,
+                             max_simultaneous_jobs=exp_array[0][0]['slurm'].get('simultaneous_jobs'),
                              debug_server=debug_server)
 
 
@@ -685,7 +681,7 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
     _, exe, config = get_command_from_exp(exp, collection.name,
                                           verbose=logging.root.level <= logging.VERBOSE,
                                           unobserved=True, post_mortem=False)
-    env = exp['seml']['conda_environment'] if 'conda_environment' in exp['seml'] else None
+    env = exp['seml'].get('conda_environment')
 
     logging.info("********** First experiment **********")
     logging.info(f"Executable: {exe}")

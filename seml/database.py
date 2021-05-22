@@ -146,7 +146,7 @@ def get_max_in_collection(collection: Collection, field: str):
     b = c.sort(field, pymongo.DESCENDING).limit(1)
     if ndocs != 0:
         b_next = b.next()
-        max_val = b_next[field] if field in b_next else None
+        max_val = b_next.get(field)
     else:
         max_val = None
 
@@ -234,7 +234,7 @@ def clean_unreferenced_artifacts(db_collection_name, all_collections=False):
             if filename.startswith("file://") and 'metadata' in file and file['metadata']:
                 # seml-uploaded source
                 metadata = file['metadata']
-                file_collection = metadata['collection_name'] if 'collection_name' in metadata else None
+                file_collection = metadata.get('collection_name')
             elif filename.startswith("artifact://"):
                 # artifact uploaded by Sacred
                 filename = filename[11:]
