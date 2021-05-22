@@ -210,9 +210,9 @@ def generate_configs(experiment_config):
     all_configs = []
     for subconfig_name, conf in final_configs:
         conf = standardize_config(conf)
-        random_params = conf.get('random', default={})
-        fixed_params = flatten(conf.get('fixed', default={}))
-        grid_params = conf.get('grid', default={})
+        random_params = conf.get('random', {})
+        fixed_params = flatten(conf.get('fixed', {}))
+        grid_params = conf.get('grid', {})
 
         if len(random_params) > 0:
             num_samples = random_params['samples']
