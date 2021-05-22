@@ -17,12 +17,12 @@
 #                    between queueing and starting the experiment will have no effect.
 #
 # The special 'slurm' block contains the slurm parameters. This block and all values are optional. Possible values are:
-# experiments_per_job:  Number of parallel experiments to run in each Slurm job.
-#                       Note that only experiments from the same batch share a job. Default: 1
-# simultaneous_jobs:    Maximum number of simultaneously running Slurm jobs per job array. Default: No restriction
-# sbatch_options:       dictionary that contains custom values that will be passed to `sbatch`, specifying e.g.
-#                       the memory and number of GPUs to be allocated (prepended dashes are not required). See
-#                       https://slurm.schedmd.com/sbatch.html for all possible options.
+# experiments_per_job:   Number of parallel experiments to run in each Slurm job.
+#                        Note that only experiments from the same batch share a job. Default: 1
+# max_simultaneous_jobs: Maximum number of simultaneously running Slurm jobs per job array. Default: No restriction
+# sbatch_options:        dictionary that contains custom values that will be passed to `sbatch`, specifying e.g.
+#                        the memory and number of GPUs to be allocated (prepended dashes are not required). See
+#                        https://slurm.schedmd.com/sbatch.html for all possible options.
 #
 # Parameters under 'fixed' will be used for all the experiments.
 #
@@ -59,7 +59,7 @@ seml:
 
 slurm:
   experiments_per_job: 1
-  simultaneous_jobs: 4  # Restrict number of simultaneously running jobs per job array
+  max_simultaneous_jobs: 4  # Restrict number of simultaneously running jobs per job array
   sbatch_options:
     gres: gpu:1       # num GPUs
     mem: 16G          # memory

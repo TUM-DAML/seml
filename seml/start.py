@@ -539,7 +539,7 @@ def add_to_slurm_queue(collection, exps_list, unobserved=False, post_mortem=Fals
             start_sbatch_job(collection, exp_array, unobserved,
                              name=job_name, output_dir_path=output_dir_path,
                              sbatch_options=sbatch_options,
-                             max_simultaneous_jobs=exp_array[0][0]['slurm'].get('simultaneous_jobs'),
+                             max_simultaneous_jobs=exp_array[0][0]['slurm'].get('max_simultaneous_jobs'),
                              debug_server=debug_server)
 
 
