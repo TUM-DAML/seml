@@ -29,9 +29,8 @@ def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=
     result_dict: the nested dictionary.
     """
 
-    duplicate_key_warning_str = ("Duplicate key detected in recursive dictionary unflattening, most likely resulting"
-                                 " from combining dot-dict notation with nested dictionaries, e.g. {'a.b': 3, 'a':"
-                                 " {'b': 5}}. Overwriting any previous entries, which may be undesired.")
+    duplicate_key_warning_str = ("Duplicate key detected in recursive dictionary unflattening. "
+                                 "Overwriting previous entries of '{}'.")
 
     if levels is not None:
         if not isinstance(levels, tuple) and not isinstance(levels, list):
@@ -80,7 +79,8 @@ def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=
             elif not isinstance(d[part], dict):
                 # Here we have a case such as: {'a.b': ['not_dict'], 'a': {'b': {'c': 111}}}
                 # Since later keys overwrite former ones, we replace the value for {'a.b'} with {'c': 111}.
-                logging.warning(duplicate_key_warning_str)
+                logging.warning(duplicate_key_warning_str.format(part))
+                breakpoint()
                 d[part] = dict()
             # Select the sub-dictionary for the key level.
             d = d[part]
@@ -89,11 +89,11 @@ def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=
             if isinstance(value, dict):
                 intersection = set(d[last_key].keys()).intersection(value.keys())
                 if len(intersection) > 0:
-                    logging.warning(duplicate_key_warning_str)
+                    logging.warning(duplicate_key_warning_str.format(last_key))
                 # Merge dictionaries, overwriting any existing values for duplicate keys.
                 d[last_key] = merge_dicts(d[last_key], value)
             else:
-                logging.warning(duplicate_key_warning_str)
+                logging.warning(duplicate_key_warning_str.format(last_key))
                 d[last_key] = value
         else:
             d[last_key] = value
