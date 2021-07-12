@@ -80,7 +80,6 @@ def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=
                 # Here we have a case such as: {'a.b': ['not_dict'], 'a': {'b': {'c': 111}}}
                 # Since later keys overwrite former ones, we replace the value for {'a.b'} with {'c': 111}.
                 logging.warning(duplicate_key_warning_str.format(part))
-                breakpoint()
                 d[part] = dict()
             # Select the sub-dictionary for the key level.
             d = d[part]
