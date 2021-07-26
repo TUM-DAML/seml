@@ -23,6 +23,10 @@ States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
 
 
+def escape_str(tree):
+    return str(tree).replace(r'"', r'\"')
+
+
 def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
                          post_mortem=False, debug=False, debug_server=False, print_info=True):
     if 'executable' not in exp['seml']:
@@ -33,7 +37,7 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     config['db_collection'] = db_collection_name
     if not unobserved:
         config['overwrite'] = exp['_id']
-    config_strings = [f'{key}="{val}"' if type(val) != str else f'{key}="\'{val}\'"' for key, val in config.items()]
+    config_strings = [f'{key}="{escape_str(val)}"' if type(val) != str else f'{key}="\'{escape_str(val)}\'"' for key, val in config.items()]
     if not verbose:
         config_strings.append("--force")
     if unobserved:
