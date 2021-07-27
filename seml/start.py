@@ -1,9 +1,11 @@
 import os
+import shlex
 import sys
 import subprocess
 import logging
 import numpy as np
 import shutil
+import json
 import pkg_resources
 from pathlib import Path
 import time
@@ -33,7 +35,13 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     config['db_collection'] = db_collection_name
     if not unobserved:
         config['overwrite'] = exp['_id']
-    config_strings = [f'{key}="{val}"' if type(val) != str else f'{key}="\'{val}\'"' for key, val in config.items()]
+
+    # We encode the values as JSON because it can also be evaluated as python literals and
+    # it requires strings in double quotes while calling `repr` on the values would use
+    # single quotes. Single quotes would later on lead to messy commands when the values
+    # are escaped with `shlex.quote`.
+    config_strings = [f"{key}={json.dumps(val)}" for key, val in config.items()]
+
     if not verbose:
         config_strings.append("--force")
     if unobserved:
@@ -53,6 +61,21 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
         interpreter = "python"
 
     return interpreter, exe, config_strings
+
+
+def get_cfg_overrides(config):
+    return " ".join(map(shlex.quote, config))
+
+
+def get_shell_command(interpreter, exe, config, env: dict=None):
+    cfg_overrides = get_cfg_overrides(config)
+
+    if env is None or len(env) == 0:
+        return f"{interpreter} {exe} with {cfg_overrides}"
+    else:
+        env_overrides = " ".join(f"{key}={shlex.quote(val)}" for key, val in env.items())
+
+        return f"{env_overrides} {interpreter} {exe} with {cfg_overrides}"
 
 
 def get_output_dir_path(config):
@@ -288,10 +311,10 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
                                                     verbose=logging.root.level <= logging.VERBOSE,
                                                     unobserved=unobserved, post_mortem=post_mortem,
                                                     debug_server=debug_server)
+    cmd = get_shell_command(interpreter, exe, config)
+
     if not use_stored_sources:
         os.chdir(exp['seml']['working_dir'])
-
-    cmd = f"{interpreter} {exe} with {' '.join(config)}"
 
     success = True
     try:
@@ -302,8 +325,10 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
             temp_dir = f"/tmp/{uuid.uuid4()}"
             os.mkdir(temp_dir, mode=0o700)
             load_sources_from_db(exp, collection, to_directory=temp_dir)
+            env = {"PYTHONPATH": f"{temp_dir}:$PYTHONPATH"}
+            temp_exe = os.path.join(temp_dir, exe)
             # update the command to use the temp dir
-            cmd = f'PYTHONPATH="{temp_dir}:$PYTHONPATH" {interpreter} {temp_dir}/{exe} with {" ".join(config)}'
+            cmd = get_shell_command(interpreter, temp_exe, config, env=env)
 
         if output_dir_path:
             exp_name = get_exp_name(exp, collection.name)
@@ -659,9 +684,6 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
     filter_dict = build_filter_dict(States.STAGED, batch_id, filter_dict, sacred_id)
 
     env_dict = get_environment_variables(worker_gpus, worker_cpus, worker_environment_vars)
-    env_str = " ".join([f"{k}={v}" for k, v in env_dict.items()])
-    if len(env_str) >= 1:
-        env_str += " "
 
     orig_level = logging.root.level
     logging.root.setLevel(logging.VERBOSE)
@@ -680,36 +702,30 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
     logging.info(f"Executable: {exe}")
     if env is not None:
         logging.info(f"Anaconda environment: {env}")
-    config.insert(0, 'with')
-    config.append('--debug')
-
-    # Remove double quotes, change single quotes to escaped double quotes
-    config_vscode = [c.replace('"', '') for c in config]
-    config_vscode = [c.replace("'", '\\"') for c in config_vscode]
 
     logging.info("\nArguments for VS Code debugger:")
-    logging.info('["' + '", "'.join(config_vscode) + '"]')
+    logging.info(json.dumps(["with", "--debug"] + config))
     logging.info("Arguments for PyCharm debugger:")
-    logging.info(" ".join(config))
+    logging.info("with --debug " + get_cfg_overrides(config))
 
     logging.info("\nCommand for post-mortem debugging:")
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
                                                     verbose=logging.root.level <= logging.VERBOSE,
                                                     unobserved=True, post_mortem=True)
-    logging.info(f"{env_str}{interpreter} {exe} with {' '.join(config)}")
+    logging.info(get_shell_command(interpreter, exe, config, env=env_dict))
 
     logging.info("\nCommand for remote debugging:")
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
                                                     verbose=logging.root.level <= logging.VERBOSE,
                                                     unobserved=True, debug_server=True, print_info=False)
-    logging.info(f"{env_str}{interpreter} {exe} with {' '.join(config)}")
+    logging.info(get_shell_command(interpreter, exe, config, env=env_dict))
 
     logging.info("\n********** All raw commands **********")
     logging.root.setLevel(orig_level)
     for exp in exps_list:
         interpreter, exe, config = get_command_from_exp(
                 exp, collection.name, verbose=logging.root.level <= logging.VERBOSE)
-        logging.info(f"{env_str}{interpreter} {exe} with {' '.join(config)}")
+        logging.info(get_shell_command(interpreter, exe, config, env=env_dict))
 
 
 def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
