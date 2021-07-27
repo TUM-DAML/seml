@@ -2,7 +2,7 @@ import argparse
 import os
 import logging
 
-from seml.start import get_command_from_exp
+from seml.start import get_command_from_exp, get_shell_command
 from seml.database import get_collection
 from seml.sources import load_sources_from_db
 from seml.settings import SETTINGS
@@ -67,23 +67,17 @@ if __name__ == "__main__":
     interpreter, exe, config = get_command_from_exp(exp, db_collection_name, verbose=args.verbose,
                                                     unobserved=args.unobserved, post_mortem=args.post_mortem,
                                                     debug_server=args.debug_server)
-    config_args = ' '.join(config)
+    cmd = get_shell_command(interpreter, exe, config)
+    updates = {'seml.command': cmd}
 
-    cmd = f"{interpreter} {exe} with {config_args}"
     if use_stored_sources:
-        # add command without the temp_dir prefix
-        # also add the temp dir for debugging purposes
-        if not args.unobserved:
-            collection.update_one(
-                {'_id': exp_id},
-                {'$set': {'seml.command': cmd, 'seml.temp_dir': args.stored_sources_dir}})
-        # add the temp_dir prefix to the command
-        cmd = f"{interpreter} {args.stored_sources_dir}/{exe} with {config_args}"
-    else:
-        if not args.unobserved:
-            collection.update_one(
-                    {'_id': exp_id},
-                    {'$set': {'seml.command': cmd}})
+        temp_dir = args.stored_sources_dir
+        # Store the temp dir for debugging purposes
+        updates["seml.temp_dir"] = temp_dir
+        cmd = get_shell_command(interpreter, os.path.join(temp_dir, exe), config)
+
+    if not args.unobserved:
+        collection.update_one({'_id': exp_id}, {'$set': updates})
 
     print(cmd)
     exit(0)
