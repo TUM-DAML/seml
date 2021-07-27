@@ -42,7 +42,7 @@ def import_exe(executable, conda_env):
 
     """
     # Check if current environment matches experiment environment
-    if conda_env is not None and conda_env != os.environ['CONDA_DEFAULT_ENV']:
+    if conda_env is not None and conda_env != os.environ.get('CONDA_DEFAULT_ENV'):
         logging.warning(f"Current Anaconda environment does not match the experiment's environment ('{conda_env}').")
 
     # Get experiment as module (which causes Sacred not to start ex.automain)
