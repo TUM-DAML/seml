@@ -134,10 +134,7 @@ def add_experiments(db_collection_name, config_file, force_duplicates, no_hash=F
 
     # Use current Anaconda environment if not specified
     if 'conda_environment' not in seml_config:
-        if 'CONDA_DEFAULT_ENV' in os.environ:
-            seml_config['conda_environment'] = os.environ['CONDA_DEFAULT_ENV']
-        else:
-            seml_config['conda_environment'] = None
+        seml_config['conda_environment'] = os.environ.get('CONDA_DEFAULT_ENV')
 
     # Set Slurm config with default parameters as fall-back option
     slurm_config = merge_dicts(SETTINGS.SLURM_DEFAULT, slurm_config)
