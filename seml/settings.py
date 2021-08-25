@@ -80,6 +80,8 @@ SETTINGS = munchify(
                 "DEFAULT_CHANNEL": "YOUR_DEFAULT_CHANNEL",
             }
         },
+
+        "ALWAYS_CONFIRM_CANCEL": False,
     },
 )
 
