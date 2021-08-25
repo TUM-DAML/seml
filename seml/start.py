@@ -36,11 +36,10 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     if not unobserved:
         config['overwrite'] = exp['_id']
 
-    # We encode the values as JSON because it can also be evaluated as python literals and
-    # it requires strings in double quotes while calling `repr` on the values would use
-    # single quotes. Single quotes would later on lead to messy commands when the values
-    # are escaped with `shlex.quote`.
-    config_strings = [f"{key}={json.dumps(val)}" for key, val in config.items()]
+    # We encode values with `repr` such that we can decode them with `eval`. While `shlex.quote`
+    # may cause messy commands with lots of single quotes JSON doesn't match Python 1:1, e.g.,
+    # boolean values are lower case in JSON (true, false) but start with capital letters in Python.
+    config_strings = [f"{key}={repr(val)}" for key, val in config.items()]
 
     if not verbose:
         config_strings.append("--force")
