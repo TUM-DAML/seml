@@ -116,7 +116,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
 
             ncancel = collection.count_documents(filter_dict)
-            if ncancel >= 10 or (ncancel > 0 and SETTINGS.ALWAYS_CONFIRM_CANCEL):
+            if ncancel >= SETTINGS.CONFIRM_CANCEL_THRESHOLD:
                 if input(f"Cancelling {ncancel} experiment{s_if(ncancel)}. "
                          f"Are you sure? (y/n) ").lower() != "y":
                     exit()
@@ -157,7 +157,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             logging.warning(f"One or multiple Slurm jobs were no longer running when I tried to cancel them.")
     else:
         logging.info(f"Cancelling experiment with ID {sacred_id}.")
-        if SETTINGS.ALWAYS_CONFIRM_CANCEL:
+        if SETTINGS.CONFIRM_CANCEL_THRESHOLD <= 1:
             if input('Are you sure? (y/n)').lower() != 'y':
                 exit()
         cancel_experiment_by_id(collection, sacred_id)

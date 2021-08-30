@@ -81,7 +81,7 @@ SETTINGS = munchify(
             }
         },
 
-        "ALWAYS_CONFIRM_CANCEL": False,
+        "CONFIRM_CANCEL_THRESHOLD": 10,
     },
 )
 
