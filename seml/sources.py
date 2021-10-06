@@ -5,7 +5,7 @@ import logging
 import importlib
 import gridfs
 
-from seml.database import upload_file
+from seml.database import get_collection, upload_file
 from seml.errors import ExecutableError, MongoDBError
 
 
@@ -174,3 +174,66 @@ def delete_batch_sources(collection, batch_id):
               f"to batch {batch_id} in collection {collection.name}.")
         for to_delete in source_files:
             fs.delete(to_delete)
+
+
+def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
+    collection = get_collection(db_collection_name)
+    
+    if batch_ids is not None:
+        filter_dict = {'batch_id': {'$in': list(batch_ids)}}
+    else:
+        filter_dict = {}
+    db_results = collection.find(filter_dict, {'batch_id', 'seml'})
+    id_to_seml = {x['batch_id']: x['seml'] for x in db_results}
+    for batch_id, seml_config in id_to_seml.items():
+        if 'working_dir' not in seml_config or not seml_config['working_dir']:
+            print(f'Batch {batch_id}: No source files to refresh.')
+        # Find the currently used source files
+        db = collection.database
+        fs = gridfs.GridFS(db)
+        fs_filter_dict = {
+            'metadata.batch_id': batch_id,
+            'metadata.collection_name': f'{collection.name}',
+            'metadata.deprecated': {'$exists': False}
+        }
+        current_source_files = db['fs.files'].find(filter_dict, '_id')
+        current_ids = [x['_id'] for x in current_source_files]
+        fs_filter_dict = {
+            '_id': {'$in': current_ids}
+        }
+        # Deprecate them
+        db['fs.files'].update_many(fs_filter_dict, {'$set': {'metadata.deprecated': True}})
+
+        try:
+            # Try to upload the new ones
+            source_files = upload_sources(seml_config, collection, batch_id)
+        except Exception:
+            # If it fails we reconstruct the old ones
+            print(f"Batch {batch_id}: Please navigate to the executable '{seml_config['executable']}'.")
+            db['fs.files'].update_many(fs_filter_dict, {'$unset': {'metadata.deprecated': ""}})
+        else:
+            try:
+                # Try to assign the new ones to the experiments
+                filter_dict = {
+                    'batch_id': batch_id
+                }
+                collection.update_many(filter_dict, {
+                    '$set': {
+                        'seml.source_files': source_files
+                    }
+                })
+            except:
+                print(f'Batch {batch_id}: Failed to set new source files.')
+                for to_delete in source_files:
+                    fs.delete(to_delete[1])
+        
+        # Delete the old source files
+        if not keep_old:
+            fs_filter_dict = {
+                'metadata.batch_id': batch_id,
+                'metadata.collection_name': f'{collection.name}',
+                'metadata.deprecated': True
+            }
+            source_files = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
+            for to_delete in source_files:
+                fs.delete(to_delete)
