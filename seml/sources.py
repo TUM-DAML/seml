@@ -7,6 +7,9 @@ import gridfs
 
 from seml.database import get_collection, upload_file
 from seml.errors import ExecutableError, MongoDBError
+from seml.settings import SETTINGS
+
+States = SETTINGS.STATES
 
 
 def is_local_file(filename, root_dir):
@@ -183,8 +186,14 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
         filter_dict = {'batch_id': {'$in': list(batch_ids)}}
     else:
         filter_dict = {}
-    db_results = collection.find(filter_dict, {'batch_id', 'seml'})
+    db_results = list(collection.find(filter_dict, {'batch_id', 'seml', 'status'}))
     id_to_seml = {x['batch_id']: x['seml'] for x in db_results}
+    states = {x['status'] for x in db_results}
+    if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
+        print(f'Any of the experiments is still in RUNNING, PENDING or COMPLETED.')
+        if input(f'Are you sure you want to continue? (y/n)').lower != 'y':
+            exit()
+
     for batch_id, seml_config in id_to_seml.items():
         if 'working_dir' not in seml_config or not seml_config['working_dir']:
             print(f'Batch {batch_id}: No source files to refresh.')
