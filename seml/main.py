@@ -6,6 +6,7 @@ import logging
 from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
                          mongodb_credentials_prompt)
 from seml.add import add_experiments
+from seml.sources import reload_sources
 from seml.start import start_experiments, start_jupyter_job, print_command
 from seml.database import clean_unreferenced_artifacts
 from seml.utils import LoggingFormatter
@@ -96,6 +97,17 @@ def main():
             '-nw', '--no-worker', action='store_true',
             help="Do not launch a local worker after setting experiments' state to PENDING.")
     parser_start.set_defaults(func=start_experiments, set_to_pending=True)
+
+
+    parser_reload = subparsers.add_parser(
+            "reload-sources",
+            help="Reload uploaded source files."
+    )
+    parser_reload.add_argument(
+            '-ko', '--keep-old', action='store_true',
+            help="Keeps the old source files in the database. (You will have to manually delete them or reload again.)"
+    )
+    parser_reload.set_defaults(func=reload_sources)
 
     parser_launch_worker = subparsers.add_parser(
         "launch-worker",
