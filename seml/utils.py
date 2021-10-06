@@ -120,7 +120,11 @@ def flatten(dictionary: dict, parent_key: str = '', sep: str = '.'):
     for k, v in dictionary.items():
         new_key = parent_key + sep + k if parent_key else k
         if isinstance(v, collections.abc.MutableMapping):
-            items.extend(flatten(v, new_key, sep=sep).items())
+            # This covers the edge case that someone supplies an empty dictionary as parameter
+            if len(v) == 0:
+                items.append((new_key, v))
+            else:
+                items.extend(flatten(v, new_key, sep=sep).items())
         else:
             items.append((new_key, v))
     return dict(items)
