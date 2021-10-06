@@ -15,6 +15,7 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_WITH_DUPLICATE_PARAMETERS_NESTED = "resources/config/config_nested_parameter_collections.yaml"
     CONFIG_WITH_DUPLICATE_RDM_PARAMETERS_2 = "resources/config/config_with_duplicate_random_parameters_1.yaml"
     CONFIG_WITH_ALL_TYPES = "resources/config/config_with_all_types.yaml"
+    CONFIG_WITH_EMPTY_DICT = "resources/config/config_with_empty_dictionary.yaml"
 
     def load_config_dict(self, path):
         with open(path, 'r') as conf:
@@ -69,6 +70,16 @@ class TestParseConfigDicts(unittest.TestCase):
         }
 
         self.assertEqual(unpacked['random'], expected_random)
+
+    def test_empty_dictionary(self):
+        config_dict = self.load_config_dict(self.CONFIG_WITH_EMPTY_DICT)
+        configs = config.generate_configs(config_dict)[0]
+        expected_config = {
+            'attribute': {
+            'test': {}
+            }
+        }
+        self.assertEqual(configs, expected_config)
 
     def test_duplicate_parameters(self):
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_1)
