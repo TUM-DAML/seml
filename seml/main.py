@@ -21,6 +21,7 @@ def main():
                         "See examples/README.md for more details.",
             formatter_class=argparse.RawTextHelpFormatter,
             add_help=True)
+    parser.set_defaults(func=parser.print_usage)
     parser.add_argument(
             'db_collection_name', type=str, nargs='?', default=None,
             help="Name of the database collection for the experiment.")
@@ -217,7 +218,7 @@ def main():
     logging.root.addHandler(hdlr)
     logging.root.setLevel(logging_level)
 
-    if args.func in [mongodb_credentials_prompt, start_jupyter_job]:
+    if args.func in [mongodb_credentials_prompt, start_jupyter_job, parser.print_usage]:
         # No collection name required
         del args.db_collection_name
     elif not args.db_collection_name:
