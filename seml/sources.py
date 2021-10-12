@@ -190,8 +190,8 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
     id_to_seml = {x['batch_id']: x['seml'] for x in db_results}
     states = {x['status'] for x in db_results}
     if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
-        print(f'Any of the experiments is still in RUNNING, PENDING or COMPLETED.')
-        if input(f'Are you sure you want to continue? (y/n)').lower != 'y':
+        print(f'Some of the experiments is still in RUNNING, PENDING or COMPLETED.')
+        if input(f'Are you sure you want to continue? (y/n)').lower() != 'y':
             exit()
 
     for batch_id, seml_config in id_to_seml.items():
