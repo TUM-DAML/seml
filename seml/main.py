@@ -107,6 +107,10 @@ def main():
             '-ko', '--keep-old', action='store_true',
             help="Keeps the old source files in the database. (You will have to manually delete them or reload again.)"
     )
+    parser_reload.add_argument(
+            '-bi', '--batch-ids', type=int, default=None, nargs='*',
+            help="Batch IDs of which the source code should be reloaded. If not specified the code of all experiments in the collection is reloaded."
+    )
     parser_reload.set_defaults(func=reload_sources)
 
     parser_launch_worker = subparsers.add_parser(

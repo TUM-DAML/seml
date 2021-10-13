@@ -235,6 +235,7 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
                         'seml.source_files': source_files
                     }
                 })
+                print(f'Batch {batch_id}: Successfully reloaded source code.')
             except:
                 print(f'Batch {batch_id}: Failed to set new source files.')
                 for to_delete in source_files:
