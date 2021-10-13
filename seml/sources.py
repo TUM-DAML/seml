@@ -4,6 +4,7 @@ from pathlib import Path
 import logging
 import importlib
 import gridfs
+import traceback
 
 from seml.database import get_collection, upload_file
 from seml.errors import ExecutableError, MongoDBError
@@ -197,6 +198,9 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
     for batch_id, seml_config in id_to_seml.items():
         if 'working_dir' not in seml_config or not seml_config['working_dir']:
             print(f'Batch {batch_id}: No source files to refresh.')
+        # Cache the old working directory and move to the specified one
+        cwd = os.getcwd()
+        os.chdir(seml_config['working_dir'])
         # Find the currently used source files
         db = collection.database
         fs = gridfs.GridFS(db)
@@ -212,13 +216,13 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
         }
         # Deprecate them
         db['fs.files'].update_many(fs_filter_dict, {'$set': {'metadata.deprecated': True}})
-
         try:
             # Try to upload the new ones
             source_files = upload_sources(seml_config, collection, batch_id)
-        except Exception:
             # If it fails we reconstruct the old ones
-            print(f"Batch {batch_id}: Please navigate to the executable '{seml_config['executable']}'.")
+        except Exception:
+            traceback.print_exc()
+            print(f"Batch {batch_id}: Source import failed. Restoring old files.")
             db['fs.files'].update_many(fs_filter_dict, {'$unset': {'metadata.deprecated': ""}})
         else:
             try:
@@ -246,3 +250,5 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
             source_files = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
             for to_delete in source_files:
                 fs.delete(to_delete)
+        # Move to the old working directory
+        os.chdir(cwd)
