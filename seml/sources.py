@@ -174,8 +174,8 @@ def delete_batch_sources(collection, batch_id):
     source_files = db['fs.files'].find(filter_dict, {'_id'})
     source_files = [x['_id'] for x in source_files]
     if len(source_files) > 0:
-        print(f"Deleting {len(source_files)} source files corresponding "
-              f"to batch {batch_id} in collection {collection.name}.")
+        logging.info(f"Deleting {len(source_files)} source files corresponding "
+                     f"to batch {batch_id} in collection {collection.name}.")
         for to_delete in source_files:
             fs.delete(to_delete)
 
