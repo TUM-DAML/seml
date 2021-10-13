@@ -191,13 +191,13 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
     id_to_seml = {x['batch_id']: x['seml'] for x in db_results}
     states = {x['status'] for x in db_results}
     if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
-        print(f'Some of the experiments is still in RUNNING, PENDING or COMPLETED.')
+        logging.info(f'Some of the experiments is still in RUNNING, PENDING or COMPLETED.')
         if input(f'Are you sure you want to continue? (y/n)').lower() != 'y':
             exit()
 
     for batch_id, seml_config in id_to_seml.items():
         if 'working_dir' not in seml_config or not seml_config['working_dir']:
-            print(f'Batch {batch_id}: No source files to refresh.')
+            logging.error(f'Batch {batch_id}: No source files to refresh.')
         # Cache the old working directory and move to the specified one
         cwd = os.getcwd()
         os.chdir(seml_config['working_dir'])
@@ -222,7 +222,7 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
             # If it fails we reconstruct the old ones
         except Exception:
             traceback.print_exc()
-            print(f"Batch {batch_id}: Source import failed. Restoring old files.")
+            logging.error(f"Batch {batch_id}: Source import failed. Restoring old files.")
             db['fs.files'].update_many(fs_filter_dict, {'$unset': {'metadata.deprecated': ""}})
         else:
             try:
@@ -235,9 +235,9 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
                         'seml.source_files': source_files
                     }
                 })
-                print(f'Batch {batch_id}: Successfully reloaded source code.')
+                logging.info(f'Batch {batch_id}: Successfully reloaded source code.')
             except:
-                print(f'Batch {batch_id}: Failed to set new source files.')
+                logging.error(f'Batch {batch_id}: Failed to set new source files.')
                 for to_delete in source_files:
                     fs.delete(to_delete[1])
         
