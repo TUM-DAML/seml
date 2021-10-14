@@ -286,7 +286,7 @@ def detect_killed(db_collection_name, print_detected=True):
         logging.info(f"Detected {nkilled} externally killed experiment{s_if(nkilled)}.")
 
 
-def get_slurm_arrays_tasks():
+def get_slurm_arrays_tasks(filter_by_user=False):
     """Get a dictionary of running/pending Slurm job arrays (as keys) and tasks (as values)
 
     job_dict
@@ -297,8 +297,11 @@ def get_slurm_arrays_tasks():
 
     """
     try:
+        squeue_cmd = f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(SETTINGS.SLURM_STATES.ACTIVE)} -h -o %i"
+        if filter_by_user:
+            squeue_cmd += " -u `whoami`"
         squeue_out = subprocess.run(
-                f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(SETTINGS.SLURM_STATES.ACTIVE)} -h -o %i -u `whoami`",
+                squeue_cmd,
                 shell=True, check=True, capture_output=True).stdout
         jobs = [job_str for job_str in squeue_out.splitlines() if b'_' in job_str]
         if len(jobs) > 0:
