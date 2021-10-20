@@ -276,7 +276,6 @@ def cartesian_product_grouped_dict(grouped_dict):
         Cartesian product of the lists in the input dictionary.
 
     """
-    # Check that parameters in within a group have the same number of configurations.
     group_lengths = {
         k: len(next(iter(group.values())))
         for k, group in grouped_dict.items()
