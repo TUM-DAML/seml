@@ -225,7 +225,7 @@ def main():
     
     for subparser in [parser_cancel, parser_reload, parser_clean_db, parser_delete, parser_reset]:
         subparser.add_argument(
-            '-y', '--yes', type='store_true',
+            '-y', '--yes', action='store_true',
             help="Automically confirm all dialogues with yes."
         )
 
