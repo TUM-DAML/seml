@@ -17,7 +17,7 @@ def config():
 
 
 @ex.automain
-def run(hidden_sizes: list, learning_rate: float, max_epochs: int):
+def run(hidden_sizes: list, learning_rate: float, max_epochs: int, test):
     # Note that regularization_params contains the corresponding sub-dictionary from the configuration.
     logging.info('Received the following configuration:')
     logging.info(f'Hidden sizes: {hidden_sizes}, learning_rate: {learning_rate}, '
