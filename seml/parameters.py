@@ -249,6 +249,7 @@ def group_dict(input_dict):
             group = uuid.uuid4()
             while group in existing_keys:
                 group = uuid.uuid4()
+            existing_keys.add(str(group))
             input_dict[k] = (input_dict[k][0], str(group))
     
     # Group by group attribute
