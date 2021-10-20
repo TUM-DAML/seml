@@ -249,8 +249,8 @@ def clean_unreferenced_artifacts(db_collection_name, all_collections=False, yes=
         logging.info("No unreferenced artifacts found.")
         return
 
-    if not yes and input(f"Deleting {n_delete} not referenced artifact{s_if(n_delete)} from database {db.name}. "
-                         f"Are you sure? (y/n) ").lower() != "y":
+    logging.info(f"Deleting {n_delete} not referenced artifact{s_if(n_delete)} from database {db.name}. ")
+    if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
         exit()
     logging.info('Deleting not referenced artifacts...')
     for to_delete in tqdm(not_referenced_artifacts):
