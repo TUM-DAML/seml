@@ -44,6 +44,7 @@ def main():
                         "See examples/README.md for more details.",
             formatter_class=argparse.RawTextHelpFormatter,
             add_help=True)
+    parser.set_defaults(func=parser.print_usage)
     parser.add_argument(
             'db_collection_name', type=str, nargs='?', default=None,
             help="Name of the database collection for the experiment.")
@@ -126,12 +127,13 @@ def main():
             help="Reload uploaded source files."
     )
     parser_reload.add_argument(
-            '-ko', '--keep-old', action='store_true',
+            '-k', '--keep-old', action='store_true',
             help="Keeps the old source files in the database. (You will have to manually delete them or reload again.)"
     )
     parser_reload.add_argument(
-            '-bi', '--batch-ids', type=int, default=None, nargs='*',
-            help="Batch IDs of which the source code should be reloaded. If not specified the code of all experiments in the collection is reloaded."
+            '-b', '--batch-ids', type=int, default=None, nargs='*',
+            help="Batch IDs (batch_id in the database collection) of the experiments. "
+                 "Experiments that were staged together have the same batch_id."
     )
     parser_reload.set_defaults(func=reload_sources)
 
@@ -235,13 +237,19 @@ def main():
                 help="Sacred ID (_id in the database collection) of the experiment. "
                      "Takes precedence over other filters.")
         subparser.add_argument(
-                '-b', '--batch-id', type=int,
-                help="Batch ID (batch_id in the database collection) of the experiments. "
-                     "Experiments that were staged together have the same batch_id.")
-        subparser.add_argument(
                 '-f', '--filter-dict', type=json.loads,
                 help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter "
                      "the experiments by.")
+        subparser.add_argument(
+                '-b', '--batch-id', type=int,
+                help="Batch ID (batch_id in the database collection) of the experiments. "
+                     "Experiments that were staged together have the same batch_id.")
+    
+    for subparser in [parser_cancel, parser_reload, parser_clean_db, parser_delete, parser_reset]:
+        subparser.add_argument(
+            '-y', '--yes', action='store_true',
+            help="Automatically confirm all dialogues with yes."
+        )
 
     commands = parse_args(parser, subparsers)
 
@@ -249,7 +257,7 @@ def main():
     hdlr = logging.StreamHandler(sys.stderr)
     hdlr.setFormatter(LoggingFormatter())
     logging.root.addHandler(hdlr)
-
+    
     for command in commands:
         # Set logging level
         if command.verbose:
@@ -258,7 +266,7 @@ def main():
             logging_level = logging.INFO
         logging.root.setLevel(logging_level)
 
-        if command.func in [mongodb_credentials_prompt, start_jupyter_job]:
+        if command.func in [mongodb_credentials_prompt, start_jupyter_job, parser.print_usage]:
             # No collection name required
             del command.db_collection_name
         elif not command.db_collection_name:
