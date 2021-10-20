@@ -1,6 +1,9 @@
+import logging
 import random
 import itertools
+from typing import DefaultDict
 import numpy as np
+import uuid
 
 from seml.utils import unflatten
 from seml.errors import ConfigError
@@ -156,15 +159,15 @@ def generate_grid(parameter, parent_key=''):
 
     Returns
     -------
-    return_items: tuple(str, list)
-        Name of the parameter and list containing the grid values for this parameter.
+    return_items: tuple(str, tuple(list, str))
+        Name of the parameter and tuple with list containing the grid values for this parameter and group name.
 
     """
     if "type" not in parameter:
         raise ConfigError(f"No type found in parameter {parameter}")
 
     param_type = parameter['type']
-    allowed_keys = ['type']
+    allowed_keys = ['type', 'group']
 
     return_items = []
 
@@ -210,14 +213,61 @@ def generate_grid(parameter, parent_key=''):
             raise ConfigError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
                               f"{allowed_keys}. Unexpected keys: {extra_keys}")
 
+    group = parameter['group'] if 'group' in parameter else None
+    return_items = [
+        (item[0], (item[1], group))
+        for item in return_items
+    ]
     return return_items
 
 
-def cartesian_product_dict(input_dict):
-    """Compute the Cartesian product of the input dictionary values.
+def group_dict(input_dict):
+    """Groups dictionaries of type:
+    {
+        'element1': (values, group_key),
+        ...
+    }
+    to
+    {
+        'group_key1': {
+            'element1': values
+            'element2': values
+        },
+        ...
+    }
+
+    Args:
+        input_dict (dict[str, truple(list, str)]): ungrouped dictionary
+
+    Returns:
+        dict[str, dict[str, list]]: grouped dictionary
+    """
+    # Assign unique identifiers where None
+    existing_keys = {v[1] for v in input_dict.values()}
+    for k in input_dict.keys():
+        if input_dict[k][1] is None:
+            group = uuid.uuid4()
+            while group in existing_keys:
+                group = uuid.uuid4()
+            input_dict[k] = (input_dict[k][0], str(group))
+    
+    # Group by group attribute
+    groups = DefaultDict(dict)
+    for k, val in input_dict.items():
+        groups[val[1]][k] = val[0]
+    
+    # Check that parameters in within a group have the same number of configurations.
+    for k, group in groups.items():
+        if len({len(x) for x in group.values()}) != 1:
+            raise ValueError(f"Parameters in group '{k}' have different number of configurations!")
+    return groups
+
+
+def cartesian_product_grouped_dict(grouped_dict):
+    """Compute the Cartesian product of the grouped input dictionary values.
     Parameters
     ----------
-    input_dict: dict of lists
+    grouped_dict: dict of dicts of lists
 
     Returns
     -------
@@ -225,8 +275,15 @@ def cartesian_product_dict(input_dict):
         Cartesian product of the lists in the input dictionary.
 
     """
-
-    keys = input_dict.keys()
-    vals = input_dict.values()
-    for instance in itertools.product(*vals):
-        yield dict(zip(keys, instance))
+    # Check that parameters in within a group have the same number of configurations.
+    group_lengths = {
+        k: len(next(iter(group.values())))
+        for k, group in grouped_dict.items()
+    }
+    
+    for idx in itertools.product(*[range(k) for k in group_lengths.values()]):
+        yield {
+            key: values[i] 
+            for group_key, i in zip(grouped_dict, idx) 
+            for key, values in grouped_dict[group_key].items()
+        }

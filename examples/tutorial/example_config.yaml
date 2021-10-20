@@ -12,9 +12,6 @@ slurm:
     cpus-per-task: 2  # num cores
     time: 0-08:00     # max time, D-HH:MM
 
-fixed:
-  max_epochs: 500
-
 grid:
   learning_rate:
     type: choice
@@ -22,6 +19,22 @@ grid:
       - 1
       - 2
       - 3
+    group: 'test'
+
+  max_epochs:
+    type: choice
+    options:
+      - 10
+      - 20
+      - 30
+    group: 'test'
+    
+  test.test2:
+    type: choice
+    options:
+      - 100
+      - 200
+      - 300
 
 small_datasets:
   fixed:

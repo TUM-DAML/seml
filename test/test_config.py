@@ -16,6 +16,7 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_WITH_DUPLICATE_RDM_PARAMETERS_2 = "resources/config/config_with_duplicate_random_parameters_1.yaml"
     CONFIG_WITH_ALL_TYPES = "resources/config/config_with_all_types.yaml"
     CONFIG_WITH_EMPTY_DICT = "resources/config/config_with_empty_dictionary.yaml"
+    CONFIG_WITH_GROUPED_PARAMETERS = "resources/config/config_with_grouped_parameters.yaml"
 
     def load_config_dict(self, path):
         with open(path, 'r') as conf:
@@ -80,6 +81,34 @@ class TestParseConfigDicts(unittest.TestCase):
             }
         }
         self.assertEqual(configs, expected_config)
+
+    def test_grouped_parameters(self):
+        config_dict = self.load_config_dict(self.CONFIG_WITH_GROUPED_PARAMETERS)
+        configs = config.generate_configs(config_dict)
+        print(len(configs))
+        expected_configs = [
+            {
+                'attribute': { 'test': 1},
+                'learning_rate': 0.0,
+                'other_attribute': True
+            },
+            {
+                'attribute': { 'test': 1},
+                'learning_rate': 0.0,
+                'other_attribute': False
+            },
+            {
+                'attribute': { 'test': 2},
+                'learning_rate':1.0,
+                'other_attribute': True
+            },
+            {
+                'attribute': { 'test': 2},
+                'learning_rate': 1.0,
+                'other_attribute': False
+            }
+        ]
+        self.assertEqual(configs, expected_configs)
 
     def test_duplicate_parameters(self):
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_1)
