@@ -324,3 +324,15 @@ to cancel all jobs from batch `i`.
 
 ## Retrieve and evaluate results
 See the [example notebook](notebooks/experiment_results.ipynb) for an example of how to retrieve and evaluate our toy experiment's results.
+
+
+## Command chaining
+`seml` also supports command chaining to execute multiple `seml` commands sequentially, i.e.,
+```bash
+seml seml_example add advanced_example_config.yaml start
+```
+to add a config file and start it immediately after or 
+```
+seml seml_example cancel -y reset -y reload-sources start
+```
+to cancel experiments, reset them, reload their source files and restarting them.
