@@ -116,12 +116,10 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
 
             ncancel = collection.count_documents(filter_dict)
+            logging.info(f"Cancelling {ncancel} experiment{s_if(ncancel)}.")
             if ncancel >= SETTINGS.CONFIRM_CANCEL_THRESHOLD:
-                if not yes and input(f"Cancelling {ncancel} experiment{s_if(ncancel)}. "
-                                     f"Are you sure? (y/n) ").lower() != "y":
+                if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
                     exit()
-            else:
-                logging.info(f"Cancelling {ncancel} experiment{s_if(ncancel)}.")
 
             filter_dict_new = copy.deepcopy(filter_dict)
             filter_dict_new.update({'slurm.array_id': {'$exists': True}})
@@ -174,22 +172,20 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         batch_ids = collection.find(filter_dict, {'batch_id'})
         batch_ids_in_del = set([x['batch_id'] for x in batch_ids])
 
+        logging.info(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection.")
         if ndelete >= SETTINGS.CONFIRM_DELETE_THRESHOLD:
-            if not yes and input(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection. "
-                     f"Are you sure? (y/n) ").lower() != "y":
+            if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
                 exit()
-        else:
-            logging.info(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection.")
         collection.delete_many(filter_dict)
     else:
         exp = collection.find_one({'_id': sacred_id})
         if exp is None:
             raise MongoDBError(f"No experiment found with ID {sacred_id}.")
         else:
+            logging.info(f"Deleting experiment with ID {sacred_id}.")
             if SETTINGS.CONFIRM_DELETE_THRESHOLD <= 1:
                 if not yes and input('Are you sure? (y/n)').lower() != 'y':
                     exit()
-            logging.info(f"Deleting experiment with ID {sacred_id}.")
             batch_ids_in_del = set([exp['batch_id']])
             collection.delete_one({'_id': sacred_id})
 
@@ -245,11 +241,10 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
         nreset = collection.count_documents(filter_dict)
         exps = collection.find(filter_dict)
 
-        if nreset >= SETTINGS.CONFIRM_RESET_THRESHOLD:
-            if not yes and input(f"Resetting the state of {nreset} experiment{s_if(nreset)}. "
-                     f"Are you sure? (y/n) ").lower() != "y":
-                exit()
         logging.info(f"Resetting the state of {nreset} experiment{s_if(nreset)}.")
+        if nreset >= SETTINGS.CONFIRM_RESET_THRESHOLD:
+            if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
+                exit()
         for exp in exps:
             reset_single_experiment(collection, exp)
     else:
@@ -257,10 +252,10 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
         if exp is None:
             raise MongoDBError(f"No experiment found with ID {sacred_id}.")
         else:
+            logging.info(f"Resetting the state of experiment with ID {sacred_id}.")
             if SETTINGS.CONFIRM_RESET_THRESHOLD <= 1:
                 if not yes and input('Are you sure? (y/n)').lower() != 'y':
                     exit()
-            logging.info(f"Resetting the state of experiment with ID {sacred_id}.")
             reset_single_experiment(collection, exp)
 
 
