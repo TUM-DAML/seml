@@ -237,7 +237,7 @@ def group_dict(input_dict):
     }
 
     Args:
-        input_dict (dict[str, truple(list, str)]): ungrouped dictionary
+        input_dict (dict[str, tuple(list, str)]): ungrouped dictionary
 
     Returns:
         dict[str, dict[str, list]]: grouped dictionary
