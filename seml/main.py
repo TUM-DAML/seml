@@ -105,12 +105,13 @@ def main():
             help="Reload uploaded source files."
     )
     parser_reload.add_argument(
-            '-ko', '--keep-old', action='store_true',
+            '-k', '--keep-old', action='store_true',
             help="Keeps the old source files in the database. (You will have to manually delete them or reload again.)"
     )
     parser_reload.add_argument(
-            '-bi', '--batch-ids', type=int, default=None, nargs='*',
-            help="Batch IDs of which the source code should be reloaded. If not specified the code of all experiments in the collection is reloaded."
+            '-b', '--batch-ids', type=int, default=None, nargs='*',
+            help="Batch IDs (batch_id in the database collection) of the experiments. "
+                 "Experiments that were staged together have the same batch_id."
     )
     parser_reload.set_defaults(func=reload_sources)
 
@@ -214,13 +215,19 @@ def main():
                 help="Sacred ID (_id in the database collection) of the experiment. "
                      "Takes precedence over other filters.")
         subparser.add_argument(
-                '-b', '--batch-id', type=int,
-                help="Batch ID (batch_id in the database collection) of the experiments. "
-                     "Experiments that were staged together have the same batch_id.")
-        subparser.add_argument(
                 '-f', '--filter-dict', type=json.loads,
                 help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter "
                      "the experiments by.")
+        subparser.add_argument(
+                '-b', '--batch-id', type=int,
+                help="Batch ID (batch_id in the database collection) of the experiments. "
+                     "Experiments that were staged together have the same batch_id.")
+    
+    for subparser in [parser_cancel, parser_reload, parser_clean_db, parser_delete, parser_reset]:
+        subparser.add_argument(
+            '-y', '--yes', type='store_true',
+            help="Automically confirm all dialogues with yes."
+        )
 
     args = parser.parse_args()
 

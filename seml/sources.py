@@ -180,7 +180,7 @@ def delete_batch_sources(collection, batch_id):
             fs.delete(to_delete)
 
 
-def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
+def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False):
     collection = get_collection(db_collection_name)
     
     if batch_ids is not None:
@@ -192,7 +192,7 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False):
     states = {x['status'] for x in db_results}
     if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
         logging.info(f'Some of the experiments is still in RUNNING, PENDING or COMPLETED.')
-        if input(f'Are you sure you want to continue? (y/n)').lower() != 'y':
+        if not yes and input(f'Are you sure you want to continue? (y/n)').lower() != 'y':
             exit()
 
     for batch_id, seml_config in id_to_seml.items():
