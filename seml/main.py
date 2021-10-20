@@ -15,6 +15,28 @@ from seml.settings import SETTINGS
 States = SETTINGS.STATES
 
 
+def parse_args(parser, commands):
+    # https://stackoverflow.com/a/43927360
+    # Divide argv by commands
+    split_argv = [[]]
+    for c in sys.argv[1:]:
+        if c in commands.choices:
+            split_argv.append([c])
+        else:
+            split_argv[-1].append(c)
+    # Parse only the top-level commands if there are no subcommands
+    # We need to do this to ensure seml --help is working
+    if len(split_argv) == 1:
+        parser.parse_args(split_argv[0])
+    # Parse all subcommands
+    commands = []
+    for argv in split_argv[1:]:
+        # Copy the original arguments and the command specific ones
+        n = parser.parse_args(split_argv[0] + argv)
+        commands.append(n)
+    return commands
+
+
 def main():
     parser = argparse.ArgumentParser(
             description="Manage experiments for the given configuration. "
@@ -221,30 +243,33 @@ def main():
                 help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter "
                      "the experiments by.")
 
-    args = parser.parse_args()
+    commands = parse_args(parser, subparsers)
 
     # Initialize logging
-    if args.verbose:
-        logging_level = logging.VERBOSE
-    else:
-        logging_level = logging.INFO
     hdlr = logging.StreamHandler(sys.stderr)
     hdlr.setFormatter(LoggingFormatter())
     logging.root.addHandler(hdlr)
-    logging.root.setLevel(logging_level)
 
-    if args.func in [mongodb_credentials_prompt, start_jupyter_job]:
-        # No collection name required
-        del args.db_collection_name
-    elif not args.db_collection_name:
-        parser.error("the following arguments are required: db_collection_name")
+    for command in commands:
+        # Set logging level
+        if command.verbose:
+            logging_level = logging.VERBOSE
+        else:
+            logging_level = logging.INFO
+        logging.root.setLevel(logging_level)
 
-    f = args.func
-    del args.func
-    del args.verbose
-    if 'filter_states' in args:
-        args.filter_states = [state.upper() for state in args.filter_states]
-    f(**args.__dict__)
+        if command.func in [mongodb_credentials_prompt, start_jupyter_job]:
+            # No collection name required
+            del command.db_collection_name
+        elif not command.db_collection_name:
+            parser.error("the following arguments are required: db_collection_name")
+
+        f = command.func
+        del command.func
+        del command.verbose
+        if 'filter_states' in command:
+            command.filter_states = [state.upper() for state in command.filter_states]
+        f(**vars(command))
 
 
 if __name__ == "__main__":
