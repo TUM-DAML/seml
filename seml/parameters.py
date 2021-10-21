@@ -250,7 +250,7 @@ def bundle_dict(input_dict):
     # Check that parameters in within a bundle have the same number of configurations.
     for k, bundle in bundles.items():
         if len({len(x) for x in bundle.values()}) != 1:
-            raise ValueError(f"Parameters in bundle '{k}' have different number of configurations!")
+            raise ConfigError(f"Parameters in bundle '{k}' have different number of configurations!")
     return bundles
 
 
