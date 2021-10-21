@@ -4,9 +4,8 @@ import json
 import logging
 
 from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
-                         mongodb_credentials_prompt)
+                         mongodb_credentials_prompt, reload_sources)
 from seml.add import add_experiments
-from seml.sources import reload_sources
 from seml.start import start_experiments, start_jupyter_job, print_command
 from seml.database import clean_unreferenced_artifacts
 from seml.utils import LoggingFormatter

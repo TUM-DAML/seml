@@ -1,11 +1,15 @@
+import itertools
 import logging
+import os
 import subprocess
 import datetime
 from getpass import getpass
 import copy
+import gridfs
 
+from seml.config import check_config
 from seml.database import get_collection, build_filter_dict
-from seml.sources import delete_orphaned_sources
+from seml.sources import delete_orphaned_sources, upload_sources
 from seml.utils import s_if, chunker
 from seml.settings import SETTINGS
 from seml.errors import ArgumentError, MongoDBError
@@ -368,3 +372,88 @@ def mongodb_credentials_prompt():
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, 'w') as f:
         f.write(config_string)
+
+
+def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False):
+    collection = get_collection(db_collection_name)
+    
+    if batch_ids is not None:
+        filter_dict = {'batch_id': {'$in': list(batch_ids)}}
+    else:
+        filter_dict = {}
+    db_results = list(collection.find(filter_dict, {'batch_id', 'seml', 'config', 'status'}))
+    id_to_config = {
+        bid: (next(iter(configs))['seml'], [x['config'] for x in configs])
+        for bid, configs in
+        itertools.groupby(db_results, lambda x: x['batch_id'])
+    }
+    states = {x['status'] for x in db_results}
+
+    if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
+        logging.info(f'Some of the experiments is still in RUNNING, PENDING or COMPLETED.')
+        if not yes and input(f'Are you sure you want to continue? (y/n)').lower() != 'y':
+            exit()
+
+    for batch_id, (seml_config, configs) in id_to_config.items():
+        if 'working_dir' not in seml_config or not seml_config['working_dir']:
+            logging.error(f'Batch {batch_id}: No source files to refresh.')
+            continue
+        # Cache the old working directory and move to the specified one
+        cwd = os.getcwd()
+        os.chdir(seml_config['working_dir'])
+
+        # Check whether the config file aligns with the current source code
+        check_config(seml_config['executable'], seml_config['conda_environment'], configs)
+
+        # Find the currently used source files
+        db = collection.database
+        fs = gridfs.GridFS(db)
+        fs_filter_dict = {
+            'metadata.batch_id': batch_id,
+            'metadata.collection_name': f'{collection.name}',
+            'metadata.deprecated': {'$exists': False}
+        }
+        current_source_files = db['fs.files'].find(filter_dict, '_id')
+        current_ids = [x['_id'] for x in current_source_files]
+        fs_filter_dict = {
+            '_id': {'$in': current_ids}
+        }
+        # Deprecate them
+        db['fs.files'].update_many(fs_filter_dict, {'$set': {'metadata.deprecated': True}})
+        try:
+            # Try to upload the new ones
+            source_files = upload_sources(seml_config, collection, batch_id)
+            # If it fails we reconstruct the old ones
+        except Exception as e:
+            logging.error(f"Batch {batch_id}: Source import failed. Restoring old files.")
+            db['fs.files'].update_many(fs_filter_dict, {'$unset': {'metadata.deprecated': ""}})
+            raise e
+        else:
+            try:
+                # Try to assign the new ones to the experiments
+                filter_dict = {
+                    'batch_id': batch_id
+                }
+                collection.update_many(filter_dict, {
+                    '$set': {
+                        'seml.source_files': source_files
+                    }
+                })
+                logging.info(f'Batch {batch_id}: Successfully reloaded source code.')
+            except:
+                logging.error(f'Batch {batch_id}: Failed to set new source files.')
+                for to_delete in source_files:
+                    fs.delete(to_delete[1])
+        
+        # Delete the old source files
+        if not keep_old:
+            fs_filter_dict = {
+                'metadata.batch_id': batch_id,
+                'metadata.collection_name': f'{collection.name}',
+                'metadata.deprecated': True
+            }
+            source_files = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
+            for to_delete in source_files:
+                fs.delete(to_delete)
+        # Move to the old working directory
+        os.chdir(cwd)
