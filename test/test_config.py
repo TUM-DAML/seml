@@ -82,7 +82,7 @@ class TestParseConfigDicts(unittest.TestCase):
         }
         self.assertEqual(configs, expected_config)
 
-    def test_grouped_parameters(self):
+    def test_bundled_parameters(self):
         config_dict = self.load_config_dict(self.CONFIG_WITH_BUNDLED_PARAMETERS)
         configs = config.generate_configs(config_dict)
         expected_configs = [
