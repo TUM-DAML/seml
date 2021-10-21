@@ -166,7 +166,7 @@ are:
                 `np.linspace(min, max, num, endpoint=True)`
    - `loguniform`: Specify `min`, `max`, and `num`. Parameter values will be uniformly generated in log space (base 10).
 
-Additionally, `grid` parameters might be grouped by setting the `group` property. All parameters within a group are treated as a single dimension when constructing the cartesian product of parameters. This ensures that grouped parameters only change jointly.
+Additionally, `grid` parameters might be coupled by setting the `bundle` property. All parameters within a bundle are treated as a single dimension when constructing the cartesian product of parameters. This ensures that bundled parameters only change jointly.
 
 ### Random parameters
 Under 'random' you can specify parameters for which you want to try several random values. Specify the number

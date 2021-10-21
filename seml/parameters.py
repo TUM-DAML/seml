@@ -160,14 +160,14 @@ def generate_grid(parameter, parent_key=''):
     Returns
     -------
     return_items: tuple(str, tuple(list, str))
-        Name of the parameter and tuple with list containing the grid values for this parameter and group name.
+        Name of the parameter and tuple with list containing the grid values for this parameter and bundle name.
 
     """
     if "type" not in parameter:
         raise ConfigError(f"No type found in parameter {parameter}")
 
     param_type = parameter['type']
-    allowed_keys = ['type', 'group']
+    allowed_keys = ['type', 'bundle']
 
     return_items = []
 
@@ -213,23 +213,23 @@ def generate_grid(parameter, parent_key=''):
             raise ConfigError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
                               f"{allowed_keys}. Unexpected keys: {extra_keys}")
 
-    group = parameter['group'] if 'group' in parameter else None
+    bundle = parameter['bundle'] if 'bundle' in parameter else uuid.uuid4()
     return_items = [
-        (item[0], (item[1], group))
+        (item[0], (item[1], bundle))
         for item in return_items
     ]
     return return_items
 
 
-def group_dict(input_dict):
-    """Groups dictionaries of type:
+def bundle_dict(input_dict):
+    """Bundles dictionaries of type:
     {
-        'element1': (values, group_key),
+        'element1': (values, bundle_key),
         ...
     }
     to
     {
-        'group_key1': {
+        'bundle_key1': {
             'element1': values
             'element2': values
         },
@@ -237,38 +237,28 @@ def group_dict(input_dict):
     }
 
     Args:
-        input_dict (dict[str, tuple(list, str)]): ungrouped dictionary
+        input_dict (dict[str, tuple(list, str)]): unbundled dictionary
 
     Returns:
-        dict[str, dict[str, list]]: grouped dictionary
+        dict[str, dict[str, list]]: bundled dictionary
     """
-    # Assign unique identifiers where None
-    existing_keys = {v[1] for v in input_dict.values()}
-    for k in input_dict.keys():
-        if input_dict[k][1] is None:
-            group = uuid.uuid4()
-            while group in existing_keys:
-                group = uuid.uuid4()
-            existing_keys.add(str(group))
-            input_dict[k] = (input_dict[k][0], str(group))
-    
-    # Group by group attribute
-    groups = DefaultDict(dict)
+    # Bundle by bundle attribute
+    bundles = DefaultDict(dict)
     for k, val in input_dict.items():
-        groups[val[1]][k] = val[0]
+        bundles[val[1]][k] = val[0]
     
-    # Check that parameters in within a group have the same number of configurations.
-    for k, group in groups.items():
-        if len({len(x) for x in group.values()}) != 1:
-            raise ValueError(f"Parameters in group '{k}' have different number of configurations!")
-    return groups
+    # Check that parameters in within a bundle have the same number of configurations.
+    for k, bundle in bundles.items():
+        if len({len(x) for x in bundle.values()}) != 1:
+            raise ValueError(f"Parameters in bundle '{k}' have different number of configurations!")
+    return bundles
 
 
-def cartesian_product_grouped_dict(grouped_dict):
-    """Compute the Cartesian product of the grouped input dictionary values.
+def cartesian_product_bundled_dict(bundled_dict):
+    """Compute the Cartesian product of the bundled input dictionary values.
     Parameters
     ----------
-    grouped_dict: dict of dicts of lists
+    bundled_dict: dict of dicts of lists
 
     Returns
     -------
@@ -276,14 +266,14 @@ def cartesian_product_grouped_dict(grouped_dict):
         Cartesian product of the lists in the input dictionary.
 
     """
-    group_lengths = {
-        k: len(next(iter(group.values())))
-        for k, group in grouped_dict.items()
+    bundle_lengths = {
+        k: len(next(iter(bundle.values())))
+        for k, bundle in bundled_dict.items()
     }
     
-    for idx in itertools.product(*[range(k) for k in group_lengths.values()]):
+    for idx in itertools.product(*[range(k) for k in bundle_lengths.values()]):
         yield {
             key: values[i] 
-            for group_key, i in zip(grouped_dict, idx) 
-            for key, values in grouped_dict[group_key].items()
+            for bundle_key, i in zip(bundled_dict, idx) 
+            for key, values in bundled_dict[bundle_key].items()
         }
