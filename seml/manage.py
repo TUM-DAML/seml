@@ -402,7 +402,7 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
         cwd = os.getcwd()
         os.chdir(seml_config['working_dir'])
 
-        # Check whether the config file aligns with the current source code
+        # Check whether the configurations aligns with the current source code
         check_config(seml_config['executable'], seml_config['conda_environment'], configs)
 
         # Find the currently used source files
@@ -423,27 +423,28 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
         try:
             # Try to upload the new ones
             source_files = upload_sources(seml_config, collection, batch_id)
-            # If it fails we reconstruct the old ones
         except Exception as e:
+            # If it fails we reconstruct the old ones
             logging.error(f"Batch {batch_id}: Source import failed. Restoring old files.")
             db['fs.files'].update_many(fs_filter_dict, {'$unset': {'metadata.deprecated': ""}})
             raise e
-        else:
-            try:
-                # Try to assign the new ones to the experiments
-                filter_dict = {
-                    'batch_id': batch_id
+        try:
+            # Try to assign the new ones to the experiments
+            filter_dict = {
+                'batch_id': batch_id
+            }
+            collection.update_many(filter_dict, {
+                '$set': {
+                    'seml.source_files': source_files
                 }
-                collection.update_many(filter_dict, {
-                    '$set': {
-                        'seml.source_files': source_files
-                    }
-                })
-                logging.info(f'Batch {batch_id}: Successfully reloaded source code.')
-            except:
-                logging.error(f'Batch {batch_id}: Failed to set new source files.')
-                for to_delete in source_files:
-                    fs.delete(to_delete[1])
+            })
+            logging.info(f'Batch {batch_id}: Successfully reloaded source code.')
+        except Exception as e:
+            logging.error(f'Batch {batch_id}: Failed to set new source files.')
+            # Delete new source files from DB
+            for to_delete in source_files:
+                fs.delete(to_delete[1])
+            raise e
         
         # Delete the old source files
         if not keep_old:
