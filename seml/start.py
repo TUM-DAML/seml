@@ -62,19 +62,19 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     return interpreter, exe, config_strings
 
 
-def get_cfg_overrides(config):
+def get_config_overrides(config):
     return " ".join(map(shlex.quote, config))
 
 
 def get_shell_command(interpreter, exe, config, env: dict=None):
-    cfg_overrides = get_cfg_overrides(config)
+    config_overrides = get_config_overrides(config)
 
     if env is None or len(env) == 0:
-        return f"{interpreter} {exe} with {cfg_overrides}"
+        return f"{interpreter} {exe} with {config_overrides}"
     else:
         env_overrides = " ".join(f"{key}={shlex.quote(val)}" for key, val in env.items())
 
-        return f"{env_overrides} {interpreter} {exe} with {cfg_overrides}"
+        return f"{env_overrides} {interpreter} {exe} with {config_overrides}"
 
 
 def get_output_dir_path(config):
@@ -705,7 +705,7 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
     logging.info("\nArguments for VS Code debugger:")
     logging.info(json.dumps(["with", "--debug"] + config))
     logging.info("Arguments for PyCharm debugger:")
-    logging.info("with --debug " + get_cfg_overrides(config))
+    logging.info("with --debug " + get_config_overrides(config))
 
     logging.info("\nCommand for post-mortem debugging:")
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
