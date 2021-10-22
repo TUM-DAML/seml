@@ -30,8 +30,27 @@ def value_to_str(value, use_json=False):
     if use_json:
         result = json.dumps(value)
 
-        prefix = r'(.*":\s?)'
-        postfix = r'(,\s"|})(.*)'
+        reg_str = r'"(?:[^"\\\\]*|\\\\["\\\\bfnrt\/]|\\\\u[0-9a-f]{4})*"'
+        reg_num = r'-?(?=[1-9]|0(?!\d))\d+(?:\.\d+)?(?:[eE][+-]?\d+)?'
+        reg_bool = r'true|false|null|True|False|None'
+
+        fixes = [
+            # Lists
+            (
+                f'(\[|(?:{reg_str}|{reg_num}|{reg_bool}),\s)',
+                f'(,\s(?:{reg_str}|{reg_num}|{reg_bool})|\])'
+            ),
+            # Dictionaries
+            (
+                f'({reg_str}:\s)',
+                f'(,\s{reg_str}|}}$)'
+            ),
+            # Literals
+            (
+                f'(^)',
+                f'($)'
+            )
+        ]
         to_replace = {
             'true': 'True',
             'false': 'False',
@@ -39,9 +58,10 @@ def value_to_str(value, use_json=False):
         }
 
         for old, new in to_replace.items():
-            i = 1
-            while i > 0:
-                result, i = re.subn(prefix + old + postfix, r'\1' + new + r'\2\3', result)
+            for prefix, postfix in fixes:
+                i = 1
+                while i > 0:
+                    result, i = re.subn(f'(.*){prefix}{old}{postfix}(.*)', r'\1\2' + new + r'\3\4', result)
         return result
     else:
         return repr(value)
@@ -717,9 +737,9 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
     _, exe, config = get_command_from_exp(exp, collection.name,
                                           verbose=logging.root.level <= logging.VERBOSE,
                                           unobserved=True, post_mortem=False)
-    _, _, vc_config = get_command_from_exp(exp, collection.name,
-                                           verbose=logging.root.level <= logging.VERBOSE,
-                                           unobserved=True, post_mortem=False, use_json=True)
+    _, _, vscode_config = get_command_from_exp(exp, collection.name,
+                                               verbose=logging.root.level <= logging.VERBOSE,
+                                               unobserved=True, post_mortem=False, use_json=True)
     env = exp['seml'].get('conda_environment')
 
     logging.info("********** First experiment **********")
@@ -728,7 +748,7 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
         logging.info(f"Anaconda environment: {env}")
 
     logging.info("\nArguments for VS Code debugger:")
-    logging.info(json.dumps(["with", "--debug"] + vc_config))
+    logging.info(json.dumps(["with", "--debug"] + vscode_config))
     logging.info("Arguments for PyCharm debugger:")
     logging.info("with --debug " + get_cfg_overrides(config))
 
