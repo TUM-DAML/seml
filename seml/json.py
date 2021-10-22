@@ -85,7 +85,7 @@ def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
             if isinstance(value, str):
                 yield buf + _encoder(value)
             elif value is None:
-                yield buf + 'Null'
+                yield buf + 'None'
             elif value is True:
                 yield buf + 'True'
             elif value is False:
