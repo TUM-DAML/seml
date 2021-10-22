@@ -1,7 +1,7 @@
 import logging
 import json
 import jsonpickle
-from tqdm.autonotebook import tqdm
+from tqdm.auto import tqdm
 
 from seml.database import get_collection
 from seml.settings import SETTINGS

@@ -11,7 +11,7 @@ from pathlib import Path
 import time
 import copy
 import uuid
-from tqdm.autonotebook import tqdm
+from tqdm.auto import tqdm
 
 from seml.database import get_collection, build_filter_dict
 from seml.sources import load_sources_from_db

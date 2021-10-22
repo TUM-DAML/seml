@@ -2,7 +2,7 @@ import gridfs
 import pymongo
 from pymongo.collection import Collection
 import logging
-from tqdm.autonotebook import tqdm
+from tqdm.auto import tqdm
 
 from seml.utils import s_if
 from seml.settings import SETTINGS
