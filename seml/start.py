@@ -47,7 +47,7 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     # We encode values with `repr` such that we can decode them with `eval`. While `shlex.quote`
     # may cause messy commands with lots of single quotes JSON doesn't match Python 1:1, e.g.,
     # boolean values are lower case in JSON (true, false) but start with capital letters in Python.
-    config_strings = [f"{key}={value_to_string(val)}" for key, val in config.items()]
+    config_strings = [f"{key}={value_to_string(val, use_json)}" for key, val in config.items()]
 
     if not verbose:
         config_strings.append("--force")
@@ -705,7 +705,7 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
                                           unobserved=True, post_mortem=False)
     _, exe, vscode_config = get_command_from_exp(exp, collection.name,
                                                  verbose=logging.root.level <= logging.VERBOSE,
-                                                 unobserved=True, post_mortem=False)
+                                                 unobserved=True, post_mortem=False, use_json=True)
     env = exp['seml'].get('conda_environment')
 
     logging.info("********** First experiment **********")
