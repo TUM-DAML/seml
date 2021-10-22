@@ -30,6 +30,7 @@ def value_to_str(value, use_json=False):
     if use_json:
         result = json.dumps(value)
 
+        # Source: https://stackoverflow.com/a/6249375
         reg_str = r'"(?:[^"\\\\]*|\\\\["\\\\bfnrt\/]|\\\\u[0-9a-f]{4})*"'
         reg_num = r'-?(?=[1-9]|0(?!\d))\d+(?:\.\d+)?(?:[eE][+-]?\d+)?'
         reg_bool = r'true|false|null|True|False|None'
