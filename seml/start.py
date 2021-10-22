@@ -20,13 +20,21 @@ from seml.network import find_free_port
 from seml.settings import SETTINGS
 from seml.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.errors import ConfigError, ArgumentError, MongoDBError
+from seml.json import PythonEncoder
 
 States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
 
 
+def value_to_string(value, use_json=False):
+    if use_json:
+        return PythonEncoder().encode(value)
+    else:
+        return repr(value)
+
+
 def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
-                         post_mortem=False, debug=False, debug_server=False, print_info=True):
+                         post_mortem=False, debug=False, debug_server=False, print_info=True, use_json=False):
     if 'executable' not in exp['seml']:
         raise MongoDBError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
@@ -39,7 +47,7 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     # We encode values with `repr` such that we can decode them with `eval`. While `shlex.quote`
     # may cause messy commands with lots of single quotes JSON doesn't match Python 1:1, e.g.,
     # boolean values are lower case in JSON (true, false) but start with capital letters in Python.
-    config_strings = [f"{key}={repr(val)}" for key, val in config.items()]
+    config_strings = [f"{key}={value_to_string(val)}" for key, val in config.items()]
 
     if not verbose:
         config_strings.append("--force")
@@ -695,6 +703,9 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
     _, exe, config = get_command_from_exp(exp, collection.name,
                                           verbose=logging.root.level <= logging.VERBOSE,
                                           unobserved=True, post_mortem=False)
+    _, exe, vscode_config = get_command_from_exp(exp, collection.name,
+                                                 verbose=logging.root.level <= logging.VERBOSE,
+                                                 unobserved=True, post_mortem=False)
     env = exp['seml'].get('conda_environment')
 
     logging.info("********** First experiment **********")
@@ -703,7 +714,7 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
         logging.info(f"Anaconda environment: {env}")
 
     logging.info("\nArguments for VS Code debugger:")
-    logging.info(json.dumps(["with", "--debug"] + config))
+    logging.info(json.dumps(["with", "--debug"] + vscode_config))
     logging.info("Arguments for PyCharm debugger:")
     logging.info("with --debug " + get_cfg_overrides(config))
 
