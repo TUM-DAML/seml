@@ -1,3 +1,4 @@
+from copy import deepcopy
 import logging
 import json
 import jsonpickle
@@ -64,6 +65,7 @@ def get_results(db_collection_name, fields=None,
     if len(states) > 0:
         if 'status' in filter_dict:
             logging.warning("'states' argument is not empty and will overwrite 'filter_dict['status']'.")
+        filter_dict = deepcopy(filter_dict)
         filter_dict['status'] = {'$in': states}
 
     cursor = collection.find(filter_dict, fields)
