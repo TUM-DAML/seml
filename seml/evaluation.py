@@ -77,5 +77,5 @@ def get_results(db_collection_name, fields=None,
     else:
         parsed = [parse_jsonpickle(entry) for entry in tqdm(results)]
     if to_data_frame:
-        parsed = pd.io.json.json_normalize(parsed, sep='.')
+        parsed = pd.json_normalize(parsed, sep='.')
     return parsed
