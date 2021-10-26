@@ -27,6 +27,8 @@ SlurmStates = SETTINGS.SLURM_STATES
 
 
 def value_to_string(value, use_json=False):
+    # We need the json encoding for vscode due to https://github.com/microsoft/vscode/issues/91578
+    # Once this bug has been fixed we should only rely on `repr` and remove this code.
     if use_json:
         return PythonEncoder().encode(value)
     else:
