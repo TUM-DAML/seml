@@ -231,6 +231,7 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
     try:
         output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
     except subprocess.CalledProcessError as e:
+        os.remove(path)
         raise ConfigError(e.stderr.decode('utf-8'))
 
     slurm_array_job_id = int(output.split(b' ')[-1])
@@ -837,7 +838,11 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     with open(path, "w") as f:
         f.write(script)
 
-    output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    try:
+        output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    except subprocess.CalledProcessError as e:
+        os.remove(path)
+        raise ConfigError(e.stderr.decode('utf-8'))
     os.remove(path)
 
     slurm_array_job_id = int(output.split(b' ')[-1])
