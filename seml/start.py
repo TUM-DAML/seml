@@ -228,7 +228,10 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
     with open(path, "w") as f:
         f.write(script)
 
-    output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    try:
+        output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    except subprocess.CalledProcessError as e:
+        raise ConfigError(e.stderr.decode('utf-8'))
 
     slurm_array_job_id = int(output.split(b' ')[-1])
     for task_id, chunk in enumerate(exp_array):
