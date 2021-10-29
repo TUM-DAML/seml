@@ -4,7 +4,6 @@ import subprocess
 import datetime
 from getpass import getpass
 import copy
-import shutil
 import os
 import shutil
 import gridfs
@@ -198,6 +197,7 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                 exit()
         for run in collection.find(filter_dict, {'config.file_observer_base_dir': 1, '_id': 1}):
             delete_file_observer_dir(run)
+
         collection.delete_many(filter_dict)
 
     else:
