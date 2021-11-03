@@ -4,14 +4,14 @@ grid:
     options:
       - 1
       - 2
-    bundle: 2
+    zip_id: 2
 
   learning_rate:
     type: uniform
     min: 0.0
     max: 1
     num: 2
-    bundle: 2
+    zip_id: 2
 
   other_attribute:
     type: choice

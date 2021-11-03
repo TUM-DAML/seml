@@ -160,14 +160,14 @@ def generate_grid(parameter, parent_key=''):
     Returns
     -------
     return_items: tuple(str, tuple(list, str))
-        Name of the parameter and tuple with list containing the grid values for this parameter and bundle name.
+        Name of the parameter and tuple with list containing the grid values for this parameter and zip id.
 
     """
     if "type" not in parameter:
         raise ConfigError(f"No type found in parameter {parameter}")
 
     param_type = parameter['type']
-    allowed_keys = ['type', 'bundle']
+    allowed_keys = ['type', 'zip_id']
 
     return_items = []
 
@@ -213,23 +213,23 @@ def generate_grid(parameter, parent_key=''):
             raise ConfigError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
                               f"{allowed_keys}. Unexpected keys: {extra_keys}")
 
-    bundle = parameter['bundle'] if 'bundle' in parameter else uuid.uuid4()
+    zip_id = parameter['zip_id'] if 'zip_id' in parameter else uuid.uuid4()
     return_items = [
-        (item[0], (item[1], bundle))
+        (item[0], (item[1], zip_id))
         for item in return_items
     ]
     return return_items
 
 
-def bundle_dict(input_dict):
-    """Bundles dictionaries of type:
+def zipped_dict(input_dict):
+    """Zips dictionaries of type:
     {
-        'element1': (values, bundle_key),
+        'element1': (values, zip_id),
         ...
     }
     to
     {
-        'bundle_key1': {
+        'zip_id1': {
             'element1': values
             'element2': values
         },
@@ -237,28 +237,28 @@ def bundle_dict(input_dict):
     }
 
     Args:
-        input_dict (dict[str, tuple(list, str)]): unbundled dictionary
+        input_dict (dict[str, tuple(list, str)]): unzipped dictionary
 
     Returns:
-        dict[str, dict[str, list]]: bundled dictionary
+        dict[str, dict[str, list]]: zipped dictionary
     """
-    # Bundle by bundle attribute
-    bundles = DefaultDict(dict)
-    for k, val in input_dict.items():
-        bundles[val[1]][k] = val[0]
+    # Zip by zip_id attribute
+    zipped_dict = DefaultDict(dict)
+    for k, (val, zip_id) in input_dict.items():
+        zipped_dict[zip_id][k] = val
     
     # Check that parameters in within a bundle have the same number of configurations.
-    for k, bundle in bundles.items():
+    for k, bundle in zipped_dict.items():
         if len({len(x) for x in bundle.values()}) != 1:
-            raise ConfigError(f"Parameters in bundle '{k}' have different number of configurations!")
-    return bundles
+            raise ConfigError(f"Parameters with zip_id '{k}' have different number of configurations!")
+    return zipped_dict
 
 
-def cartesian_product_bundled_dict(bundled_dict):
-    """Compute the Cartesian product of the bundled input dictionary values.
+def cartesian_product_zipped_dict(zipped_dict):
+    """Compute the Cartesian product of the ziped input dictionary values.
     Parameters
     ----------
-    bundled_dict: dict of dicts of lists
+    zipped_dict: dict of dicts of lists
 
     Returns
     -------
@@ -266,14 +266,14 @@ def cartesian_product_bundled_dict(bundled_dict):
         Cartesian product of the lists in the input dictionary.
 
     """
-    bundle_lengths = {
+    zip_lengths = {
         k: len(next(iter(bundle.values())))
-        for k, bundle in bundled_dict.items()
+        for k, bundle in zipped_dict.items()
     }
     
-    for idx in itertools.product(*[range(k) for k in bundle_lengths.values()]):
+    for idx in itertools.product(*[range(k) for k in zip_lengths.values()]):
         yield {
             key: values[i] 
-            for bundle_key, i in zip(bundled_dict, idx) 
-            for key, values in bundled_dict[bundle_key].items()
+            for zip_id, i in zip(zipped_dict, idx) 
+            for key, values in zipped_dict[zip_id].items()
         }

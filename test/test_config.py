@@ -16,7 +16,7 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_WITH_DUPLICATE_RDM_PARAMETERS_2 = "resources/config/config_with_duplicate_random_parameters_1.yaml"
     CONFIG_WITH_ALL_TYPES = "resources/config/config_with_all_types.yaml"
     CONFIG_WITH_EMPTY_DICT = "resources/config/config_with_empty_dictionary.yaml"
-    CONFIG_WITH_BUNDLED_PARAMETERS = "resources/config/config_with_bundled_parameters.yaml"
+    CONFIG_WITH_ZIPPED_PARAMETERS = "resources/config/config_with_zipped_parameters.yaml"
 
     def load_config_dict(self, path):
         with open(path, 'r') as conf:
@@ -82,8 +82,8 @@ class TestParseConfigDicts(unittest.TestCase):
         }
         self.assertEqual(configs, expected_config)
 
-    def test_bundled_parameters(self):
-        config_dict = self.load_config_dict(self.CONFIG_WITH_BUNDLED_PARAMETERS)
+    def test_zipped_parameters(self):
+        config_dict = self.load_config_dict(self.CONFIG_WITH_ZIPPED_PARAMETERS)
         configs = config.generate_configs(config_dict)
         expected_configs = [
             {
