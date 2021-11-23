@@ -869,9 +869,20 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
         time.sleep(0.5)
     log_file_split = log_file_contents.split("\n")
     url_lines = [x for x in log_file_split if "http" in x]
-    url = url_lines[0].split(" ")[3]
-    url = url.replace("https://", "")
-    url = url.replace("http://", "")
-    url = url.rstrip('/')
-    logging.info(f"Start-up completed. The Jupyter instance is running at '{url}'.")
+    url = url_lines[0].split(" ")
+    url_str = None
+    for s in url:
+        if s.startswith("http://"):
+            url_str = s
+            break
+    if url_str is None:
+        logging.error(f"Could not fetch the host and port of the Jupyter instance. Here's the raw output: \n"
+                      f"{log_file_contents}")
+        exit(1)
+    url_str = url_str.replace("https://", "")
+    url_str = url_str.replace("http://", "")
+    url_str = url_str.rstrip('/')
+    if url_str.endswith("/lab"):
+        url_str = url_str[:-4]
+    logging.info(f"Start-up completed. The Jupyter instance is running at '{url_str}'.")
     logging.info(f"To stop the job, run 'scancel {slurm_array_job_id}'.")
