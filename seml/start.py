@@ -872,7 +872,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     url = url_lines[0].split(" ")
     url_str = None
     for s in url:
-        if s.startswith("http://"):
+        if s.startswith("http://") or s.startswith("https://"):
             url_str = s
             break
     if url_str is None:
