@@ -20,8 +20,8 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
 
 
 def get_database(db_name, host, port, username, password):
-    db = pymongo.MongoClient(host, int(port))[db_name]
-    db.authenticate(name=username, password=password)
+    db = pymongo.MongoClient(host, int(port), username=username,
+                             password=password, authSource=db_name)[db_name]
     return db
 
 
