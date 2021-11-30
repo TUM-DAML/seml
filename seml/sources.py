@@ -54,6 +54,14 @@ def import_exe(executable, conda_env):
     orig_handlers = logging.root.handlers
     orig_loglevel = logging.root.level
     exe_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
+    if exe_module.__file__ != exe_path:
+        logging.error(f'Imported module path\n"{exe_module.__file__}" does not match executable path\n'
+                      f'"{exe_path}".\nIs the executable file name "{os.path.basename(executable)}" '
+                      f'a package name required by seml, e.g., "numpy.py"? '
+                      f'If yes, this case it not supported; please rename your script.\n'
+                      f'Otherwise, you can also skip source file uploading and configuration sanity checking '
+                      f'py passing "--no-code-checkpoint" and "--no-sanity-check" to seml.')
+        exit(1)
     logging.root.handlers = orig_handlers
     logging.root.setLevel(orig_loglevel)
     del sys.path[0]
