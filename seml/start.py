@@ -228,7 +228,12 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
     with open(path, "w") as f:
         f.write(script)
 
-    output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    try:
+        output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Could not start Slurm job via sbatch. Here's the sbatch error message:\n"
+                      f"{e.stderr.decode('utf-8')}")
+        exit(1)
 
     slurm_array_job_id = int(output.split(b' ')[-1])
     for task_id, chunk in enumerate(exp_array):
@@ -284,8 +289,12 @@ def start_srun_job(collection, exp, unobserved=False,
     cmd_args += ' '.join(seml_arguments)
 
     cmd = (f"srun{srun_options_str} seml {collection.name} start {cmd_args}")
-    subprocess.run(cmd, shell=True, check=True)
-
+    try:
+        subprocess.run(cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Could not start Slurm job via srun. Here's the sbatch error message:\n"
+                      f"{e.stderr.decode('utf-8')}")
+        exit(1)
 
 def start_local_job(collection, exp, unobserved=False, post_mortem=False,
                     output_dir_path='.', output_to_console=False, debug_server=False):
