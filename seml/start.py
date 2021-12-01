@@ -843,7 +843,14 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     path = f"/tmp/{uuid.uuid4()}.sh"
     with open(path, "w") as f:
         f.write(script)
-    output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+
+    try:
+        output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Could not start Slurm job via sbatch. Here's the sbatch error message:\n"
+                      f"{e.stderr.decode('utf-8')}")
+        os.remove(path)
+        exit(1)
     os.remove(path)
 
     slurm_array_job_id = int(output.split(b' ')[-1])
