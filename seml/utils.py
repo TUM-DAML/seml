@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 import logging
 import json
 import copy
@@ -254,3 +255,16 @@ class LoggingFormatter(logging.Formatter):
         log_fmt = self.FORMATS.get(record.levelno, self.FORMATS['DEFAULT'])
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
+
+
+class Hashabledict(dict):
+
+    def hashable_values(self):
+        for value in self.values():
+            if isinstance(value, Iterable):
+                yield tuple(value)
+            else:
+                yield value
+
+    def __hash__(self):
+        return hash((frozenset(self), frozenset(self.hashable_values())))
