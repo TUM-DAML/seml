@@ -137,7 +137,7 @@ def add_experiments(db_collection_name, config_file, force_duplicates, overwrite
     if 'conda_environment' not in seml_config:
         seml_config['conda_environment'] = os.environ.get('CONDA_DEFAULT_ENV')
 
-    # Set Slurm config with default parameters as fall-back option  
+    # Set Slurm config with default parameters as fall-back option
     slurm_config = merge_dicts(SETTINGS.SLURM_DEFAULT, slurm_config)
 
     # Check for and use sbatch options template
