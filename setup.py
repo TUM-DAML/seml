@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 install_requires = [
     "numpy>=1.15",
-    "pymongo>=3.7",
+    "pymongo>=3.7, <4.0",
     "pandas",
     "sacred>=0.8.1",
     "pyyaml>=5.1",
