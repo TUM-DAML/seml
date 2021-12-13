@@ -1,0 +1,13 @@
+grid:
+  dataset:
+    type: choice
+    options:
+      - small
+      - big
+
+  lr:
+    type: choice
+    options:
+      - 0.1
+      - 0.01
+ 

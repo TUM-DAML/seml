@@ -36,6 +36,17 @@ def parse_args(parser, commands):
     return commands
 
 
+class ParameterAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, {
+            value.split('=')[0]: eval('='.join(value.split('=')[1:]))
+            for value in values
+        })
+
+
 def main():
     parser = argparse.ArgumentParser(
             description="Manage experiments for the given configuration. "
@@ -98,6 +109,11 @@ def main():
             '-f', '--force-duplicates', action='store_true',
             help="Add experiments to the database even when experiments with identical configurations "
                  "are already in the database.")
+    parser_add.add_argument(
+            '-o', '--overwrite-params', action=ParameterAction, nargs='+', default={},
+            help="Specifies parameters that overwrite their respective values in all configs."
+                 "Format: <param>=<value>, use flat dictionary notation with key1.key2=value."
+    )
     parser_add.set_defaults(func=add_experiments)
 
     parser_start = subparsers.add_parser(
