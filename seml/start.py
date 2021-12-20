@@ -222,8 +222,6 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
         'verbose': logging.root.level <= logging.VERBOSE,
         'unobserved': unobserved,
         'debug_server': debug_server,
-        'pre_bash': SETTINGS['PRE_BASH'],
-        'post_bash': SETTINGS['POST_BASH'],
     }
     pre_bash = SETTINGS['PRE_BASH'].format(**variables)
     post_bash = SETTINGS['POST_BASH'].format(**variables)
