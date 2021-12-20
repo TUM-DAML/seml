@@ -209,21 +209,29 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
     else:
         working_dir = "${{SLURM_SUBMIT_DIR}}"
 
+    variables = {
+        'sbatch_options': sbatch_options_str,
+        'working_dir': working_dir,
+        'use_conda_env': str(use_conda_env).lower(),
+        'use_conda_env': exp_array[0][0]['seml']['conda_environment'] if use_conda_env else "",
+        'exp_ids': ' '.join(expid_strings),
+        'with_sources': str(with_sources).lower(),
+        'prepare_experiment_script': prepare_experiment_script,
+        'db_collection_name': collection.name,
+        'sources_argument': "--stored-sources-dir $tmpdir" if with_sources else "",
+        'verbose': logging.root.level <= logging.VERBOSE,
+        'unobserved': unobserved,
+        'debug_server': debug_server,
+        'pre_bash': SETTINGS['PRE_BASH'],
+        'post_bash': SETTINGS['POST_BASH'],
+    }
+    pre_bash = SETTINGS['PRE_BASH'].format(**variables)
+    post_bash = SETTINGS['POST_BASH'].format(**variables)
+
     script = template.format(
-            sbatch_options=sbatch_options_str,
-            working_dir=working_dir,
-            use_conda_env=str(use_conda_env).lower(),
-            conda_env=exp_array[0][0]['seml']['conda_environment'] if use_conda_env else "",
-            exp_ids=' '.join(expid_strings),
-            with_sources=str(with_sources).lower(),
-            prepare_experiment_script=prepare_experiment_script,
-            db_collection_name=collection.name,
-            sources_argument="--stored-sources-dir $tmpdir" if with_sources else "",
-            verbose=logging.root.level <= logging.VERBOSE,
-            unobserved=unobserved,
-            debug_server=debug_server,
-            pre_bash=SETTINGS['PRE_BASH'],
-            post_bash=SETTINGS['POST_BASH'],
+            pre_bash=pre_bash,
+            post_bash=post_bash,
+            **variables,
     )
 
     path = f"/tmp/{uuid.uuid4()}.sh"
