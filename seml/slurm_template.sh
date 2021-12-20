@@ -1,6 +1,9 @@
 #!/bin/bash
 {sbatch_options}
 
+# Execute optional bash commands
+{pre_bash}
+
 # Move either to project root dir or the config file path.
 cd {working_dir}
 
@@ -61,3 +64,7 @@ wait
 if {with_sources}; then
     rm -rf $tmpdir
 fi
+
+
+# Execute optional bash commands
+{post_bash}
