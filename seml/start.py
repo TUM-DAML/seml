@@ -223,12 +223,12 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
         'unobserved': unobserved,
         'debug_server': debug_server,
     }
-    pre_bash = SETTINGS['PRE_BASH'].format(**variables)
-    post_bash = SETTINGS['POST_BASH'].format(**variables)
+    setup_command = SETTINGS['SETUP_COMMAND'].format(**variables)
+    end_command = SETTINGS['END_COMMAND'].format(**variables)
 
     script = template.format(
-            pre_bash=pre_bash,
-            post_bash=post_bash,
+            setup_command=setup_command,
+            end_command=end_command,
             **variables,
     )
 

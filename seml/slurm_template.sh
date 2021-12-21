@@ -2,7 +2,7 @@
 {sbatch_options}
 
 # Execute optional bash commands
-{pre_bash}
+{setup_command}
 
 # Move either to project root dir or the config file path.
 cd {working_dir}
@@ -67,4 +67,4 @@ fi
 
 
 # Execute optional bash commands
-{post_bash}
+{end_command}

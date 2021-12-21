@@ -85,8 +85,8 @@ SETTINGS = munchify(
         "CONFIRM_DELETE_THRESHOLD": 10,
         "CONFIRM_RESET_THRESHOLD": 10,
 
-        "PRE_BASH": "",
-        "POST_BASH": "",
+        "SETUP_COMMAND": "",
+        "END_COMMAND": "",
     },
 )
 
