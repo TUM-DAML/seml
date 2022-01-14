@@ -230,7 +230,7 @@ To run an interactive debug session on Slurm (or locally) you can start an exper
 For even more convenience you can also use VS Code for a remote debug session. First make sure that your experiments were added to the database with the `--no-code-checkpoint` option:
 
 ```
-seml seml_example add example_config.yaml --ncc
+seml seml_example add example_config.yaml -ncc
 ```
 
 This will prevent the caching of your code in the MongoDB and allow you to directly run the code that is in your working directory, set breakpoints and interactively step through your code in VS Code.
