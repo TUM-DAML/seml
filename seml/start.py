@@ -886,6 +886,27 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
 
     logging.info("Slurm job is running. Jupyter instance is starting up...")
     log_file_contents = ""
+    # Obtain list of hostnames to addresses
+    hosts = subprocess.run(f'sinfo -h -o "%N|%o"', shell=True, check=True, capture_output=True).stdout
+    hosts = {
+        h.split('|')[0] : h.split('|')[1]
+        for h in hosts.decode('utf-8').split('\n')
+        if len(h) > 1
+    }
+    # Obtain slurm node
+    JUPYTER_LOG_HOSTNAME_PREFIX = "SLURM assigned me the node(s): "
+    while JUPYTER_LOG_HOSTNAME_PREFIX not in log_file_contents:
+        if os.path.exists(log_file):
+            with open(log_file, "r") as f:
+                log_file_contents = f.read()
+        time.sleep(0.5)
+    hostname = [
+        x
+        for x in log_file_contents.split("\n") 
+        if JUPYTER_LOG_HOSTNAME_PREFIX in x
+    ][0].split(':')[1].strip()
+    hostname = hosts[hostname]
+    # Obtain general URL string
     while " is running at" not in log_file_contents:
         if os.path.exists(log_file):
             with open(log_file, "r") as f:
@@ -903,8 +924,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
         logging.error(f"Could not fetch the host and port of the Jupyter instance. Here's the raw output: \n"
                       f"{log_file_contents}")
         exit(1)
-    url_str = url_str.replace("https://", "")
-    url_str = url_str.replace("http://", "")
+    url_str = hostname + ":" + url_str.split(":")[-1]
     url_str = url_str.rstrip('/')
     if url_str.endswith("/lab"):
         url_str = url_str[:-4]
