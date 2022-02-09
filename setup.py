@@ -17,7 +17,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='seml',
-    version='0.3.5',
+    version='0.3.6',
     description='Slurm Experiment Management Library',
     long_description=long_description,
     long_description_content_type="text/markdown",
