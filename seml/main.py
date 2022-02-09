@@ -288,6 +288,9 @@ def main():
             parser.error("the following arguments are required: db_collection_name")
 
         f = command.func
+        # If we chain commands we should wait until jobs are properly cancelled
+        if f == cancel_experiments and len(commands) > 1:
+            command.wait = True
         del command.func
         del command.verbose
         if 'filter_states' in command:

@@ -5,6 +5,7 @@ import subprocess
 import datetime
 from getpass import getpass
 import copy
+import time
 import gridfs
 
 from seml.config import check_config
@@ -39,7 +40,7 @@ def report_status(db_collection_name):
     logging.info("*" * len(title))
 
 
-def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict=None):
+def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict=None, wait=False):
     exp = collection.find_one({'_id': exp_id})
     if slurm_dict:
         exp['slurm'].update(slurm_dict)
@@ -55,10 +56,10 @@ def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict
 
         try:
             # Check if job exists
-            subprocess.run(f"scontrol show jobid -dd {job_str}", shell=True, check=True)
+            subprocess.run(f"scontrol show jobid -dd {job_str}", shell=True, check=True, stdout=subprocess.DEVNULL)
             if set_interrupted:
                 # Set the database state to INTERRUPTED
-                collection.update_one({'_id': exp_id}, {'$set': {'status': {"$in": States.INTERRUPTED}}})
+                collection.update_one({'_id': exp_id}, {'$set': {'status': States.INTERRUPTED[0]}})
 
             # Check if other experiments are running in the same job
             other_exps_filter = filter_dict.copy()
@@ -69,10 +70,14 @@ def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict
             # Cancel if no other experiments are running in the same job
             if not other_exp_running:
                 subprocess.run(f"scancel {job_str}", shell=True, check=True)
+                # Wait until the job is actually gone
+                if wait:
+                    while len(subprocess.run(f"squeue -h -o '%A' -j{job_str}", shell=True, check=True, capture_output=True).stdout) > 0:
+                        time.sleep(0.5)
                 if set_interrupted:
                     # set state to interrupted again (might have been overwritten by Sacred in the meantime).
                     collection.update_many(filter_dict,
-                                           {'$set': {'status': {'$in': States.INTERRUPTED},
+                                           {'$set': {'status': States.INTERRUPTED[0],
                                                      'stop_time': datetime.datetime.utcnow()}})
 
         except subprocess.CalledProcessError:
@@ -82,7 +87,7 @@ def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict
         logging.error(f"No experiment found with ID {exp_id}.")
 
 
-def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes):
+def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes, wait=False):
     """
     Cancel experiments.
 
@@ -149,8 +154,16 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             # cancel all Slurm jobs for which no running experiment remains.
             if len(to_cancel) > 0:
                 chunk_size = 100
-                chunks = chunker(list(to_cancel), chunk_size)
+                chunks = list(chunker(list(to_cancel), chunk_size))
                 [subprocess.run(f"scancel {' '.join(chunk)}", shell=True, check=True) for chunk in chunks]
+                # Wait until all jobs are actually stopped.
+                if wait:
+                    for chunk in chunks:
+                        while len(subprocess.run(f"squeue -h -o '%A' --jobs={','.join(chunk)}", 
+                                                 shell=True, 
+                                                 check=True, 
+                                                 capture_output=True).stdout) > 0:
+                            time.sleep(0.5)
 
             # update database status and write the stop_time
             collection.update_many(filter_dict, {'$set': {"status": States.INTERRUPTED[0],
@@ -162,7 +175,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         if SETTINGS.CONFIRM_CANCEL_THRESHOLD <= 1:
             if not yes and input('Are you sure? (y/n)').lower() != 'y':
                 exit()
-        cancel_experiment_by_id(collection, sacred_id)
+        cancel_experiment_by_id(collection, sacred_id, wait=wait)
 
 
 def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
