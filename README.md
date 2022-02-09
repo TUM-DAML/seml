@@ -21,9 +21,16 @@ In addition, **`SEML`** offers many more features to make your life easier, such
 * and keeping track of resource usage (experiment runtime, RAM, etc.).
 
 ## Get started
-To get started, install **`SEML`** using the following commands:
+To get started, install **`SEML`** either via `pip`:
 ```bash
 pip install seml
+```
+or `conda`:
+```bash
+conda install -c conda-forge seml
+```
+Then configure your MongoDB via:
+```bash
 seml configure  # provide your MongoDB credentials
 ```
 ## Example
