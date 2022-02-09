@@ -258,13 +258,5 @@ class LoggingFormatter(logging.Formatter):
 
 
 class Hashabledict(dict):
-
-    def hashable_values(self):
-        for value in self.values():
-            if isinstance(value, Iterable):
-                yield tuple(value)
-            else:
-                yield value
-
     def __hash__(self):
-        return hash((frozenset(self), frozenset(self.hashable_values())))
+        return hash(json.dumps(self))
