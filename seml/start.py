@@ -893,25 +893,24 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
         for h in hosts.decode('utf-8').split('\n')
         if len(h) > 1
     }
-    # Obtain slurm node
-    JUPYTER_LOG_HOSTNAME_PREFIX = "SLURM assigned me the node(s): "
-    while JUPYTER_LOG_HOSTNAME_PREFIX not in log_file_contents:
-        if os.path.exists(log_file):
-            with open(log_file, "r") as f:
-                log_file_contents = f.read()
-        time.sleep(0.5)
-    hostname = [
-        x
-        for x in log_file_contents.split("\n") 
-        if JUPYTER_LOG_HOSTNAME_PREFIX in x
-    ][0].split(':')[1].strip()
-    hostname = hosts[hostname]
-    # Obtain general URL string
+    # Wait until jupyter is running
     while " is running at" not in log_file_contents:
         if os.path.exists(log_file):
             with open(log_file, "r") as f:
                 log_file_contents = f.read()
         time.sleep(0.5)
+    # Determine hostname
+    JUPYTER_LOG_HOSTNAME_PREFIX = "SLURM assigned me the node(s): "
+    hostname = [
+        x
+        for x in log_file_contents.split("\n") 
+        if JUPYTER_LOG_HOSTNAME_PREFIX in x
+    ][0].split(':')[1].strip()
+    if hostname in hosts:
+        hostname = hosts[hostname]
+    else:
+        logging.warning(f"Host '{hostname}' unknown to SLURM.")
+    # Obtain general URL
     log_file_split = log_file_contents.split("\n")
     url_lines = [x for x in log_file_split if "http" in x]
     url = url_lines[0].split(" ")
