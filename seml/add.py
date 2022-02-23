@@ -5,7 +5,7 @@ import logging
 from seml.database import get_max_in_collection, get_collection
 from seml.config import remove_prepended_dashes, read_config, generate_configs, check_config
 from seml.sources import upload_sources, get_git_info
-from seml.utils import merge_dicts, s_if, make_hash
+from seml.utils import merge_dicts, s_if, make_hash, flatten
 from seml.settings import SETTINGS
 from seml.errors import ConfigError
 
@@ -40,10 +40,7 @@ def filter_experiments(collection, configurations):
             del config['config_hash']
             lookup_result = collection.find_one({'config_hash': config_hash})
         else:
-            lookup_dict = {
-                f'config.{key}': value for key, value in config.items()
-            }
-
+            lookup_dict = flatten({'config': config})
             lookup_result = collection.find_one(lookup_dict)
 
         if lookup_result is None:
