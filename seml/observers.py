@@ -156,10 +156,12 @@ def create_neptune_observer(project_name, api_token=None,
         if "OBSERVERS" in SETTINGS and "NEPTUNE" in SETTINGS.OBSERVERS:
             if "AUTH_TOKEN" in SETTINGS.OBSERVERS.NEPTUNE:
                 api_token = SETTINGS.OBSERVERS.NEPTUNE.AUTH_TOKEN
-    else:
-        api_token = SETTINGS.OBSERVERS.NEPTUNE.AUTH_TOKEN
+                # Ignore example token setting
+                if api_token == "YOUR_AUTH_TOKEN":
+                    api_token = None
+
     if api_token is None:
-        logging.info('No API token for Nepune provided. Trying to use environment variable NEPTUNE_API_TOKEN.')
+        logging.info('No API token for Neptune provided. Trying to use environment variable NEPTUNE_API_TOKEN.')
     neptune_obs = NeptuneObserver(api_token=api_token, project_name=project_name, source_extensions=source_extensions)
     return neptune_obs
 
