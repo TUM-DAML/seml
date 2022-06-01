@@ -10,7 +10,7 @@ import gridfs
 
 from seml.config import check_config
 from seml.database import get_collection, build_filter_dict
-from seml.sources import delete_files, delete_orphaned_sources, upload_sources, delete_files
+from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.utils import s_if, chunker
 from seml.settings import SETTINGS
 from seml.errors import ArgumentError, MongoDBError
@@ -180,7 +180,7 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
 
 def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
     collection = get_collection(db_collection_name)
-    sacred_sources_to_delete = []
+    experiment_files_to_delete = []
 
     if sacred_id is None:
         if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
@@ -197,12 +197,14 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                 exit()
         
         # Collect sources uploaded by sacred.
-        exp_sources_list = collection.find(filter_dict, {'experiment.sources': 1})
+        exp_sources_list = collection.find(filter_dict, {'experiment.sources': 1, 'artifacts': 1})
         for exp in exp_sources_list:
             if 'experiment' in exp:
                 if 'sources' in exp['experiment']:
                     exp_sources = exp['experiment']['sources']
-                    sacred_sources_to_delete.extend([x[1] for x in exp_sources])
+                    experiment_files_to_delete.extend([x[1] for x in exp_sources])
+            if 'artifacts' in exp:
+                experiment_files_to_delete.extend([x['file_id'] for x in exp['artifacts']])
         collection.delete_many(filter_dict)
     else:
         exp = collection.find_one({'_id': sacred_id})
@@ -216,16 +218,18 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             batch_ids_in_del = set([exp['batch_id']])
 
             # Collect sources uploaded by sacred.
-            exp = collection.find_one({'_id': sacred_id}, {'experiment.sources': 1})
+            exp = collection.find_one({'_id': sacred_id}, {'experiment.sources': 1, 'artifacts': 1})
             if 'experiment' in exp:
                 if 'sources' in exp['experiment']:
                     exp_sources = exp['experiment']['sources']
-                    sacred_sources_to_delete.extend([x[1] for x in exp_sources])
+                    experiment_files_to_delete.extend([x[1] for x in exp_sources])
+                if 'artifacts' in exp:
+                    experiment_files_to_delete.extend([x['file_id'] for x in exp['artifacts']])
             collection.delete_one({'_id': sacred_id})
 
     # Delete sources uploaded by sacred.
-    delete_files(collection.database, sacred_sources_to_delete)
-    logging.info(f"Deleted {len(sacred_sources_to_delete)} sacred source files.")
+    delete_files(collection.database, experiment_files_to_delete)
+    logging.info(f"Deleted {len(experiment_files_to_delete)} files associated with deleted experiments.")
 
     if len(batch_ids_in_del) > 0:
         # clean up the uploaded sources if no experiments of a batch remain
