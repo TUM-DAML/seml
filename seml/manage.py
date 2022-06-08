@@ -199,12 +199,7 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         # Collect sources uploaded by sacred.
         exp_sources_list = collection.find(filter_dict, {'experiment.sources': 1, 'artifacts': 1})
         for exp in exp_sources_list:
-            if 'experiment' in exp:
-                if 'sources' in exp['experiment']:
-                    exp_sources = exp['experiment']['sources']
-                    experiment_files_to_delete.extend([x[1] for x in exp_sources])
-            if 'artifacts' in exp:
-                experiment_files_to_delete.extend([x['file_id'] for x in exp['artifacts']])
+            experiment_files_to_delete.extend(get_experiment_files(exp))
         collection.delete_many(filter_dict)
     else:
         exp = collection.find_one({'_id': sacred_id})
@@ -219,12 +214,7 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
 
             # Collect sources uploaded by sacred.
             exp = collection.find_one({'_id': sacred_id}, {'experiment.sources': 1, 'artifacts': 1})
-            if 'experiment' in exp:
-                if 'sources' in exp['experiment']:
-                    exp_sources = exp['experiment']['sources']
-                    experiment_files_to_delete.extend([x[1] for x in exp_sources])
-                if 'artifacts' in exp:
-                    experiment_files_to_delete.extend([x['file_id'] for x in exp['artifacts']])
+            experiment_files_to_delete.extend(get_experiment_files(exp))
             collection.delete_one({'_id': sacred_id})
 
     # Delete sources uploaded by sacred.
@@ -375,6 +365,17 @@ def get_slurm_arrays_tasks(filter_by_user=False):
             return {}
     except subprocess.CalledProcessError:
         return {}
+
+
+def get_experiment_files(experiment):
+    experiment_files = []
+    if 'experiment' in experiment:
+        if 'sources' in experiment['experiment']:
+            exp_sources = experiment['experiment']['sources']
+            experiment_files.extend([x[1] for x in exp_sources])
+    if 'artifacts' in experiment:
+        experiment_files.extend([x['file_id'] for x in experiment['artifacts']])
+    return experiment_files
 
 
 def get_nonempty_input(field_name, num_trials=3):
