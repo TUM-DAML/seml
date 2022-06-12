@@ -64,6 +64,11 @@ def main():
 
     subparsers = parser.add_subparsers(title="Possible operations")
 
+    parser_clean_db = subparsers.add_parser(
+            "clean-db",
+            help="Remove orphaned artifacts in the DB from runs which have been deleted.")
+    parser_clean_db.set_defaults(func=clean_unreferenced_artifacts)
+
     parser_jupyter = subparsers.add_parser(
             "jupyter",
             help="Start a Jupyter slurm job. Uses SBATCH options defined in settings.py under "
@@ -237,14 +242,6 @@ def main():
             help="Detect experiments where the corresponding Slurm jobs were killed externally.")
     parser_detect.set_defaults(func=detect_killed)
 
-    parser_clean_db = subparsers.add_parser(
-            "clean-db",
-            help="Remove orphaned artifacts in the DB from runs which have been deleted.")
-    parser_clean_db.add_argument(
-            '-a', '--all-collections', action='store_true',
-            help="Scan all collections for orphaned artifacts (not just the one provided in the config).")
-    parser_clean_db.set_defaults(func=clean_unreferenced_artifacts)
-
     for subparser in [parser_start, parser_launch_worker, parser_print_command,
                       parser_cancel, parser_delete, parser_reset]:
         subparser.add_argument(
@@ -284,6 +281,9 @@ def main():
         if command.func in [mongodb_credentials_prompt, start_jupyter_job, parser.print_usage]:
             # No collection name required
             del command.db_collection_name
+        elif command.func in [clean_unreferenced_artifacts]:
+            # Here the db_collection_name **can** be passed but does not have to.
+            pass
         elif not command.db_collection_name:
             parser.error("the following arguments are required: db_collection_name")
 

@@ -5,7 +5,7 @@ import logging
 import importlib
 import gridfs
 
-from seml.database import upload_file
+from seml.database import upload_file, delete_files
 from seml.errors import ExecutableError, MongoDBError
 from seml.settings import SETTINGS
 
@@ -175,7 +175,6 @@ def delete_orphaned_sources(collection, batch_ids=None):
 
 def delete_batch_sources(collection, batch_id):
     db = collection.database
-    fs = gridfs.GridFS(db)
     filter_dict = {'metadata.batch_id': batch_id,
                    'metadata.collection_name': f'{collection.name}'}
     source_files = db['fs.files'].find(filter_dict, {'_id'})
@@ -183,5 +182,4 @@ def delete_batch_sources(collection, batch_id):
     if len(source_files) > 0:
         logging.info(f"Deleting {len(source_files)} source files corresponding "
                      f"to batch {batch_id} in collection {collection.name}.")
-        for to_delete in source_files:
-            fs.delete(to_delete)
+        delete_files(db, source_files)
