@@ -4,7 +4,7 @@ install_requires = [
     "numpy>=1.15",
     "pymongo>=3.7",
     "pandas",
-    "sacred>=0.8.1",
+    "sacred>=0.8.0",
     "pyyaml>=5.1",
     "jsonpickle>=1.2, <2.0",
     "munch>=2.0.4",
