@@ -393,7 +393,7 @@ class MattermostObserver(RunObserver):
         if self.convert_utc_to_local_timezone:
             fail_time = to_local_timezone(fail_time)
 
-        self.run["fail_trace"] = fail_trace
+        self.run["fail_trace"] = '\n'.join(fail_trace)
         self.run["error"] = fail_trace[-1].strip()
         self.run["fail_time"] = fail_time
         self.run["elapsed_time"] = td_format(fail_time - self.run["start_time"])
