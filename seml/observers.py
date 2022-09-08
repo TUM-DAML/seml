@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 import re
 import os
 
-from seml.database import get_mongodb_config
+from seml.database import get_mongo_client, get_mongodb_config
 from seml.settings import SETTINGS
 
 __all__ = ['create_mongodb_observer', 'create_slack_observer', 'create_neptune_observer',
@@ -38,17 +38,12 @@ def create_mongodb_observer(collection,
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
 
-    db_name = urllib.parse.quote(mongodb_config['db_name'])
-    db_username = urllib.parse.quote(mongodb_config['username'])
-    db_password = urllib.parse.quote(mongodb_config['password'])
-    db_port = urllib.parse.quote(mongodb_config['port'])
-    db_host = urllib.parse.quote(mongodb_config['host'])
-    observer = MongoObserver.create(
-        url=f'mongodb://{db_username}:{db_password}@{db_host}:{db_port}/{db_name}?authMechanism=SCRAM-SHA-1',
-        db_name=db_name,
+    observer = MongoObserver(
+        client=get_mongo_client(**mongodb_config),
         collection=collection,
-        overwrite=overwrite)
-
+        db_name=mongodb_config['db_name'],
+        overwrite=overwrite,
+    )
     return observer
 
 

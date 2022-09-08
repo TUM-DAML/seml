@@ -19,9 +19,14 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
     return db[collection_name]
 
 
-def get_database(db_name, host, port, username, password):
-    db = pymongo.MongoClient(host, int(port), username=username,
-                             password=password, authSource=db_name)[db_name]
+def get_mongo_client(db_name, host, port, username, password, **kwargs):
+    client = pymongo.MongoClient(host, int(port), username=username, password=password,
+                             authSource=db_name, **kwargs)
+    return client
+
+
+def get_database(db_name, host, port, username, password, **kwargs):
+    db = get_mongo_client(db_name, host, port, username, password, **kwargs)[db_name]
     return db
 
 
@@ -34,6 +39,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
         - database name
         - username
         - password
+        - directConnection
 
     Default path is $HOME/.config/seml/mongodb.config.
 
@@ -43,6 +49,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     port: <port>
     database: <database_name>
     host: <host>
+    directConnection: <bool> (Optional)
 
     Returns
     -------
@@ -76,8 +83,10 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     db_host = access_dict['host']
     db_username = access_dict['username']
     db_password = access_dict['password']
+    # False is the default value for PyMongo > 4.0
+    db_direct = access_dict['directConnection'] == 'True' if 'directConnection' in access_dict else False
 
-    return {'password': db_password, 'username': db_username, 'host': db_host, 'db_name': db_name, 'port': db_port}
+    return {'password': db_password, 'username': db_username, 'host': db_host, 'db_name': db_name, 'port': db_port, 'directConnection': db_direct}
 
 
 def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
