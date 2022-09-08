@@ -9,6 +9,7 @@ import re
 import os
 
 from seml.database import get_mongo_client, get_mongodb_config
+from seml.json import NumpyEncoder
 from seml.settings import SETTINGS
 
 __all__ = ['create_mongodb_observer', 'create_slack_observer', 'create_neptune_observer',
@@ -348,7 +349,7 @@ class MattermostObserver(RunObserver):
         if self.convert_utc_to_local_timezone:
             stop_time = to_local_timezone(stop_time)
 
-        self.run["result"] = json.dumps(result, indent=4, default=json_util.default)
+        self.run["result"] = json.dumps(result, indent=4, cls=NumpyEncoder)
         self.run["stop_time"] = stop_time
         self.run["elapsed_time"] = td_format(stop_time - self.run["start_time"])
 
