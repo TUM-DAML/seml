@@ -5,7 +5,7 @@ import logging
 from seml.database import get_max_in_collection, get_collection
 from seml.config import remove_prepended_dashes, read_config, generate_configs, check_config
 from seml.sources import upload_sources, get_git_info
-from seml.utils import merge_dicts, s_if, make_hash
+from seml.utils import merge_dicts, s_if, make_hash, flatten
 from seml.settings import SETTINGS
 from seml.errors import ConfigError
 
@@ -40,10 +40,7 @@ def filter_experiments(collection, configurations):
             del config['config_hash']
             lookup_result = collection.find_one({'config_hash': config_hash})
         else:
-            lookup_dict = {
-                f'config.{key}': value for key, value in config.items()
-            }
-
+            lookup_dict = flatten({'config': config})
             lookup_result = collection.find_one(lookup_dict)
 
         if lookup_result is None:
@@ -110,7 +107,7 @@ def add_configs(collection, seml_config, slurm_config, configs, source_files=Non
     collection.insert_many(db_dicts)
 
 
-def add_experiments(db_collection_name, config_file, force_duplicates, no_hash=False, no_sanity_check=False,
+def add_experiments(db_collection_name, config_file, force_duplicates, overwrite_params=None, no_hash=False, no_sanity_check=False,
                     no_code_checkpoint=False):
     """
     Add configurations from a config file into the database.
@@ -120,6 +117,7 @@ def add_experiments(db_collection_name, config_file, force_duplicates, no_hash=F
     db_collection_name: the MongoDB collection name.
     config_file: path to the YAML configuration.
     force_duplicates: if True, disable duplicate detection.
+    overwrite_params: optional flat dictionary to overwrite parameters in all configs.
     no_hash: if True, disable hashing of the configurations for duplicate detection. This is much slower, so use only
         if you have a good reason to.
     no_sanity_check: if True, do not check the config for missing/unused arguments.
@@ -149,7 +147,7 @@ def add_experiments(db_collection_name, config_file, force_duplicates, no_hash=F
                 slurm_config['sbatch_options'][k] = v
 
     slurm_config['sbatch_options'] = remove_prepended_dashes(slurm_config['sbatch_options'])
-    configs = generate_configs(experiment_config)
+    configs = generate_configs(experiment_config, overwrite_params=overwrite_params)
     collection = get_collection(db_collection_name)
 
     batch_id = get_max_in_collection(collection, "batch_id")

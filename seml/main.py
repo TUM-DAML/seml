@@ -4,9 +4,8 @@ import json
 import logging
 
 from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
-                         mongodb_credentials_prompt)
+                         mongodb_credentials_prompt, reload_sources)
 from seml.add import add_experiments
-from seml.sources import reload_sources
 from seml.start import start_experiments, start_jupyter_job, print_command
 from seml.database import clean_unreferenced_artifacts
 from seml.utils import LoggingFormatter
@@ -37,6 +36,17 @@ def parse_args(parser, commands):
     return commands
 
 
+class ParameterAction(argparse.Action):
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, {
+            value.split('=')[0]: eval('='.join(value.split('=')[1:]))
+            for value in values
+        })
+
+
 def main():
     parser = argparse.ArgumentParser(
             description="Manage experiments for the given configuration. "
@@ -53,6 +63,11 @@ def main():
             help='Display more log messages.')
 
     subparsers = parser.add_subparsers(title="Possible operations")
+
+    parser_clean_db = subparsers.add_parser(
+            "clean-db",
+            help="Remove orphaned artifacts in the DB from runs which have been deleted.")
+    parser_clean_db.set_defaults(func=clean_unreferenced_artifacts)
 
     parser_jupyter = subparsers.add_parser(
             "jupyter",
@@ -99,6 +114,11 @@ def main():
             '-f', '--force-duplicates', action='store_true',
             help="Add experiments to the database even when experiments with identical configurations "
                  "are already in the database.")
+    parser_add.add_argument(
+            '-o', '--overwrite-params', action=ParameterAction, nargs='+', default={},
+            help="Specifies parameters that overwrite their respective values in all configs."
+                 "Format: <param>=<value>, use flat dictionary notation with key1.key2=value."
+    )
     parser_add.set_defaults(func=add_experiments)
 
     parser_start = subparsers.add_parser(
@@ -222,14 +242,6 @@ def main():
             help="Detect experiments where the corresponding Slurm jobs were killed externally.")
     parser_detect.set_defaults(func=detect_killed)
 
-    parser_clean_db = subparsers.add_parser(
-            "clean-db",
-            help="Remove orphaned artifacts in the DB from runs which have been deleted.")
-    parser_clean_db.add_argument(
-            '-a', '--all-collections', action='store_true',
-            help="Scan all collections for orphaned artifacts (not just the one provided in the config).")
-    parser_clean_db.set_defaults(func=clean_unreferenced_artifacts)
-
     for subparser in [parser_start, parser_launch_worker, parser_print_command,
                       parser_cancel, parser_delete, parser_reset]:
         subparser.add_argument(
@@ -269,10 +281,16 @@ def main():
         if command.func in [mongodb_credentials_prompt, start_jupyter_job, parser.print_usage]:
             # No collection name required
             del command.db_collection_name
+        elif command.func in [clean_unreferenced_artifacts]:
+            # Here the db_collection_name **can** be passed but does not have to.
+            pass
         elif not command.db_collection_name:
             parser.error("the following arguments are required: db_collection_name")
 
         f = command.func
+        # If we chain commands we should wait until jobs are properly cancelled
+        if f == cancel_experiments and len(commands) > 1:
+            command.wait = True
         del command.func
         del command.verbose
         if 'filter_states' in command:

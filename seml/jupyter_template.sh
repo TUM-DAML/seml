@@ -17,5 +17,4 @@ fi
 
 # Fixes Jupyter bug with read/write permissions https://github.com/jupyter/notebook/issues/1318
 export XDG_RUNTIME_DIR=""
-hostname_array=($(hostname --all-fqdn))
-jupyter{notebook_or_lab} --no-browser --ip=${{hostname_array[0]}}
+jupyter{notebook_or_lab} --no-browser --ip="*"

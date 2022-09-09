@@ -79,10 +79,10 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
         raise ConfigError(f"No type found in parameter {parameter}")
     return_items = []
     allowed_keys = ['seed', 'type']
-    if seed is not None:
-        np.random.seed(seed)
-    elif 'seed' in parameter:
+    if 'seed' in parameter:
         np.random.seed(parameter['seed'])
+    elif seed is not None:
+        np.random.seed(seed)
 
     param_type = parameter['type']
 
@@ -179,7 +179,7 @@ def generate_grid(parameter, parent_key=''):
     elif param_type == "range":
         min_val = parameter['min']
         max_val = parameter['max']
-        step = int(parameter['step'])
+        step = parameter['step']
         allowed_keys.extend(['min', 'max', 'step'])
         values = list(np.arange(min_val, max_val, step))
         return_items.append((parent_key, values))

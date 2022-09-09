@@ -1,2 +1,8 @@
+include README.md
+include LICENSE
+
+recursive-exclude test *
+recursive-exclude examples *
+
 include seml/slurm_template.sh
 include seml/jupyter_template.sh

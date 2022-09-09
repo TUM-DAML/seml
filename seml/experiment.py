@@ -82,7 +82,10 @@ def collect_exp_stats(run):
                     stats['tensorflow']['gpu_max_memory_bytes'] = int(sess.run(tf.contrib.memory_stats.MaxBytesInUse()))
         else:
             if len(tf.config.experimental.list_physical_devices('GPU')) >= 1:
-                logging.info("SEML stats: There is currently no way to get actual GPU memory usage in TensorFlow 2.")
+                if int(tf.__version__.split('.')[1]) >= 5:
+                    stats['tensorflow']['gpu_max_memory_bytes'] = tf.config.experimental.get_memory_info('GPU:0')['peak']
+                else:
+                    logging.info("SEML stats: There is no way to get actual peak GPU memory usage in TensorFlow 2.0-2.4.")
 
     collection = get_collection(run.config['db_collection'])
     collection.update_one(

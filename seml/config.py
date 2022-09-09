@@ -12,7 +12,7 @@ from itertools import combinations
 
 from seml.sources import import_exe
 from seml.parameters import zipped_dict, sample_random_configs, generate_grid, cartesian_product_zipped_dict
-from seml.utils import merge_dicts, flatten, unflatten
+from seml.utils import Hashabledict, merge_dicts, flatten, unflatten
 from seml.errors import ConfigError, ExecutableError
 from seml.settings import SETTINGS
 
@@ -134,7 +134,7 @@ def detect_duplicate_parameters(inverted_config: dict, sub_config_name: str = No
                 raise ConfigError(error_str.format(p1=p1, p2=p2))
 
 
-def generate_configs(experiment_config):
+def generate_configs(experiment_config, overwrite_params=None):
     """Generate parameter configurations based on an input configuration.
 
     Input is a nested configuration where on each level there can be 'fixed', 'grid', and 'random' parameters.
@@ -156,6 +156,8 @@ def generate_configs(experiment_config):
     experiment_config: dict
         Dictionary that specifies the "search space" of parameters that will be enumerated. Should be
         parsed from a YAML file.
+    overwrite_params: Optional[dict]
+        Flat dictionary that overwrites configs. Resulting duplicates will be removed.
 
     Returns
     -------
@@ -236,6 +238,16 @@ def generate_configs(experiment_config):
     all_configs = [{k: int(v) if isinstance(v, np.integer) else v
                     for k, v in config.items()}
                    for config in all_configs]
+
+    if overwrite_params is not None:
+        all_configs = [merge_dicts(config, overwrite_params) for config in all_configs]
+        base_length = len(all_configs)
+        # We use a dictionary instead a set because dictionary keys are ordered as of Python 3
+        all_configs = list({Hashabledict(**config): None for config in all_configs})
+        new_length = len(all_configs)
+        if base_length != new_length:
+            diff = base_length - new_length
+            logging.warn(f'Parameter overwrite caused {diff} identical configs. Duplicates were removed.')
 
     all_configs = [unflatten(conf) for conf in all_configs]
     return all_configs

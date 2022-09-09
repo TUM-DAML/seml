@@ -1,7 +1,8 @@
+from copy import deepcopy
 import logging
 import json
 import jsonpickle
-from tqdm.autonotebook import tqdm
+from tqdm.auto import tqdm
 
 from seml.database import get_collection
 from seml.settings import SETTINGS
@@ -64,6 +65,7 @@ def get_results(db_collection_name, fields=None,
     if len(states) > 0:
         if 'status' in filter_dict:
             logging.warning("'states' argument is not empty and will overwrite 'filter_dict['status']'.")
+        filter_dict = deepcopy(filter_dict)
         filter_dict['status'] = {'$in': states}
 
     cursor = collection.find(filter_dict, fields)
@@ -77,5 +79,5 @@ def get_results(db_collection_name, fields=None,
     else:
         parsed = [parse_jsonpickle(entry) for entry in tqdm(results)]
     if to_data_frame:
-        parsed = pd.io.json.json_normalize(parsed, sep='.')
+        parsed = pd.json_normalize(parsed, sep='.')
     return parsed

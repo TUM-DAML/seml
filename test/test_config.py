@@ -17,6 +17,7 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_WITH_ALL_TYPES = "resources/config/config_with_all_types.yaml"
     CONFIG_WITH_EMPTY_DICT = "resources/config/config_with_empty_dictionary.yaml"
     CONFIG_WITH_ZIPPED_PARAMETERS = "resources/config/config_with_zipped_parameters.yaml"
+    CONFIG_WITH_GRID = "resources/config/config_with_grid.yaml"
 
     def load_config_dict(self, path):
         with open(path, 'r') as conf:
@@ -81,6 +82,23 @@ class TestParseConfigDicts(unittest.TestCase):
             }
         }
         self.assertEqual(configs, expected_config)
+    
+    def test_overwrite_parameters(self):
+        config_dict = self.load_config_dict(self.CONFIG_WITH_GRID)
+        configs = config.generate_configs(config_dict, {
+            'dataset': 'small'
+        })
+        expected_configs = [
+            {
+                'dataset': 'small',
+                'lr': 0.1
+            },
+            {
+                'dataset': 'small',
+                'lr': 0.01
+            }
+        ]
+        self.assertEqual(configs, expected_configs)
 
     def test_zipped_parameters(self):
         config_dict = self.load_config_dict(self.CONFIG_WITH_ZIPPED_PARAMETERS)

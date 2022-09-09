@@ -83,7 +83,10 @@ SETTINGS = munchify(
 
         "CONFIRM_CANCEL_THRESHOLD": 10,
         "CONFIRM_DELETE_THRESHOLD": 10,
-        "CONFIRM_RESET_THRESHOLD": 10
+        "CONFIRM_RESET_THRESHOLD": 10,
+
+        "SETUP_COMMAND": "",
+        "END_COMMAND": "",
     },
 )
 

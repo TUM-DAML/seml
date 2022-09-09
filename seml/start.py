@@ -11,7 +11,7 @@ from pathlib import Path
 import time
 import copy
 import uuid
-from tqdm.autonotebook import tqdm
+from tqdm.auto import tqdm
 
 from seml.database import get_collection, build_filter_dict
 from seml.sources import load_sources_from_db
@@ -20,13 +20,23 @@ from seml.network import find_free_port
 from seml.settings import SETTINGS
 from seml.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.errors import ConfigError, ArgumentError, MongoDBError
+from seml.json import PythonEncoder
 
 States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
 
 
+def value_to_string(value, use_json=False):
+    # We need the json encoding for vscode due to https://github.com/microsoft/vscode/issues/91578
+    # Once this bug has been fixed we should only rely on `repr` and remove this code.
+    if use_json:
+        return PythonEncoder().encode(value)
+    else:
+        return repr(value)
+
+
 def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
-                         post_mortem=False, debug=False, debug_server=False, print_info=True):
+                         post_mortem=False, debug=False, debug_server=False, print_info=True, use_json=False):
     if 'executable' not in exp['seml']:
         raise MongoDBError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
@@ -39,7 +49,7 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     # We encode values with `repr` such that we can decode them with `eval`. While `shlex.quote`
     # may cause messy commands with lots of single quotes JSON doesn't match Python 1:1, e.g.,
     # boolean values are lower case in JSON (true, false) but start with capital letters in Python.
-    config_strings = [f"{key}={repr(val)}" for key, val in config.items()]
+    config_strings = [f"{key}={value_to_string(val, use_json)}" for key, val in config.items()]
 
     if not verbose:
         config_strings.append("--force")
@@ -62,19 +72,19 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     return interpreter, exe, config_strings
 
 
-def get_cfg_overrides(config):
+def get_config_overrides(config):
     return " ".join(map(shlex.quote, config))
 
 
 def get_shell_command(interpreter, exe, config, env: dict=None):
-    cfg_overrides = get_cfg_overrides(config)
+    config_overrides = get_config_overrides(config)
 
     if env is None or len(env) == 0:
-        return f"{interpreter} {exe} with {cfg_overrides}"
+        return f"{interpreter} {exe} with {config_overrides}"
     else:
         env_overrides = " ".join(f"{key}={shlex.quote(val)}" for key, val in env.items())
 
-        return f"{env_overrides} {interpreter} {exe} with {cfg_overrides}"
+        return f"{env_overrides} {interpreter} {exe} with {config_overrides}"
 
 
 def get_output_dir_path(config):
@@ -199,26 +209,40 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
     else:
         working_dir = "${{SLURM_SUBMIT_DIR}}"
 
+    variables = {
+        'sbatch_options': sbatch_options_str,
+        'working_dir': working_dir,
+        'use_conda_env': str(use_conda_env).lower(),
+        'conda_env': exp_array[0][0]['seml']['conda_environment'] if use_conda_env else "",
+        'exp_ids': ' '.join(expid_strings),
+        'with_sources': str(with_sources).lower(),
+        'prepare_experiment_script': prepare_experiment_script,
+        'db_collection_name': collection.name,
+        'sources_argument': "--stored-sources-dir $tmpdir" if with_sources else "",
+        'verbose': logging.root.level <= logging.VERBOSE,
+        'unobserved': unobserved,
+        'debug_server': debug_server,
+    }
+    setup_command = SETTINGS['SETUP_COMMAND'].format(**variables)
+    end_command = SETTINGS['END_COMMAND'].format(**variables)
+
     script = template.format(
-            sbatch_options=sbatch_options_str,
-            working_dir=working_dir,
-            use_conda_env=str(use_conda_env).lower(),
-            conda_env=exp_array[0][0]['seml']['conda_environment'] if use_conda_env else "",
-            exp_ids=' '.join(expid_strings),
-            with_sources=str(with_sources).lower(),
-            prepare_experiment_script=prepare_experiment_script,
-            db_collection_name=collection.name,
-            sources_argument="--stored-sources-dir $tmpdir" if with_sources else "",
-            verbose=logging.root.level <= logging.VERBOSE,
-            unobserved=unobserved,
-            debug_server=debug_server,
+            setup_command=setup_command,
+            end_command=end_command,
+            **variables,
     )
 
     path = f"/tmp/{uuid.uuid4()}.sh"
     with open(path, "w") as f:
         f.write(script)
 
-    output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    try:
+        output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Could not start Slurm job via sbatch. Here's the sbatch error message:\n"
+                      f"{e.stderr.decode('utf-8')}")
+        os.remove(path)
+        exit(1)
 
     slurm_array_job_id = int(output.split(b' ')[-1])
     for task_id, chunk in enumerate(exp_array):
@@ -274,8 +298,12 @@ def start_srun_job(collection, exp, unobserved=False,
     cmd_args += ' '.join(seml_arguments)
 
     cmd = (f"srun{srun_options_str} seml {collection.name} start {cmd_args}")
-    subprocess.run(cmd, shell=True, check=True)
-
+    try:
+        subprocess.run(cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Could not start Slurm job via srun. Here's the sbatch error message:\n"
+                      f"{e.stderr.decode('utf-8')}")
+        exit(1)
 
 def start_local_job(collection, exp, unobserved=False, post_mortem=False,
                     output_dir_path='.', output_to_console=False, debug_server=False):
@@ -695,6 +723,9 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
     _, exe, config = get_command_from_exp(exp, collection.name,
                                           verbose=logging.root.level <= logging.VERBOSE,
                                           unobserved=True, post_mortem=False)
+    _, exe, vscode_config = get_command_from_exp(exp, collection.name,
+                                                 verbose=logging.root.level <= logging.VERBOSE,
+                                                 unobserved=True, post_mortem=False, use_json=True)
     env = exp['seml'].get('conda_environment')
 
     logging.info("********** First experiment **********")
@@ -703,9 +734,9 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
         logging.info(f"Anaconda environment: {env}")
 
     logging.info("\nArguments for VS Code debugger:")
-    logging.info(json.dumps(["with", "--debug"] + config))
+    logging.info(json.dumps(["with", "--debug"] + vscode_config))
     logging.info("Arguments for PyCharm debugger:")
-    logging.info("with --debug " + get_cfg_overrides(config))
+    logging.info("with --debug " + get_config_overrides(config))
 
     logging.info("\nCommand for post-mortem debugging:")
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
@@ -821,7 +852,13 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     with open(path, "w") as f:
         f.write(script)
 
-    output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    try:
+        output = subprocess.run(f'sbatch {path}', shell=True, check=True, capture_output=True).stdout
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Could not start Slurm job via sbatch. Here's the sbatch error message:\n"
+                      f"{e.stderr.decode('utf-8')}")
+        os.remove(path)
+        exit(1)
     os.remove(path)
 
     slurm_array_job_id = int(output.split(b' ')[-1])
@@ -849,16 +886,46 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
 
     logging.info("Slurm job is running. Jupyter instance is starting up...")
     log_file_contents = ""
+    # Obtain list of hostnames to addresses
+    hosts = subprocess.run(f'sinfo -h -o "%N|%o"', shell=True, check=True, capture_output=True).stdout
+    hosts = {
+        h.split('|')[0] : h.split('|')[1]
+        for h in hosts.decode('utf-8').split('\n')
+        if len(h) > 1
+    }
+    # Wait until jupyter is running
     while " is running at" not in log_file_contents:
         if os.path.exists(log_file):
             with open(log_file, "r") as f:
                 log_file_contents = f.read()
         time.sleep(0.5)
+    # Determine hostname
+    JUPYTER_LOG_HOSTNAME_PREFIX = "SLURM assigned me the node(s): "
+    hostname = [
+        x
+        for x in log_file_contents.split("\n") 
+        if JUPYTER_LOG_HOSTNAME_PREFIX in x
+    ][0].split(':')[1].strip()
+    if hostname in hosts:
+        hostname = hosts[hostname]
+    else:
+        logging.warning(f"Host '{hostname}' unknown to SLURM.")
+    # Obtain general URL
     log_file_split = log_file_contents.split("\n")
     url_lines = [x for x in log_file_split if "http" in x]
-    url = url_lines[0].split(" ")[3]
-    url = url.replace("https://", "")
-    url = url.replace("http://", "")
-    url = url.rstrip('/')
-    logging.info(f"Start-up completed. The Jupyter instance is running at '{url}'.")
+    url = url_lines[0].split(" ")
+    url_str = None
+    for s in url:
+        if s.startswith("http://") or s.startswith("https://"):
+            url_str = s
+            break
+    if url_str is None:
+        logging.error(f"Could not fetch the host and port of the Jupyter instance. Here's the raw output: \n"
+                      f"{log_file_contents}")
+        exit(1)
+    url_str = hostname + ":" + url_str.split(":")[-1]
+    url_str = url_str.rstrip('/')
+    if url_str.endswith("/lab"):
+        url_str = url_str[:-4]
+    logging.info(f"Start-up completed. The Jupyter instance is running at '{url_str}'.")
     logging.info(f"To stop the job, run 'scancel {slurm_array_job_id}'.")

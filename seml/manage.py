@@ -1,11 +1,16 @@
+import itertools
 import logging
+import os
 import subprocess
 import datetime
 from getpass import getpass
 import copy
+import time
+import gridfs
 
+from seml.config import check_config
 from seml.database import get_collection, build_filter_dict
-from seml.sources import delete_orphaned_sources
+from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.utils import s_if, chunker
 from seml.settings import SETTINGS
 from seml.errors import ArgumentError, MongoDBError
@@ -35,7 +40,7 @@ def report_status(db_collection_name):
     logging.info("*" * len(title))
 
 
-def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict=None):
+def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict=None, wait=False):
     exp = collection.find_one({'_id': exp_id})
     if slurm_dict:
         exp['slurm'].update(slurm_dict)
@@ -51,10 +56,10 @@ def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict
 
         try:
             # Check if job exists
-            subprocess.run(f"scontrol show jobid -dd {job_str}", shell=True, check=True)
+            subprocess.run(f"scontrol show jobid -dd {job_str}", shell=True, check=True, stdout=subprocess.DEVNULL)
             if set_interrupted:
                 # Set the database state to INTERRUPTED
-                collection.update_one({'_id': exp_id}, {'$set': {'status': {"$in": States.INTERRUPTED}}})
+                collection.update_one({'_id': exp_id}, {'$set': {'status': States.INTERRUPTED[0]}})
 
             # Check if other experiments are running in the same job
             other_exps_filter = filter_dict.copy()
@@ -65,10 +70,14 @@ def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict
             # Cancel if no other experiments are running in the same job
             if not other_exp_running:
                 subprocess.run(f"scancel {job_str}", shell=True, check=True)
+                # Wait until the job is actually gone
+                if wait:
+                    while len(subprocess.run(f"squeue -h -o '%A' -j{job_str}", shell=True, check=True, capture_output=True).stdout) > 0:
+                        time.sleep(0.5)
                 if set_interrupted:
                     # set state to interrupted again (might have been overwritten by Sacred in the meantime).
                     collection.update_many(filter_dict,
-                                           {'$set': {'status': {'$in': States.INTERRUPTED},
+                                           {'$set': {'status': States.INTERRUPTED[0],
                                                      'stop_time': datetime.datetime.utcnow()}})
 
         except subprocess.CalledProcessError:
@@ -78,7 +87,7 @@ def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict
         logging.error(f"No experiment found with ID {exp_id}.")
 
 
-def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes):
+def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes, wait=False):
     """
     Cancel experiments.
 
@@ -145,8 +154,16 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             # cancel all Slurm jobs for which no running experiment remains.
             if len(to_cancel) > 0:
                 chunk_size = 100
-                chunks = chunker(list(to_cancel), chunk_size)
+                chunks = list(chunker(list(to_cancel), chunk_size))
                 [subprocess.run(f"scancel {' '.join(chunk)}", shell=True, check=True) for chunk in chunks]
+                # Wait until all jobs are actually stopped.
+                if wait:
+                    for chunk in chunks:
+                        while len(subprocess.run(f"squeue -h -o '%A' --jobs={','.join(chunk)}", 
+                                                 shell=True, 
+                                                 check=True, 
+                                                 capture_output=True).stdout) > 0:
+                            time.sleep(0.5)
 
             # update database status and write the stop_time
             collection.update_many(filter_dict, {'$set': {"status": States.INTERRUPTED[0],
@@ -158,11 +175,13 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         if SETTINGS.CONFIRM_CANCEL_THRESHOLD <= 1:
             if not yes and input('Are you sure? (y/n)').lower() != 'y':
                 exit()
-        cancel_experiment_by_id(collection, sacred_id)
+        cancel_experiment_by_id(collection, sacred_id, wait=wait)
 
 
 def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
     collection = get_collection(db_collection_name)
+    experiment_files_to_delete = []
+
     if sacred_id is None:
         if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
             detect_killed(db_collection_name, print_detected=False)
@@ -176,6 +195,11 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         if ndelete >= SETTINGS.CONFIRM_DELETE_THRESHOLD:
             if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
                 exit()
+        
+        # Collect sources uploaded by sacred.
+        exp_sources_list = collection.find(filter_dict, {'experiment.sources': 1, 'artifacts': 1})
+        for exp in exp_sources_list:
+            experiment_files_to_delete.extend(get_experiment_files(exp))
         collection.delete_many(filter_dict)
     else:
         exp = collection.find_one({'_id': sacred_id})
@@ -187,7 +211,15 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
                 if not yes and input('Are you sure? (y/n)').lower() != 'y':
                     exit()
             batch_ids_in_del = set([exp['batch_id']])
+
+            # Collect sources uploaded by sacred.
+            exp = collection.find_one({'_id': sacred_id}, {'experiment.sources': 1, 'artifacts': 1})
+            experiment_files_to_delete.extend(get_experiment_files(exp))
             collection.delete_one({'_id': sacred_id})
+
+    # Delete sources uploaded by sacred.
+    delete_files(collection.database, experiment_files_to_delete)
+    logging.info(f"Deleted {len(experiment_files_to_delete)} files associated with deleted experiments.")
 
     if len(batch_ids_in_del) > 0:
         # clean up the uploaded sources if no experiments of a batch remain
@@ -335,6 +367,17 @@ def get_slurm_arrays_tasks(filter_by_user=False):
         return {}
 
 
+def get_experiment_files(experiment):
+    experiment_files = []
+    if 'experiment' in experiment:
+        if 'sources' in experiment['experiment']:
+            exp_sources = experiment['experiment']['sources']
+            experiment_files.extend([x[1] for x in exp_sources])
+    if 'artifacts' in experiment:
+        experiment_files.extend([x['file_id'] for x in experiment['artifacts']])
+    return experiment_files
+
+
 def get_nonempty_input(field_name, num_trials=3):
     get_input = getpass if "password" in field_name else input
     field = get_input(f"Please input the {field_name}: ")
@@ -368,3 +411,89 @@ def mongodb_credentials_prompt():
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, 'w') as f:
         f.write(config_string)
+
+
+def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False):
+    collection = get_collection(db_collection_name)
+    
+    if batch_ids is not None:
+        filter_dict = {'batch_id': {'$in': list(batch_ids)}}
+    else:
+        filter_dict = {}
+    db_results = list(collection.find(filter_dict, {'batch_id', 'seml', 'config', 'status'}))
+    id_to_config = {
+        bid: (next(iter(configs))['seml'], [x['config'] for x in configs])
+        for bid, configs in
+        itertools.groupby(db_results, lambda x: x['batch_id'])
+    }
+    states = {x['status'] for x in db_results}
+
+    if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
+        logging.info(f'Some of the experiments is still in RUNNING, PENDING or COMPLETED.')
+        if not yes and input(f'Are you sure you want to continue? (y/n)').lower() != 'y':
+            exit()
+
+    for batch_id, (seml_config, configs) in id_to_config.items():
+        if 'working_dir' not in seml_config or not seml_config['working_dir']:
+            logging.error(f'Batch {batch_id}: No source files to refresh.')
+            continue
+        # Cache the old working directory and move to the specified one
+        cwd = os.getcwd()
+        os.chdir(seml_config['working_dir'])
+
+        # Check whether the configurations aligns with the current source code
+        check_config(seml_config['executable'], seml_config['conda_environment'], configs)
+
+        # Find the currently used source files
+        db = collection.database
+        fs = gridfs.GridFS(db)
+        fs_filter_dict = {
+            'metadata.batch_id': batch_id,
+            'metadata.collection_name': f'{collection.name}',
+            'metadata.deprecated': {'$exists': False}
+        }
+        current_source_files = db['fs.files'].find(filter_dict, '_id')
+        current_ids = [x['_id'] for x in current_source_files]
+        fs_filter_dict = {
+            '_id': {'$in': current_ids}
+        }
+        # Deprecate them
+        db['fs.files'].update_many(fs_filter_dict, {'$set': {'metadata.deprecated': True}})
+        try:
+            # Try to upload the new ones
+            source_files = upload_sources(seml_config, collection, batch_id)
+        except Exception as e:
+            # If it fails we reconstruct the old ones
+            logging.error(f"Batch {batch_id}: Source import failed. Restoring old files.")
+            db['fs.files'].update_many(fs_filter_dict, {'$unset': {'metadata.deprecated': ""}})
+            raise e
+        try:
+            # Try to assign the new ones to the experiments
+            filter_dict = {
+                'batch_id': batch_id
+            }
+            collection.update_many(filter_dict, {
+                '$set': {
+                    'seml.source_files': source_files
+                }
+            })
+            logging.info(f'Batch {batch_id}: Successfully reloaded source code.')
+        except Exception as e:
+            logging.error(f'Batch {batch_id}: Failed to set new source files.')
+            # Delete new source files from DB
+            for to_delete in source_files:
+                fs.delete(to_delete[1])
+            raise e
+        
+        # Delete the old source files
+        if not keep_old:
+            fs_filter_dict = {
+                'metadata.batch_id': batch_id,
+                'metadata.collection_name': f'{collection.name}',
+                'metadata.deprecated': True
+            }
+            source_files = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
+            for to_delete in source_files:
+                fs.delete(to_delete)
+        # Move to the old working directory
+        os.chdir(cwd)
