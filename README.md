@@ -36,6 +36,10 @@ seml configure  # provide your MongoDB credentials
 ## Example
 See our simple [example](examples) to get familiar with how **`SEML`** works.
 
+## Slurm version
+
+SEML should work with Slurm 18.08 and above out of the box. Version 17.11 and earlier do not have a SIGNALING job state, which you have to remove from the SLURM_STATES defined in SEML's settings (`seml/settings.py`). Earlier versions have not been tested and might have other issues.
+
 ## Contact
 Contact us at zuegnerd@in.tum.de or klicpera@in.tum.de for any questions.
 
