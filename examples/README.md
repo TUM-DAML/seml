@@ -166,6 +166,8 @@ are:
                 `np.linspace(min, max, num, endpoint=True)`
    - `loguniform`: Specify `min`, `max`, and `num`. Parameter values will be uniformly generated in log space (base 10).
 
+Additionally, `grid` parameters might be coupled by setting the `zip_id` property. All parameters with the same `zip_id` are treated as a single dimension when constructing the cartesian product of parameters. This ensures that zipped parameters only change jointly.
+
 ### Random parameters
 Under 'random' you can specify parameters for which you want to try several random values. Specify the number
 of samples per parameter with the `samples` value and optionally the random seed with `seed` as in the examples below. Supported parameter types are:

@@ -32,6 +32,9 @@
 #   - uniform:    Specify the min, max, and num. Parameter values will be generated using
 #                 np.linspace(min, max, num, endpoint=True)
 #   - loguniform: Specify min, max, and num. Parameter values will be uniformly generated in log space (base 10).
+# Additionally, one may supply the 'zip_id' argument to zip multiple parameters to a single dimension.
+# This causes these parameters to only change jointly. All parameters within a group must have the same number of options.
+#
 #
 # Under 'random' you can specify parameters for which you want to try several random values. Specify the number
 # of samples per parameter with the 'samples' value as in the examples below.
@@ -82,6 +85,7 @@ grid:
     options:
       - variant_1
       - variant_2
+    zip_id: model_dataset  # The model_type jointly changes with all other parameters of the mode_dataset group
 
   optimization.regularization.weight_decay:
     type: loguniform
@@ -104,6 +108,7 @@ large_datasets:
       options:
         - large_dataset_1
         - large_dataset_2
+      zip_id: model_dataset # Use variant_1 for large_dataset_1 and variant_2 for large_dataset_2
 
     model.model_params.hidden_sizes:
       type: choice
@@ -119,6 +124,7 @@ small_datasets:
       options:
         - small_dataset_1
         - small_dataset_2
+      zip_id: model_dataset # Use variant_1 for small_dataset_1 and variant_2 for small_dataset_2
 
     model.model_params.hidden_sizes:
       type: choice

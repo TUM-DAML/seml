@@ -1,3 +1,4 @@
+import itertools
 import logging
 import numpy as np
 import yaml
@@ -10,7 +11,7 @@ import copy
 from itertools import combinations
 
 from seml.sources import import_exe
-from seml.parameters import sample_random_configs, generate_grid, cartesian_product_dict
+from seml.parameters import zipped_dict, sample_random_configs, generate_grid, cartesian_product_zipped_dict
 from seml.utils import Hashabledict, merge_dicts, flatten, unflatten
 from seml.errors import ConfigError, ExecutableError
 from seml.settings import SETTINGS
@@ -223,7 +224,8 @@ def generate_configs(experiment_config, overwrite_params=None):
 
         grids = [generate_grid(v, parent_key=k) for k, v in grid_params.items()]
         grid_configs = dict([sub for item in grids for sub in item])
-        grid_product = list(cartesian_product_dict(grid_configs))
+        grouped_configs = zipped_dict(grid_configs)
+        grid_product = list(cartesian_product_zipped_dict(grouped_configs))
 
         with_fixed = [{**d, **fixed_params} for d in grid_product]
         if len(random_params) > 0:

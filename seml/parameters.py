@@ -1,6 +1,9 @@
+import logging
 import random
 import itertools
+from typing import DefaultDict
 import numpy as np
+import uuid
 
 from seml.utils import unflatten
 from seml.errors import ConfigError
@@ -156,15 +159,15 @@ def generate_grid(parameter, parent_key=''):
 
     Returns
     -------
-    return_items: tuple(str, list)
-        Name of the parameter and list containing the grid values for this parameter.
+    return_items: tuple(str, tuple(list, str))
+        Name of the parameter and tuple with list containing the grid values for this parameter and zip id.
 
     """
     if "type" not in parameter:
         raise ConfigError(f"No type found in parameter {parameter}")
 
     param_type = parameter['type']
-    allowed_keys = ['type']
+    allowed_keys = ['type', 'zip_id']
 
     return_items = []
 
@@ -210,14 +213,52 @@ def generate_grid(parameter, parent_key=''):
             raise ConfigError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
                               f"{allowed_keys}. Unexpected keys: {extra_keys}")
 
+    zip_id = parameter['zip_id'] if 'zip_id' in parameter else uuid.uuid4()
+    return_items = [
+        (item[0], (item[1], zip_id))
+        for item in return_items
+    ]
     return return_items
 
 
-def cartesian_product_dict(input_dict):
-    """Compute the Cartesian product of the input dictionary values.
+def zipped_dict(input_dict):
+    """Zips dictionaries of type:
+    {
+        'element1': (values, zip_id),
+        ...
+    }
+    to
+    {
+        'zip_id1': {
+            'element1': values
+            'element2': values
+        },
+        ...
+    }
+
+    Args:
+        input_dict (dict[str, tuple(list, str)]): unzipped dictionary
+
+    Returns:
+        dict[str, dict[str, list]]: zipped dictionary
+    """
+    # Zip by zip_id attribute
+    zipped_dict = DefaultDict(dict)
+    for k, (val, zip_id) in input_dict.items():
+        zipped_dict[zip_id][k] = val
+    
+    # Check that parameters in within a bundle have the same number of configurations.
+    for k, bundle in zipped_dict.items():
+        if len({len(x) for x in bundle.values()}) != 1:
+            raise ConfigError(f"Parameters with zip_id '{k}' have different number of configurations!")
+    return zipped_dict
+
+
+def cartesian_product_zipped_dict(zipped_dict):
+    """Compute the Cartesian product of the ziped input dictionary values.
     Parameters
     ----------
-    input_dict: dict of lists
+    zipped_dict: dict of dicts of lists
 
     Returns
     -------
@@ -225,8 +266,14 @@ def cartesian_product_dict(input_dict):
         Cartesian product of the lists in the input dictionary.
 
     """
-
-    keys = input_dict.keys()
-    vals = input_dict.values()
-    for instance in itertools.product(*vals):
-        yield dict(zip(keys, instance))
+    zip_lengths = {
+        k: len(next(iter(bundle.values())))
+        for k, bundle in zipped_dict.items()
+    }
+    
+    for idx in itertools.product(*[range(k) for k in zip_lengths.values()]):
+        yield {
+            key: values[i] 
+            for zip_id, i in zip(zipped_dict, idx) 
+            for key, values in zipped_dict[zip_id].items()
+        }
