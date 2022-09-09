@@ -247,7 +247,7 @@ def generate_configs(experiment_config, overwrite_params=None):
         new_length = len(all_configs)
         if base_length != new_length:
             diff = base_length - new_length
-            logging.warn(f'Parameter overwrite caused {diff} identical configs. Duplicates were removed.')
+            logging.warning(f'Parameter overwrite caused {diff} identical configs. Duplicates were removed.')
 
     all_configs = [unflatten(conf) for conf in all_configs]
     return all_configs
