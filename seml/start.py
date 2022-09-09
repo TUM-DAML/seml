@@ -222,9 +222,10 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
         'verbose': logging.root.level <= logging.VERBOSE,
         'unobserved': unobserved,
         'debug_server': debug_server,
+        'tmp_directory': SETTINGS.TMP_DIRECTORY
     }
-    setup_command = SETTINGS['SETUP_COMMAND'].format(**variables)
-    end_command = SETTINGS['END_COMMAND'].format(**variables)
+    setup_command = SETTINGS.SETUP_COMMAND.format(**variables)
+    end_command = SETTINGS.END_COMMAND.format(**variables)
 
     script = template.format(
             setup_command=setup_command,
@@ -232,7 +233,7 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
             **variables,
     )
 
-    path = f"/tmp/{uuid.uuid4()}.sh"
+    path = os.path.join(SETTINGS.TMP_DIRECTORY, f'{uuid.uuid4()}.sh')
     with open(path, "w") as f:
         f.write(script)
 
@@ -349,7 +350,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
         slurm_config = exp['slurm']
 
         if use_stored_sources:
-            temp_dir = f"/tmp/{uuid.uuid4()}"
+            temp_dir = os.path.join(SETTINGS.TMP_DIRECTORY, str(uuid.uuid4()))
             os.mkdir(temp_dir, mode=0o700)
             load_sources_from_db(exp, collection, to_directory=temp_dir)
             env = {"PYTHONPATH": f"{temp_dir}:$PYTHONPATH"}
@@ -848,7 +849,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
             notebook_or_lab=" notebook" if not lab else "-lab",
     )
 
-    path = f"/tmp/{uuid.uuid4()}.sh"
+    path = os.path.join(SETTINGS.TMP_DIRECTORY, f'{uuid.uuid4()}.sh')
     with open(path, "w") as f:
         f.write(script)
 

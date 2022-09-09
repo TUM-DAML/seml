@@ -12,6 +12,9 @@ SETTINGS = munchify(
         # With this dict you can change anything that is set here, conveniently from your home directory.
         # Default: $HOME/.config/seml/settings.py
         "USER_SETTINGS_PATH": Path.home() / ".config/seml/settings.py",
+        # Directory which is used on the compute nodes to dump scripts and Python code.
+        # Only change this if you know what you're doing.
+        "TMP_DIRECTORY": "/tmp",
 
         "DATABASE": {
             # location of the MongoDB config. Default: $HOME/.config/seml/monogdb.config
