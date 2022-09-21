@@ -106,14 +106,14 @@ def add_configs(collection, seml_config, slurm_config, configs, source_files=Non
 
     collection.insert_many(db_dicts)
 
-def add_configs(db_collection_name, config_files, force_duplicates, overwrite_params=None, no_hash=False, no_sanity_check=False,
+def add_config_files(db_collection_name, config_files, force_duplicates, overwrite_params=None, no_hash=False, no_sanity_check=False,
                     no_code_checkpoint=False):
     config_files = [os.path.abspath(file) for file in config_files]
     for config_file in config_files:
-        add_experiments(db_collection_name, config_file, force_duplicates,
+        add_config_file(db_collection_name, config_file, force_duplicates,
                         overwrite_params, no_hash, no_sanity_check,no_code_checkpoint)
 
-def add_experiments(db_collection_name, config_file, force_duplicates, overwrite_params=None, no_hash=False, no_sanity_check=False,
+def add_config_file(db_collection_name, config_file, force_duplicates, overwrite_params=None, no_hash=False, no_sanity_check=False,
                     no_code_checkpoint=False):
     """
     Add configurations from a config file into the database.

@@ -5,7 +5,7 @@ import logging
 
 from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
                          mongodb_credentials_prompt, reload_sources)
-from seml.add import add_configs
+from seml.add import add_config_files
 from seml.start import start_experiments, start_jupyter_job, print_command
 from seml.database import clean_unreferenced_artifacts
 from seml.utils import LoggingFormatter
@@ -119,7 +119,7 @@ def main():
             help="Specifies parameters that overwrite their respective values in all configs."
                  "Format: <param>=<value>, use flat dictionary notation with key1.key2=value."
     )
-    parser_add.set_defaults(func=add_configs)
+    parser_add.set_defaults(func=add_config_files)
 
     parser_start = subparsers.add_parser(
             "start",
