@@ -1,7 +1,10 @@
 from collections.abc import Iterable
+from contextlib import contextmanager
+from pathlib import Path
 import logging
 import json
 import copy
+import os
 
 
 def s_if(n):
@@ -260,3 +263,12 @@ class LoggingFormatter(logging.Formatter):
 class Hashabledict(dict):
     def __hash__(self):
         return hash(json.dumps(self))
+
+@contextmanager
+def working_diretory(path: Path):
+    origin = Path().absolute()
+    try:
+        os.chdir(path)
+        yield
+    finally:
+        os.chdir(origin)

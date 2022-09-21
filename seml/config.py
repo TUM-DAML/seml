@@ -12,7 +12,7 @@ from itertools import combinations
 
 from seml.sources import import_exe
 from seml.parameters import zipped_dict, sample_random_configs, generate_grid, cartesian_product_zipped_dict
-from seml.utils import Hashabledict, merge_dicts, flatten, unflatten
+from seml.utils import Hashabledict, merge_dicts, flatten, unflatten, working_diretory
 from seml.errors import ConfigError, ExecutableError
 from seml.settings import SETTINGS
 
@@ -382,10 +382,7 @@ def read_config(config_path):
         if k not in SETTINGS.VALID_SEML_CONFIG_VALUES:
             raise ConfigError(f"{k} is not a valid value in the `seml` config block.")
 
-    set_executable_and_working_dir(config_path, seml_dict)
-
-    if 'output_dir' in seml_dict:
-        seml_dict['output_dir'] = str(Path(seml_dict['output_dir']).expanduser().resolve())
+    determine_executable_and_working_dir(config_path, seml_dict)
 
     if 'slurm' in config_dict:
         slurm_dict = config_dict['slurm']
@@ -400,7 +397,7 @@ def read_config(config_path):
         return seml_dict, None, config_dict
 
 
-def set_executable_and_working_dir(config_path, seml_dict):
+def determine_executable_and_working_dir(config_path, seml_dict):
     """
     Determine the working directory of the project and chdir into the working directory.
     Parameters
@@ -413,19 +410,18 @@ def set_executable_and_working_dir(config_path, seml_dict):
     None
     """
     config_dir = str(Path(config_path).expanduser().resolve().parent)
-
     working_dir = config_dir
-    os.chdir(working_dir)
     if "executable" not in seml_dict:
         raise ConfigError("Please specify an executable path for the experiment.")
     executable = seml_dict['executable']
-    executable_relative_to_config = os.path.exists(executable)
+    with working_diretory(working_dir):
+        executable_relative_to_config = os.path.exists(executable)
     executable_relative_to_project_root = False
     if 'project_root_dir' in seml_dict:
         working_dir = str(Path(seml_dict['project_root_dir']).expanduser().resolve())
         seml_dict['use_uploaded_sources'] = True
-        os.chdir(working_dir)  # use project root as base dir from now on
-        executable_relative_to_project_root = os.path.exists(executable)
+        with working_diretory(working_dir): # use project root as base dir from now on
+            executable_relative_to_project_root = os.path.exists(executable)
         del seml_dict['project_root_dir']  # from now on we use only the working dir
     else:
         seml_dict['use_uploaded_sources'] = False
@@ -433,9 +429,15 @@ def set_executable_and_working_dir(config_path, seml_dict):
     seml_dict['working_dir'] = working_dir
     if not (executable_relative_to_config or executable_relative_to_project_root):
         raise ExecutableError(f"Could not find the executable.")
-    executable = str(Path(executable).expanduser().resolve())
-    seml_dict['executable'] = (str(Path(executable).relative_to(working_dir)) if executable_relative_to_project_root
-                               else str(Path(executable).relative_to(config_dir)))
+    with working_diretory(working_dir):
+        executable = str(Path(executable).expanduser().resolve())
+        if executable_relative_to_project_root:
+            seml_dict['executable'] = str(Path(executable).relative_to(working_dir)) 
+        else:
+            seml_dict['executable'] = str(Path(executable).relative_to(config_dir))
+
+        if 'output_dir' in seml_dict:
+            seml_dict['output_dir'] = str(Path(seml_dict['output_dir']).expanduser().resolve())
 
 
 def remove_prepended_dashes(param_dict):
