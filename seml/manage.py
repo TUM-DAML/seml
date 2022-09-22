@@ -225,6 +225,9 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         # clean up the uploaded sources if no experiments of a batch remain
         delete_orphaned_sources(collection, batch_ids_in_del)
 
+    if collection.count_documents({}) == 0:
+        collection.drop()
+        logging.info(f"Dropped collection {db_collection_name} from database.")
 
 def reset_slurm_dict(exp):
     keep_slurm = set()
