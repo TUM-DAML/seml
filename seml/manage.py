@@ -11,7 +11,7 @@ import gridfs
 from seml.config import check_config
 from seml.database import get_collection, build_filter_dict
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
-from seml.utils import s_if, chunker, working_directory
+from seml.utils import s_if, chunker
 from seml.settings import SETTINGS
 from seml.errors import ArgumentError, MongoDBError
 
