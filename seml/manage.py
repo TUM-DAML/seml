@@ -440,7 +440,7 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
             logging.error(f'Batch {batch_id}: No source files to refresh.')
             continue
 
-        with working_diretory(seml_config['working_dir']):
+        with working_directory(seml_config['working_dir']):
             # Check whether the configurations aligns with the current source code
             check_config(seml_config['executable'], seml_config['conda_environment'], configs)
 
