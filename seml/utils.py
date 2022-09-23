@@ -265,7 +265,7 @@ class Hashabledict(dict):
         return hash(json.dumps(self))
 
 @contextmanager
-def working_diretory(path: Path):
+def working_directory(path: Path):
     origin = Path().absolute()
     try:
         os.chdir(path)

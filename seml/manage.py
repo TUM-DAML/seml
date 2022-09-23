@@ -11,7 +11,7 @@ import gridfs
 from seml.config import check_config
 from seml.database import get_collection, build_filter_dict
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
-from seml.utils import s_if, chunker
+from seml.utils import s_if, chunker, working_directory
 from seml.settings import SETTINGS
 from seml.errors import ArgumentError, MongoDBError
 
@@ -227,7 +227,6 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
 
     if collection.count_documents({}) == 0:
         collection.drop()
-        logging.info(f"Dropped collection {db_collection_name} from database.")
 
 def reset_slurm_dict(exp):
     keep_slurm = set()
@@ -440,8 +439,7 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
         if 'working_dir' not in seml_config or not seml_config['working_dir']:
             logging.error(f'Batch {batch_id}: No source files to refresh.')
             continue
-        # Cache the old working directory and move to the specified one
-        cwd = os.getcwd()
+
         with working_diretory(seml_config['working_dir']):
             # Check whether the configurations aligns with the current source code
             check_config(seml_config['executable'], seml_config['conda_environment'], configs)

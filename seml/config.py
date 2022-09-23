@@ -12,7 +12,7 @@ from itertools import combinations
 
 from seml.sources import import_exe
 from seml.parameters import zipped_dict, sample_random_configs, generate_grid, cartesian_product_zipped_dict
-from seml.utils import Hashabledict, merge_dicts, flatten, unflatten, working_diretory
+from seml.utils import Hashabledict, merge_dicts, flatten, unflatten, working_directory
 from seml.errors import ConfigError, ExecutableError
 from seml.settings import SETTINGS
 
@@ -253,7 +253,7 @@ def generate_configs(experiment_config, overwrite_params=None):
     return all_configs
 
 
-def check_config(executable, conda_env, configs):
+def check_config(executable, conda_env, configs, working_dir):
     """Check if the given configs are consistent with the Sacred experiment in the given executable.
 
     Parameters
@@ -272,7 +272,7 @@ def check_config(executable, conda_env, configs):
     """
     import sacred
 
-    exp_module = import_exe(executable, conda_env)
+    exp_module = import_exe(executable, conda_env, working_dir)
 
     # Extract experiment from module
     exps = [v for k, v in exp_module.__dict__.items() if type(v) == sacred.Experiment]
@@ -414,13 +414,13 @@ def determine_executable_and_working_dir(config_path, seml_dict):
     if "executable" not in seml_dict:
         raise ConfigError("Please specify an executable path for the experiment.")
     executable = seml_dict['executable']
-    with working_diretory(working_dir):
+    with working_directory(working_dir):
         executable_relative_to_config = os.path.exists(executable)
     executable_relative_to_project_root = False
     if 'project_root_dir' in seml_dict:
         working_dir = str(Path(seml_dict['project_root_dir']).expanduser().resolve())
         seml_dict['use_uploaded_sources'] = True
-        with working_diretory(working_dir): # use project root as base dir from now on
+        with working_directory(working_dir): # use project root as base dir from now on
             executable_relative_to_project_root = os.path.exists(executable)
         del seml_dict['project_root_dir']  # from now on we use only the working dir
     else:
@@ -429,7 +429,7 @@ def determine_executable_and_working_dir(config_path, seml_dict):
     seml_dict['working_dir'] = working_dir
     if not (executable_relative_to_config or executable_relative_to_project_root):
         raise ExecutableError(f"Could not find the executable.")
-    with working_diretory(working_dir):
+    with working_directory(working_dir):
         executable = str(Path(executable).expanduser().resolve())
         if executable_relative_to_project_root:
             seml_dict['executable'] = str(Path(executable).relative_to(working_dir)) 

@@ -5,7 +5,7 @@ import logging
 from seml.database import get_max_in_collection, get_collection
 from seml.config import remove_prepended_dashes, read_config, generate_configs, check_config
 from seml.sources import upload_sources, get_git_info
-from seml.utils import merge_dicts, s_if, make_hash, flatten, working_diretory
+from seml.utils import merge_dicts, s_if, make_hash, flatten, working_directory
 from seml.settings import SETTINGS
 from seml.errors import ConfigError
 
@@ -162,18 +162,16 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
         batch_id = batch_id + 1
 
     if seml_config['use_uploaded_sources'] and not no_code_checkpoint:
-        with working_diretory(seml_config['working_dir']):
-            uploaded_files = upload_sources(seml_config, collection, batch_id)
+        uploaded_files = upload_sources(seml_config, collection, batch_id)
     else:
         uploaded_files = None
     del seml_config['use_uploaded_sources']
 
     if not no_sanity_check:
-        with working_diretory(seml_config['working_dir']):
-            check_config(seml_config['executable'], seml_config['conda_environment'], configs)
+        check_config(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
 
-    with working_diretory(seml_config['working_dir']):
-        path, commit, dirty = get_git_info(seml_config['executable'])
+    path, commit, dirty = get_git_info(seml_config['executable'], seml_config['working_dir'])
+
     git_info = None
     if path is not None:
         git_info = {'path': path, 'commit': commit, 'dirty': dirty}
