@@ -8,6 +8,7 @@ import gridfs
 from seml.database import upload_file, delete_files
 from seml.errors import ExecutableError, MongoDBError
 from seml.settings import SETTINGS
+from seml.utils import working_directory
 
 States = SETTINGS.STATES
 
@@ -29,7 +30,7 @@ def is_local_file(filename, root_dir):
     return root_path in file_path.parents
 
 
-def import_exe(executable, conda_env):
+def import_exe(executable, conda_env, working_dir):
     """Import the given executable file.
 
     Parameters
@@ -48,12 +49,14 @@ def import_exe(executable, conda_env):
     if conda_env is not None and conda_env != os.environ.get('CONDA_DEFAULT_ENV'):
         logging.warning(f"Current Anaconda environment does not match the experiment's environment ('{conda_env}').")
 
-    # Get experiment as module (which causes Sacred not to start ex.automain)
-    exe_path = str(Path(executable).expanduser().resolve())
-    sys.path.insert(0, os.path.dirname(exe_path))
-    orig_handlers = logging.root.handlers
-    orig_loglevel = logging.root.level
-    exe_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
+    with working_directory(working_dir):
+        # Get experiment as module (which causes Sacred not to start ex.automain)
+        exe_path = str(Path(executable).expanduser().resolve())
+        sys.path.insert(0, os.path.dirname(exe_path))
+        orig_handlers = logging.root.handlers
+        orig_loglevel = logging.root.level
+        exe_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
+
     if exe_module.__file__ != exe_path:
         logging.error(f'Imported module path\n"{exe_module.__file__}" does not match executable path\n'
                       f'"{exe_path}".\nIs the executable file name "{os.path.basename(executable)}" '
@@ -69,8 +72,8 @@ def import_exe(executable, conda_env):
     return exe_module
 
 
-def get_imported_sources(executable, root_dir, conda_env):
-    import_exe(executable, conda_env)
+def get_imported_sources(executable, root_dir, conda_env, working_dir):
+    import_exe(executable, conda_env, working_dir)
     root_path = str(Path(root_dir).expanduser().resolve())
 
     sources = set()
@@ -87,24 +90,26 @@ def get_imported_sources(executable, root_dir, conda_env):
 
 
 def upload_sources(seml_config, collection, batch_id):
-    root_dir = str(Path(seml_config['working_dir']).expanduser().resolve())
+    with working_directory(seml_config['working_dir']):
+        root_dir = str(Path(seml_config['working_dir']).expanduser().resolve())
 
-    sources = get_imported_sources(seml_config['executable'], root_dir=root_dir,
-                                   conda_env=seml_config['conda_environment'])
-    executable_abs = str(Path(seml_config['executable']).expanduser().resolve())
+        sources = get_imported_sources(seml_config['executable'], root_dir=root_dir,
+                                    conda_env=seml_config['conda_environment'], 
+                                    working_dir=seml_config['working_dir'])
+        executable_abs = str(Path(seml_config['executable']).expanduser().resolve())
 
-    if executable_abs not in sources:
-        raise ExecutableError(f"Executable {executable_abs} was not found in the source code files to upload.")
+        if executable_abs not in sources:
+            raise ExecutableError(f"Executable {executable_abs} was not found in the source code files to upload.")
 
-    uploaded_files = []
-    for s in sources:
-        file_id = upload_file(s, collection, batch_id, 'source_file')
-        source_path = Path(s)
-        uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
+        uploaded_files = []
+        for s in sources:
+            file_id = upload_file(s, collection, batch_id, 'source_file')
+            source_path = Path(s)
+            uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
     return uploaded_files
 
 
-def get_git_info(filename):
+def get_git_info(filename, working_dir):
     """
     Get the git commit info.
     See https://github.com/IDSIA/sacred/blob/c1c19a58332368da5f184e113252b6b0abc8e33b/sacred/dependencies.py#L400
@@ -129,16 +134,18 @@ def get_git_info(filename):
         logging.warning("Cannot import git (pip install GitPython). "
                         "Not saving git status.")
 
-    directory = os.path.dirname(filename)
-    try:
-        repo = Repo(directory, search_parent_directories=True)
-    except InvalidGitRepositoryError:
-        return None, None, None
-    try:
-        path = repo.remote().url
-    except ValueError:
-        path = "git:/" + repo.working_dir
-    commit = repo.head.commit.hexsha
+    with working_directory(working_dir):
+        directory = os.path.dirname(filename)
+
+        try:
+            repo = Repo(directory, search_parent_directories=True)
+        except InvalidGitRepositoryError:
+            return None, None, None
+        try:
+            path = repo.remote().url
+        except ValueError:
+            path = "git:/" + repo.working_dir
+        commit = repo.head.commit.hexsha
     return path, commit, repo.is_dirty()
 
 
