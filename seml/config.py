@@ -418,7 +418,8 @@ def determine_executable_and_working_dir(config_path, seml_dict):
         executable_relative_to_config = os.path.exists(executable)
     executable_relative_to_project_root = False
     if 'project_root_dir' in seml_dict:
-        working_dir = str(Path(seml_dict['project_root_dir']).expanduser().resolve())
+        with working_directory(config_dir):
+            working_dir = str(Path(seml_dict['project_root_dir']).expanduser().resolve())
         seml_dict['use_uploaded_sources'] = True
         with working_directory(working_dir): # use project root as base dir from now on
             executable_relative_to_project_root = os.path.exists(executable)
