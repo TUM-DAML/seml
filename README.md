@@ -41,7 +41,7 @@ See our simple [example](examples) to get familiar with how **`SEML`** works.
 SEML should work with Slurm 18.08 and above out of the box. Version 17.11 and earlier do not have a SIGNALING job state, which you have to remove from the SLURM_STATES defined in SEML's settings (`seml/settings.py`). Earlier versions have not been tested and might have other issues.
 
 ## Contact
-Contact us at zuegnerd@in.tum.de, johannes.gasteiger@tum.de, or gaoni@in.tum.de for any questions.
+Contact us at zuegnerd@in.tum.de, johannes.gasteiger@tum.de, or n.gao@tum.de for any questions.
 
 ## Cite
 When you use SEML in your own work, please cite the software along the lines of the following bibtex:
