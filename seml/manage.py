@@ -225,6 +225,8 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         # clean up the uploaded sources if no experiments of a batch remain
         delete_orphaned_sources(collection, batch_ids_in_del)
 
+    if collection.count_documents({}) == 0:
+        collection.drop()
 
 def reset_slurm_dict(exp):
     keep_slurm = set()
@@ -437,12 +439,9 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
         if 'working_dir' not in seml_config or not seml_config['working_dir']:
             logging.error(f'Batch {batch_id}: No source files to refresh.')
             continue
-        # Cache the old working directory and move to the specified one
-        cwd = os.getcwd()
-        os.chdir(seml_config['working_dir'])
 
         # Check whether the configurations aligns with the current source code
-        check_config(seml_config['executable'], seml_config['conda_environment'], configs)
+        check_config(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
 
         # Find the currently used source files
         db = collection.database
@@ -495,5 +494,3 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
             source_files = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
             for to_delete in source_files:
                 fs.delete(to_delete)
-        # Move to the old working directory
-        os.chdir(cwd)

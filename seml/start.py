@@ -342,6 +342,7 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
     cmd = get_shell_command(interpreter, exe, config)
 
     if not use_stored_sources:
+        origin = Path().absolute()
         os.chdir(exp['seml']['working_dir'])
 
     success = True
@@ -405,6 +406,9 @@ def start_local_job(collection, exp, unobserved=False, post_mortem=False,
         if use_stored_sources and 'temp_dir' in locals():
             # clean up temp directory
             shutil.rmtree(temp_dir)
+        if not use_stored_sources:
+            os.chdir(origin)
+
     return success
 
 
