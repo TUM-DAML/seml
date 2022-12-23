@@ -397,7 +397,7 @@ def read_config(config_path):
 
         return seml_dict, slurm_dict, config_dict
     else:
-        return seml_dict, None, config_dict
+        return seml_dict, {}, config_dict
 
 
 def set_executable_and_working_dir(config_path, seml_dict):
