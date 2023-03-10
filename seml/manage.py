@@ -331,7 +331,7 @@ def get_slurm_arrays_tasks(filter_by_user=False):
 
     """
     try:
-        squeue_cmd = f"SLURM_BITSTR_LEN=256 squeue -a -t {','.join(SETTINGS.SLURM_STATES.ACTIVE)} -h -o %i"
+        squeue_cmd = f"SLURM_BITSTR_LEN=1024 squeue -a -t {','.join(SETTINGS.SLURM_STATES.ACTIVE)} -h -o %i"
         if filter_by_user:
             squeue_cmd += " -u `whoami`"
         squeue_out = subprocess.run(
