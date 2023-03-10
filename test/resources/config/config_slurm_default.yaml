@@ -1,0 +1,7 @@
+seml:
+  executable: test_config.py
+  name: example_experiment
+  output_dir: logs
+  project_root_dir: ../..
+
+slurm:
