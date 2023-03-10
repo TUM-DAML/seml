@@ -384,13 +384,15 @@ def read_config(config_path):
 
     determine_executable_and_working_dir(config_path, seml_dict)
 
-    if 'slurm' in config_dict:
+    if ('slurm' in config_dict) and (config_dict['slurm'] is not None):
         slurm_dict = config_dict['slurm']
         del config_dict['slurm']
 
         for k in slurm_dict.keys():
             if k not in SETTINGS.VALID_SLURM_CONFIG_VALUES:
                 raise ConfigError(f"{k} is not a valid value in the `slurm` config block.")
+            if k == 'sbatch_options' and (slurm_dict['sbatch_options'] is None):
+                slurm_dict['sbatch_options'] = {}
 
         return seml_dict, slurm_dict, config_dict
     else:
