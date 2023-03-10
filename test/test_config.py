@@ -1,8 +1,9 @@
 import copy
 import unittest
+
 import yaml
 
-from seml import config, utils, add
+from seml import config, utils
 from seml.add import assemble_slurm_config_dict
 from seml.config import read_config
 from seml.errors import ConfigError
