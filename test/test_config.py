@@ -1,8 +1,13 @@
+import copy
 import unittest
 import yaml
 
-from seml import config, utils
+from seml import config, utils, add
+from seml.add import assemble_slurm_config_dict
+from seml.config import read_config
 from seml.errors import ConfigError
+from seml.settings import SETTINGS
+from seml.utils import merge_dicts
 
 
 class TestParseConfigDicts(unittest.TestCase):
@@ -18,11 +23,44 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_WITH_EMPTY_DICT = "resources/config/config_with_empty_dictionary.yaml"
     CONFIG_WITH_ZIPPED_PARAMETERS = "resources/config/config_with_zipped_parameters.yaml"
     CONFIG_WITH_GRID = "resources/config/config_with_grid.yaml"
+    CONFIG_SLURM_DEFAULT = "resources/config/config_slurm_default.yaml"
+    CONFIG_SLURM_DEFAULT_EMPTY_SBATCH = "resources/config/config_slurm_default_empty_sbatch.yaml"
+    CONFIG_SLURM_TEMPLATE = "resources/config/config_slurm_template.yaml"
+    CONFIG_SLURM_EXPERIMENT = "resources/config/config_slurm_experiment.yaml"
 
     def load_config_dict(self, path):
         with open(path, 'r') as conf:
             config_dict = config.convert_values(yaml.load(conf, Loader=yaml.FullLoader))
         return config_dict
+
+    def test_config_inheritance(self):
+        # Check default config
+        seml_config, slurm_config, experiment_config = read_config(self.CONFIG_SLURM_DEFAULT)
+        slurm_config = assemble_slurm_config_dict(slurm_config)
+        self.assertEqual(slurm_config, SETTINGS.SLURM_DEFAULT)
+
+        # Check default config with empty sbatch options
+        seml_config, slurm_config, experiment_config = read_config(self.CONFIG_SLURM_DEFAULT_EMPTY_SBATCH)
+        slurm_config = assemble_slurm_config_dict(slurm_config)
+        self.assertEqual(slurm_config, SETTINGS.SLURM_DEFAULT)
+
+        # Check default -> template inheritance
+        seml_config, slurm_config, experiment_config = read_config(self.CONFIG_SLURM_TEMPLATE)
+        slurm_config = assemble_slurm_config_dict(slurm_config)
+        target_config = copy.deepcopy(SETTINGS.SLURM_DEFAULT)
+        target_config['sbatch_options'] = merge_dicts(target_config['sbatch_options'], SETTINGS.SBATCH_OPTIONS_TEMPLATES.GPU)
+        target_config['sbatch_options_template'] = 'GPU'
+        self.assertEqual(slurm_config, target_config)
+
+        # Check default -> template -> experiment inheritance
+        seml_config, slurm_config, experiment_config = read_config(self.CONFIG_SLURM_EXPERIMENT)
+        slurm_config = assemble_slurm_config_dict(slurm_config)
+        target_config = copy.deepcopy(SETTINGS.SLURM_DEFAULT)
+        target_config['sbatch_options'] = merge_dicts(target_config['sbatch_options'], SETTINGS.SBATCH_OPTIONS_TEMPLATES.GPU)
+        target_config['sbatch_options_template'] = 'GPU'
+        target_config['sbatch_options']['cpus-per-task'] = 4
+        self.assertEqual(slurm_config, target_config)
+
 
     def test_convert_parameter_collections(self):
         config_dict = self.load_config_dict(self.SIMPLE_CONFIG_WITH_PARAMETER_COLLECTIONS)
