@@ -57,6 +57,6 @@ When you use SEML in your own work, please cite the software along the lines of 
 ```
 
 
-Copyright (C) 2022  
+Copyright (C) 2023
 Daniel Zügner, Johannes Gasteiger, and Nicholas Gao  
 Technical University of Munich
