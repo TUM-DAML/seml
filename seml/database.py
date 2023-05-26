@@ -3,11 +3,15 @@ import pymongo
 from pymongo.collection import Collection
 import logging
 from tqdm.auto import tqdm
+import re
+from collections import Counter
+from prettytable import PrettyTable
 
 from seml.utils import s_if
 from seml.settings import SETTINGS
 from seml.errors import MongoDBError
 
+States = SETTINGS.STATES
 
 def get_collection(collection_name, mongodb_config=None, suffix=None):
     if mongodb_config is None:
@@ -277,3 +281,40 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     logging.info('Deleting not referenced artifacts...')
     delete_files(db, not_referenced_artifacts, progress=True)
     logging.info(f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.')
+
+def list_database(pattern, mongodb_config=None, progress=False):
+    """
+    Prints a tabular version of multiple collections and their states (without resolving RUNNING experiments that may have been canceled manually).
+
+    Parameters
+    ----------
+    pattern : str
+        The regex collection names have to match against
+    mongodb_config : dict or None
+        A configuration for the mongodb. If None, the standard config is used.
+    progress : bool
+        Whether to use a progress bar for fetching
+    """
+    logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use `seml ... status` instead.")
+    if mongodb_config is None:
+        mongodb_config = get_mongodb_config()
+    db = get_database(**mongodb_config)
+    collection_names = [name for name in db.list_collection_names()
+                        if name not in ('fs.chunks', 'fs.files') and re.compile(pattern).match(name)]
+    name_to_counts = {}
+    it = tqdm(collection_names) if progress else collection_names
+    for collection_name in it:
+        collection = db[collection_name]
+        name_to_counts[collection_name] = Counter(exp['status'] for exp in collection.find({}, {'status' : 1}))
+    
+    columns = [States.STAGED[0], States.PENDING[0], States.RUNNING[0], States.FAILED[0], States.KILLED[0], States.INTERRUPTED[0], 
+               States.COMPLETED[0]]
+    table = PrettyTable()
+    table.field_names = ['Collection'] + [state for state in columns] + ['Total']
+    for name, counts in name_to_counts.items():
+        table.add_row([name] + [counts[state] for state in columns] + [sum(counts.values())])
+    table.sortby = 'Collection'
+    for field_name in table.field_names:
+        table.align[field_name] = 'r'
+    table.align['Collection'] = 'l'
+    print(table)

@@ -494,3 +494,21 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
             source_files = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
             for to_delete in source_files:
                 fs.delete(to_delete)
+                
+def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
+    """ Convenience function that prints the fail trace of experiments"""
+    collection = get_collection(db_collection_name)
+    projection = {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1}
+    if sacred_id is None:
+        filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
+        exps = list(collection.find(filter_dict, projection))
+    else:
+        exps = [collection.find_one({'_id': sacred_id}, projection)]
+    for exp in exps:
+        exp_id = exp['_id']
+        status = exp['status']
+        slurm_array_id = exp.get('slurm', {}).get('array_id', None)
+        slurm_task_id = exp.get('slurm', {}).get('task_id', None)
+        fail_trace = exp.get('fail_trace', [])
+        print(f'***** Experiment ID {exp_id}, status: {status}, slurm array-id, task-id: {slurm_array_id}-{slurm_task_id} *****')
+        print(''.join(['\t' + line for line in fail_trace] + []))

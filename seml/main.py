@@ -4,10 +4,10 @@ import json
 import logging
 
 from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
-                         mongodb_credentials_prompt, reload_sources)
+                         mongodb_credentials_prompt, reload_sources, print_fail_trace)
 from seml.add import add_config_files
 from seml.start import start_experiments, start_jupyter_job, print_command
-from seml.database import clean_unreferenced_artifacts
+from seml.database import clean_unreferenced_artifacts, list_database
 from seml.utils import LoggingFormatter
 from seml.settings import SETTINGS
 
@@ -63,6 +63,20 @@ def main():
             help='Display more log messages.')
 
     subparsers = parser.add_subparsers(title="Possible operations")
+    
+    parser_list_db = subparsers.add_parser(
+            "list",
+            help="Lists all collections in the database.")
+    parser_list_db.add_argument(
+            "-p", "--pattern",
+            help="A regex that must match the collections to print", type=str,
+            default=r'.*',
+    )
+    parser_list_db.add_argument(
+            "--progress-bar",
+            help="Whether to print a progress bar for iterating over collections", action='store_true', dest="progress"
+    )
+    parser_list_db.set_defaults(func=list_database)
 
     parser_clean_db = subparsers.add_parser(
             "clean-db",
@@ -140,6 +154,18 @@ def main():
             '-nw', '--no-worker', action='store_true',
             help="Do not launch a local worker after setting experiments' state to PENDING.")
     parser_start.set_defaults(func=start_experiments, set_to_pending=True)
+
+    parser_print_fail_trace = subparsers.add_parser(
+            "print-fail-trace",
+            help="Prints fail traces of all failed experiments."
+    )
+    parser_print_fail_trace.add_argument(
+            '-s', '--filter-states', type=str, nargs='*', default=[*States.FAILED, *States.KILLED,
+                                                                   *States.INTERRUPTED],
+            help="List of states to filter experiments by. "
+                 "Prints traces of all experiments if an empty list is passed. "
+                 "Default: Print failed, killed and interrupted experiments.")
+    parser_print_fail_trace.set_defaults(func=print_fail_trace)
 
 
     parser_reload = subparsers.add_parser(
@@ -243,7 +269,7 @@ def main():
     parser_detect.set_defaults(func=detect_killed)
 
     for subparser in [parser_start, parser_launch_worker, parser_print_command,
-                      parser_cancel, parser_delete, parser_reset]:
+                      parser_cancel, parser_delete, parser_reset, parser_print_fail_trace]:
         subparser.add_argument(
                 '-id', '--sacred-id', type=int,
                 help="Sacred ID (_id in the database collection) of the experiment. "
@@ -262,7 +288,6 @@ def main():
             '-y', '--yes', action='store_true',
             help="Automatically confirm all dialogues with yes."
         )
-
     commands = parse_args(parser, subparsers)
 
     # Initialize logging
@@ -277,8 +302,7 @@ def main():
         else:
             logging_level = logging.INFO
         logging.root.setLevel(logging_level)
-
-        if command.func in [mongodb_credentials_prompt, start_jupyter_job, parser.print_usage]:
+        if command.func in [mongodb_credentials_prompt, start_jupyter_job, list_database, parser.print_usage]:
             # No collection name required
             del command.db_collection_name
         elif command.func in [clean_unreferenced_artifacts]:
