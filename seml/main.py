@@ -1,18 +1,28 @@
+#!/usr/bin/env python
+# PYTHON_ARGCOMPLETE_OK
+
 import sys
 import argparse
+import argcomplete
 import json
 import logging
+from argcomplete.completers import FilesCompleter
 
-from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
-                         mongodb_credentials_prompt, reload_sources)
+from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments, reload_sources)
 from seml.add import add_config_files
 from seml.start import start_experiments, start_jupyter_job, print_command
-from seml.database import clean_unreferenced_artifacts
+from seml.database import clean_unreferenced_artifacts, get_database, get_mongodb_config
+from seml.configure import configure
 from seml.utils import LoggingFormatter
 from seml.settings import SETTINGS
 
 States = SETTINGS.STATES
 
+def DbCollectionCompleter(**kwargs):
+    """ CLI completion for db collections. """
+    config = get_mongodb_config()
+    db = get_database(**config)
+    return list(db.list_collection_names())
 
 def parse_args(parser, commands):
     # https://stackoverflow.com/a/43927360
@@ -26,11 +36,13 @@ def parse_args(parser, commands):
     # Parse only the top-level commands if there are no subcommands
     # We need to do this to ensure seml --help is working
     if len(split_argv) == 1:
+        argcomplete.autocomplete(parser)
         parser.parse_args(split_argv[0])
     # Parse all subcommands
     commands = []
     for argv in split_argv[1:]:
         # Copy the original arguments and the command specific ones
+        argcomplete.autocomplete(parser)
         n = parser.parse_args(split_argv[0] + argv)
         commands.append(n)
     return commands
@@ -57,7 +69,7 @@ def main():
     parser.set_defaults(func=parser.print_usage)
     parser.add_argument(
             'db_collection_name', type=str, nargs='?', default=None,
-            help="Name of the database collection for the experiment.")
+            help="Name of the database collection for the experiment.").completer = DbCollectionCompleter
     parser.add_argument(
             '--verbose', '-v', action='store_true',
             help='Display more log messages.')
@@ -86,15 +98,24 @@ def main():
 
     parser_configure = subparsers.add_parser(
             "configure",
-            help="Provide your MongoDB credentials.")
-    parser_configure.set_defaults(func=mongodb_credentials_prompt)
+            help="Configure SEML (database, argument completion, ...).")
+    parser_configure.add_argument(
+            "--all", action='store_true', help="Configure all SEML settings"
+    )
+    parser_configure.add_argument(
+            "--mongodb", action="store_true", help="Configure MongoDB settings"
+    )
+    parser_configure.add_argument(
+            "--argcomplete", action='store_true', help="Configure settings for argument completion"
+    )
+    parser_configure.set_defaults(func=configure)
 
     parser_add = subparsers.add_parser(
             "add",
             help="Add the experiments to the database as defined in the configuration.")
     parser_add.add_argument(
             'config_files', type=str, nargs='+',
-            help="Path to the YAML configuration file for the experiment.")
+            help="Path to the YAML configuration file for the experiment.").completer = FilesCompleter
     parser_add.add_argument(
             '-nh', '--no-hash', action='store_true',
             help="Do not use the hash of the config dictionary to filter out duplicates (by comparing all "
@@ -278,7 +299,7 @@ def main():
             logging_level = logging.INFO
         logging.root.setLevel(logging_level)
 
-        if command.func in [mongodb_credentials_prompt, start_jupyter_job, parser.print_usage]:
+        if command.func in [configure, start_jupyter_job, parser.print_usage]:
             # No collection name required
             del command.db_collection_name
         elif command.func in [clean_unreferenced_artifacts]:
