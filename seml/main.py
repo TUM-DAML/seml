@@ -29,9 +29,13 @@ def parse_args(parser, commands):
         parser.parse_args(split_argv[0])
     # Parse all subcommands
     commands = []
+    shared_args = split_argv[0]
+    if len(shared_args) == 0:
+        # Add empty collection if not provided
+        shared_args = ['']
     for argv in split_argv[1:]:
         # Copy the original arguments and the command specific ones
-        n = parser.parse_args(split_argv[0] + argv)
+        n = parser.parse_args(shared_args + argv)
         commands.append(n)
     return commands
 
@@ -68,7 +72,8 @@ def main():
             "list",
             help="Lists all collections in the database.")
     parser_list_db.add_argument(
-            "-p", "--pattern",
+            "pattern",
+            nargs="?",
             help="A regex that must match the collections to print", type=str,
             default=r'.*',
     )
