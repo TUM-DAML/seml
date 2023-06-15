@@ -305,9 +305,10 @@ def list_database(pattern, mongodb_config=None, progress=False, list_empty=False
                         if name not in ('fs.chunks', 'fs.files') and re.compile(pattern).match(name)]
     name_to_counts = {}
     it = tqdm(collection_names) if progress else collection_names
+    
     for collection_name in it:
-        collection = db[collection_name]
-        name_to_counts[collection_name] = Counter(exp['status'] for exp in collection.find({'status' : {'$exists' : True}}, {'status' : 1}))
+        counts_by_status = db[collection_name].aggregate([{'$group' : {'_id' : '$status', '_count' : {'$sum' : 1}}}])
+        name_to_counts[collection_name] = Counter({result['_id'] : result['_count'] for result in counts_by_status})
     
     columns = [States.STAGED, States.PENDING, States.RUNNING, States.FAILED, States.KILLED, States.INTERRUPTED, 
                States.COMPLETED]
