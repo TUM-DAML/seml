@@ -309,15 +309,15 @@ def list_database(pattern, mongodb_config=None, progress=False, list_empty=False
         collection = db[collection_name]
         name_to_counts[collection_name] = Counter(exp['status'] for exp in collection.find({'status' : {'$exists' : True}}, {'status' : 1}))
     
-    columns = [States.STAGED[0], States.PENDING[0], States.RUNNING[0], States.FAILED[0], States.KILLED[0], States.INTERRUPTED[0], 
-               States.COMPLETED[0]]
+    columns = [States.STAGED, States.PENDING, States.RUNNING, States.FAILED, States.KILLED, States.INTERRUPTED, 
+               States.COMPLETED]
     table = PrettyTable()
-    table.field_names = ['Collection'] + [state for state in columns] + ['Total']
+    table.field_names = ['Collection'] + [states[0] for states in columns] + ['Total']
     for name, counts in name_to_counts.items():
-        if list_empty or any(counts[state] > 0 for state in columns):
-            table.add_row([name] + [counts[state] for state in columns] + [sum(counts.values())])
+        if list_empty or any(sum(counts[state] for state in states) > 0 for states in columns):
+            table.add_row([name] + [sum(counts[state] for state in states) for states in columns] + [sum(counts.values())])
     table.sortby = 'Collection'
     for field_name in table.field_names:
         table.align[field_name] = 'r'
     table.align['Collection'] = 'l'
-    print(table)
+    logging.info(table)
