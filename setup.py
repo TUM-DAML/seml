@@ -10,8 +10,7 @@ install_requires = [
     "munch>=2.0.4",
     "tqdm>=4.36",
     "debugpy>=1.2.1",
-    "requests>=2.28.1"
-    "prettytable",
+    "requests>=2.28.1",
 ]
 
 with open("README.md", "r") as fh:

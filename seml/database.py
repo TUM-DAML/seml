@@ -5,7 +5,7 @@ import logging
 from tqdm.auto import tqdm
 import re
 from collections import Counter
-from prettytable import PrettyTable
+import pandas as pd
 
 from seml.utils import s_if
 from seml.settings import SETTINGS
@@ -311,13 +311,9 @@ def list_database(pattern, mongodb_config=None, progress=False, list_empty=False
     
     columns = [States.STAGED, States.PENDING, States.RUNNING, States.FAILED, States.KILLED, States.INTERRUPTED, 
                States.COMPLETED]
-    table = PrettyTable()
-    table.field_names = ['Collection'] + [states[0] for states in columns] + ['Total']
+    table = []
     for name, counts in name_to_counts.items():
         if list_empty or any(sum(counts[state] for state in states) > 0 for states in columns):
-            table.add_row([name] + [sum(counts[state] for state in states) for states in columns] + [sum(counts.values())])
-    table.sortby = 'Collection'
-    for field_name in table.field_names:
-        table.align[field_name] = 'r'
-    table.align['Collection'] = 'l'
-    logging.info(table)
+            table.append([name] + [sum(counts[state] for state in states) for states in columns] + [sum(counts.values())])
+    df = pd.DataFrame(table, columns=['Collection'] + [states[0] for states in columns] + ['Total']).set_index('Collection').sort_index()
+    logging.info(df.to_string())
