@@ -282,7 +282,7 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     delete_files(db, not_referenced_artifacts, progress=True)
     logging.info(f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.')
 
-def list_database(pattern, mongodb_config=None, progress=False):
+def list_database(pattern, mongodb_config=None, progress=False, list_empty=False):
     """
     Prints a tabular version of multiple collections and their states (without resolving RUNNING experiments that may have been canceled manually).
 
@@ -294,6 +294,8 @@ def list_database(pattern, mongodb_config=None, progress=False):
         A configuration for the mongodb. If None, the standard config is used.
     progress : bool
         Whether to use a progress bar for fetching
+    list_empty : bool
+        Whether to list collections that have no documents associated with any state
     """
     logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use `seml ... status` instead.")
     if mongodb_config is None:
@@ -305,14 +307,15 @@ def list_database(pattern, mongodb_config=None, progress=False):
     it = tqdm(collection_names) if progress else collection_names
     for collection_name in it:
         collection = db[collection_name]
-        name_to_counts[collection_name] = Counter(exp['status'] for exp in collection.find({}, {'status' : 1}))
+        name_to_counts[collection_name] = Counter(exp['status'] for exp in collection.find({'status' : {'$exists' : True}}, {'status' : 1}))
     
     columns = [States.STAGED[0], States.PENDING[0], States.RUNNING[0], States.FAILED[0], States.KILLED[0], States.INTERRUPTED[0], 
                States.COMPLETED[0]]
     table = PrettyTable()
     table.field_names = ['Collection'] + [state for state in columns] + ['Total']
     for name, counts in name_to_counts.items():
-        table.add_row([name] + [counts[state] for state in columns] + [sum(counts.values())])
+        if list_empty or any(counts[state] > 0 for state in columns):
+            table.add_row([name] + [counts[state] for state in columns] + [sum(counts.values())])
     table.sortby = 'Collection'
     for field_name in table.field_names:
         table.align[field_name] = 'r'
