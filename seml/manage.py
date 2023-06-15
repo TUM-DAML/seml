@@ -510,5 +510,6 @@ def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, fil
         slurm_array_id = exp.get('slurm', {}).get('array_id', None)
         slurm_task_id = exp.get('slurm', {}).get('task_id', None)
         fail_trace = exp.get('fail_trace', [])
-        print(f'***** Experiment ID {exp_id}, status: {status}, slurm array-id, task-id: {slurm_array_id}-{slurm_task_id} *****')
-        print(''.join(['\t' + line for line in fail_trace] + []))
+        logging.info(f'***** Experiment ID {exp_id}, status: {status}, slurm array-id, task-id: {slurm_array_id}-{slurm_task_id} *****')
+        logging.info(''.join(['\t' + line for line in fail_trace] + []))
+    logging.info(f'Printed the fail traces of {len(exps)} experiment(s).')
