@@ -4,7 +4,7 @@ from pymongo.collection import Collection
 import logging
 from tqdm.auto import tqdm
 import re
-from collections import Counter
+from collections import defaultdict
 import pandas as pd
 
 from seml.utils import s_if
@@ -303,18 +303,24 @@ def list_database(pattern, mongodb_config=None, progress=False, list_empty=False
     db = get_database(**mongodb_config)
     collection_names = [name for name in db.list_collection_names()
                         if name not in ('fs.chunks', 'fs.files') and re.compile(pattern).match(name)]
-    name_to_counts = {}
-    it = tqdm(collection_names) if progress else collection_names
+    name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
+    it = tqdm(collection_names, disable=not progress)
     
+    inv_states = {v: k for k, states in States.items() for v in states}
     for collection_name in it:
-        counts_by_status = db[collection_name].aggregate([{'$group' : {'_id' : '$status', '_count' : {'$sum' : 1}}}])
-        name_to_counts[collection_name] = Counter({result['_id'] : result['_count'] for result in counts_by_status})
+        counts_by_status = db[collection_name].aggregate([{
+            '$group' : {'_id' : '$status', '_count' : {'$sum' : 1}}
+        }])
+        name_to_counts[collection_name].update({
+            inv_states[result['_id']]: result['_count']
+            for result in counts_by_status
+            if result['_id'] in inv_states
+        })
     
-    columns = [States.STAGED, States.PENDING, States.RUNNING, States.FAILED, States.KILLED, States.INTERRUPTED, 
-               States.COMPLETED]
-    table = []
-    for name, counts in name_to_counts.items():
-        if list_empty or any(sum(counts[state] for state in states) > 0 for states in columns):
-            table.append([name] + [sum(counts[state] for state in states) for states in columns] + [sum(counts.values())])
-    df = pd.DataFrame(table, columns=['Collection'] + [states[0] for states in columns] + ['Total']).set_index('Collection').sort_index()
-    logging.info(df.to_string())
+    df = pd.DataFrame.from_dict(name_to_counts, dtype=int).transpose()
+    # Remove empty collections
+    if not list_empty:
+        df = df[df.sum(axis=1) > 0]
+    # add a column with the total
+    df['Total'] = df.sum(axis=1)
+    logging.info(df.sort_index().to_string())
