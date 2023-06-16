@@ -3,11 +3,15 @@ import pymongo
 from pymongo.collection import Collection
 import logging
 from tqdm.auto import tqdm
+import re
+from collections import defaultdict
+import pandas as pd
 
 from seml.utils import s_if
 from seml.settings import SETTINGS
 from seml.errors import MongoDBError
 
+States = SETTINGS.STATES
 
 def get_collection(collection_name, mongodb_config=None, suffix=None):
     if mongodb_config is None:
@@ -277,3 +281,46 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     logging.info('Deleting not referenced artifacts...')
     delete_files(db, not_referenced_artifacts, progress=True)
     logging.info(f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.')
+
+def list_database(pattern, mongodb_config=None, progress=False, list_empty=False):
+    """
+    Prints a tabular version of multiple collections and their states (without resolving RUNNING experiments that may have been canceled manually).
+
+    Parameters
+    ----------
+    pattern : str
+        The regex collection names have to match against
+    mongodb_config : dict or None
+        A configuration for the mongodb. If None, the standard config is used.
+    progress : bool
+        Whether to use a progress bar for fetching
+    list_empty : bool
+        Whether to list collections that have no documents associated with any state
+    """
+    logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use `seml ... status` instead.")
+    if mongodb_config is None:
+        mongodb_config = get_mongodb_config()
+    db = get_database(**mongodb_config)
+    collection_names = [name for name in db.list_collection_names()
+                        if name not in ('fs.chunks', 'fs.files') and re.compile(pattern).match(name)]
+    name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
+    it = tqdm(collection_names, disable=not progress)
+    
+    inv_states = {v: k for k, states in States.items() for v in states}
+    for collection_name in it:
+        counts_by_status = db[collection_name].aggregate([{
+            '$group' : {'_id' : '$status', '_count' : {'$sum' : 1}}
+        }])
+        name_to_counts[collection_name].update({
+            inv_states[result['_id']]: result['_count']
+            for result in counts_by_status
+            if result['_id'] in inv_states
+        })
+    
+    df = pd.DataFrame.from_dict(name_to_counts, dtype=int).transpose()
+    # Remove empty collections
+    if not list_empty:
+        df = df[df.sum(axis=1) > 0]
+    # add a column with the total
+    df['Total'] = df.sum(axis=1)
+    logging.info(df.sort_index().to_string())
