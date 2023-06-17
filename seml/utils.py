@@ -2,7 +2,6 @@ import copy
 import json
 import logging
 import os
-from collections.abc import Iterable
 from contextlib import contextmanager
 from pathlib import Path
 
