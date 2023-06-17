@@ -1,11 +1,11 @@
 import argparse
-import os
 import logging
+import os
 
-from seml.start import get_command_from_exp, get_shell_command
 from seml.database import get_collection
-from seml.sources import load_sources_from_db
 from seml.settings import SETTINGS
+from seml.sources import load_sources_from_db
+from seml.start import get_command_from_exp, get_shell_command
 
 States = SETTINGS.STATES
 

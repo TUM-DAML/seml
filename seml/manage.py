@@ -1,19 +1,19 @@
+import copy
+import datetime
 import itertools
 import logging
-import os
 import subprocess
-import datetime
-from getpass import getpass
-import copy
 import time
+from getpass import getpass
+
 import gridfs
 
 from seml.config import check_config
-from seml.database import get_collection, build_filter_dict
-from seml.sources import delete_files, delete_orphaned_sources, upload_sources
-from seml.utils import s_if, chunker
-from seml.settings import SETTINGS
+from seml.database import build_filter_dict, get_collection
 from seml.errors import ArgumentError, MongoDBError
+from seml.settings import SETTINGS
+from seml.sources import delete_files, delete_orphaned_sources, upload_sources
+from seml.utils import chunker, s_if
 
 States = SETTINGS.STATES
 

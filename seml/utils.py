@@ -1,10 +1,10 @@
+import copy
+import json
+import logging
+import os
 from collections.abc import Iterable
 from contextlib import contextmanager
 from pathlib import Path
-import logging
-import json
-import copy
-import os
 
 
 def s_if(n):

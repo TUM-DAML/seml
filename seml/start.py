@@ -1,26 +1,27 @@
+import copy
+import json
+import logging
 import os
 import shlex
-import sys
-import subprocess
-import logging
-import numpy as np
 import shutil
-import json
-import pkg_resources
-from pathlib import Path
+import subprocess
+import sys
 import time
-import copy
 import uuid
+from pathlib import Path
+
+import numpy as np
+import pkg_resources
 from tqdm.auto import tqdm
 
-from seml.database import get_collection, build_filter_dict
-from seml.sources import load_sources_from_db
-from seml.utils import s_if
+from seml.database import build_filter_dict, get_collection
+from seml.errors import ArgumentError, ConfigError, MongoDBError
+from seml.json import PythonEncoder
+from seml.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.network import find_free_port
 from seml.settings import SETTINGS
-from seml.manage import cancel_experiment_by_id, reset_slurm_dict
-from seml.errors import ConfigError, ArgumentError, MongoDBError
-from seml.json import PythonEncoder
+from seml.sources import load_sources_from_db
+from seml.utils import s_if
 
 States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES

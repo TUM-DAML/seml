@@ -1,6 +1,7 @@
 import imp
-from munch import munchify
 from pathlib import Path
+
+from munch import munchify
 
 from seml.utils import merge_dicts
 

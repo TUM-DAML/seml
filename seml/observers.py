@@ -1,12 +1,12 @@
-import urllib.parse
-import logging
-from sacred.observers.base import RunObserver, td_format
-from sacred.config.config_files import load_config_file
-from bson import json_util
 import json
-from datetime import datetime, timedelta, timezone
-import re
+import logging
 import os
+import re
+from datetime import datetime, timedelta, timezone
+
+from bson import json_util
+from sacred.config.config_files import load_config_file
+from sacred.observers.base import RunObserver, td_format
 
 from seml.database import get_mongo_client, get_mongodb_config
 from seml.json import NumpyEncoder

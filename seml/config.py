@@ -1,20 +1,22 @@
-import itertools
+import ast
+import copy
+import json
 import logging
+import os
+from itertools import combinations
+from pathlib import Path
+
+import jsonpickle
 import numpy as np
 import yaml
-import ast
-import jsonpickle
-import json
-import os
-from pathlib import Path
-import copy
-from itertools import combinations
 
-from seml.sources import import_exe
-from seml.parameters import zipped_dict, sample_random_configs, generate_grid, cartesian_product_zipped_dict
-from seml.utils import Hashabledict, merge_dicts, flatten, unflatten, working_directory
 from seml.errors import ConfigError, ExecutableError
+from seml.parameters import (cartesian_product_zipped_dict, generate_grid,
+                             sample_random_configs, zipped_dict)
 from seml.settings import SETTINGS
+from seml.sources import import_exe
+from seml.utils import (Hashabledict, flatten, merge_dicts, unflatten,
+                        working_directory)
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
 

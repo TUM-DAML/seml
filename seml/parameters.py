@@ -1,12 +1,12 @@
-import logging
-import random
 import itertools
-from typing import DefaultDict
-import numpy as np
+import random
 import uuid
+from typing import DefaultDict
 
-from seml.utils import unflatten
+import numpy as np
+
 from seml.errors import ConfigError
+from seml.utils import unflatten
 
 
 def sample_random_configs(random_config, samples=1, seed=None):

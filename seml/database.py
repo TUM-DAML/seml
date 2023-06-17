@@ -1,15 +1,16 @@
-import gridfs
-import pymongo
-from pymongo.collection import Collection
 import logging
-from tqdm.auto import tqdm
 import re
 from collections import defaultdict
-import pandas as pd
 
-from seml.utils import s_if
-from seml.settings import SETTINGS
+import gridfs
+import pandas as pd
+import pymongo
+from pymongo.collection import Collection
+from tqdm.auto import tqdm
+
 from seml.errors import MongoDBError
+from seml.settings import SETTINGS
+from seml.utils import s_if
 
 States = SETTINGS.STATES
 

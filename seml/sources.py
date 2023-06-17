@@ -1,11 +1,12 @@
-import sys
-import os
-from pathlib import Path
-import logging
 import importlib
+import logging
+import os
+import sys
+from pathlib import Path
+
 import gridfs
 
-from seml.database import upload_file, delete_files
+from seml.database import delete_files, upload_file
 from seml.errors import ExecutableError, MongoDBError
 from seml.settings import SETTINGS
 from seml.utils import working_directory
@@ -129,7 +130,7 @@ def get_git_info(filename, working_dir):
     """
 
     try:
-        from git import Repo, InvalidGitRepositoryError
+        from git import InvalidGitRepositoryError, Repo
     except ImportError:
         logging.warning("Cannot import git (pip install GitPython). "
                         "Not saving git status.")
