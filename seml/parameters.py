@@ -3,8 +3,6 @@ import random
 import uuid
 from typing import DefaultDict
 
-import numpy as np
-
 from seml.errors import ConfigError
 from seml.utils import unflatten
 
@@ -74,6 +72,7 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
         tuple of the parameter name and a 1-D list/array of the samples drawn for the parameter.
 
     """
+    import numpy as np
 
     if "type" not in parameter:
         raise ConfigError(f"No type found in parameter {parameter}")
@@ -163,6 +162,7 @@ def generate_grid(parameter, parent_key=''):
         Name of the parameter and tuple with list containing the grid values for this parameter and zip id.
 
     """
+    import numpy as np
     if "type" not in parameter:
         raise ConfigError(f"No type found in parameter {parameter}")
 

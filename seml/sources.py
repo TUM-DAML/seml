@@ -4,8 +4,6 @@ import os
 import sys
 from pathlib import Path
 
-import gridfs
-
 from seml.database import delete_files, upload_file
 from seml.errors import ExecutableError, MongoDBError
 from seml.settings import SETTINGS
@@ -151,6 +149,7 @@ def get_git_info(filename, working_dir):
 
 
 def load_sources_from_db(exp, collection, to_directory):
+    import gridfs
     db = collection.database
     fs = gridfs.GridFS(db)
     if 'source_files' not in exp['seml']:

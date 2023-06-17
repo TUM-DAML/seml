@@ -2,12 +2,6 @@ import logging
 import re
 from collections import defaultdict
 
-import gridfs
-import pandas as pd
-import pymongo
-from pymongo.collection import Collection
-from tqdm.auto import tqdm
-
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.utils import s_if
@@ -25,6 +19,7 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
 
 
 def get_mongo_client(db_name, host, port, username, password, **kwargs):
+    import pymongo
     client = pymongo.MongoClient(host, int(port), username=username, password=password,
                              authSource=db_name, **kwargs)
     return client
@@ -139,7 +134,7 @@ def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
     return filter_dict
 
 
-def get_max_in_collection(collection: Collection, field: str):
+def get_max_in_collection(collection, field: str):
     """
     Find the maximum value in the input collection for the input field.
     Parameters
@@ -151,6 +146,7 @@ def get_max_in_collection(collection: Collection, field: str):
     -------
     max_val: the maximum value in the field.
     """
+    import pymongo
 
     ndocs = collection.count_documents({})
     if field == "_id":
@@ -167,7 +163,7 @@ def get_max_in_collection(collection: Collection, field: str):
     return max_val
 
 
-def upload_file(filename, db_collection: Collection, batch_id, filetype):
+def upload_file(filename, db_collection, batch_id, filetype):
     """
     Upload a source file to the MongoDB.
     Parameters
@@ -181,6 +177,7 @@ def upload_file(filename, db_collection: Collection, batch_id, filetype):
     -------
     file_id: ID of the inserted file, or None if there was an error.
     """
+    import gridfs
     db = db_collection.database
     fs = gridfs.GridFS(db)
     try:
@@ -198,8 +195,10 @@ def upload_file(filename, db_collection: Collection, batch_id, filetype):
 
 
 def delete_files(database, file_ids, progress=False):
+    import gridfs
+    from tqdm.auto import tqdm
     fs = gridfs.GridFS(database)
-    it = tqdm(file_ids) if progress else file_ids
+    it = tqdm(file_ids, disable=not progress)
     for to_delete in it:
         fs.delete(to_delete)
 
@@ -219,8 +218,8 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     -------
     None
     """
-    all_collections = db_collection_name is None
-    import gridfs
+    from tqdm.auto import tqdm
+    all_collections = not bool(db_collection_name)
     if all_collections:
         config = get_mongodb_config()
         db = get_database(**config)
@@ -233,7 +232,6 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     collection_blacklist = {'fs.chunks', 'fs.files'}
     collection_names = collection_names - collection_blacklist
 
-    fs = gridfs.GridFS(db)
     referenced_files = set()
     tq = tqdm(collection_names)
     logging.info('Scanning collections for orphaned artifacts...')
@@ -298,6 +296,8 @@ def list_database(pattern, mongodb_config=None, progress=False, list_empty=False
     list_empty : bool
         Whether to list collections that have no documents associated with any state
     """
+    import pandas as pd
+    from tqdm.auto import tqdm
     logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use `seml ... status` instead.")
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()

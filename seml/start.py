@@ -10,10 +10,6 @@ import time
 import uuid
 from pathlib import Path
 
-import numpy as np
-import pkg_resources
-from tqdm.auto import tqdm
-
 from seml.database import build_filter_dict, get_collection
 from seml.errors import ArgumentError, ConfigError, MongoDBError
 from seml.json import PythonEncoder
@@ -176,6 +172,7 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
     -------
     None
     """
+    import pkg_resources
 
     # Set Slurm job array options
     sbatch_options['array'] = f"0-{len(exp_array) - 1}"
@@ -427,6 +424,7 @@ def chunk_list(exps):
     -------
     exp_chunks: list
     """
+    import numpy as np
     batch_idx = [exp['batch_id'] for exp in exps]
     unique_batch_idx = np.unique(batch_idx)
     exp_chunks = []
@@ -453,6 +451,7 @@ def batch_chunks(exp_chunks):
     -------
     exp_arrays: list[list[list[dict]]]
     """
+    import numpy as np
     batch_idx = np.array([chunk[0]['batch_id'] for chunk in exp_chunks])
     unique_batch_idx = np.unique(batch_idx)
     ids_per_array = [np.where(batch_idx == array_bidx)[0] for array_bidx in unique_batch_idx]
@@ -637,6 +636,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     -------
     None
     """
+    from tqdm.auto import tqdm
     check_compute_node()
 
     if 'SLURM_JOBID' in os.environ:
@@ -837,7 +837,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
 
 
 def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: bool = False):
-
+    import pkg_resources
     sbatch_options = sbatch_options if sbatch_options is not None else {}
     sbatch_options_merged = SETTINGS.SLURM_DEFAULT['sbatch_options']
     sbatch_options_merged.update(SETTINGS.SBATCH_OPTIONS_TEMPLATES.JUPYTER)

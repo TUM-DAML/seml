@@ -2,9 +2,6 @@ import json
 import logging
 from copy import deepcopy
 
-import jsonpickle
-from tqdm.auto import tqdm
-
 from seml.database import get_collection
 from seml.settings import SETTINGS
 
@@ -14,6 +11,7 @@ __all__ = ['get_results']
 
 
 def parse_jsonpickle(db_entry):
+    import jsonpickle
     import jsonpickle.ext.numpy as jsonpickle_numpy
 
     jsonpickle_numpy.register_handlers()
@@ -52,6 +50,7 @@ def get_results(db_collection_name, fields=None,
 
     """
     import pandas as pd
+    from tqdm.auto import tqdm
     if fields is None:
         fields = ['config', 'result']
 

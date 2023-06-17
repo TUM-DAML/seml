@@ -2,12 +2,11 @@ import ast
 import copy
 import json
 import logging
+import numbers
 import os
 from itertools import combinations
 from pathlib import Path
 
-import jsonpickle
-import numpy as np
 import yaml
 
 from seml.errors import ConfigError, ExecutableError
@@ -237,7 +236,7 @@ def generate_configs(experiment_config, overwrite_params=None):
         all_configs.extend(with_random)
 
     # Cast NumPy integers to normal integers since PyMongo doesn't like them
-    all_configs = [{k: int(v) if isinstance(v, np.integer) else v
+    all_configs = [{k: int(v) if isinstance(v, numbers.Integral) else v
                     for k, v in config.items()}
                    for config in all_configs]
 
@@ -314,6 +313,7 @@ def restore(flat):
     Restore more complex data that Python's json can't handle (e.g. Numpy arrays).
     Copied from sacred.serializer for performance reasons.
     """
+    import jsonpickle
     return jsonpickle.decode(json.dumps(flat), keys=True)
 
 

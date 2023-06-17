@@ -6,8 +6,6 @@ import subprocess
 import time
 from getpass import getpass
 
-import gridfs
-
 from seml.config import check_config
 from seml.database import build_filter_dict, get_collection
 from seml.errors import ArgumentError, MongoDBError
@@ -416,6 +414,7 @@ def mongodb_credentials_prompt():
 
 
 def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False):
+    import gridfs
     collection = get_collection(db_collection_name)
     
     if batch_ids is not None:

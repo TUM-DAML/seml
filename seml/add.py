@@ -9,7 +9,7 @@ from seml.database import get_collection, get_max_in_collection
 from seml.errors import ConfigError
 from seml.settings import SETTINGS
 from seml.sources import get_git_info, upload_sources
-from seml.utils import flatten, make_hash, merge_dicts, s_if, working_directory
+from seml.utils import flatten, make_hash, merge_dicts, s_if
 
 States = SETTINGS.STATES
 
