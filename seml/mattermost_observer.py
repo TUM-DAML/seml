@@ -1,12 +1,16 @@
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from bson import json_util
 from sacred.config.config_files import load_config_file
 from sacred.observers.base import RunObserver, td_format
 
 from seml.json import NumpyEncoder
+
+
+def to_local_timezone(dtime):
+    return dtime.replace(tzinfo=timezone.utc).astimezone(tz=None)
 
 
 class MattermostObserver(RunObserver):

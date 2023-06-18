@@ -154,7 +154,3 @@ def create_neptune_observer(project_name, api_token=None,
         logging.info('No API token for Neptune provided. Trying to use environment variable NEPTUNE_API_TOKEN.')
     neptune_obs = NeptuneObserver(api_token=api_token, project_name=project_name, source_extensions=source_extensions)
     return neptune_obs
-
-
-def to_local_timezone(dtime):
-    return dtime.replace(tzinfo=timezone.utc).astimezone(tz=None)
