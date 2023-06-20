@@ -31,10 +31,23 @@ conda install -c conda-forge seml
 ```
 Then configure your MongoDB via:
 ```bash
-seml configure  # provide your MongoDB credentials
+seml configure  --mongodb # provide your MongoDB credentials
 ```
+
 ## Example
 See our simple [example](examples) to get familiar with how **`SEML`** works.
+
+## CLI completion
+SEML supports (rudimentary) command line completion. To install this feature run:
+```bash
+seml configure --argcomplete
+```
+There are three options available, we recommend to install the completion as `user`:
+- `user`: Creates `~/.bash_completion`, which will be automatically sourced when a shell is opened
+- `global`: Creates a similar file at a [suitable location](https://pypi.org/project/argcomplete/) depending on the shell being used. You need sudo rights to install argument completion globally.
+- `path`: Queries for a specific path to which to install the argument completion script. This script needs to be sourced in every shell session in which argument completion is to be used.
+In the background, this feature relies on the [argcomplete](https://pypi.org/project/argcomplete/) module. To disable and purge the feature you should uninstall this module and delete (the relevant parts of) the file created by `seml configure --argcomplete` (which depends on the installation mode you chose).
+
 
 ## Slurm version
 
