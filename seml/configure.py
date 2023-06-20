@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional, Iterable
 import os
 import logging
-import click
 
 from seml.settings import SETTINGS
 from seml.errors import ArgumentError
@@ -59,7 +58,8 @@ def argcomplete_configure():
     logging.info(f'Running {cmd}')
     os.system(cmd)
         
-def mongodb_configure():
+def mongodb_configure(): 
+    import click
     if SETTINGS.DATABASE.MONGODB_CONFIG_PATH.exists() and not click.confirm(
         f'MongoDB configuration {SETTINGS.DATABASE.MONGODB_CONFIG_PATH} already exists and will be overwritten. Continue?',
         default=False

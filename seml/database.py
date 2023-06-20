@@ -2,6 +2,8 @@ import logging
 import re
 from collections import defaultdict
 
+from typing import List
+
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.utils import s_if
@@ -29,6 +31,30 @@ def get_database(db_name, host, port, username, password, **kwargs):
     db = get_mongo_client(db_name, host, port, username, password, **kwargs)[db_name]
     return db
 
+
+def get_collections_from_mongo_shell_or_pymongo(db_name: str, host: str, port: int, username: str, 
+                                                password: str, **kwargs) -> List[str]:
+    """ Gets all collections in the database by first using the mongo shell and if that fails uses pymongo.
+
+    Args:
+        db_name (str): the name of the database
+        host (str): the name of the host
+        port (int): the port at which to access the mongodb
+        username (str): the username
+        password (str): the password
+        
+    Returns:
+        List[str]: all collections in the database
+    """
+    import subprocess
+    cmd = f'mongo -u "{username}" --authenticationDatabase "{db_name}" {host}:{port}/{db_name} -p {password} --eval "db.getCollectionNames()" --quiet'
+    try:
+        output = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL)
+        collection_names = eval(output) # technically this is a json, but we want to avoid loading the json module
+    except subprocess.CalledProcessError:
+        db = get_database(db_name, host, port, username, password, **kwargs)
+        collection_names = db.list_collection_names()
+    return [name for name in collection_names if not name in ('fs.chunks', 'fs.files')]
 
 def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     """Read the MongoDB connection configuration.

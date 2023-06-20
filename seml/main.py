@@ -8,7 +8,7 @@ import logging
 import sys
 
 from seml.add import add_config_files
-from seml.database import clean_unreferenced_artifacts, list_database, get_mongodb_config, get_database
+from seml.database import clean_unreferenced_artifacts, list_database, get_mongodb_config, get_collections_from_mongo_shell_or_pymongo
 from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
                          print_fail_trace,
                          reload_sources, report_status, reset_experiments)
@@ -23,8 +23,7 @@ States = SETTINGS.STATES
 def DbCollectionCompleter(**kwargs):
     """ CLI completion for db collections. """
     config = get_mongodb_config()
-    db = get_database(**config)
-    return list(db.list_collection_names())
+    return list(get_collections_from_mongo_shell_or_pymongo(**config))
 
 def parse_args(parser, commands):
     # https://stackoverflow.com/a/43927360
