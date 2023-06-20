@@ -11,6 +11,7 @@ install_requires = [
     "tqdm>=4.36",
     "debugpy>=1.2.1",
     "requests>=2.28.1",
+    "argcomplete",
 ]
 
 with open("README.md", "r") as fh:
