@@ -1,29 +1,31 @@
 #!/usr/bin/env python
 # PYTHON_ARGCOMPLETE_OK
-
 import argparse
-import argcomplete
 import json
 import logging
 import sys
 
+import argcomplete
+from argcomplete.completers import FilesCompleter
+
 from seml.add import add_config_files
+from seml.configure import configure
 from seml.database import clean_unreferenced_artifacts, list_database, get_mongodb_config, get_collections_from_mongo_shell_or_pymongo
 from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
                          print_fail_trace,
                          reload_sources, report_status, reset_experiments)
-from seml.configure import configure
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
 from seml.utils import LoggingFormatter
-from argcomplete.completers import FilesCompleter
 
 States = SETTINGS.STATES
+
 
 def DbCollectionCompleter(**kwargs):
     """ CLI completion for db collections. """
     config = get_mongodb_config()
     return list(get_collections_from_mongo_shell_or_pymongo(**config))
+
 
 def parse_args(parser, commands):
     # https://stackoverflow.com/a/43927360

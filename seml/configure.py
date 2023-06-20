@@ -1,12 +1,12 @@
-
-from pathlib import Path
-from typing import Optional, Iterable
-import os
-import logging
-
-from seml.settings import SETTINGS
-from seml.errors import ArgumentError
 import getpass
+import logging
+import os
+from pathlib import Path
+from typing import Iterable, Optional
+
+from seml.errors import ArgumentError
+from seml.settings import SETTINGS
+
 
 def get_input(field_name: Optional[str]=None, num_trials=3, password: bool=False,
                        choices: Optional[Iterable[str]]=None, default=None, nonempty: bool=True,
@@ -36,9 +36,11 @@ def get_input(field_name: Optional[str]=None, num_trials=3, password: bool=False
     else:
         raise ArgumentError(f"Did not receive an input for {num_trials} times. Aborting.")
 
+
 ARGCOMPLETE_GLOBAL = 'global'
 ARGCOMPLETE_USER = 'user'
 ARGCOMPLETE_PATH = 'path'
+
 
 def argcomplete_configure():
     """ Initializes argument completion. """
@@ -57,7 +59,8 @@ def argcomplete_configure():
         raise ValueError(mode)
     logging.info(f'Running {cmd}')
     os.system(cmd)
-        
+
+
 def mongodb_configure(): 
     import click
     if SETTINGS.DATABASE.MONGODB_CONFIG_PATH.exists() and not click.confirm(
@@ -84,7 +87,8 @@ def mongodb_configure():
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, 'w') as f:
         f.write(config_string)
-        
+
+
 def configure(all: bool=False, mongodb: bool=False, argcomplete: bool=False):
     configured_any = False
     if mongodb or all:
@@ -95,4 +99,3 @@ def configure(all: bool=False, mongodb: bool=False, argcomplete: bool=False):
         configured_any = True
     if not configured_any:
         logging.info('Did not specify any configuration to configure')
-    
