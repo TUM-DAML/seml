@@ -8,13 +8,15 @@ import logging
 import sys
 
 from seml.add import add_config_files
-from seml.database import clean_unreferenced_artifacts, list_database
+from seml.database import clean_unreferenced_artifacts, list_database, get_mongodb_config, get_database
 from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
-                         mongodb_credentials_prompt, print_fail_trace,
+                         print_fail_trace,
                          reload_sources, report_status, reset_experiments)
+from seml.configure import configure
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
 from seml.utils import LoggingFormatter
+from argcomplete.completers import FilesCompleter
 
 States = SETTINGS.STATES
 
@@ -327,7 +329,7 @@ def main():
         else:
             logging_level = logging.INFO
         logging.root.setLevel(logging_level)
-        if command.func in [mongodb_credentials_prompt, start_jupyter_job, list_database, parser.print_usage]:
+        if command.func in [configure, start_jupyter_job, list_database, parser.print_usage]:
             # No collection name required
             del command.db_collection_name
         elif command.func in [clean_unreferenced_artifacts]:
