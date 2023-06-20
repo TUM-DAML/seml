@@ -1,14 +1,15 @@
 import copy
-import os
 import datetime
 import logging
+import os
 
-from seml.database import get_max_in_collection, get_collection
-from seml.config import remove_prepended_dashes, read_config, generate_configs, check_config
-from seml.sources import upload_sources, get_git_info
-from seml.utils import merge_dicts, s_if, make_hash, flatten, working_directory
-from seml.settings import SETTINGS
+from seml.config import (check_config, generate_configs, read_config,
+                         remove_prepended_dashes)
+from seml.database import get_collection, get_max_in_collection
 from seml.errors import ConfigError
+from seml.settings import SETTINGS
+from seml.sources import get_git_info, upload_sources
+from seml.utils import flatten, make_hash, merge_dicts, s_if
 
 States = SETTINGS.STATES
 

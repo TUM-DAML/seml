@@ -6,13 +6,12 @@ install_requires = [
     "pandas",
     "sacred>=0.8.4",
     "pyyaml>=5.1",
-    "jsonpickle>=1.2, <2.0",
+    "jsonpickle>=2.2",
     "munch>=2.0.4",
     "tqdm>=4.36",
     "debugpy>=1.2.1",
     "requests>=2.28.1",
     "argcomplete",
-    "click",
 ]
 
 with open("README.md", "r") as fh:

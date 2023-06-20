@@ -1,7 +1,7 @@
-import sys
+import datetime
 import logging
 import resource
-import datetime
+import sys
 
 from seml.database import get_collection
 

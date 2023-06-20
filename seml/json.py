@@ -1,12 +1,13 @@
 # We need the custom json encoding for vscode due to https://github.com/microsoft/vscode/issues/91578
 # Once this bug has been fixed we should only rely on `repr` and remove this file.
 import json
-import numpy as np
+
 from bson import json_util
 
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
+        import numpy as np
         if isinstance(obj, np.integer):
             return int(obj)
         elif isinstance(obj, np.floating):

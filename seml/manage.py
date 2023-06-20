@@ -1,19 +1,17 @@
+import copy
+import datetime
 import itertools
 import logging
-import os
 import subprocess
-import datetime
-from getpass import getpass
-import copy
 import time
-import gridfs
+from getpass import getpass
 
 from seml.config import check_config
-from seml.database import get_collection, build_filter_dict
-from seml.sources import delete_files, delete_orphaned_sources, upload_sources
-from seml.utils import s_if, chunker
-from seml.settings import SETTINGS
+from seml.database import build_filter_dict, get_collection
 from seml.errors import ArgumentError, MongoDBError
+from seml.settings import SETTINGS
+from seml.sources import delete_files, delete_orphaned_sources, upload_sources
+from seml.utils import chunker, s_if
 
 States = SETTINGS.STATES
 
@@ -381,6 +379,7 @@ def get_experiment_files(experiment):
 
 
 def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False):
+    import gridfs
     collection = get_collection(db_collection_name)
     
     if batch_ids is not None:
@@ -459,3 +458,22 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
             source_files = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
             for to_delete in source_files:
                 fs.delete(to_delete)
+                
+def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
+    """ Convenience function that prints the fail trace of experiments"""
+    collection = get_collection(db_collection_name)
+    projection = {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1}
+    if sacred_id is None:
+        filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
+        exps = list(collection.find(filter_dict, projection))
+    else:
+        exps = [collection.find_one({'_id': sacred_id}, projection)]
+    for exp in exps:
+        exp_id = exp['_id']
+        status = exp['status']
+        slurm_array_id = exp.get('slurm', {}).get('array_id', None)
+        slurm_task_id = exp.get('slurm', {}).get('task_id', None)
+        fail_trace = exp.get('fail_trace', [])
+        logging.info(f'***** Experiment ID {exp_id}, status: {status}, slurm array-id, task-id: {slurm_array_id}-{slurm_task_id} *****')
+        logging.info(''.join(['\t' + line for line in fail_trace] + []))
+    logging.info(f'Printed the fail traces of {len(exps)} experiment(s).')

@@ -1,9 +1,9 @@
-import socket
-from contextlib import closing
-import fcntl
-import struct
 import array
+import fcntl
+import socket
+import struct
 import sys
+from contextlib import closing
 
 
 def get_network_interfaces():
