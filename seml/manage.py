@@ -4,11 +4,12 @@ import itertools
 import logging
 import subprocess
 import time
-from getpass import getpass
+
+from typer import prompt
 
 from seml.config import check_config
 from seml.database import build_filter_dict, get_collection
-from seml.errors import ArgumentError, MongoDBError
+from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.utils import chunker, s_if
@@ -19,23 +20,25 @@ States = SETTINGS.STATES
 def report_status(db_collection_name):
     detect_killed(db_collection_name, print_detected=False)
     collection = get_collection(db_collection_name)
-    staged = collection.count_documents({'status': {'$in': States.STAGED}})
-    pending = collection.count_documents({'status': {'$in': States.PENDING}})
-    failed = collection.count_documents({'status': {'$in': States.FAILED}})
-    killed = collection.count_documents({'status': {'$in': States.KILLED}})
-    interrupted = collection.count_documents({'status': {'$in': States.INTERRUPTED}})
-    running = collection.count_documents({'status': {'$in': States.RUNNING}})
-    completed = collection.count_documents({'status': {'$in': States.COMPLETED}})
-    title = f"********** Report for database collection '{db_collection_name}' **********"
-    logging.info(title)
-    logging.info(f"*     - {staged:3d} staged experiment{s_if(staged)}")
-    logging.info(f"*     - {pending:3d} pending experiment{s_if(pending)}")
-    logging.info(f"*     - {running:3d} running experiment{s_if(running)}")
-    logging.info(f"*     - {completed:3d} completed experiment{s_if(completed)}")
-    logging.info(f"*     - {interrupted:3d} interrupted experiment{s_if(interrupted)}")
-    logging.info(f"*     - {failed:3d} failed experiment{s_if(failed)}")
-    logging.info(f"*     - {killed:3d} killed experiment{s_if(killed)}")
-    logging.info("*" * len(title))
+    data = {
+        state: collection.count_documents({'status': {'$in': names}})
+        for state, names in States.items()
+    }
+    try:
+        from rich.console import Console
+        from rich.table import Table
+        table = Table(title=f"Collection '{db_collection_name}'", show_footer=True)
+        table.add_column("Status", justify="left", footer="Total")
+        table.add_column("Count", justify="right", footer=str(sum(data.values())))
+        for state, count in data.items():
+            table.add_row(state.capitalize(), str(count))
+        Console().print(table)
+    except ImportError:
+        title = f"********** Report for database collection '{db_collection_name}' **********"
+        logging.info(title)
+        for state, count in data.items():
+            logging.info(f"*     - {count:4d} {state.lower()} experiment{s_if(count)}")
+        logging.info("*" * len(title))
 
 
 def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict=None, wait=False):
@@ -125,8 +128,8 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
             ncancel = collection.count_documents(filter_dict)
             logging.info(f"Cancelling {ncancel} experiment{s_if(ncancel)}.")
             if ncancel >= SETTINGS.CONFIRM_CANCEL_THRESHOLD:
-                if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
-                    exit()
+                if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+                    exit(1)
 
             filter_dict_new = copy.deepcopy(filter_dict)
             filter_dict_new.update({'slurm.array_id': {'$exists': True}})
@@ -171,8 +174,8 @@ def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
     else:
         logging.info(f"Cancelling experiment with ID {sacred_id}.")
         if SETTINGS.CONFIRM_CANCEL_THRESHOLD <= 1:
-            if not yes and input('Are you sure? (y/n)').lower() != 'y':
-                exit()
+            if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+                exit(1)
         cancel_experiment_by_id(collection, sacred_id, wait=wait)
 
 
@@ -191,8 +194,8 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
 
         logging.info(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection.")
         if ndelete >= SETTINGS.CONFIRM_DELETE_THRESHOLD:
-            if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
-                exit()
+            if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+                exit(1)
         
         # Collect sources uploaded by sacred.
         exp_sources_list = collection.find(filter_dict, {'experiment.sources': 1, 'artifacts': 1})
@@ -206,8 +209,8 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
         else:
             logging.info(f"Deleting experiment with ID {sacred_id}.")
             if SETTINGS.CONFIRM_DELETE_THRESHOLD <= 1:
-                if not yes and input('Are you sure? (y/n)').lower() != 'y':
-                    exit()
+                if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+                    exit(1)
             batch_ids_in_del = set([exp['batch_id']])
 
             # Collect sources uploaded by sacred.
@@ -275,8 +278,8 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
 
         logging.info(f"Resetting the state of {nreset} experiment{s_if(nreset)}.")
         if nreset >= SETTINGS.CONFIRM_RESET_THRESHOLD:
-            if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
-                exit()
+            if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+                exit(1)
         for exp in exps:
             reset_single_experiment(collection, exp)
     else:
@@ -286,8 +289,8 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
         else:
             logging.info(f"Resetting the state of experiment with ID {sacred_id}.")
             if SETTINGS.CONFIRM_RESET_THRESHOLD <= 1:
-                if not yes and input('Are you sure? (y/n)').lower() != 'y':
-                    exit()
+                if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+                    exit(1)
             reset_single_experiment(collection, exp)
 
 
@@ -382,7 +385,7 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
     import gridfs
     collection = get_collection(db_collection_name)
     
-    if batch_ids is not None:
+    if batch_ids is not None and len(batch_ids) > 0:
         filter_dict = {'batch_id': {'$in': list(batch_ids)}}
     else:
         filter_dict = {}
@@ -396,8 +399,8 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
 
     if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
         logging.info(f'Some of the experiments is still in RUNNING, PENDING or COMPLETED.')
-        if not yes and input(f'Are you sure you want to continue? (y/n)').lower() != 'y':
-            exit()
+        if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+            exit(1)
 
     for batch_id, (seml_config, configs) in id_to_config.items():
         if 'working_dir' not in seml_config or not seml_config['working_dir']:
@@ -447,7 +450,7 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
             for to_delete in source_files:
                 fs.delete(to_delete[1])
             raise e
-        
+
         # Delete the old source files
         if not keep_old:
             fs_filter_dict = {

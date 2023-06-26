@@ -11,7 +11,7 @@ install_requires = [
     "tqdm>=4.36",
     "debugpy>=1.2.1",
     "requests>=2.28.1",
-    "argcomplete",
+    "typer>=0.9, <1.0"
 ]
 
 with open("README.md", "r") as fh:
@@ -34,6 +34,9 @@ setup(
             ]
     },
     install_requires=install_requires,
+    extras_require={
+        "pretty": ["rich<14.0"],
+    },
     python_requires='>=3.8',
     zip_safe=False,
 )

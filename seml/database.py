@@ -3,6 +3,8 @@ import re
 from collections import defaultdict
 from typing import List
 
+from typer import prompt
+
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.utils import s_if
@@ -300,11 +302,12 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
         return
 
     logging.info(f"Deleting {n_delete} not referenced artifact{s_if(n_delete)} from database {db.name}. WARNING: This cannot be undone! Artifacts/ files might have been inserted to MongoDB manually or by tools other than seml/ sacred. They will be deleted.")
-    if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
-        exit()
+    if not yes and not prompt("Are you sure? (y/n)", type=bool):
+        exit(1)
     logging.info('Deleting not referenced artifacts...')
     delete_files(db, not_referenced_artifacts, progress=True)
     logging.info(f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.')
+
 
 def list_database(pattern, mongodb_config=None, progress=False, list_empty=False):
     """
@@ -349,4 +352,23 @@ def list_database(pattern, mongodb_config=None, progress=False, list_empty=False
         df = df[df.sum(axis=1) > 0]
     # add a column with the total
     df['Total'] = df.sum(axis=1)
-    logging.info(df.sort_index().to_string())
+    df = df.sort_index()
+    try:
+        from rich.console import Console
+        from rich.table import Column, Table
+        totals = df.sum(axis=0)
+        table = Table(
+            Column("Collection", justify="left", footer="Total"),
+            *[
+                Column(state.capitalize(), justify="right", footer=str(totals[state]))
+                for state in df.columns
+            ],
+            title="Database status",
+            show_footer=True,
+        )
+        for collection_name, row in df.iterrows():
+            table.add_row(collection_name, *[str(x) for x in row.to_list()])
+            pass
+        Console().print(table)
+    except ImportError:
+        logging.info(df.to_string())
