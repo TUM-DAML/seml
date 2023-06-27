@@ -19,11 +19,12 @@ from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
                          reset_experiments)
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
-from seml.utils import LoggingFormatter
+from seml.utils import cache_to_disk, LoggingFormatter
 
 States = SETTINGS.STATES
 
 
+@cache_to_disk('db_config', SETTINGS.AUTOCOMPLETE_CACHE_ALIVE_TIME)
 def db_collection_completer():
     """ CLI completion for db collections. """
     config = get_mongodb_config()
@@ -222,6 +223,8 @@ def configure_command(
     all: Annotated[
         bool,
         typer.Option(
+            '-a',
+            '--all',
             help="Configure all SEML settings",
         ),
     ] = False,

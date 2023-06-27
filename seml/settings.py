@@ -2,24 +2,27 @@ import imp
 from pathlib import Path
 
 from munch import munchify
+import typer
 
 from seml.utils import merge_dicts
 
 __all__ = ("SETTINGS",)
+
+APP_DIR = Path(typer.get_app_dir("seml"))
 
 SETTINGS = munchify(
     {
         # Location of user-specific settings.py file containing a SETTINGS dict.
         # With this dict you can change anything that is set here, conveniently from your home directory.
         # Default: $HOME/.config/seml/settings.py
-        "USER_SETTINGS_PATH": Path.home() / ".config/seml/settings.py",
+        "USER_SETTINGS_PATH": APP_DIR / "settings.py",
         # Directory which is used on the compute nodes to dump scripts and Python code.
         # Only change this if you know what you're doing.
         "TMP_DIRECTORY": "/tmp",
 
         "DATABASE": {
             # location of the MongoDB config. Default: $HOME/.config/seml/monogdb.config
-            "MONGODB_CONFIG_PATH": Path.home() / ".config/seml/mongodb.config"
+            "MONGODB_CONFIG_PATH": APP_DIR / "mongodb.config"
         },
         "SLURM_DEFAULT": {
             'experiments_per_job': 1,
@@ -88,6 +91,8 @@ SETTINGS = munchify(
         "CONFIRM_CANCEL_THRESHOLD": 10,
         "CONFIRM_DELETE_THRESHOLD": 10,
         "CONFIRM_RESET_THRESHOLD": 10,
+
+        "AUTOCOMPLETE_CACHE_ALIVE_TIME": 300,
 
         "SETUP_COMMAND": "",
         "END_COMMAND": "",

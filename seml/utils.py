@@ -4,9 +4,12 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, Callable, TypeVar
+
+import typer
 
 
-def s_if(n):
+def s_if(n: int) -> str:
     return '' if n == 1 else 's'
 
 
@@ -266,9 +269,65 @@ class Hashabledict(dict):
 
 @contextmanager
 def working_directory(path: Path):
+    """
+    Context manager to temporarily change the working directory.
+    
+    Parameters
+    ----------
+    path: Path
+        Path to the new working directory.
+    """
     origin = Path().absolute()
     try:
         os.chdir(path)
         yield
     finally:
         os.chdir(origin)
+
+
+F = TypeVar('F', bound=Callable[[], Any])
+
+def cache_to_disk(name: str, time_to_live: float) -> Callable[[F], F]:
+    """
+    Cache the result of a function to disk.
+    
+    Parameters
+    ----------
+    name: str
+        Name of the cache file.
+    time_to_live: float
+        Time to live of the cache in seconds.
+    
+    Returns
+    -------
+    The decorated function.
+    """
+    def cache_fun(fun: F) -> F:
+        def wrapper() -> Any:
+            import time
+            cache_path = Path(typer.get_app_dir('seml')) / f'{name}.json'
+            # Load from cache
+            # if it fails or is expired we will compute it again
+            if cache_path.exists():
+                try:
+                    with open(cache_path) as f:
+                        cache = json.load(f)
+                    if cache['expire'] > time.time():
+                        return cache['result']
+                except:
+                    pass
+            # Compute and save to cache
+            result = fun()
+            cache = {
+                'result': result,
+                'expire': time.time() + time_to_live
+            }
+            try:
+                with open(cache_path, 'w') as f:
+                    json.dump(cache, f)
+            except:
+                # If the writing fails for any reason we can just continue.
+                pass
+            return result
+        return wrapper
+    return cache_fun
