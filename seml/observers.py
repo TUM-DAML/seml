@@ -1,6 +1,5 @@
 import logging
 import os
-from datetime import timezone
 
 from seml.database import get_mongo_client, get_mongodb_config
 from seml.settings import SETTINGS

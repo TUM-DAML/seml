@@ -164,26 +164,23 @@ def callback(
 ):
     """SEML - Slurm Experiment Management Library."""
     if len(logging.root.handlers) == 0:
+        logging_level = logging.VERBOSE if verbose else logging.INFO
         try:
             from rich.logging import RichHandler
             handler = RichHandler(
-                logging.VERBOSE if verbose else logging.INFO,
+                logging_level,
                 show_path=False,
                 show_level=True,
                 show_time=False,
             )
-            logging.basicConfig(
-                level="NOTSET", format="%(message)s", handlers=[handler]
-            )
         except ImportError:
-            hdlr = logging.StreamHandler(sys.stderr)
-            hdlr.setFormatter(LoggingFormatter())
-            logging.root.addHandler(hdlr)
-            if verbose:
-                logging_level = logging.VERBOSE
-            else:
-                logging_level = logging.INFO
-            logging.root.setLevel(logging_level)
+            handler = logging.StreamHandler(sys.stderr)
+            handler.setFormatter(LoggingFormatter())
+        logging.basicConfig(
+            level=logging_level,
+            format="%(message)s",
+            handlers=[handler]
+        )
 
     ctx.obj = dict(
         collection=collection,

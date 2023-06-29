@@ -30,7 +30,7 @@ setup(
     include_package_data=True,
     entry_points={
             'console_scripts': [
-                'seml = seml.main:main'
+                'seml = seml.__main__:main'
             ]
     },
     install_requires=install_requires,
