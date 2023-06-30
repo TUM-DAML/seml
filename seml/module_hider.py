@@ -2,7 +2,7 @@ import sys
 from importlib.abc import MetaPathFinder
 
 
-class CompletionModuleHider(MetaPathFinder):
+class ModuleHider(MetaPathFinder):
     def __init__(self, *hidden_modules: str, hide: bool = True) -> None:
         super().__init__()
         self.hidden_modules = set(hidden_modules)
