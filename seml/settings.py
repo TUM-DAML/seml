@@ -2,7 +2,7 @@ import imp
 from pathlib import Path
 
 from munch import munchify
-import typer
+import seml.typer as typer
 
 from seml.utils import merge_dicts
 

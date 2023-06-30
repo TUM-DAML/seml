@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
-import typer
+import seml.typer as typer
 
 
 def s_if(n: int) -> str:

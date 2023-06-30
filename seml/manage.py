@@ -5,13 +5,12 @@ import logging
 import subprocess
 import time
 
-from typer import prompt
-
 from seml.config import check_config
 from seml.database import build_filter_dict, get_collection
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
+from seml.typer import prompt
 from seml.utils import chunker, s_if
 
 States = SETTINGS.STATES

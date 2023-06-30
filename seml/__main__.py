@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 from typing import List
 
-import typer
 from typing_extensions import Annotated
 
+import seml.typer as typer
 from seml.add import add_config_files
 from seml.configure import configure
 from seml.database import (clean_unreferenced_artifacts,
@@ -19,7 +19,7 @@ from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
                          reset_experiments)
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
-from seml.utils import cache_to_disk, LoggingFormatter
+from seml.utils import LoggingFormatter, cache_to_disk
 
 States = SETTINGS.STATES
 

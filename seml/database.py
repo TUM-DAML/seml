@@ -3,10 +3,9 @@ import re
 from collections import defaultdict
 from typing import List
 
-from typer import prompt
-
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
+from seml.typer import prompt
 from seml.utils import s_if
 
 States = SETTINGS.STATES

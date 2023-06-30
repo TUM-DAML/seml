@@ -1,8 +1,7 @@
 import logging
 
-from typer import prompt
-
 from seml.settings import SETTINGS
+from seml.typer import prompt
 
 
 def mongodb_configure(): 
