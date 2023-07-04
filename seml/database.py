@@ -329,8 +329,9 @@ def list_database(pattern, mongodb_config=None, progress=False, list_empty=False
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
     db = get_database(**mongodb_config)
+    expression = re.compile(pattern)
     collection_names = [name for name in db.list_collection_names()
-                        if name not in ('fs.chunks', 'fs.files') and re.compile(pattern).match(name)]
+                        if name not in ('fs.chunks', 'fs.files') and expression.match(name)]
     name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
     it = tqdm(collection_names, disable=not progress)
     
