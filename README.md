@@ -55,8 +55,6 @@ SEML supports (rudimentary) command line completion. To install this feature run
 seml --install-completion {shell}
 ```
 
-Note: Autocompletition is not supported by chaining, i.e., only the first command will have autocompletion.
-
 
 ## Slurm version
 

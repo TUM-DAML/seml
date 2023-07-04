@@ -671,10 +671,10 @@ def command_names(app: typer.Typer) -> Set[str]:
     }
 
 
-def split_args(commands: Set[str]) -> List[List[str]]:
+def split_args(args: List[str], commands: Set[str]) -> List[List[str]]:
     # Divide argv by commands
     split_argv = [[]]
-    for c in sys.argv[1:]:
+    for c in args:
         if c in commands:
             split_argv.append([c])
         else:
@@ -697,7 +697,7 @@ def split_args(commands: Set[str]) -> List[List[str]]:
 def main():
     # We have to split the arguments manually to get proper chaining.
     # If we were to use typer built-in chaining, lists would end the chain.
-    for args in split_args(command_names(app)):
+    for args in split_args(sys.argv[1:], command_names(app)):
         # The app will typically exit after running once.
         # We want to run it multiple times, so we catch the SystemExit exception.
         try:
@@ -711,3 +711,14 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# If we are in autcompletion we must apply our parameter splitting
+# to get correct autocompletion suggestions.
+if os.environ.get('_SEML_COMPLETE') and os.environ.get('COMP_WORDS'):
+    new_comp_words = split_args(
+        os.environ['COMP_WORDS'].split('\n'),
+        command_names(app)
+    )[-1]
+    os.environ['COMP_WORDS'] = '\n'.join(new_comp_words)
+    os.environ['COMP_CWORD'] = str(len(new_comp_words) - 1)
