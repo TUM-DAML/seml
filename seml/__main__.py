@@ -49,7 +49,13 @@ def db_collection_completer():
     return list(get_collections_from_mongo_shell_or_pymongo(**config))
 
 
-app = typer.Typer(no_args_is_help=True, chain=bool(os.environ.get('_SEML_GEN_DOCS')))
+app = typer.Typer(
+    no_args_is_help=True,
+    # Note that this is not 100% the correct chaining autocompletition
+    # but it is significantly better than nothing. Compared to the default
+    # click chaining we greedly split the arguments by any command.
+    chain=bool(os.environ.get('_SEML_COMPLETE'))
+)
 YesAnnotation = Annotated[bool, typer.Option(
     '-y',
     '--yes',
