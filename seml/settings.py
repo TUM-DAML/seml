@@ -1,9 +1,9 @@
-import imp
 from pathlib import Path
+from runpy import run_path
 
 from munch import munchify
-import seml.typer as typer
 
+import seml.typer as typer
 from seml.utils import merge_dicts
 
 __all__ = ("SETTINGS",)
@@ -101,8 +101,8 @@ SETTINGS = munchify(
 
 # Load user settings
 if SETTINGS.USER_SETTINGS_PATH.exists():
-    user_settings_source = imp.load_source('SETTINGS', str(SETTINGS.USER_SETTINGS_PATH))
-    SETTINGS = munchify(merge_dicts(SETTINGS, user_settings_source.SETTINGS))
+    user_settings_source = run_path(str(SETTINGS.USER_SETTINGS_PATH))
+    SETTINGS = munchify(merge_dicts(SETTINGS, user_settings_source['SETTINGS']))
 
 SETTINGS.SLURM_STATES.ACTIVE = (
         SETTINGS.SLURM_STATES.PENDING + SETTINGS.SLURM_STATES.RUNNING + SETTINGS.SLURM_STATES.PAUSED)
