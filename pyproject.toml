@@ -44,4 +44,4 @@ Repository = "https://github.com/TUM-DAML/seml"
 Changelog = "https://github.com/TUM-DAML/seml/releases/latest"
 
 [project.scripts]
-seml = "seml.main:main"
+seml = "seml.__main__:main"
