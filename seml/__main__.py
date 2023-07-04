@@ -2,6 +2,7 @@
 import functools
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Callable, Dict, List, ParamSpec, Set, TypeVar
@@ -48,7 +49,7 @@ def db_collection_completer():
     return list(get_collections_from_mongo_shell_or_pymongo(**config))
 
 
-app = typer.Typer(no_args_is_help=True)
+app = typer.Typer(no_args_is_help=True, chain=bool(os.environ.get('_SEML_GEN_DOCS')))
 YesAnnotation = Annotated[bool, typer.Option(
     '-y',
     '--yes',

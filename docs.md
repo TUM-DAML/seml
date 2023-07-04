@@ -5,7 +5,7 @@ SEML - Slurm Experiment Management Library.
 **Usage**:
 
 ```console
-$ seml [OPTIONS] COLLECTION COMMAND [ARGS]...
+$ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 ```
 
 **Arguments**:
@@ -53,11 +53,11 @@ $ seml add [OPTIONS] CONFIG_FILES...
 
 **Options**:
 
-* `--hash / --no-hash`: Use the hash of the config dictionary to filter out duplicates (by comparing all dictionary values individually). Only disable this if you have a good reason as it is faster.  [default: hash]
-* `--sanity-check / --no-sanity-check`: Check the config for missing/unused arguments. Disable this if the check fails unexpectedly when using advanced Sacred features or to accelerate adding.  [default: sanity-check]
-* `--code-checkpoint / --no-code-checkpoint`: Save a checkpoint of the code in the database. Disable this if you want your experiments to use the current codeinstead of the code at the time of adding.  [default: code-checkpoint]
-* `--force / --no-force`: Force adding the experiment even if it already exists in the database.  [default: no-force]
-* `--overwrite-params JSON`: Dictionary (passed as a string, e.g. '{"epochs": 100}') to overwrite parameters in the config.
+* `-nh, --no-hash`: By default, we use the hash of the config dictionary to filter out duplicates (by comparing all dictionary values individually). Only disable this if you have a good reason as it is faster.
+* `-ncs, --no-sanity-check`: Disable this if the check fails unexpectedly when using advanced Sacred features or to accelerate adding.
+* `-ncc, --no-code-checkpoint`: Disable this if you want your experiments to use the current codeinstead of the code at the time of adding.
+* `-f, --force`: Force adding the experiment even if it already exists in the database.
+* `-o, --overwrite-params JSON`: Dictionary (passed as a string, e.g. '{"epochs": 100}') to overwrite parameters in the config.
 * `--help`: Show this message and exit.
 
 ## `seml cancel`
@@ -107,7 +107,7 @@ $ seml configure [OPTIONS]
 
 **Options**:
 
-* `--all / --no-all`: Configure all SEML settings  [default: no-all]
+* `-a, --all`: Configure all SEML settings
 * `--mongodb / --no-mongodb`: Configure MongoDB settings  [default: mongodb]
 * `--help`: Show this message and exit.
 
@@ -157,10 +157,10 @@ $ seml launch-worker [OPTIONS]
 **Options**:
 
 * `-n, --num-experiments INTEGER`: Number of experiments to start. 0: all (staged) experiments   [default: 0]
-* `--file-output / --no-file-output`: Write the experiment's output to a file.  [default: file-output]
+* `-nf, --no-file-output`: Do not write the experiment's output to a file.
 * `-ss, --steal-slurm`: Local jobs 'steal' from the Slurm queue, i.e. also execute experiments waiting for execution via Slurm.
 * `-pm, --post-mortem`: Activate post-mortem debugging with pdb.
-* `--output-to-console / --no-output-to-console`: Write the experiment's output to the console.  [default: no-output-to-console]
+* `-o, --output-to-console`: Write the experiment's output to the console.
 * `-wg, --worker-gpus TEXT`: The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.
 * `-wc, --worker-cpus INTEGER`: The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.
 * `-we, --worker-env JSON`: Further environment variables to be set for the local worker.
@@ -285,10 +285,10 @@ $ seml start [OPTIONS]
 * `-l, --local`: Run the experiment locally instead of on a Slurm cluster.
 * `-nw, --no-worker`: Do not launch a local worker after setting experiments' state to PENDING.
 * `-n, --num-experiments INTEGER`: Number of experiments to start. 0: all (staged) experiments   [default: 0]
-* `--file-output / --no-file-output`: Write the experiment's output to a file.  [default: file-output]
+* `-nf, --no-file-output`: Do not write the experiment's output to a file.
 * `-ss, --steal-slurm`: Local jobs 'steal' from the Slurm queue, i.e. also execute experiments waiting for execution via Slurm.
 * `-pm, --post-mortem`: Activate post-mortem debugging with pdb.
-* `--output-to-console / --no-output-to-console`: Write the experiment's output to the console.  [default: no-output-to-console]
+* `-o, --output-to-console`: Write the experiment's output to the console.
 * `-wg, --worker-gpus TEXT`: The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.
 * `-wc, --worker-cpus INTEGER`: The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.
 * `-we, --worker-env JSON`: Further environment variables to be set for the local worker.
@@ -325,4 +325,3 @@ $ seml status [OPTIONS]
 **Options**:
 
 * `--help`: Show this message and exit.
-
