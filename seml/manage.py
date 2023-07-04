@@ -26,12 +26,13 @@ def report_status(db_collection_name):
     try:
         from rich.console import Console
         from rich.table import Table
+        from rich.align import Align
         table = Table(title=f"Collection '{db_collection_name}'", show_footer=True)
         table.add_column("Status", justify="left", footer="Total")
         table.add_column("Count", justify="right", footer=str(sum(data.values())))
         for state, count in data.items():
             table.add_row(state.capitalize(), str(count))
-        Console().print(table)
+        Console().print(Align(table, align="center"))
     except ImportError:
         title = f"********** Report for database collection '{db_collection_name}' **********"
         logging.info(title)

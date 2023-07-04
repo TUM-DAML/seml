@@ -355,6 +355,7 @@ def list_database(pattern, mongodb_config=None, progress=False, list_empty=False
     try:
         from rich.console import Console
         from rich.table import Column, Table
+        from rich.align import Align
         totals = df.sum(axis=0)
         table = Table(
             Column("Collection", justify="left", footer="Total"),
@@ -368,6 +369,6 @@ def list_database(pattern, mongodb_config=None, progress=False, list_empty=False
         for collection_name, row in df.iterrows():
             table.add_row(collection_name, *[str(x) for x in row.to_list()])
             pass
-        Console().print(table)
+        Console().print(Align(table, align="center"))
     except ImportError:
         logging.info(df.to_string())
