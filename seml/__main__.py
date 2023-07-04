@@ -4,7 +4,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import List
+from typing import Callable, Dict, List, ParamSpec, Set, TypeVar
 
 from typing_extensions import Annotated
 
@@ -24,6 +24,23 @@ from seml.utils import LoggingFormatter, cache_to_disk
 States = SETTINGS.STATES
 
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
+def restrict_collection(require: bool = True):
+    """ Decorator to require a collection name. """
+    def decorator(fun: Callable[P, R]) -> Callable[P, R]:
+        @functools.wraps(fun)
+        def wrapper(ctx: typer.Context, *args, **kwargs):
+            if require and not ctx.obj['collection']:
+                raise typer.BadParameter('Please specify a collection name.', ctx=ctx)
+            elif not require and ctx.obj['collection']:
+                raise typer.BadParameter('Please do not specify a collection name.', ctx=ctx)
+            return fun(ctx, *args, **kwargs)
+        return wrapper
+    return decorator
+
+
 @cache_to_disk('db_config', SETTINGS.AUTOCOMPLETE_CACHE_ALIVE_TIME)
 def db_collection_completer():
     """ CLI completion for db collections. """
@@ -36,6 +53,7 @@ YesAnnotation = Annotated[bool, typer.Option(
     '-y',
     '--yes',
     help="Automatically confirm all dialogues with yes.",
+    is_flag=True,
 )]
 SacredIdAnnotation = Annotated[int, typer.Option(
     '-id',
@@ -43,7 +61,7 @@ SacredIdAnnotation = Annotated[int, typer.Option(
     help="Sacred ID (_id in the database collection) of the experiment. "
             "Takes precedence over other filters.",
 )]
-FilterDictAnnotation = Annotated[dict, typer.Option(
+FilterDictAnnotation = Annotated[Dict, typer.Option(
     '-f',
     '--filter-dict',
     help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter "
@@ -72,7 +90,7 @@ FilterStatesAnnotation = Annotated[List[str], typer.Option(
         if __x
     ],
 )]
-SBatchOptionsAnnotation = Annotated[dict, typer.Option(
+SBatchOptionsAnnotation = Annotated[Dict, typer.Option(
     '-sb',
     '--sbatch-options',
     help="Dictionary (passed as a string, e.g. '{\"gres\": \"gpu:2\"}') to request two GPUs.",
@@ -85,61 +103,48 @@ NumExperimentsAnnotation = Annotated[int, typer.Option(
     help="Number of experiments to start. "
             "0: all (staged) experiments ",
 )]
-FileOutputAnnotation = Annotated[
-    bool,
-    typer.Option(
-        help="Write the experiment's output to a file.",
-    )
-]
-OutputToConsoleAnnotation = Annotated[
-    bool,
-    typer.Option(
-        help="Write the experiment's output to the console.",
-    )
-]
-StealSlurmAnnotation = Annotated[
-    bool,
-    typer.Option(
-        '-ss',
-        '--steal-slurm',
-        help="Local jobs 'steal' from the Slurm queue, "
-            "i.e. also execute experiments waiting for execution via Slurm.",
-    )
-]
-PostMortemAnnotation = Annotated[
-    bool,
-    typer.Option(
-        '-pm',
-        '--post-mortem',
-        help="Activate post-mortem debugging with pdb.",
-    )
-]
-WorkerGPUsAnnotation = Annotated[
-    str,
-    typer.Option(
-        '-wg',
-        '--worker-gpus',
-        help="The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.",
-    )
-]
-WorkerCPUsAnnotation = Annotated[
-    int,
-    typer.Option(
-        '-wc',
-        '--worker-cpus',
-        help="The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.",
-    )
-]
-WorkerEnvAnnotation = Annotated[
-    dict,
-    typer.Option(
-        '-we',
-        '--worker-env',
-        help="Further environment variables to be set for the local worker.",
-        metavar='JSON',
-        parser=json.loads
-    )
-]
+NoFileOutputAnnotation = Annotated[bool, typer.Option(
+    '-nf',
+    '--no-file-output',
+    help="Do not write the experiment's output to a file.",
+    is_flag=True,
+)]
+OutputToConsoleAnnotation = Annotated[bool, typer.Option(
+    '-o',
+    '--output-to-console',
+    help="Write the experiment's output to the console.",
+    is_flag=True,
+)]
+StealSlurmAnnotation = Annotated[bool, typer.Option(
+    '-ss',
+    '--steal-slurm',
+    help="Local jobs 'steal' from the Slurm queue, "
+        "i.e. also execute experiments waiting for execution via Slurm.",
+    is_flag=True,
+)]
+PostMortemAnnotation = Annotated[bool, typer.Option(
+    '-pm',
+    '--post-mortem',
+    help="Activate post-mortem debugging with pdb.",
+    is_flag=True,
+)]
+WorkerGPUsAnnotation = Annotated[str, typer.Option(
+    '-wg',
+    '--worker-gpus',
+    help="The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.",
+)]
+WorkerCPUsAnnotation = Annotated[int, typer.Option(
+    '-wc',
+    '--worker-cpus',
+    help="The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.",
+)]
+WorkerEnvAnnotation = Annotated[dict, typer.Option(
+    '-we',
+    '--worker-env',
+    help="Further environment variables to be set for the local worker.",
+    metavar='JSON',
+    parser=json.loads
+)]
 
 
 
@@ -158,7 +163,8 @@ def callback(
         typer.Option(
             '-v',
             '--verbose',
-            help="Whether to print debug messages."
+            help="Whether to print debug messages.",
+            is_flag=True,
         )
     ] = False
 ):
@@ -189,6 +195,7 @@ def callback(
 
 
 @app.command("list")
+@restrict_collection(False)
 def list_command(
     ctx: typer.Context,
     pattern: Annotated[str, typer.Argument(
@@ -197,11 +204,11 @@ def list_command(
     progress: Annotated[bool, typer.Option(
         '-p',
         '--progress',
-        help="Whether to print a progress bar for iterating over collections."
+        help="Whether to print a progress bar for iterating over collections.",
+        is_flag=True,
     )] = False
 ):
     """Lists all collections in the database."""
-    assert not ctx.obj['collection'], "Collection name should not be passed to this command."
     list_database(pattern, progress=progress)
 
 
@@ -215,6 +222,7 @@ def clean_db_command(
 
 
 @app.command("configure")
+@restrict_collection(False)
 def configure_command(
     ctx: typer.Context,
     all: Annotated[
@@ -223,23 +231,25 @@ def configure_command(
             '-a',
             '--all',
             help="Configure all SEML settings",
+            is_flag=True,
         ),
     ] = False,
     mongodb: Annotated[
         bool,
         typer.Option(
             help="Configure MongoDB settings",
+            is_flag=True,
         ),
     ] = True
 ):
     """
     Configure SEML (database, argument completion, ...).
     """
-    assert not ctx.obj['collection'], "Collection name should not be passed to this command."
     configure(all=all, mongodb=mongodb)
 
 
 @app.command("start-jupyter")
+@restrict_collection(False)
 def start_jupyter_command(
     ctx: typer.Context,
     lab: Annotated[
@@ -264,11 +274,11 @@ def start_jupyter_command(
     Start a Jupyter slurm job. Uses SBATCH options defined in settings.py under
     SBATCH_OPTIONS_TEMPLATES.JUPYTER
     """
-    assert not ctx.obj['collection'], "Collection name should not be passed to this command."
     start_jupyter_job(lab=lab, conda_env=conda_env, sbatch_options=sbatch_options)
 
 
 @app.command("cancel")
+@restrict_collection()
 def cancel_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
@@ -281,6 +291,7 @@ def cancel_command(
             '-w',
             '--wait',
             help="Wait until all jobs are properly cancelled.",
+            is_flag=True,
         ),
     ] = False,
     yes: YesAnnotation = False
@@ -288,7 +299,6 @@ def cancel_command(
     """
     Cancel the Slurm job/job step corresponding to experiments, filtered by ID or state.
     """
-    assert ctx.obj['collection'], "Collection name must be passed to this command."
     wait = wait or len([a for a in sys.argv if a in command_names(app)]) > 1
     cancel_experiments(
         ctx.obj['collection'],
@@ -302,6 +312,7 @@ def cancel_command(
 
 
 @app.command("add")
+@restrict_collection()
 def add_command(
     ctx: typer.Context,
     config_files: Annotated[
@@ -313,38 +324,50 @@ def add_command(
             dir_okay=False,
         ),
     ],
-    hash: Annotated[
+    no_hash: Annotated[
         bool,
         typer.Option(
-            help="Use the hash of the config dictionary to filter out duplicates (by comparing all "
+            '-nh',
+            '--no-hash',
+            help="By default, we use the hash of the config dictionary to filter out duplicates (by comparing all "
                  "dictionary values individually). Only disable this if you have a good reason as it is faster.",
+            is_flag=True,
         ),
-    ] = True,
-    sanity_check: Annotated[
+    ] = False,
+    no_sanity_check: Annotated[
         bool,
         typer.Option(
-            help="Check the config for missing/unused arguments. "
-                 "Disable this if the check fails unexpectedly when using "
+            '-ncs',
+            '--no-sanity-check',
+            help="Disable this if the check fails unexpectedly when using "
                  "advanced Sacred features or to accelerate adding.",
+            is_flag=True,
         ),
-    ] = True,
-    code_checkpoint: Annotated[
+    ] = False,
+    no_code_checkpoint: Annotated[
         bool,
         typer.Option(
-            help="Save a checkpoint of the code in the database. "
-                    "Disable this if you want your experiments to use the current code"
-                    "instead of the code at the time of adding.",
+            '-ncc',
+            '--no-code-checkpoint',
+            help="Disable this if you want your experiments to use the current code"
+                 "instead of the code at the time of adding.",
+            is_flag=True,
         ),
-    ] = True,
+    ] = False,
     force: Annotated[
         bool,
         typer.Option(
+            '-f',
+            '--force',
             help="Force adding the experiment even if it already exists in the database.",
+            is_flag=True,
         ),
     ] = False,
     overwrite_params: Annotated[
         dict,
         typer.Option(
+            '-o',
+            '--overwrite-params',
             help="Dictionary (passed as a string, e.g. '{\"epochs\": 100}') to overwrite parameters in the config.",
             metavar='JSON',
             parser=json.loads
@@ -354,18 +377,18 @@ def add_command(
     """
     Add experiments to the database as defined in the configuration.
     """
-    assert ctx.obj['collection'], "Collection name must be passed to this command."
     add_config_files(
         ctx.obj['collection'],
         config_files,
         force_duplicates=force,
-        no_hash=not hash,
-        no_sanity_check=not sanity_check,
-        no_code_checkpoint=not code_checkpoint,
+        no_hash=no_hash,
+        no_sanity_check=no_sanity_check,
+        no_code_checkpoint=no_code_checkpoint,
         overwrite_params=overwrite_params
     )
 
 @app.command("start")
+@restrict_collection()
 def start_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
@@ -378,6 +401,7 @@ def start_command(
             '--debug',
             help="Run a single interactive experiment without Sacred observers and with post-mortem debugging. "
                  "Implies `--verbose --num-exps 1 --post-mortem --output-to-console`.",
+            is_flag=True,
         ),
     ] = False,
     debug_server: Annotated[
@@ -387,6 +411,7 @@ def start_command(
             '--debug-server',
             help="Run the experiment with a debug server, to which you can remotely connect with e.g. VS Code. "
                  "Implies `--debug`.",
+            is_flag=True,
         ),
     ] = False,
     local: Annotated[
@@ -395,6 +420,7 @@ def start_command(
             '-l',
             '--local',
             help="Run the experiment locally instead of on a Slurm cluster.",
+            is_flag=True,
         ),
     ] = False,
     no_worker: Annotated[
@@ -403,10 +429,11 @@ def start_command(
             '-nw',
             '--no-worker',
             help="Do not launch a local worker after setting experiments' state to PENDING.",
+            is_flag=True,
         ),
     ] = False,
     num_exps: NumExperimentsAnnotation = 0,
-    file_output: FileOutputAnnotation = True,
+    no_file_output: NoFileOutputAnnotation = False,
     steal_slurm: StealSlurmAnnotation = False,
     post_mortem: PostMortemAnnotation = False,
     output_to_console: OutputToConsoleAnnotation = False,
@@ -417,7 +444,6 @@ def start_command(
     """
     Fetch staged experiments from the database and run them (by default via Slurm).
     """
-    assert ctx.obj['collection'], "Collection name must be passed to this command."
     start_experiments(
         ctx.obj['collection'],
         local=local,
@@ -429,7 +455,7 @@ def start_command(
         debug=debug,
         debug_server=debug_server,
         output_to_console=output_to_console,
-        no_file_output=not file_output,
+        no_file_output=no_file_output,
         steal_slurm=steal_slurm,
         no_worker=no_worker,
         set_to_pending=True,
@@ -440,10 +466,11 @@ def start_command(
 
 
 @app.command("launch-worker")
+@restrict_collection()
 def launch_worker_command(
     ctx: typer.Context,
     num_exps: NumExperimentsAnnotation = 0,
-    file_output: FileOutputAnnotation = True,
+    no_file_output: NoFileOutputAnnotation = False,
     steal_slurm: StealSlurmAnnotation = False,
     post_mortem: PostMortemAnnotation = False,
     output_to_console: OutputToConsoleAnnotation = False,
@@ -457,7 +484,6 @@ def launch_worker_command(
     """
     Launch a local worker that runs PENDING jobs.
     """
-    assert ctx.obj['collection'], "Collection name must be passed to this command."
     start_experiments(
         ctx.obj['collection'],
         local=True,
@@ -467,7 +493,7 @@ def launch_worker_command(
         num_exps=num_exps,
         post_mortem=post_mortem,
         output_to_console=output_to_console,
-        no_file_output=not file_output,
+        no_file_output=no_file_output,
         steal_slurm=steal_slurm,
         no_worker=False,
         set_to_pending=False,
@@ -479,7 +505,8 @@ def launch_worker_command(
 
 
 @app.command("print-fail-trace")
-def print_traces_command(
+@restrict_collection()
+def print_fail_trace_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
     filter_dict: FilterDictAnnotation = None,
@@ -490,7 +517,6 @@ def print_traces_command(
     """
     Prints fail traces of all failed experiments.
     """
-    assert ctx.obj['collection'], "Collection name must be passed to this command."
     print_fail_trace(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -502,6 +528,7 @@ def print_traces_command(
 
 
 @app.command("reload-sources")
+@restrict_collection()
 def reload_sources_command(
     ctx: typer.Context,
     keep_old: Annotated[
@@ -510,9 +537,10 @@ def reload_sources_command(
             '-k',
             '-keep-old',
             help="Keep the old source files in the database.",
+            is_flag=True,
         ),
     ] = False,
-    batch_ids: Annotated[list[int], typer.Option(
+    batch_ids: Annotated[List[int], typer.Option(
         '-b',
         '--batch-ids',
         help="Batch IDs (batch_id in the database collection) of the experiments. "
@@ -523,7 +551,6 @@ def reload_sources_command(
     """
     Reload stashed source files.
     """
-    assert ctx.obj['collection'], "Collection name must be passed to this command."
     reload_sources(
         ctx.obj['collection'],
         batch_ids=batch_ids,
@@ -533,6 +560,7 @@ def reload_sources_command(
 
 
 @app.command("print_command")
+@restrict_collection()
 def print_command_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
@@ -560,6 +588,7 @@ def print_command_command(
 
 
 @app.command("reset")
+@restrict_collection()
 def reset_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
@@ -572,7 +601,6 @@ def reset_command(
     Reset the state of experiments by setting their state to STAGED and cleaning their database entry.
     Does not cancel Slurm jobs.
     """
-    assert ctx.obj['collection'], "Collection name must be passed to this command."
     reset_experiments(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -584,6 +612,7 @@ def reset_command(
 
 
 @app.command("delete")
+@restrict_collection()
 def delete_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
@@ -595,7 +624,6 @@ def delete_command(
     """
     Delete experiments by ID or state (does not cancel Slurm jobs).
     """
-    assert ctx.obj['collection'], "Collection name must be passed to this command."
     delete_experiments(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -607,36 +635,36 @@ def delete_command(
 
 
 @app.command("detect-killed")
+@restrict_collection()
 def detect_killed_command(
     ctx: typer.Context,
 ):
     """
     Detect experiments where the corresponding Slurm jobs were killed externally.
     """
-    assert ctx.obj['collection'], "Collection name must be passed to this command."
     detect_killed(ctx.obj['collection'])
 
 
 @app.command("status")
+@restrict_collection()
 def status_command(
     ctx: typer.Context,
 ):
     """
     Report status of experiments in the database collection.
     """
-    assert ctx.obj['collection'], "Collection name must be passed to this command."
     report_status(ctx.obj['collection'])
 
 
 @functools.lru_cache()
-def command_names(app: typer.Typer) -> set[str]:
+def command_names(app: typer.Typer) -> Set[str]:
     return {
         cmd.name if cmd.name else cmd.callback.__name__
         for cmd in app.registered_commands
     }
 
 
-def split_args(commands):
+def split_args(commands: Set[str]) -> List[List[str]]:
     # Divide argv by commands
     split_argv = [[]]
     for c in sys.argv[1:]:
