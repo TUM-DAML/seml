@@ -1,5 +1,5 @@
 [project]
-name = "smel"
+name = "seml"
 version = "0.3.7"
 description = "Slurm Experiment Management Library"
 readme = "README.md"
@@ -9,12 +9,12 @@ authors = [
     {name = "Daniel Zügner", email = "zuegnerd@in.tum.de"},
     {name = "Johannes Gsteiger", email = "johannes.gasteiger@tum.de"},
     {name = "Nicholas Gao", email = "n.gao@tum.de"},
-    {name = "Dominik Fuchsgruber", email = "dominik.fuchsgruber@tum.de"},
+    {name = "Dominik Fuchsgruber", email = "d.fuchsgruber@tum.de"},
     {name = "DAML Group @ TUM"}
 ]
 maintainers = [
     {name = "Nicholas Gao", email = "n.gao@tum.de"},
-    {name = "Dominik Fuchsgruber", email = "dominik.fuchsgruber@tum.de"},
+    {name = "Dominik Fuchsgruber", email = "d.fuchsgruber@tum.de"},
 ]
 classifiers = [
     "Programming Language :: Python"
