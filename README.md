@@ -34,20 +34,28 @@ Then configure your MongoDB via:
 seml configure  --mongodb # provide your MongoDB credentials
 ```
 
+### Formatting
+To improve CLI formatting of `seml` install it with `rich` via:
+```bash
+pip install seml[all]
+``` 
+
+## Documentation
+Documentation is available in our [docs.md](docs.md) or via the CLI:
+```python
+seml --help
+```
+
 ## Example
 See our simple [example](examples) to get familiar with how **`SEML`** works.
 
 ## CLI completion
 SEML supports (rudimentary) command line completion. To install this feature run:
 ```bash
-seml configure --argcomplete
+seml --install-completion {shell}
 ```
-There are three options available, we recommend to install the completion as `user`:
-- `user`: Creates `~/.bash_completion`, which will be automatically sourced when a shell is opened
-- `global`: Creates a similar file at a [suitable location](https://pypi.org/project/argcomplete/) depending on the shell being used. You need sudo rights to install argument completion globally.
-- `path`: Queries for a specific path to which to install the argument completion script. This script needs to be sourced in every shell session in which argument completion is to be used.
-In the background, this feature relies on the [argcomplete](https://pypi.org/project/argcomplete/) module. To disable and purge the feature you should uninstall this module and delete (the relevant parts of) the file created by `seml configure --argcomplete` (which depends on the installation mode you chose).
 
+If you are using the zsh shell, you might have to append `compinit -D` to the `~/.zshrc` file (see this [issue](https://github.com/tiangolo/typer/issues/180#issuecomment-812620805)).
 
 ## Slurm version
 
