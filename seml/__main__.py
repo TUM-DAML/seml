@@ -5,9 +5,9 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Callable, Dict, List, ParamSpec, Set, TypeVar
+from typing import Callable, Dict, List, Set, TypeVar
 
-from typing_extensions import Annotated
+from typing_extensions import Annotated, ParamSpec
 
 import seml.typer as typer
 from seml.add import add_config_files
