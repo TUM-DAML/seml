@@ -55,6 +55,7 @@ SEML supports (rudimentary) command line completion. To install this feature run
 seml --install-completion {shell}
 ```
 
+If you are using the zsh shell, you might have to append `compinit -D` to the `~/.zshrc` file (see this [issue](https://github.com/tiangolo/typer/issues/180#issuecomment-812620805)).
 
 ## Slurm version
 
