@@ -37,7 +37,7 @@ seml configure  --mongodb # provide your MongoDB credentials
 ### Formatting
 To improve CLI formatting of `seml` install it with `rich` via:
 ```bash
-pip install seml[all]
+pip install seml[pretty]
 ``` 
 
 ## Documentation
@@ -50,7 +50,7 @@ seml --help
 See our simple [example](examples) to get familiar with how **`SEML`** works.
 
 ## CLI completion
-SEML supports (rudimentary) command line completion. To install this feature run:
+SEML supports command line completion. To install this feature run:
 ```bash
 seml --install-completion {shell}
 ```
