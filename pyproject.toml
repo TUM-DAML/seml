@@ -1,0 +1,47 @@
+[project]
+name = "seml"
+version = "0.3.7"
+description = "Slurm Experiment Management Library"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Daniel Zügner", email = "zuegnerd@in.tum.de"},
+    {name = "Johannes Gsteiger", email = "johannes.gasteiger@tum.de"},
+    {name = "Nicholas Gao", email = "n.gao@tum.de"},
+    {name = "Dominik Fuchsgruber", email = "d.fuchsgruber@tum.de"},
+    {name = "DAML Group @ TUM"}
+]
+maintainers = [
+    {name = "Nicholas Gao", email = "n.gao@tum.de"},
+    {name = "Dominik Fuchsgruber", email = "d.fuchsgruber@tum.de"},
+]
+classifiers = [
+    "Programming Language :: Python"
+]
+
+dependencies = [
+    "numpy>=1.15",
+    "pymongo>=3.11",
+    "pandas",
+    "sacred>=0.8.4",
+    "pyyaml>=5.1",
+    "jsonpickle>=2.2",
+    "munch>=2.0.4",
+    "tqdm>=4.36",
+    "debugpy>=1.2.1",
+    "requests>=2.28.1",
+    "typer>=0.9, <1.0"
+]
+
+[project.optional-dependencies]
+pretty = ["rich<14.0"]
+
+[project.urls]
+Homepage = "https://github.com/TUM-DAML/seml"
+Documentation = "https://github.com/TUM-DAML/seml/blob/master/docs.md"
+Repository = "https://github.com/TUM-DAML/seml"
+Changelog = "https://github.com/TUM-DAML/seml/releases/latest"
+
+[project.scripts]
+seml = "seml.__main__:main"
