@@ -548,8 +548,9 @@ def list_database(
         from rich.align import Align
         from rich import box
         totals = df.sum(axis=0)
+        max_len = max(map(len, collection_names))
         table = Table(
-            Column("Collection", justify="left", footer="Total", min_width=max(map(len, collection_names))),
+            Column("Collection", justify="left", footer="Total", min_width=max_len),
             *[
                 Column(state.capitalize(), justify="right", footer=str(totals[state]))
                 for state in df.columns
@@ -566,7 +567,7 @@ def list_database(
             table.add_row(collection_name, *[str(x) for x in row.to_list()])
         # For some reason the table thinks the terminal is larger than it is
         console = Console()
-        table = Align(table, align="center", width=console.width - 14)
+        table = Align(table, align="center", width=console.width - max_len + 1)
         console.print(Align(table, align="center"), soft_wrap=True)
     except ImportError:
         logging.info(df.to_string())
