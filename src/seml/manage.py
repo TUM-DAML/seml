@@ -457,19 +457,20 @@ def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, fil
         slurm_array_id = exp.get('slurm', {}).get('array_id', None)
         slurm_task_id = exp.get('slurm', {}).get('task_id', None)
         fail_trace = exp.get('fail_trace', [])
-        header = f'[white]Experiment ID [blue]{exp_id}[/blue], '\
-                 f'Status: [green]{status}[/green], '\
-                 f'Slurm Array-Task id: [blue]{slurm_array_id}-{slurm_task_id}[/blue][/white]'
+        header = f'Experiment ID {exp_id}, '\
+                 f'Status: "{status}", '\
+                 f'Slurm Array-Task id: {slurm_array_id}-{slurm_task_id}'
         try:
             from rich.console import Console
             from rich.panel import Panel
+            console = Console()
             panel = Panel(
                 ''.join(['\t' + line for line in fail_trace] + []).strip(),
-                title=header,
+                title=console.render_str(header, highlight=True),
                 highlight=True,
                 border_style='red'
             )
-            Console().print(panel)
+            console.print(panel)
         except ImportError:
             logging.info(f'***** Experiment ID {exp_id}, status: {status}, slurm array-id, task-id: {slurm_array_id}-{slurm_task_id} *****')
             logging.info(''.join(['\t' + line for line in fail_trace] + []))
