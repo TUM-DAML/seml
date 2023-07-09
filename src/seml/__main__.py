@@ -5,7 +5,6 @@ import logging
 import re
 import os
 import sys
-from pathlib import Path
 from typing import Callable, Dict, List, Set, TypeVar
 
 from typing_extensions import Annotated, ParamSpec
@@ -21,7 +20,7 @@ from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
                          reset_experiments)
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
-from seml.utils import LoggingFormatter, cache_to_disk
+from seml.utils import cache_to_disk
 
 States = SETTINGS.STATES
 
@@ -155,7 +154,6 @@ WorkerEnvAnnotation = Annotated[dict, typer.Option(
 )]
 
 
-
 @app.callback()
 def callback(
     ctx: typer.Context,
@@ -177,19 +175,17 @@ def callback(
     ] = False
 ):
     """SEML - Slurm Experiment Management Library."""
+    from rich.logging import RichHandler
+    from seml.console import console
     if len(logging.root.handlers) == 0:
         logging_level = logging.VERBOSE if verbose else logging.INFO
-        try:
-            from rich.logging import RichHandler
-            handler = RichHandler(
-                logging_level,
-                show_path=False,
-                show_level=True,
-                show_time=False,
-            )
-        except ImportError:
-            handler = logging.StreamHandler(sys.stderr)
-            handler.setFormatter(LoggingFormatter())
+        handler = RichHandler(
+            logging_level,
+            console=console,
+            show_path=False,
+            show_level=True,
+            show_time=False,
+        )
         logging.basicConfig(
             level=logging_level,
             format="%(message)s",

@@ -34,12 +34,6 @@ Then configure your MongoDB via:
 seml configure  --mongodb # provide your MongoDB credentials
 ```
 
-### Formatting
-To improve CLI formatting of `seml` install it with `rich` via:
-```bash
-pip install seml[pretty]
-``` 
-
 ## Documentation
 Documentation is available in our [docs.md](docs.md) or via the CLI:
 ```python

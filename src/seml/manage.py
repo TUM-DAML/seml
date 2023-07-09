@@ -9,7 +9,8 @@ from collections import defaultdict
 from typing import Dict, Optional
 
 from seml.config import check_config
-from seml.database import build_filter_dict, get_collection, get_database, get_mongodb_config
+from seml.database import (build_filter_dict, get_collection, get_database,
+                           get_mongodb_config)
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
@@ -444,6 +445,9 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
                 
 def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
     """ Convenience function that prints the fail trace of experiments"""
+    from rich.panel import Panel
+
+    from seml.console import console
     detect_killed(db_collection_name, print_detected=False)
     collection = get_collection(db_collection_name)
     projection = {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1}
@@ -461,20 +465,13 @@ def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, fil
         header = f'Experiment ID {exp_id}, '\
                  f'Status: "{status}", '\
                  f'Slurm Array-Task id: {slurm_array_id}-{slurm_task_id}'
-        try:
-            from rich.console import Console
-            from rich.panel import Panel
-            console = Console()
-            panel = Panel(
-                ''.join(['\t' + line for line in fail_trace] + []).strip(),
-                title=console.render_str(header, highlight=True),
-                highlight=True,
-                border_style='red'
-            )
-            console.print(panel)
-        except ImportError:
-            logging.info(f'***** Experiment ID {exp_id}, status: {status}, slurm array-id, task-id: {slurm_array_id}-{slurm_task_id} *****')
-            logging.info(''.join(['\t' + line for line in fail_trace] + []))
+        panel = Panel(
+            ''.join(['\t' + line for line in fail_trace] + []).strip(),
+            title=console.render_str(header, highlight=True),
+            highlight=True,
+            border_style='red'
+        )
+        console.print(panel)
     logging.info(f'Printed the fail traces of {len(exps)} experiment(s).')
 
 
@@ -501,7 +498,13 @@ def list_database(
         Whether to update the status of experiments by checking log files. This may take a while.
     """
     import pandas as pd
+    from rich import box
+    from rich.align import Align
+    from rich.table import Column, Table
     from tqdm.auto import tqdm
+
+    from seml.console import console
+
     # Get the database
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
@@ -542,32 +545,25 @@ def list_database(
     df = df.sort_index()[States.keys()]
     # add a column with the total
     df['Total'] = df.sum(axis=1)
-    try:
-        from rich.console import Console
-        from rich.table import Column, Table
-        from rich.align import Align
-        from rich import box
-        totals = df.sum(axis=0)
-        max_len = max(map(len, collection_names))
-        table = Table(
-            Column("Collection", justify="left", footer="Total", min_width=max_len),
-            *[
-                Column(state.capitalize(), justify="right", footer=str(totals[state]))
-                for state in df.columns
-            ],
-            show_footer=df.shape[0] > 1,
-            collapse_padding=True,
-            show_lines=False,
-            show_edge=False,
-            box=box.SIMPLE,
-            row_styles=['none', 'dim'],
-            padding=(0,0,)
-        )
-        for collection_name, row in df.iterrows():
-            table.add_row(collection_name, *[str(x) for x in row.to_list()])
-        # For some reason the table thinks the terminal is larger than it is
-        console = Console()
-        table = Align(table, align="center", width=console.width - max_len + 1)
-        console.print(Align(table, align="center"), soft_wrap=True)
-    except ImportError:
-        logging.info(df.to_string())
+    
+    totals = df.sum(axis=0)
+    max_len = max(map(len, collection_names))
+    table = Table(
+        Column("Collection", justify="left", footer="Total", min_width=max_len),
+        *[
+            Column(state.capitalize(), justify="right", footer=str(totals[state]))
+            for state in df.columns
+        ],
+        show_footer=df.shape[0] > 1,
+        collapse_padding=True,
+        show_lines=False,
+        show_edge=False,
+        box=box.SIMPLE,
+        row_styles=['none', 'dim'],
+        padding=(0,0,)
+    )
+    for collection_name, row in df.iterrows():
+        table.add_row(collection_name, *[str(x) for x in row.to_list()])
+    # For some reason the table thinks the terminal is larger than it is
+    table = Align(table, align="center", width=console.width - max_len + 1)
+    console.print(Align(table, align="center"), soft_wrap=True)
