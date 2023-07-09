@@ -444,6 +444,7 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
                 
 def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
     """ Convenience function that prints the fail trace of experiments"""
+    detect_killed(db_collection_name, print_detected=False)
     collection = get_collection(db_collection_name)
     projection = {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1}
     if sacred_id is None:
@@ -529,6 +530,9 @@ def list_database(
             for result in counts_by_status
             if result['_id'] in inv_states
         })
+    if len(name_to_counts) == 0:
+        logging.info(f'Found no collection matching "{pattern}"!')
+        return
     
     df = pd.DataFrame.from_dict(name_to_counts, dtype=int).transpose()
     # Remove empty collections
@@ -542,18 +546,27 @@ def list_database(
         from rich.console import Console
         from rich.table import Column, Table
         from rich.align import Align
+        from rich import box
         totals = df.sum(axis=0)
         table = Table(
-            Column("Collection", justify="left", footer="Total"),
+            Column("Collection", justify="left", footer="Total", min_width=max(map(len, collection_names))),
             *[
                 Column(state.capitalize(), justify="right", footer=str(totals[state]))
                 for state in df.columns
             ],
-            title="Database status",
             show_footer=df.shape[0] > 1,
+            collapse_padding=True,
+            show_lines=False,
+            show_edge=False,
+            box=box.SIMPLE,
+            row_styles=['none', 'dim'],
+            padding=(0,0,)
         )
         for collection_name, row in df.iterrows():
             table.add_row(collection_name, *[str(x) for x in row.to_list()])
-        Console().print(Align(table, align="center"))
+        # For some reason the table thinks the terminal is larger than it is
+        console = Console()
+        table = Align(table, align="center", width=console.width - 14)
+        console.print(Align(table, align="center"), soft_wrap=True)
     except ImportError:
         logging.info(df.to_string())
