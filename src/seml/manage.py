@@ -274,7 +274,10 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
 
 def detect_killed(db_collection_name, print_detected=True):
     collection = get_collection(db_collection_name)
-    exps = collection.find({'status': {'$in': [*States.PENDING, *States.RUNNING]}})
+    exps = collection.find({
+        'status': {'$in': [*States.PENDING, *States.RUNNING]},
+        'host': {'$exists': True}, # only check experiments that have been started
+    })
     running_jobs = get_slurm_arrays_tasks()
     nkilled = 0
     for exp in exps:
