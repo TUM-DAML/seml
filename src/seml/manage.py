@@ -457,8 +457,22 @@ def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, fil
         slurm_array_id = exp.get('slurm', {}).get('array_id', None)
         slurm_task_id = exp.get('slurm', {}).get('task_id', None)
         fail_trace = exp.get('fail_trace', [])
-        logging.info(f'***** Experiment ID {exp_id}, status: {status}, slurm array-id, task-id: {slurm_array_id}-{slurm_task_id} *****')
-        logging.info(''.join(['\t' + line for line in fail_trace] + []))
+        header = f'[white]Experiment ID [blue]{exp_id}[/blue], '\
+                 f'Status: [green]{status}[/green], '\
+                 f'Slurm Array-Task id: [blue]{slurm_array_id}-{slurm_task_id}[/blue][/white]'
+        try:
+            from rich.console import Console
+            from rich.panel import Panel
+            panel = Panel(
+                ''.join(['\t' + line for line in fail_trace] + []).strip(),
+                title=header,
+                highlight=True,
+                border_style='red'
+            )
+            Console().print(panel)
+        except ImportError:
+            logging.info(f'***** Experiment ID {exp_id}, status: {status}, slurm array-id, task-id: {slurm_array_id}-{slurm_task_id} *****')
+            logging.info(''.join(['\t' + line for line in fail_trace] + []))
     logging.info(f'Printed the fail traces of {len(exps)} experiment(s).')
 
 
