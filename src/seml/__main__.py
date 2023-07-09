@@ -2,6 +2,7 @@
 import functools
 import json
 import logging
+import re
 import os
 import sys
 from pathlib import Path
@@ -14,9 +15,9 @@ from seml.add import add_config_files
 from seml.configure import configure
 from seml.database import (clean_unreferenced_artifacts,
                            get_collections_from_mongo_shell_or_pymongo,
-                           get_mongodb_config, list_database)
+                           get_mongodb_config)
 from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
-                         print_fail_trace, reload_sources, report_status,
+                         list_database, print_fail_trace, reload_sources,
                          reset_experiments)
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
@@ -213,10 +214,17 @@ def list_command(
         '--progress',
         help="Whether to print a progress bar for iterating over collections.",
         is_flag=True,
-    )] = False
+    )] = False,
+    update_status: Annotated[bool, typer.Option(
+        '-u',
+        '--update-status',
+        help="Whether to update the status of experiments in the database."
+             "This can take a while for large collections. Use only if necessary.",
+        is_flag=True,
+    )] = False,
 ):
     """Lists all collections in the database."""
-    list_database(pattern, progress=progress)
+    list_database(pattern, progress=progress, update_status=update_status)
 
 
 @app.command("clean-db")
@@ -660,7 +668,12 @@ def status_command(
     """
     Report status of experiments in the database collection.
     """
-    report_status(ctx.obj['collection'])
+    collection = re.escape(ctx.obj['collection'])
+    list_database(
+        rf'^{collection}$',
+        progress=False,
+        update_status=True,
+    )
 
 
 @functools.lru_cache()
