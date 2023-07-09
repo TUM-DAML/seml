@@ -331,7 +331,7 @@ def cancel_command(
 def add_command(
     ctx: typer.Context,
     config_files: Annotated[
-        List[Path],
+        List[str],
         typer.Argument(
             help="Path to the YAML configuration file for the experiment.",
             exists=True,
