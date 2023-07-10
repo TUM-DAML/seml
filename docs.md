@@ -186,6 +186,7 @@ $ seml list [OPTIONS] [PATTERN]
 **Options**:
 
 * `-p, --progress`: Whether to print a progress bar for iterating over collections.
+* `-u, --update-status`: Whether to update the status of experiments in the database.This can take a while for large collections. Use only if necessary.
 * `--help`: Show this message and exit.
 
 ## `seml print-fail-trace`

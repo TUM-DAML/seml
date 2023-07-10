@@ -2,9 +2,9 @@
 import functools
 import json
 import logging
+import re
 import os
 import sys
-from pathlib import Path
 from typing import Callable, Dict, List, Set, TypeVar
 
 from typing_extensions import Annotated, ParamSpec
@@ -14,13 +14,13 @@ from seml.add import add_config_files
 from seml.configure import configure
 from seml.database import (clean_unreferenced_artifacts,
                            get_collections_from_mongo_shell_or_pymongo,
-                           get_mongodb_config, list_database)
+                           get_mongodb_config)
 from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
-                         print_fail_trace, reload_sources, report_status,
+                         list_database, print_fail_trace, reload_sources,
                          reset_experiments)
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
-from seml.utils import LoggingFormatter, cache_to_disk
+from seml.utils import cache_to_disk
 
 States = SETTINGS.STATES
 
@@ -154,7 +154,6 @@ WorkerEnvAnnotation = Annotated[dict, typer.Option(
 )]
 
 
-
 @app.callback()
 def callback(
     ctx: typer.Context,
@@ -176,19 +175,17 @@ def callback(
     ] = False
 ):
     """SEML - Slurm Experiment Management Library."""
+    from rich.logging import RichHandler
+    from seml.console import console
     if len(logging.root.handlers) == 0:
         logging_level = logging.VERBOSE if verbose else logging.INFO
-        try:
-            from rich.logging import RichHandler
-            handler = RichHandler(
-                logging_level,
-                show_path=False,
-                show_level=True,
-                show_time=False,
-            )
-        except ImportError:
-            handler = logging.StreamHandler(sys.stderr)
-            handler.setFormatter(LoggingFormatter())
+        handler = RichHandler(
+            logging_level,
+            console=console,
+            show_path=False,
+            show_level=True,
+            show_time=False,
+        )
         logging.basicConfig(
             level=logging_level,
             format="%(message)s",
@@ -213,10 +210,17 @@ def list_command(
         '--progress',
         help="Whether to print a progress bar for iterating over collections.",
         is_flag=True,
-    )] = False
+    )] = False,
+    update_status: Annotated[bool, typer.Option(
+        '-u',
+        '--update-status',
+        help="Whether to update the status of experiments in the database."
+             "This can take a while for large collections. Use only if necessary.",
+        is_flag=True,
+    )] = False,
 ):
     """Lists all collections in the database."""
-    list_database(pattern, progress=progress)
+    list_database(pattern, progress=progress, update_status=update_status)
 
 
 @app.command("clean-db")
@@ -323,7 +327,7 @@ def cancel_command(
 def add_command(
     ctx: typer.Context,
     config_files: Annotated[
-        List[Path],
+        List[str],
         typer.Argument(
             help="Path to the YAML configuration file for the experiment.",
             exists=True,
@@ -660,7 +664,12 @@ def status_command(
     """
     Report status of experiments in the database collection.
     """
-    report_status(ctx.obj['collection'])
+    collection = re.escape(ctx.obj['collection'])
+    list_database(
+        rf'^{collection}$',
+        progress=False,
+        update_status=True,
+    )
 
 app_description = typer.Typer(
     no_args_is_help=True,

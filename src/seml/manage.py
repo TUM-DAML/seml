@@ -2,11 +2,15 @@ import copy
 import datetime
 import itertools
 import logging
+import re
 import subprocess
 import time
+from collections import defaultdict
+from typing import Dict, Optional
 
 from seml.config import check_config
-from seml.database import build_filter_dict, get_collection
+from seml.database import (build_filter_dict, get_collection, get_database,
+                           get_mongodb_config)
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
@@ -14,31 +18,6 @@ from seml.typer import prompt
 from seml.utils import chunker, s_if
 
 States = SETTINGS.STATES
-
-
-def report_status(db_collection_name):
-    detect_killed(db_collection_name, print_detected=False)
-    collection = get_collection(db_collection_name)
-    data = {
-        state: collection.count_documents({'status': {'$in': names}})
-        for state, names in States.items()
-    }
-    try:
-        from rich.console import Console
-        from rich.table import Table
-        from rich.align import Align
-        table = Table(title=f"Collection '{db_collection_name}'", show_footer=True)
-        table.add_column("Status", justify="left", footer="Total")
-        table.add_column("Count", justify="right", footer=str(sum(data.values())))
-        for state, count in data.items():
-            table.add_row(state.capitalize(), str(count))
-        Console().print(Align(table, align="center"))
-    except ImportError:
-        title = f"********** Report for database collection '{db_collection_name}' **********"
-        logging.info(title)
-        for state, count in data.items():
-            logging.info(f"*     - {count:4d} {state.lower()} experiment{s_if(count)}")
-        logging.info("*" * len(title))
 
 
 def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict=None, wait=False):
@@ -296,8 +275,10 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
 
 def detect_killed(db_collection_name, print_detected=True):
     collection = get_collection(db_collection_name)
-    exps = collection.find({'status': {'$in': [*States.PENDING, *States.RUNNING]},
-                            '$or': [{'slurm.array_id': {'$exists': True}}, {'slurm.id': {'$exists': True}}]})
+    exps = collection.find({
+        'status': {'$in': [*States.PENDING, *States.RUNNING]},
+        'host': {'$exists': True}, # only check experiments that have been started
+    })
     running_jobs = get_slurm_arrays_tasks()
     nkilled = 0
     for exp in exps:
@@ -464,6 +445,10 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
                 
 def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
     """ Convenience function that prints the fail trace of experiments"""
+    from rich.panel import Panel
+
+    from seml.console import console
+    detect_killed(db_collection_name, print_detected=False)
     collection = get_collection(db_collection_name)
     projection = {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1}
     if sacred_id is None:
@@ -477,6 +462,108 @@ def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, fil
         slurm_array_id = exp.get('slurm', {}).get('array_id', None)
         slurm_task_id = exp.get('slurm', {}).get('task_id', None)
         fail_trace = exp.get('fail_trace', [])
-        logging.info(f'***** Experiment ID {exp_id}, status: {status}, slurm array-id, task-id: {slurm_array_id}-{slurm_task_id} *****')
-        logging.info(''.join(['\t' + line for line in fail_trace] + []))
+        header = f'Experiment ID {exp_id}, '\
+                 f'Status: "{status}", '\
+                 f'Slurm Array-Task id: {slurm_array_id}-{slurm_task_id}'
+        panel = Panel(
+            ''.join(['\t' + line for line in fail_trace] + []).strip(),
+            title=console.render_str(header, highlight=True),
+            highlight=True,
+            border_style='red'
+        )
+        console.print(panel)
     logging.info(f'Printed the fail traces of {len(exps)} experiment(s).')
+
+
+def list_database(
+        pattern: str,
+        mongodb_config: Optional[Dict] = None,
+        progress: bool = False,
+        list_empty: bool = False,
+        update_status: bool = False):
+    """
+    Prints a tabular version of multiple collections and their states (without resolving RUNNING experiments that may have been canceled manually).
+
+    Parameters
+    ----------
+    pattern : str
+        The regex collection names have to match against
+    mongodb_config : dict or None
+        A configuration for the mongodb. If None, the standard config is used.
+    progress : bool
+        Whether to use a progress bar for fetching
+    list_empty : bool
+        Whether to list collections that have no documents associated with any state
+    update_status : bool
+        Whether to update the status of experiments by checking log files. This may take a while.
+    """
+    import pandas as pd
+    from rich import box
+    from rich.align import Align
+    from rich.table import Column, Table
+    from tqdm.auto import tqdm
+
+    from seml.console import console
+
+    # Get the database
+    if mongodb_config is None:
+        mongodb_config = get_mongodb_config()
+    db = get_database(**mongodb_config)
+    expression = re.compile(pattern)
+    collection_names = [name for name in db.list_collection_names()
+                        if name not in ('fs.chunks', 'fs.files') and expression.match(name)]
+    # Handle status updates
+    if update_status:
+        for collection in collection_names:
+            detect_killed(collection, print_detected=False)
+    else:
+        logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use `seml ... status` instead.")
+    
+    # Count the number of experiments in each state
+    name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
+    it = tqdm(collection_names, disable=not progress)
+
+    inv_states = {v: k for k, states in States.items() for v in states}
+    for collection_name in it:
+        counts_by_status = db[collection_name].aggregate([{
+            '$group' : {'_id' : '$status', '_count' : {'$sum' : 1}}
+        }])
+        name_to_counts[collection_name].update({
+            inv_states[result['_id']]: result['_count']
+            for result in counts_by_status
+            if result['_id'] in inv_states
+        })
+    if len(name_to_counts) == 0:
+        logging.info(f'Found no collection matching "{pattern}"!')
+        return
+    
+    df = pd.DataFrame.from_dict(name_to_counts, dtype=int).transpose()
+    # Remove empty collections
+    if not list_empty:
+        df = df[df.sum(axis=1) > 0]
+    # sort rows and columns
+    df = df.sort_index()[States.keys()]
+    # add a column with the total
+    df['Total'] = df.sum(axis=1)
+    
+    totals = df.sum(axis=0)
+    max_len = max(map(len, collection_names))
+    table = Table(
+        Column("Collection", justify="left", footer="Total", min_width=max_len),
+        *[
+            Column(state.capitalize(), justify="right", footer=str(totals[state]))
+            for state in df.columns
+        ],
+        show_footer=df.shape[0] > 1,
+        collapse_padding=True,
+        show_lines=False,
+        show_edge=False,
+        box=box.SIMPLE,
+        row_styles=['none', 'dim'],
+        padding=(0,0,)
+    )
+    for collection_name, row in df.iterrows():
+        table.add_row(collection_name, *[str(x) for x in row.to_list()])
+    # For some reason the table thinks the terminal is larger than it is
+    table = Align(table, align="center", width=console.width - max_len + 1)
+    console.print(Align(table, align="center"), soft_wrap=True)

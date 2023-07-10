@@ -1,6 +1,4 @@
 import logging
-import re
-from collections import defaultdict
 from typing import List
 
 from seml.errors import MongoDBError
@@ -306,70 +304,3 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     logging.info('Deleting not referenced artifacts...')
     delete_files(db, not_referenced_artifacts, progress=True)
     logging.info(f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.')
-
-
-def list_database(pattern, mongodb_config=None, progress=False, list_empty=False):
-    """
-    Prints a tabular version of multiple collections and their states (without resolving RUNNING experiments that may have been canceled manually).
-
-    Parameters
-    ----------
-    pattern : str
-        The regex collection names have to match against
-    mongodb_config : dict or None
-        A configuration for the mongodb. If None, the standard config is used.
-    progress : bool
-        Whether to use a progress bar for fetching
-    list_empty : bool
-        Whether to list collections that have no documents associated with any state
-    """
-    import pandas as pd
-    from tqdm.auto import tqdm
-    logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use `seml ... status` instead.")
-    if mongodb_config is None:
-        mongodb_config = get_mongodb_config()
-    db = get_database(**mongodb_config)
-    expression = re.compile(pattern)
-    collection_names = [name for name in db.list_collection_names()
-                        if name not in ('fs.chunks', 'fs.files') and expression.match(name)]
-    name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
-    it = tqdm(collection_names, disable=not progress)
-    
-    inv_states = {v: k for k, states in States.items() for v in states}
-    for collection_name in it:
-        counts_by_status = db[collection_name].aggregate([{
-            '$group' : {'_id' : '$status', '_count' : {'$sum' : 1}}
-        }])
-        name_to_counts[collection_name].update({
-            inv_states[result['_id']]: result['_count']
-            for result in counts_by_status
-            if result['_id'] in inv_states
-        })
-    
-    df = pd.DataFrame.from_dict(name_to_counts, dtype=int).transpose()
-    # Remove empty collections
-    if not list_empty:
-        df = df[df.sum(axis=1) > 0]
-    # add a column with the total
-    df['Total'] = df.sum(axis=1)
-    df = df.sort_index()
-    try:
-        from rich.console import Console
-        from rich.table import Column, Table
-        from rich.align import Align
-        totals = df.sum(axis=0)
-        table = Table(
-            Column("Collection", justify="left", footer="Total"),
-            *[
-                Column(state.capitalize(), justify="right", footer=str(totals[state]))
-                for state in df.columns
-            ],
-            title="Database status",
-            show_footer=True,
-        )
-        for collection_name, row in df.iterrows():
-            table.add_row(collection_name, *[str(x) for x in row.to_list()])
-            pass
-        Console().print(Align(table, align="center"))
-    except ImportError:
-        logging.info(df.to_string())
