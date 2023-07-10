@@ -18,6 +18,7 @@ from seml.database import (clean_unreferenced_artifacts,
 from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
                          list_database, print_fail_trace, reload_sources,
                          reset_experiments)
+from seml.description import collection_set_description, collection_delete_description
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
 from seml.utils import cache_to_disk
@@ -153,6 +154,12 @@ WorkerEnvAnnotation = Annotated[dict, typer.Option(
     parser=json.loads
 )]
 
+PrintFullDescriptionAnnotation = Annotated[bool, typer.Option(
+    '-fd',
+    '--full-descriptions',
+    help="Whether to print full descriptions (possibly with line breaks).",
+    is_flag=True,
+)]
 
 @app.callback()
 def callback(
@@ -218,9 +225,10 @@ def list_command(
              "This can take a while for large collections. Use only if necessary.",
         is_flag=True,
     )] = False,
+    full_description: PrintFullDescriptionAnnotation = False,
 ):
     """Lists all collections in the database."""
-    list_database(pattern, progress=progress, update_status=update_status)
+    list_database(pattern, progress=progress, update_status=update_status, print_full_description=full_description)
 
 
 @app.command("clean-db")
@@ -660,6 +668,7 @@ def detect_killed_command(
 @restrict_collection()
 def status_command(
     ctx: typer.Context,
+    full_description: PrintFullDescriptionAnnotation = False,
 ):
     """
     Report status of experiments in the database collection.
@@ -669,6 +678,7 @@ def status_command(
         rf'^{collection}$',
         progress=False,
         update_status=True,
+        print_full_description=full_description,
     )
 
 app_description = typer.Typer(
@@ -685,13 +695,9 @@ def set_description(
     description: Annotated[
         str,
         typer.Argument(
-            '-nh',
-            '--no-hash',
-            help="By default, we use the hash of the config dictionary to filter out duplicates (by comparing all "
-                 "dictionary values individually). Only disable this if you have a good reason as it is faster.",
-            is_flag=True,
+            help="The description to set.",
         ),
-    ] = False,
+    ],
     sacred_id: SacredIdAnnotation = None,
     filter_states: FilterStatesAnnotation = None,
     filter_dict: FilterDictAnnotation = None,
@@ -699,10 +705,28 @@ def set_description(
     yes: YesAnnotation = False,
 ):
     """
-    Reload stashed source files.
+    Sets the description of experiment(s).
     """
-    print(f'Set description', ctx.obj['collection'], description, sacred_id, filter_states, filter_dict, batch_id, yes)
+    collection_set_description(ctx.obj['collection'], description, sacred_id=sacred_id,
+                                filter_states=filter_states, filter_dict=filter_dict,
+                                batch_id=batch_id, yes=yes)
 
+@app_description.command("delete")
+@restrict_collection()
+def set_description(
+    ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = None,
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    yes: YesAnnotation = False,
+):
+    """
+    Deletes the description of experiment(s).
+    """
+    collection_delete_description(ctx.obj['collection'], sacred_id=sacred_id,
+                                filter_states=filter_states, filter_dict=filter_dict,
+                                batch_id=batch_id, yes=yes)
 
 @functools.lru_cache()
 def command_names(app: typer.Typer) -> Set[str]:

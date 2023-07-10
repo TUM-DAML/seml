@@ -450,7 +450,8 @@ def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, fil
     from seml.console import console
     detect_killed(db_collection_name, print_detected=False)
     collection = get_collection(db_collection_name)
-    projection = {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1}
+    projection = {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1, 'seml.description' : 1,
+                  'batch_id' : 1}
     if sacred_id is None:
         filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
         exps = list(collection.find(filter_dict, projection))
@@ -459,15 +460,19 @@ def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, fil
     for exp in exps:
         exp_id = exp['_id']
         status = exp['status']
+        batch_id = exp['batch_id']
         slurm_array_id = exp.get('slurm', {}).get('array_id', None)
         slurm_task_id = exp.get('slurm', {}).get('task_id', None)
         fail_trace = exp.get('fail_trace', [])
+        description = exp.get('seml', {}).get('description', None)
         header = f'Experiment ID {exp_id}, '\
+                 f'Batch ID {batch_id}, '\
                  f'Status: "{status}", '\
                  f'Slurm Array-Task id: {slurm_array_id}-{slurm_task_id}'
         panel = Panel(
             ''.join(['\t' + line for line in fail_trace] + []).strip(),
             title=console.render_str(header, highlight=True),
+            subtitle = f'Description: {description}' if description is not None else None,
             highlight=True,
             border_style='red'
         )
@@ -480,7 +485,8 @@ def list_database(
         mongodb_config: Optional[Dict] = None,
         progress: bool = False,
         list_empty: bool = False,
-        update_status: bool = False):
+        update_status: bool = False,
+        print_full_description: bool = False):
     """
     Prints a tabular version of multiple collections and their states (without resolving RUNNING experiments that may have been canceled manually).
 
@@ -496,6 +502,8 @@ def list_database(
         Whether to list collections that have no documents associated with any state
     update_status : bool
         Whether to update the status of experiments by checking log files. This may take a while.
+    print_full_description : bool
+        Whether to print full descriptions (wrap-arround) or truncate the descriptions otherwise.
     """
     import pandas as pd
     from rich import box
@@ -521,18 +529,31 @@ def list_database(
     
     # Count the number of experiments in each state
     name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
+    name_to_descriptions = defaultdict(lambda: '')
     it = tqdm(collection_names, disable=not progress)
 
     inv_states = {v: k for k, states in States.items() for v in states}
     for collection_name in it:
         counts_by_status = db[collection_name].aggregate([{
-            '$group' : {'_id' : '$status', '_count' : {'$sum' : 1}}
+            '$group' : {
+                '_id' : '$status', '_count' : {'$sum' : 1},
+                'description' : {'$addToSet' : '$seml.description'}}
+        }])
+        descriptions = db[collection_name].aggregate([{
+            '$group' : {
+                '_id' : '$seml.description'
+            }
         }])
         name_to_counts[collection_name].update({
             inv_states[result['_id']]: result['_count']
             for result in counts_by_status
             if result['_id'] in inv_states
         })
+        descriptions = [result['_id'] for result in descriptions if result['_id'] is not None]
+        if len(descriptions) > 1:
+            descriptions = [f'"{description}"' for description in descriptions]
+        name_to_descriptions[collection_name] = ', '.join(descriptions)
+        
     if len(name_to_counts) == 0:
         logging.info(f'Found no collection matching "{pattern}"!')
         return
@@ -554,6 +575,8 @@ def list_database(
             Column(state.capitalize(), justify="right", footer=str(totals[state]))
             for state in df.columns
         ],
+        Column("Description(s)", justify="left", max_width=console.width - max_len - sum(map(len, df.columns)) + 1, 
+               no_wrap=not print_full_description, overflow='ellipsis'),
         show_footer=df.shape[0] > 1,
         collapse_padding=True,
         show_lines=False,
@@ -563,7 +586,7 @@ def list_database(
         padding=(0,0,)
     )
     for collection_name, row in df.iterrows():
-        table.add_row(collection_name, *[str(x) for x in row.to_list()])
+        table.add_row(collection_name, *[str(x) for x in row.to_list()], name_to_descriptions[collection_name])
     # For some reason the table thinks the terminal is larger than it is
     table = Align(table, align="center", width=console.width - max_len + 1)
     console.print(Align(table, align="center"), soft_wrap=True)
