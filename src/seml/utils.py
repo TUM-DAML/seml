@@ -161,6 +161,23 @@ def list_is_prefix(first: List, second: List) -> bool:
     return len(first) <= len(second) and all(x1 == x2 for x1, x2 in zip(first, second))
 
 def resolve_projection_path_conflicts(projection: Dict[str, bool], sep: str='.') -> Dict[str, bool]:
+    """Removes path conflicts in a MongoDB projection dict. E.g. if you pass the dict
+    `{'config' : 1, 'config.dataset' : 1}`, MongoDB will throw an error. This method will ensure that
+    always the "bigger" projection is returned, i.e. `"config"` in the aforementioned example.
+    Note that this resolution will not work if you pass e.g. `{'config' : 1, 'config.dataset' : 0}`.
+
+    Parameters
+    ----------
+    projection : Dict[str, bool]
+        The projection to resolve
+    sep : str, optional
+        The separator for nested config values, by default '.'
+
+    Returns
+    -------
+    Dict[str, bool]
+        The resolved projection
+    """
     result = {}
     for k, v in projection.items():
         k = tuple(k.split(sep))
@@ -179,18 +196,6 @@ def resolve_projection_path_conflicts(projection: Dict[str, bool], sep: str='.')
         if add_k:
             result[k] = v
     return {sep.join(k) : v for k, v in result.items()}
-            
-        
-        
-        
-    
-    projection = {k.split(sep) : v for k, v in projection.items()}
-    
-    
-    
-    
-    
-    
 
 def chunker(seq, size):
     """

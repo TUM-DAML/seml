@@ -11,7 +11,6 @@ from typing import Dict, List, Optional
 from seml.config import check_config
 from seml.database import (build_filter_dict, get_collection, get_database,
                            get_mongodb_config)
-from seml.description import resolve_description
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
@@ -450,7 +449,6 @@ def print_fail_trace(
     filter_states: Optional[List[str]], 
     batch_id: Optional[int], 
     filter_dict: Optional[Dict], 
-    resolve_descriptions: bool=True,
     projection: Optional[List[str]]=None,):
     """Convenience function that prints the fail trace of experiments
 
@@ -466,27 +464,19 @@ def print_fail_trace(
         Optional filter on the experiment batch ID
     filter_dict : Optional[Dict]
         Optional filters
-    resolve_descriptions : bool, optional
-        Whether to resolve descriptions, by default True
     projection : Optional[List[str]]
         Additional values to print per failed experiment, by default None
     """
     from rich.panel import Panel
 
     from seml.console import console
-    from seml.description import resolve_description
     detect_killed(db_collection_name, print_detected=False)
     collection = get_collection(db_collection_name)
-    
-    # TODO: Use projections in the MongoDB query to be more efficient and have less workload on MongoDB
-    # projection = {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1, 'seml.description' : 1,
-    #              'batch_id' : 1}
-    # plus anything that's specified by the user via `projection`
-    # However one has to resolve the projections to prevent PathCollisions.
-    # See: https://stackoverflow.com/questions/64059795/mongodb-get-error-message-mongoerror-path-collision-at-activity
-    mongo_db_projection = resolve_projection_path_conflicts({'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1, 'seml.description' : 1,
-                  'batch_id' : 1} | {key : 1 for key in projection})
-    
+    if projection is None:
+        projection = []
+    mongo_db_projection = resolve_projection_path_conflicts({**{'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1, 'seml.description' : 1,
+                  'batch_id' : 1}, **{key : 1 for key in projection}})
+        
     if sacred_id is None:
         filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
         exps = list(collection.find(filter_dict, mongo_db_projection))
@@ -501,8 +491,8 @@ def print_fail_trace(
         fail_trace = exp.get('fail_trace', [])
         description = exp.get('seml', {}).get('description', None)
         subtitles = {}
-        if resolve_descriptions and description is not None:
-            subtitles['Description'] = resolve_description(description, exp['config'], throw_on_invalid=False)
+        if description is not None:
+            subtitles['Description'] = description
         for key in projection:
             subtitles[key] = get_from_nested(exp, key)
         
@@ -528,8 +518,7 @@ def list_database(
         progress: bool = False,
         list_empty: bool = False,
         update_status: bool = False,
-        print_full_description: bool = False,
-        resolve_descriptions: bool = False):
+        print_full_description: bool = False,):
     """
     Prints a tabular version of multiple collections and their states (without resolving RUNNING experiments that may have been canceled manually).
 
@@ -547,8 +536,6 @@ def list_database(
         Whether to update the status of experiments by checking log files. This may take a while.
     print_full_description : bool
         Whether to print full descriptions (wrap-arround) or truncate the descriptions otherwise.
-    resolve_descriptions : bool
-        Whether descriptions are to be resolved per-experiment.
     """
     import pandas as pd
     from rich import box
@@ -571,8 +558,6 @@ def list_database(
             detect_killed(collection, print_detected=False)
     else:
         logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use `seml ... status` instead.")
-    if resolve_descriptions:
-        logging.warning(f"Resolving descriptions of all experiments is costly.")
     
     # Count the number of experiments in each state
     name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
@@ -586,19 +571,12 @@ def list_database(
                 '_id' : '$status', '_count' : {'$sum' : 1},
                 'description' : {'$addToSet' : '$seml.description'}}
         }])
-        if resolve_descriptions:
-            descriptions = list(set(
-                resolve_description(exp.get('seml', {}).get('description', None), exp.get('config', {}), throw_on_invalid=False)
-                for exp in db[collection_name].find({}, {'seml.description' : 1, 'config' : 1})
-                if exp.get('seml', {}).get('description', None) is not None
-            ))
-        else:
-            descriptions = db[collection_name].aggregate([{
-                '$group' : {
-                    '_id' : '$seml.description'
-                }
-            }])
-            descriptions = [result['_id'] for result in descriptions if result['_id'] is not None]
+        descriptions = db[collection_name].aggregate([{
+            '$group' : {
+                '_id' : '$seml.description'
+            }
+        }])
+        descriptions = [result['_id'] for result in descriptions if result['_id'] is not None]
         name_to_counts[collection_name].update({
             inv_states[result['_id']]: result['_count']
             for result in counts_by_status

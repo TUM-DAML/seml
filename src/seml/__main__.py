@@ -166,12 +166,6 @@ PrintFullDescriptionAnnotation = Annotated[bool, typer.Option(
     help="Whether to print full descriptions (possibly with line breaks).",
     is_flag=True,
 )]
-ResolveDescriptionsAnnotation = Annotated[bool, typer.Option(
-    '-rd',
-    '--resolve-descriptions',
-    help="Whether to resolve interpolation syntax in descriptions.",
-    is_flag=True,
-)]
 
 @app.callback()
 def callback(
@@ -238,11 +232,9 @@ def list_command(
         is_flag=True,
     )] = False,
     full_description: PrintFullDescriptionAnnotation = False,
-    resolve_descriptions: ResolveDescriptionsAnnotation = False,
 ):
     """Lists all collections in the database."""
-    list_database(pattern, progress=progress, update_status=update_status, print_full_description=full_description,
-                  resolve_descriptions=resolve_descriptions)
+    list_database(pattern, progress=progress, update_status=update_status, print_full_description=full_description)
 
 
 @app.command("clean-db")
@@ -535,8 +527,6 @@ def launch_worker_command(
         worker_environment_vars=worker_env,
     )
 
-
-
 @app.command("print-fail-trace")
 @restrict_collection()
 def print_fail_trace_command(
@@ -545,7 +535,6 @@ def print_fail_trace_command(
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     filter_states: FilterStatesAnnotation = [*States.FAILED, *States.KILLED, *States.INTERRUPTED],
-    resolve_descriptions: ResolveDescriptionsAnnotation = True,
     projection: ProjectionAnnotation = None,
 ):
     """
@@ -557,10 +546,8 @@ def print_fail_trace_command(
         filter_states=filter_states,
         batch_id=batch_id,
         filter_dict=filter_dict,
-        resolve_descriptions=resolve_descriptions,
-        projection = projection[0],
+        projection = projection[0] if projection else [],
     )
-
 
 @app.command("reload-sources")
 @restrict_collection()
@@ -685,7 +672,6 @@ def detect_killed_command(
 def status_command(
     ctx: typer.Context,
     full_description: PrintFullDescriptionAnnotation = False,
-    resolve_descriptions: ResolveDescriptionsAnnotation = False,
 ):
     """
     Report status of experiments in the database collection.
@@ -696,7 +682,6 @@ def status_command(
         progress=False,
         update_status=True,
         print_full_description=full_description,
-        resolve_descriptions=resolve_descriptions,
     )
 
 app_description = typer.Typer(

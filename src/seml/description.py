@@ -106,39 +106,4 @@ def collection_delete_description(
             exit(1)
         result = collection.update_one({'_id': sacred_id}, update)
     logging.info(f'Deleted the descriptions of {result.modified_count} experiments.')
-    
-def resolve_description(description: str, config: Dict, throw_on_invalid: bool=True) -> str:
-    """ Resolves descriptions in an OmegaConf-like syntax.
-    
-    Example: `${data.name}` will resolve to the corresponding (nested) field in the config.
-
-    Parameters
-    ----------
-    description : str
-        The description to resolve
-    config : Dict
-        The configuration from which to resolve
-
-    Returns
-    -------
-    str
-        The resolved description
-    """
-    from seml.utils import get_from_nested
-    
-    # TODO: Maybe use OmegaConf for seml altogether
-    import re
-    for match in re.findall(r'\$\{.*\}', description):
-        try:
-            value = get_from_nested(config, match[2:-1])
-        except Exception as e:
-            if throw_on_invalid:
-                logging.error(f'Could not access config value {match[2:-1]}')
-                exit(1)
-            else:
-                value = f'{match}'
-        description = description.replace(match, str(value))
-    return description
-        
-        
         
