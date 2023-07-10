@@ -4,7 +4,7 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, Dict, List, TypeVar
 
 import seml.typer as typer
 
@@ -136,6 +136,61 @@ def flatten(dictionary: dict, parent_key: str = '', sep: str = '.'):
             items.append((new_key, v))
     return dict(items)
 
+def get_from_nested(d: Dict, key: str, sep: str='.') -> Any:
+    """Gets a value from an unflattened dict, e.g. allows to use strings like `config.data` on a nesteddict
+
+    Parameters
+    ----------
+    d : Dict
+        The dict from which to get
+    key : str
+        A path to the value, separated by `sep`
+    sep : str, optional
+        The separator for levels in the nested dict, by default '.'
+
+    Returns
+    -------
+    Any
+        The nested value
+    """
+    for k in key.split(sep):
+        d = d[k]
+    return d
+
+def list_is_prefix(first: List, second: List) -> bool:
+    return len(first) <= len(second) and all(x1 == x2 for x1, x2 in zip(first, second))
+
+def resolve_projection_path_conflicts(projection: Dict[str, bool], sep: str='.') -> Dict[str, bool]:
+    result = {}
+    for k, v in projection.items():
+        k = tuple(k.split(sep))
+        add_k = True
+        for other in list(result.keys()):
+            if list_is_prefix(k, other):
+                # If `k` is a prefix of any path in `result`, this path will be removed
+                if result[other] != v:
+                    raise ValueError(f'Can not resolve projection {(k, v), (other, result[other])}')
+                del result[other]
+            elif list_is_prefix(other, k):
+                # If any other path in `result` is a prefix of `k` we do not add k
+                if result[other] != v:
+                    raise ValueError(f'Can not resolve projection {(k, v), (other, result[other])}')
+                add_k = False
+        if add_k:
+            result[k] = v
+    return {sep.join(k) : v for k, v in result.items()}
+            
+        
+        
+        
+    
+    projection = {k.split(sep) : v for k, v in projection.items()}
+    
+    
+    
+    
+    
+    
 
 def chunker(seq, size):
     """

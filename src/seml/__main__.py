@@ -77,6 +77,13 @@ FilterDictAnnotation = Annotated[Dict, typer.Option(
     metavar='JSON',
     parser=json.loads,
 )]
+ProjectionAnnotation = Annotated[List, typer.Option(
+    '-p',
+    '--projection',
+    help="List of values (passed as a string, e.g. '[\"config.dataset\", \"config.model\"]') to additionally print ",
+    metavar='JSON',
+    parser=json.loads,
+)]
 BatchIdAnnotation = Annotated[int, typer.Option(
     '-b',
     '--batch-id',
@@ -153,11 +160,16 @@ WorkerEnvAnnotation = Annotated[dict, typer.Option(
     metavar='JSON',
     parser=json.loads
 )]
-
 PrintFullDescriptionAnnotation = Annotated[bool, typer.Option(
     '-fd',
     '--full-descriptions',
     help="Whether to print full descriptions (possibly with line breaks).",
+    is_flag=True,
+)]
+ResolveDescriptionsAnnotation = Annotated[bool, typer.Option(
+    '-rd',
+    '--resolve-descriptions',
+    help="Whether to resolve interpolation syntax in descriptions.",
     is_flag=True,
 )]
 
@@ -226,9 +238,11 @@ def list_command(
         is_flag=True,
     )] = False,
     full_description: PrintFullDescriptionAnnotation = False,
+    resolve_descriptions: ResolveDescriptionsAnnotation = False,
 ):
     """Lists all collections in the database."""
-    list_database(pattern, progress=progress, update_status=update_status, print_full_description=full_description)
+    list_database(pattern, progress=progress, update_status=update_status, print_full_description=full_description,
+                  resolve_descriptions=resolve_descriptions)
 
 
 @app.command("clean-db")
@@ -531,7 +545,8 @@ def print_fail_trace_command(
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     filter_states: FilterStatesAnnotation = [*States.FAILED, *States.KILLED, *States.INTERRUPTED],
-    yes: YesAnnotation = False,
+    resolve_descriptions: ResolveDescriptionsAnnotation = True,
+    projection: ProjectionAnnotation = None,
 ):
     """
     Prints fail traces of all failed experiments.
@@ -542,7 +557,8 @@ def print_fail_trace_command(
         filter_states=filter_states,
         batch_id=batch_id,
         filter_dict=filter_dict,
-        yes=yes
+        resolve_descriptions=resolve_descriptions,
+        projection = projection[0],
     )
 
 
@@ -669,6 +685,7 @@ def detect_killed_command(
 def status_command(
     ctx: typer.Context,
     full_description: PrintFullDescriptionAnnotation = False,
+    resolve_descriptions: ResolveDescriptionsAnnotation = False,
 ):
     """
     Report status of experiments in the database collection.
@@ -679,6 +696,7 @@ def status_command(
         progress=False,
         update_status=True,
         print_full_description=full_description,
+        resolve_descriptions=resolve_descriptions,
     )
 
 app_description = typer.Typer(

@@ -6,16 +6,17 @@ import re
 import subprocess
 import time
 from collections import defaultdict
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from seml.config import check_config
 from seml.database import (build_filter_dict, get_collection, get_database,
                            get_mongodb_config)
+from seml.description import resolve_description
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.typer import prompt
-from seml.utils import chunker, s_if
+from seml.utils import chunker, get_from_nested, resolve_projection_path_conflicts, s_if
 
 States = SETTINGS.STATES
 
@@ -443,20 +444,54 @@ def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False
             for to_delete in source_files:
                 fs.delete(to_delete)
                 
-def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
-    """ Convenience function that prints the fail trace of experiments"""
+def print_fail_trace(
+    db_collection_name: str, 
+    sacred_id: Optional[int], 
+    filter_states: Optional[List[str]], 
+    batch_id: Optional[int], 
+    filter_dict: Optional[Dict], 
+    resolve_descriptions: bool=True,
+    projection: Optional[List[str]]=None,):
+    """Convenience function that prints the fail trace of experiments
+
+    Parameters
+    ----------
+    db_collection_name : str
+        Name of the collection to print traces of
+    sacred_id : Optional[int]
+        Optional filter on the experiment ID
+    filter_states : Optional[List[str]]
+        Optional filter on the experiment states
+    batch_id : Optional[int]
+        Optional filter on the experiment batch ID
+    filter_dict : Optional[Dict]
+        Optional filters
+    resolve_descriptions : bool, optional
+        Whether to resolve descriptions, by default True
+    projection : Optional[List[str]]
+        Additional values to print per failed experiment, by default None
+    """
     from rich.panel import Panel
 
     from seml.console import console
+    from seml.description import resolve_description
     detect_killed(db_collection_name, print_detected=False)
     collection = get_collection(db_collection_name)
-    projection = {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1, 'seml.description' : 1,
-                  'batch_id' : 1}
+    
+    # TODO: Use projections in the MongoDB query to be more efficient and have less workload on MongoDB
+    # projection = {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1, 'seml.description' : 1,
+    #              'batch_id' : 1}
+    # plus anything that's specified by the user via `projection`
+    # However one has to resolve the projections to prevent PathCollisions.
+    # See: https://stackoverflow.com/questions/64059795/mongodb-get-error-message-mongoerror-path-collision-at-activity
+    mongo_db_projection = resolve_projection_path_conflicts({'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1, 'fail_trace' : 1, 'seml.description' : 1,
+                  'batch_id' : 1} | {key : 1 for key in projection})
+    
     if sacred_id is None:
         filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
-        exps = list(collection.find(filter_dict, projection))
+        exps = list(collection.find(filter_dict, mongo_db_projection))
     else:
-        exps = [collection.find_one({'_id': sacred_id}, projection)]
+        exps = [collection.find_one({'_id': sacred_id}, mongo_db_projection)]
     for exp in exps:
         exp_id = exp['_id']
         status = exp['status']
@@ -465,6 +500,12 @@ def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, fil
         slurm_task_id = exp.get('slurm', {}).get('task_id', None)
         fail_trace = exp.get('fail_trace', [])
         description = exp.get('seml', {}).get('description', None)
+        subtitles = {}
+        if resolve_descriptions and description is not None:
+            subtitles['Description'] = resolve_description(description, exp['config'], throw_on_invalid=False)
+        for key in projection:
+            subtitles[key] = get_from_nested(exp, key)
+        
         header = f'Experiment ID {exp_id}, '\
                  f'Batch ID {batch_id}, '\
                  f'Status: "{status}", '\
@@ -472,7 +513,8 @@ def print_fail_trace(db_collection_name, sacred_id, filter_states, batch_id, fil
         panel = Panel(
             ''.join(['\t' + line for line in fail_trace] + []).strip(),
             title=console.render_str(header, highlight=True),
-            subtitle = f'Description: {description}' if description is not None else None,
+            subtitle = ', '.join(f'{key} : {value}' for key, value in subtitles.items())\
+                if len(subtitles) > 0 else None,
             highlight=True,
             border_style='red'
         )
@@ -486,7 +528,8 @@ def list_database(
         progress: bool = False,
         list_empty: bool = False,
         update_status: bool = False,
-        print_full_description: bool = False):
+        print_full_description: bool = False,
+        resolve_descriptions: bool = False):
     """
     Prints a tabular version of multiple collections and their states (without resolving RUNNING experiments that may have been canceled manually).
 
@@ -504,6 +547,8 @@ def list_database(
         Whether to update the status of experiments by checking log files. This may take a while.
     print_full_description : bool
         Whether to print full descriptions (wrap-arround) or truncate the descriptions otherwise.
+    resolve_descriptions : bool
+        Whether descriptions are to be resolved per-experiment.
     """
     import pandas as pd
     from rich import box
@@ -526,6 +571,8 @@ def list_database(
             detect_killed(collection, print_detected=False)
     else:
         logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use `seml ... status` instead.")
+    if resolve_descriptions:
+        logging.warning(f"Resolving descriptions of all experiments is costly.")
     
     # Count the number of experiments in each state
     name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
@@ -539,17 +586,24 @@ def list_database(
                 '_id' : '$status', '_count' : {'$sum' : 1},
                 'description' : {'$addToSet' : '$seml.description'}}
         }])
-        descriptions = db[collection_name].aggregate([{
-            '$group' : {
-                '_id' : '$seml.description'
-            }
-        }])
+        if resolve_descriptions:
+            descriptions = list(set(
+                resolve_description(exp.get('seml', {}).get('description', None), exp.get('config', {}), throw_on_invalid=False)
+                for exp in db[collection_name].find({}, {'seml.description' : 1, 'config' : 1})
+                if exp.get('seml', {}).get('description', None) is not None
+            ))
+        else:
+            descriptions = db[collection_name].aggregate([{
+                '$group' : {
+                    '_id' : '$seml.description'
+                }
+            }])
+            descriptions = [result['_id'] for result in descriptions if result['_id'] is not None]
         name_to_counts[collection_name].update({
             inv_states[result['_id']]: result['_count']
             for result in counts_by_status
             if result['_id'] in inv_states
         })
-        descriptions = [result['_id'] for result in descriptions if result['_id'] is not None]
         if len(descriptions) > 1:
             descriptions = [f'"{description}"' for description in descriptions]
         name_to_descriptions[collection_name] = ', '.join(descriptions)
