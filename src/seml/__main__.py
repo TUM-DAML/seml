@@ -662,6 +662,38 @@ def status_command(
     """
     report_status(ctx.obj['collection'])
 
+app_description = typer.Typer(
+    no_args_is_help=True,
+    help='Manage descriptions of the experiments in a collection.',
+    chain=bool(os.environ.get('_SEML_COMPLETE'))
+)
+app.add_typer(app_description, name="description")
+
+@app_description.command("set")
+@restrict_collection()
+def set_description(
+    ctx: typer.Context,
+    description: Annotated[
+        str,
+        typer.Argument(
+            '-nh',
+            '--no-hash',
+            help="By default, we use the hash of the config dictionary to filter out duplicates (by comparing all "
+                 "dictionary values individually). Only disable this if you have a good reason as it is faster.",
+            is_flag=True,
+        ),
+    ] = False,
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = None,
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    yes: YesAnnotation = False,
+):
+    """
+    Reload stashed source files.
+    """
+    print(f'Set description', ctx.obj['collection'], description, sacred_id, filter_states, filter_dict, batch_id, yes)
+
 
 @functools.lru_cache()
 def command_names(app: typer.Typer) -> Set[str]:
