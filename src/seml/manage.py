@@ -15,7 +15,8 @@ from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.typer import prompt
-from seml.utils import chunker, get_from_nested, resolve_projection_path_conflicts, s_if
+from seml.utils import (chunker, get_from_nested,
+                        resolve_projection_path_conflicts, s_if)
 
 States = SETTINGS.STATES
 
@@ -556,13 +557,13 @@ def print_fail_trace(
     projection : Optional[List[str]]
         Additional values to print per failed experiment, by default None
     """
-    from rich.panel import Panel
-    from rich.console import Group
-    from rich.table import Table
-    from rich.text import Text
-    from rich.rule import Rule
     from rich import box
     from rich.align import Align
+    from rich.console import Group
+    from rich.panel import Panel
+    from rich.rule import Rule
+    from rich.table import Table
+    from rich.text import Text
 
     from seml.console import console
     detect_killed(db_collection_name, print_detected=False)
@@ -604,12 +605,12 @@ def print_fail_trace(
                                      show_edge=False,
                                      box=box.SIMPLE,
                                      row_styles=['none', 'dim'],
-                                     padding=(0,0,))
+                                     padding=(0,0,),
+                                     highlight=True)
             for key in projection:
                 table_projection.add_row(key, str(get_from_nested(exp, key)))
             renderables += [Rule(Text('Projection', style='bold')), Align(table_projection, align='left')]             
-        panel = Panel(Group(
-            *renderables),
+        panel = Panel(Group(*renderables),
             title=console.render_str(header, highlight=True),
             highlight=True,
             border_style='red'

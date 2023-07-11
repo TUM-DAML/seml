@@ -26,6 +26,7 @@ $ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 * `clean-db`: Remove orphaned artifacts in the DB from...
 * `configure`: Configure SEML (database, argument...
 * `delete`: Delete experiments by ID or state (does...
+* `description`: Manage descriptions of the experiments in...
 * `detect-killed`: Detect experiments where the corresponding...
 * `launch-worker`: Launch a local worker that runs PENDING jobs.
 * `list`: Lists all collections in the database.
@@ -130,6 +131,82 @@ $ seml delete [OPTIONS]
 * `-y, --yes`: Automatically confirm all dialogues with yes.
 * `--help`: Show this message and exit.
 
+## `seml description`
+
+Manage descriptions of the experiments in a collection.
+
+**Usage**:
+
+```console
+$ seml description [OPTIONS] COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `delete`: Deletes the description of experiment(s).
+* `list`: Lists the descriptions of all experiments.
+* `set`: Sets the description of experiment(s).
+
+### `seml description delete`
+
+Deletes the description of experiment(s).
+
+**Usage**:
+
+```console
+$ seml description delete [OPTIONS]
+```
+
+**Options**:
+
+* `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
+* `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.
+* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
+* `-y, --yes`: Automatically confirm all dialogues with yes.
+* `--help`: Show this message and exit.
+
+### `seml description list`
+
+Lists the descriptions of all experiments.
+
+**Usage**:
+
+```console
+$ seml description list [OPTIONS]
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+### `seml description set`
+
+Sets the description of experiment(s).
+
+**Usage**:
+
+```console
+$ seml description set [OPTIONS] DESCRIPTION
+```
+
+**Arguments**:
+
+* `DESCRIPTION`: The description to set.  [required]
+
+**Options**:
+
+* `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
+* `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.
+* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
+* `-y, --yes`: Automatically confirm all dialogues with yes.
+* `--help`: Show this message and exit.
+
 ## `seml detect-killed`
 
 Detect experiments where the corresponding Slurm jobs were killed externally.
@@ -187,6 +264,7 @@ $ seml list [OPTIONS] [PATTERN]
 
 * `-p, --progress`: Whether to print a progress bar for iterating over collections.
 * `-u, --update-status`: Whether to update the status of experiments in the database.This can take a while for large collections. Use only if necessary.
+* `-fd, --full-descriptions`: Whether to print full descriptions (possibly with line breaks).
 * `--help`: Show this message and exit.
 
 ## `seml print-fail-trace`
@@ -205,7 +283,7 @@ $ seml print-fail-trace [OPTIONS]
 * `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: FAILED, KILLED, INTERRUPTED]
-* `-y, --yes`: Automatically confirm all dialogues with yes.
+* `-p, --projection KEY`: List of configuration keys, e.g., `config.model`, to additionally print.
 * `--help`: Show this message and exit.
 
 ## `seml print_command`
@@ -325,4 +403,5 @@ $ seml status [OPTIONS]
 
 **Options**:
 
+* `-fd, --full-descriptions`: Whether to print full descriptions (possibly with line breaks).
 * `--help`: Show this message and exit.

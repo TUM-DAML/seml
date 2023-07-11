@@ -4,7 +4,7 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, List, TypeVar
+from typing import Any, Callable, Dict, List, Tuple, TypeVar
 
 import seml.typer as typer
 
@@ -391,3 +391,53 @@ def cache_to_disk(name: str, time_to_live: float) -> Callable[[F], F]:
             return result
         return wrapper
     return cache_fun
+
+
+def to_slices(items: List[int]) -> List[Tuple[int, int]]:
+    """
+    Convert a list of integers to a list of slices.
+    
+    Parameters
+    ----------
+    items: List[int]
+        List of integers.
+    
+    Returns
+    -------
+    List[Tuple[int, int]]
+        List of slices.
+    """
+    slices = []
+    if len(items) == 0:
+        return slices
+    items = sorted(items)
+    start, end = items[0], items[0]
+    for i in items[1:]:
+        if i == end + 1:
+            end = i
+        else:
+            slices.append((start, end))
+            start, end = i, i
+    # last slice
+    slices.append((start, end))
+    return slices
+
+
+def slice_to_str(s: Tuple[int, int]) -> str:
+    """
+    Convert a slice to a string.
+    
+    Parameters
+    ----------
+    s: Tuple[int, int]
+        The slice.
+    
+    Returns
+    -------
+    str
+        The slice as a string.
+    """
+    if s[0] == s[1]:
+        return str(s[0])
+    else:
+        return f'{s[0]}-{s[1]}'

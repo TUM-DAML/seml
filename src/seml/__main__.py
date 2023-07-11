@@ -2,9 +2,10 @@
 import functools
 import json
 import logging
-import re
 import os
+import re
 import sys
+from dataclasses import dataclass
 from typing import Callable, Dict, List, Set, TypeVar
 
 from typing_extensions import Annotated, ParamSpec
@@ -15,14 +16,15 @@ from seml.configure import configure
 from seml.database import (clean_unreferenced_artifacts,
                            get_collections_from_mongo_shell_or_pymongo,
                            get_mongodb_config)
+from seml.description import (collection_delete_description,
+                              collection_list_descriptions,
+                              collection_set_description)
 from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
                          list_database, print_fail_trace, reload_sources,
                          reset_experiments)
-from seml.description import collection_set_description, collection_delete_description
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
 from seml.utils import cache_to_disk
-from dataclasses import dataclass, field
 
 States = SETTINGS.STATES
 
@@ -81,7 +83,7 @@ FilterDictAnnotation = Annotated[Dict, typer.Option(
 ProjectionAnnotation = Annotated[List[str], typer.Option(
     '-p',
     '--projection',
-    help="List of values (passed as a string, e.g. '[config.dataset, config.model]') to additionally print ",
+    help="List of configuration keys, e.g., `config.model`, to additionally print.",
     parser=lambda s: s.strip(),
     callback=lambda values: [
         __x.strip()
@@ -89,6 +91,7 @@ ProjectionAnnotation = Annotated[List[str], typer.Option(
         for __x in _x.replace(',', ' ').split()
         if __x
     ],
+    metavar='KEY',
 )]
 BatchIdAnnotation = Annotated[int, typer.Option(
     '-b',
@@ -159,7 +162,7 @@ WorkerCPUsAnnotation = Annotated[int, typer.Option(
     '--worker-cpus',
     help="The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.",
 )]
-WorkerEnvAnnotation = Annotated[dict, typer.Option(
+WorkerEnvAnnotation = Annotated[Dict, typer.Option(
     '-we',
     '--worker-env',
     help="Further environment variables to be set for the local worker.",
@@ -195,6 +198,7 @@ def callback(
 ):
     """SEML - Slurm Experiment Management Library."""
     from rich.logging import RichHandler
+
     from seml.console import console
     if len(logging.root.handlers) == 0:
         logging_level = logging.VERBOSE if verbose else logging.INFO
@@ -395,7 +399,7 @@ def add_command(
         ),
     ] = False,
     overwrite_params: Annotated[
-        dict,
+        Dict,
         typer.Option(
             '-o',
             '--overwrite-params',
@@ -737,12 +741,23 @@ def description_delete_command(
                                 filter_states=filter_states, filter_dict=filter_dict,
                                 batch_id=batch_id, yes=yes)
 
+
+@app_description.command("list")
+@restrict_collection()
+def description_list_command(ctx: typer.Context):
+    """
+    Lists the descriptions of all experiments.
+    """
+    collection_list_descriptions(ctx.obj['collection'])
+
+
 @dataclass
 class CommandTreeNode:
     """ Compact representation of the commands (and subtyper commands) of the app"""
     commands: Set[str]
     groups: Dict[str, 'CommandTreeNode']
-    
+
+
 @functools.lru_cache()
 def command_tree(app: typer.Typer) -> CommandTreeNode:
     return CommandTreeNode(
@@ -756,31 +771,32 @@ def command_tree(app: typer.Typer) -> CommandTreeNode:
         }
     )
 
+
 def split_args(args: List[str], command_tree: CommandTreeNode) -> List[List[str]]:
     split_argv = [[]]
     stack = [command_tree]
     
     # Chaining is only allowed in the first level of the group hierarchy, so we only
     # split into a two level list
-    for c in args:
-        if c in stack[-1].groups:
+    for arg in args:
+        if arg in stack[-1].groups:
             if len(stack) == 1: # new subtyper at the top level
-                split_argv.append([c])
+                split_argv.append([arg])
                 # chaining is allowed: stack[-1] may consume further commands after its child is done consuming
-                stack.append(stack[-1].groups[c])
+                stack.append(stack[-1].groups[arg])
             else:
-                split_argv[-1].append(c)
+                split_argv[-1].append(arg)
                 # no chaining below the first level: stack[-1] will not consume any more commands
-                stack = stack[:-1] + [stack[-1].groups[c]]
-        elif c in stack[-1].commands:
+                stack = stack[:-1] + [stack[-1].groups[arg]]
+        elif arg in stack[-1].commands:
             if len(stack) == 1: # new command at the top level
-                split_argv.append([c])
+                split_argv.append([arg])
             else:
-                split_argv[-1].append(c)
+                split_argv[-1].append(arg)
                 # no chaining below the first level: stack[-1] will not consume any more commands
-                stack = stack[:-1]
+                stack.pop()
         else:
-            split_argv[-1].append(c)
+            split_argv[-1].append(arg)
     
     # Re-distribute shared args to each command in the first level of the hierarchy
     if len(split_argv) == 1:
@@ -796,6 +812,7 @@ def split_args(args: List[str], command_tree: CommandTreeNode) -> List[List[str]
     for split in chained_commands:
         result.append(shared + split)
     return result
+
 
 def main():
     # We have to split the arguments manually to get proper chaining.

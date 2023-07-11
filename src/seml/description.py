@@ -1,10 +1,12 @@
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict
 import logging
+from xml.etree.ElementTree import TreeBuilder
 
 from seml.database import (build_filter_dict, get_collection)
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.typer import prompt
+from seml.utils import slice_to_str, to_slices
 
 States = SETTINGS.STATES
 
@@ -82,4 +84,43 @@ def collection_delete_description(
         exit(1)
     result = collection.update_many(filter_dict, update)
     logging.info(f'Deleted the descriptions of {result.modified_count} experiments.')
-        
+
+
+def collection_list_descriptions(db_collection_name: str):
+    """Lists the descriptions of experiments
+
+    Parameters
+    ----------
+    db_collection_name : str
+        Name of the collection to list descriptions from
+    """
+    from rich.align import Align
+    from rich.box import SIMPLE
+    from rich.table import Table
+    from seml.console import console
+    collection = get_collection(db_collection_name)
+    description_slices = {
+        (obj['_id'] if obj['_id'] else 'None'): to_slices(obj['_ids'])
+        for obj in collection.aggregate([{
+            '$group': {
+                '_id': '$seml.description',
+                '_ids': {'$addToSet': '$_id'},
+            }
+        }])
+    }
+
+    table = Table(
+        show_header=True,
+        collapse_padding=True,
+        show_lines=False,
+        show_edge=False,
+        row_styles=["none", "dim"],
+        box=SIMPLE,
+        highlight=TreeBuilder()
+    )
+    table.add_column("Description", justify="left")
+    table.add_column("Experiments", justify="left")
+    for description in sorted(description_slices):
+        slices = description_slices[description]
+        table.add_row(description, ", ".join(map(slice_to_str, slices)))
+    console.print(Align(table, align="center"))
