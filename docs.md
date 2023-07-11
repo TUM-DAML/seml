@@ -138,7 +138,7 @@ Manage descriptions of the experiments in a collection.
 **Usage**:
 
 ```console
-$ seml description [OPTIONS] COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
+$ seml description [OPTIONS] COMMAND [ARGS]...
 ```
 
 **Options**:
