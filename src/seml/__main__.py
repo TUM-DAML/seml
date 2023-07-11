@@ -22,6 +22,7 @@ from seml.description import collection_set_description, collection_delete_descr
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
 from seml.utils import cache_to_disk
+from dataclasses import dataclass, field
 
 States = SETTINGS.STATES
 
@@ -329,7 +330,7 @@ def cancel_command(
     """
     Cancel the Slurm job/job step corresponding to experiments, filtered by ID or state.
     """
-    wait = wait or len([a for a in sys.argv if a in command_names(app)]) > 1
+    wait = wait or len([a for a in sys.argv if a in command_tree(app).commands or a in command_tree(app).groups]) > 1
     cancel_experiments(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -736,22 +737,52 @@ def description_delete_command(
                                 filter_states=filter_states, filter_dict=filter_dict,
                                 batch_id=batch_id, yes=yes)
 
+@dataclass
+class CommandTreeNode:
+    """ Compact representation of the commands (and subtyper commands) of the app"""
+    commands: Set[str]
+    groups: Dict[str, 'CommandTreeNode']
+    
 @functools.lru_cache()
-def command_names(app: typer.Typer) -> Set[str]:
-    return {
-        cmd.name if cmd.name else cmd.callback.__name__
-        for cmd in app.registered_commands
-    }
+def command_tree(app: typer.Typer) -> CommandTreeNode:
+    return CommandTreeNode(
+        commands = {
+            cmd.name if cmd.name else cmd.callback.__name__
+            for cmd in app.registered_commands
+        },
+        groups = {
+            (group.name if group.name else group.callback.__name__) : command_tree(group.typer_instance)
+            for group in app.registered_groups
+        }
+    )
 
-
-def split_args(args: List[str], commands: Set[str]) -> List[List[str]]:
-    # Divide argv by commands
+def split_args(args: List[str], command_tree: CommandTreeNode) -> List[List[str]]:
     split_argv = [[]]
+    stack = [command_tree]
+    
+    # Chaining is only allowed in the first level of the group hierarchy, so we only
+    # split into a two level list
     for c in args:
-        if c in commands:
-            split_argv.append([c])
+        if c in stack[-1].groups:
+            if len(stack) == 1: # new subtyper at the top level
+                split_argv.append([c])
+                # chaining is allowed: stack[-1] may consume further commands after its child is done consuming
+                stack.append(stack[-1].groups[c])
+            else:
+                split_argv[-1].append(c)
+                # no chaining below the first level: stack[-1] will not consume any more commands
+                stack = stack[:-1] + [stack[-1].groups[c]]
+        elif c in stack[-1].commands:
+            if len(stack) == 1: # new command at the top level
+                split_argv.append([c])
+            else:
+                split_argv[-1].append(c)
+                # no chaining below the first level: stack[-1] will not consume any more commands
+                stack = stack[:-1]
         else:
             split_argv[-1].append(c)
+    
+    # Re-distribute shared args to each command in the first level of the hierarchy
     if len(split_argv) == 1:
         return split_argv
     shared = split_argv[0]
@@ -766,11 +797,10 @@ def split_args(args: List[str], commands: Set[str]) -> List[List[str]]:
         result.append(shared + split)
     return result
 
-
 def main():
     # We have to split the arguments manually to get proper chaining.
     # If we were to use typer built-in chaining, lists would end the chain.
-    for args in split_args(sys.argv[1:], command_names(app)):
+    for args in split_args(sys.argv[1:], command_tree(app)):
         # The app will typically exit after running once.
         # We want to run it multiple times, so we catch the SystemExit exception.
         try:
@@ -791,7 +821,7 @@ if __name__ == "__main__":
 if os.environ.get('_SEML_COMPLETE') and os.environ.get('COMP_WORDS'):
     new_comp_words = split_args(
         os.environ['COMP_WORDS'].split('\n'),
-        command_names(app)
+        command_tree(app),
     )[-1]
     os.environ['COMP_WORDS'] = '\n'.join(new_comp_words)
     os.environ['COMP_CWORD'] = str(len(new_comp_words) - 1)
