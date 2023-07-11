@@ -557,6 +557,12 @@ def print_fail_trace(
         Additional values to print per failed experiment, by default None
     """
     from rich.panel import Panel
+    from rich.console import Group
+    from rich.table import Table
+    from rich.text import Text
+    from rich.rule import Rule
+    from rich import box
+    from rich.align import Align
 
     from seml.console import console
     detect_killed(db_collection_name, print_detected=False)
@@ -579,21 +585,32 @@ def print_fail_trace(
         slurm_task_id = exp.get('slurm', {}).get('task_id', None)
         fail_trace = exp.get('fail_trace', [])
         description = exp.get('seml', {}).get('description', None)
-        subtitles = {}
-        if description is not None:
-            subtitles['Description'] = description
-        for key in projection:
-            subtitles[key] = get_from_nested(exp, key)
-        
         header = f'Experiment ID {exp_id}, '\
                  f'Batch ID {batch_id}, '\
                  f'Status: "{status}", '\
                  f'Slurm Array-Task id: {slurm_array_id}-{slurm_task_id}'
-        panel = Panel(
-            ''.join(['\t' + line for line in fail_trace] + []).strip(),
+        
+        renderables = []
+        if description is not None:
+            text_description = Text()
+            text_description.append('Description: ', style='bold magenta')
+            text_description.append(description)
+            renderables += [text_description, Rule(Text('Fail-Trace', style='bold'))]
+        renderables.append(''.join(['\t' + line for line in fail_trace] + []).strip())
+        if len(projection) > 0:
+            table_projection = Table(show_header=False, 
+                                     collapse_padding=True,
+                                     show_lines=False,
+                                     show_edge=False,
+                                     box=box.SIMPLE,
+                                     row_styles=['none', 'dim'],
+                                     padding=(0,0,))
+            for key in projection:
+                table_projection.add_row(key, str(get_from_nested(exp, key)))
+            renderables += [Rule(Text('Projection', style='bold')), Align(table_projection, align='left')]             
+        panel = Panel(Group(
+            *renderables),
             title=console.render_str(header, highlight=True),
-            subtitle = ', '.join(f'{key} : {value}' for key, value in subtitles.items())\
-                if len(subtitles) > 0 else None,
             highlight=True,
             border_style='red'
         )
