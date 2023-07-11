@@ -19,8 +19,28 @@ from seml.utils import chunker, get_from_nested, resolve_projection_path_conflic
 
 States = SETTINGS.STATES
 
+def cancel_experiment_by_id(
+    collection: str, 
+    exp_id: int, 
+    set_interrupted: bool = True, 
+    slurm_dict: Optional[Dict] = None, 
+    wait: bool = False):
+    """Cancels a single experiment by its id
 
-def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict=None, wait=False):
+    Parameters
+    ----------
+    collection : str
+        The collection this experiment belongs to
+    exp_id : int
+        The experiment id
+    set_interrupted : bool, optional
+        Whether to set the state of the experiment to INTERRUPTED, by default True
+    slurm_dict : Optional[Dict], optional
+        Optional updates to the slurm dict of the experiments, by default None
+    wait : bool, optional
+        Whether to wait for the cancellation by checking the slurm queue, by default False
+    """
+    
     exp = collection.find_one({'_id': exp_id})
     if slurm_dict:
         exp['slurm'].update(slurm_dict)
@@ -67,135 +87,139 @@ def cancel_experiment_by_id(collection, exp_id, set_interrupted=True, slurm_dict
         logging.error(f"No experiment found with ID {exp_id}.")
 
 
-def cancel_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes, wait=False):
-    """
-    Cancel experiments.
+def cancel_experiments(
+    db_collection_name: str, 
+    sacred_id: Optional[int] = None, 
+    filter_states: Optional[List[str]] = None, 
+    batch_id: Optional[int] = None, 
+    filter_dict: Optional[Dict] = None, 
+    yes: bool = False, 
+    wait: bool = False):
+    """Cancels experiment(s)
 
     Parameters
     ----------
-    db_collection_name: str
-        Database collection name.
-    sacred_id: int or None
-        ID of the experiment to cancel. If None, will use the other arguments to cancel possible multiple experiments.
-    filter_states: list of strings or None
-        List of statuses to filter for. Will cancel all jobs from the database collection
-        with one of the given statuses.
-    batch_id: int or None
-        The ID of the batch of experiments to cancel. All experiments that are staged together (i.e. within the same
-        command line call) have the same batch ID.
-    filter_dict: dict or None
-        Arbitrary filter dictionary to use for cancelling experiments. Any experiments whose database entries match all
-        keys/values of the dictionary will be cancelled.
-
-    Returns
-    -------
-    None
-
+    db_collection_name : str
+        The collection to cancel experiments of
+    sacred_id : Optional[int], optional
+        ID of the experiment to delete. Overrides other filters.
+    filter_states : Optional[List[str]], optional
+        Filter on experiment states, by default None
+    batch_id : Optional[int], optional
+        Filter on experiment batch ids, by default None
+    filter_dict : Optional[Dict], optional
+        Additional filters on experiments, by default None
+    yes : bool, optional
+        Whether to override confirmation prompts, by default False
+    wait : bool, optional
+        Whether to wait for all experiments be cancelled (by checking the slurm queue), by default False
     """
     collection = get_collection(db_collection_name)
-    if sacred_id is None:
-        # no ID is provided: we check whether there are slurm jobs for which after this action no
-        # RUNNING experiment remains. These slurm jobs can be killed altogether.
-        # However, it is NOT possible right now to cancel a single experiment in a Slurm job with multiple
-        # running experiments.
-        try:
-            if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
-                detect_killed(db_collection_name, print_detected=False)
-
-            filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
-
-            ncancel = collection.count_documents(filter_dict)
-            logging.info(f"Cancelling {ncancel} experiment{s_if(ncancel)}.")
-            if ncancel >= SETTINGS.CONFIRM_CANCEL_THRESHOLD:
-                if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
-                    exit(1)
-
-            filter_dict_new = copy.deepcopy(filter_dict)
-            filter_dict_new.update({'slurm.array_id': {'$exists': True}})
-            exps = list(collection.find(filter_dict_new,
-                                        {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1}))
-            # set of slurm IDs in the database
-            slurm_ids = set([(e['slurm']['array_id'], e['slurm']['task_id']) for e in exps])
-            # set of experiment IDs to be cancelled.
-            exp_ids = set([e['_id'] for e in exps])
-            to_cancel = set()
-
-            # iterate over slurm IDs to check which slurm jobs can be cancelled altogether
-            for (a_id, t_id) in slurm_ids:
-                # find experiments RUNNING under the slurm job
-                jobs_running = [e for e in exps
-                                if (e['slurm']['array_id'] == a_id and e['slurm']['task_id'] == t_id
-                                    and e['status'] in States.RUNNING)]
-                running_exp_ids = set(e['_id'] for e in jobs_running)
-                if len(running_exp_ids.difference(exp_ids)) == 0:
-                    # there are no running jobs in this slurm job that should not be canceled.
-                    to_cancel.add(f"{a_id}_{t_id}")
-
-            # cancel all Slurm jobs for which no running experiment remains.
-            if len(to_cancel) > 0:
-                chunk_size = 100
-                chunks = list(chunker(list(to_cancel), chunk_size))
-                [subprocess.run(f"scancel {' '.join(chunk)}", shell=True, check=True) for chunk in chunks]
-                # Wait until all jobs are actually stopped.
-                if wait:
-                    for chunk in chunks:
-                        while len(subprocess.run(f"squeue -h -o '%A' --jobs={','.join(chunk)}", 
-                                                 shell=True, 
-                                                 check=True, 
-                                                 capture_output=True).stdout) > 0:
-                            time.sleep(0.5)
-
-            # update database status and write the stop_time
-            collection.update_many(filter_dict, {'$set': {"status": States.INTERRUPTED[0],
-                                                          "stop_time": datetime.datetime.utcnow()}})
-        except subprocess.CalledProcessError:
-            logging.warning(f"One or multiple Slurm jobs were no longer running when I tried to cancel them.")
-    else:
-        logging.info(f"Cancelling experiment with ID {sacred_id}.")
-        if SETTINGS.CONFIRM_CANCEL_THRESHOLD <= 1:
-            if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
-                exit(1)
-        cancel_experiment_by_id(collection, sacred_id, wait=wait)
-
-
-def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
-    collection = get_collection(db_collection_name)
-    experiment_files_to_delete = []
-
-    if sacred_id is None:
+    # We check whether there are slurm jobs for which after this action no
+    # RUNNING experiment remains. These slurm jobs can be killed altogether.
+    # However, it is NOT possible right now to cancel a single experiment in a Slurm job with multiple
+    # running experiments.
+    try:
         if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
             detect_killed(db_collection_name, print_detected=False)
 
-        filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
-        ndelete = collection.count_documents(filter_dict)
-        batch_ids = collection.find(filter_dict, {'batch_id'})
-        batch_ids_in_del = set([x['batch_id'] for x in batch_ids])
+        filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=sacred_id)
 
-        logging.info(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection.")
-        if ndelete >= SETTINGS.CONFIRM_DELETE_THRESHOLD:
+        ncancel = collection.count_documents(filter_dict)
+        if sacred_id is not None and ncancel == 0:
+            logging.error(f"No experiment found with ID {sacred_id}.")
+            
+        logging.info(f"Cancelling {ncancel} experiment{s_if(ncancel)}.")
+        if ncancel >= SETTINGS.CONFIRM_CANCEL_THRESHOLD:
             if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
                 exit(1)
-        
-        # Collect sources uploaded by sacred.
-        exp_sources_list = collection.find(filter_dict, {'experiment.sources': 1, 'artifacts': 1})
-        for exp in exp_sources_list:
-            experiment_files_to_delete.extend(get_experiment_files(exp))
-        collection.delete_many(filter_dict)
-    else:
-        exp = collection.find_one({'_id': sacred_id})
-        if exp is None:
-            raise MongoDBError(f"No experiment found with ID {sacred_id}.")
-        else:
-            logging.info(f"Deleting experiment with ID {sacred_id}.")
-            if SETTINGS.CONFIRM_DELETE_THRESHOLD <= 1:
-                if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
-                    exit(1)
-            batch_ids_in_del = set([exp['batch_id']])
 
-            # Collect sources uploaded by sacred.
-            exp = collection.find_one({'_id': sacred_id}, {'experiment.sources': 1, 'artifacts': 1})
-            experiment_files_to_delete.extend(get_experiment_files(exp))
-            collection.delete_one({'_id': sacred_id})
+        filter_dict_new = copy.deepcopy(filter_dict)
+        filter_dict_new.update({'slurm.array_id': {'$exists': True}})
+        exps = list(collection.find(filter_dict_new,
+                                    {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1}))
+        # set of slurm IDs in the database
+        slurm_ids = set([(e['slurm']['array_id'], e['slurm']['task_id']) for e in exps])
+        # set of experiment IDs to be cancelled.
+        exp_ids = set([e['_id'] for e in exps])
+        to_cancel = set()
+
+        # iterate over slurm IDs to check which slurm jobs can be cancelled altogether
+        for (a_id, t_id) in slurm_ids:
+            # find experiments RUNNING under the slurm job
+            jobs_running = [e for e in exps
+                            if (e['slurm']['array_id'] == a_id and e['slurm']['task_id'] == t_id
+                                and e['status'] in States.RUNNING)]
+            running_exp_ids = set(e['_id'] for e in jobs_running)
+            if len(running_exp_ids.difference(exp_ids)) == 0:
+                # there are no running jobs in this slurm job that should not be canceled.
+                to_cancel.add(f"{a_id}_{t_id}")
+
+        # cancel all Slurm jobs for which no running experiment remains.
+        if len(to_cancel) > 0:
+            chunk_size = 100
+            chunks = list(chunker(list(to_cancel), chunk_size))
+            [subprocess.run(f"scancel {' '.join(chunk)}", shell=True, check=True) for chunk in chunks]
+            # Wait until all jobs are actually stopped.
+            if wait:
+                for chunk in chunks:
+                    while len(subprocess.run(f"squeue -h -o '%A' --jobs={','.join(chunk)}", 
+                                                shell=True, 
+                                                check=True, 
+                                                capture_output=True).stdout) > 0:
+                        time.sleep(0.5)
+
+        # update database status and write the stop_time
+        collection.update_many(filter_dict, {'$set': {"status": States.INTERRUPTED[0],
+                                                        "stop_time": datetime.datetime.utcnow()}})
+    except subprocess.CalledProcessError:
+        logging.warning(f"One or multiple Slurm jobs were no longer running when I tried to cancel them.")
+
+
+def delete_experiments(
+    db_collection_name: str, 
+    sacred_id: Optional[int] = None, 
+    filter_states: Optional[List[str]] = None, 
+    batch_id: Optional[int] = None, 
+    filter_dict: Optional[Dict] = None, 
+    yes: bool = False):
+    """Deletes experiment(s).
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection name to which to delete experiments from
+    sacred_id : Optional[int], optional
+        ID of the experiment to delete. Overrides other filters.
+    filter_states : Optional[List[str]], optional
+        Filter on experiment states, by default None
+    batch_id : Optional[int], optional
+        Filter on experiment batch ids, by default None
+    filter_dict : Optional[Dict], optional
+        Additional filters on experiments, by default None
+    yes : bool, optional
+        Whether to override confirmation prompts, by default False
+    """
+    collection = get_collection(db_collection_name)
+    experiment_files_to_delete = []
+
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=sacred_id)
+    ndelete = collection.count_documents(filter_dict)
+    if sacred_id is not None and ndelete == 0:
+        raise MongoDBError(f"No experiment found with ID {sacred_id}.")
+    batch_ids = collection.find(filter_dict, {'batch_id'})
+    batch_ids_in_del = set([x['batch_id'] for x in batch_ids])
+
+    logging.info(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection.")
+    if ndelete >= SETTINGS.CONFIRM_DELETE_THRESHOLD:
+        if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+            exit(1)
+    
+    # Collect sources uploaded by sacred.
+    exp_sources_list = collection.find(filter_dict, {'experiment.sources': 1, 'artifacts': 1})
+    for exp in exp_sources_list:
+        experiment_files_to_delete.extend(get_experiment_files(exp))
+    collection.delete_many(filter_dict)
 
     # Delete sources uploaded by sacred.
     delete_files(collection.database, experiment_files_to_delete)
@@ -208,7 +232,14 @@ def delete_experiments(db_collection_name, sacred_id, filter_states, batch_id, f
     if collection.count_documents({}) == 0:
         collection.drop()
 
-def reset_slurm_dict(exp):
+def reset_slurm_dict(exp: Dict):
+    """Resets the slurm dict of an experiment
+
+    Parameters
+    ----------
+    exp : Dict
+        The experiment of which to reset the slurm dict
+    """
     keep_slurm = set()
     keep_slurm.update(SETTINGS.VALID_SLURM_CONFIG_VALUES)
     slurm_keys = set(exp['slurm'].keys())
@@ -222,7 +253,16 @@ def reset_slurm_dict(exp):
         del exp['slurm']['sbatch_options'][key]
 
 
-def reset_single_experiment(collection, exp):
+def reset_single_experiment(collection: str, exp: Dict):
+    """Resets a single experiment
+
+    Parameters
+    ----------
+    collection : str
+        The collection to which the experiment belongs to
+    exp : Dict
+        The experiment dict
+    """
     exp['status'] = States.STAGED[0]
     # queue_time for backward compatibility.
     keep_entries = ['batch_id', 'status', 'seml', 'slurm', 'config', 'config_hash', 'add_time', 'queue_time', 'git']
@@ -240,40 +280,60 @@ def reset_single_experiment(collection, exp):
                            upsert=False)
 
 
-def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
+def reset_experiments(
+    db_collection_name: str, 
+    sacred_id: Optional[int] = None, 
+    filter_states: Optional[List[str]] = None, 
+    batch_id: Optional[int] = None, 
+    filter_dict: Optional[Dict] = None, 
+    yes: bool = False):
+    """Resets experiments
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The name of the collection to resets experiments from
+    sacred_id : Optional[int], optional
+        If given, the id of the experiment to reset. Overrides other filters, by default None
+    filter_states : Optional[List[str]], optional
+        Filter on experiment states, by default None
+    batch_id : Optional[int], optional
+        Filter on the batch ID of experiments, by default None
+    filter_dict : Optional[Dict], optional
+        Additional filters, by default None
+    yes : bool, optional
+        Whether to override confirmation prompts, by default False
+    """
+    
     collection = get_collection(db_collection_name)
+    if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
+        detect_killed(db_collection_name, print_detected=False)
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=sacred_id)
+    nreset = collection.count_documents(filter_dict)
+    exps = collection.find(filter_dict)
+    if sacred_id is not None and nreset == 0:
+        raise MongoDBError(f"No experiment found with ID {sacred_id}.")
 
-    if sacred_id is None:
-        if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
-            detect_killed(db_collection_name, print_detected=False)
-
-        if isinstance(filter_states, str):
-            filter_states = [filter_states]
-
-        filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
-
-        nreset = collection.count_documents(filter_dict)
-        exps = collection.find(filter_dict)
-
-        logging.info(f"Resetting the state of {nreset} experiment{s_if(nreset)}.")
-        if nreset >= SETTINGS.CONFIRM_RESET_THRESHOLD:
-            if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
-                exit(1)
-        for exp in exps:
-            reset_single_experiment(collection, exp)
-    else:
-        exp = collection.find_one({'_id': sacred_id})
-        if exp is None:
-            raise MongoDBError(f"No experiment found with ID {sacred_id}.")
-        else:
-            logging.info(f"Resetting the state of experiment with ID {sacred_id}.")
-            if SETTINGS.CONFIRM_RESET_THRESHOLD <= 1:
-                if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
-                    exit(1)
-            reset_single_experiment(collection, exp)
+    logging.info(f"Resetting the state of {nreset} experiment{s_if(nreset)}.")
+    if nreset >= SETTINGS.CONFIRM_RESET_THRESHOLD:
+        if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+            exit(1)
+    for exp in exps:
+        reset_single_experiment(collection, exp)
 
 
-def detect_killed(db_collection_name, print_detected=True):
+def detect_killed(
+    db_collection_name: str, 
+    print_detected: bool = True):
+    """Detects killed experiments by checking the slurm status
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to check killed experiments from
+    print_detected : bool, optional
+        Whether to print how many killed experiments have been detected, by default True
+    """
     collection = get_collection(db_collection_name)
     exps = collection.find({
         'status': {'$in': [*States.PENDING, *States.RUNNING]},
@@ -302,15 +362,13 @@ def detect_killed(db_collection_name, print_detected=True):
         logging.info(f"Detected {nkilled} externally killed experiment{s_if(nkilled)}.")
 
 
-def get_slurm_arrays_tasks(filter_by_user=False):
+def get_slurm_arrays_tasks(filter_by_user: bool = False):
     """Get a dictionary of running/pending Slurm job arrays (as keys) and tasks (as values)
 
-    job_dict
-    -------
-    job_dict: dict
-        This dictionary has the job array IDs as keys and the values are
-        a list of 1) the pending job task range and 2) a list of running job task IDs.
-
+    Parameters:
+    -----------
+    filter_by_user : bool
+        Whether to only check jobs by the current user, by default False
     """
     try:
         squeue_cmd = f"SLURM_BITSTR_LEN=1024 squeue -a -t {','.join(SETTINGS.SLURM_STATES.ACTIVE)} -h -o %i"
@@ -322,6 +380,8 @@ def get_slurm_arrays_tasks(filter_by_user=False):
         jobs = [job_str for job_str in squeue_out.splitlines() if b'_' in job_str]
         if len(jobs) > 0:
             array_ids_str, task_ids = zip(*[job_str.split(b'_') for job_str in jobs])
+            # `job_dict`: This dictionary has the job array IDs as keys and the values are
+            # a list of 1) the pending job task range and 2) a list of running job task IDs.
             job_dict = {}
             for i, task_range_str in enumerate(task_ids):
                 array_id = int(array_ids_str[i])
@@ -351,7 +411,19 @@ def get_slurm_arrays_tasks(filter_by_user=False):
         return {}
 
 
-def get_experiment_files(experiment):
+def get_experiment_files(experiment: Dict) -> List[str]:
+    """Gets the file ids of files associated with an experiment
+
+    Parameters
+    ----------
+    experiment : Dict
+        The experiment dict
+
+    Returns
+    -------
+    List[str]
+        A list of file ids
+    """
     experiment_files = []
     if 'experiment' in experiment:
         if 'sources' in experiment['experiment']:
@@ -362,7 +434,24 @@ def get_experiment_files(experiment):
     return experiment_files
 
 
-def reload_sources(db_collection_name, batch_ids=None, keep_old=False, yes=False):
+def reload_sources(
+    db_collection_name: str, 
+    batch_ids: Optional[List[int]] = None, 
+    keep_old: bool = False,
+    yes: bool = False):
+    """Reloads the sources of experiment(s)
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to reload sources from
+    batch_ids : Optional[List[int]], optional
+        Filter on the batch ids, by default None
+    keep_old : bool, optional
+        Whether to keep old source files in the fs, by default False
+    yes : bool, optional
+        Whether to override confirmation prompts, by default False
+    """
     import gridfs
     collection = get_collection(db_collection_name)
     

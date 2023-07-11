@@ -77,12 +77,17 @@ FilterDictAnnotation = Annotated[Dict, typer.Option(
     metavar='JSON',
     parser=json.loads,
 )]
-ProjectionAnnotation = Annotated[List, typer.Option(
+ProjectionAnnotation = Annotated[List[str], typer.Option(
     '-p',
     '--projection',
-    help="List of values (passed as a string, e.g. '[\"config.dataset\", \"config.model\"]') to additionally print ",
-    metavar='JSON',
-    parser=json.loads,
+    help="List of values (passed as a string, e.g. '[config.dataset, config.model]') to additionally print ",
+    parser=lambda s: s.strip(),
+    callback=lambda values: [
+        __x.strip()
+        for _x in values
+        for __x in _x.replace(',', ' ').split()
+        if __x
+    ],
 )]
 BatchIdAnnotation = Annotated[int, typer.Option(
     '-b',
@@ -546,7 +551,7 @@ def print_fail_trace_command(
         filter_states=filter_states,
         batch_id=batch_id,
         filter_dict=filter_dict,
-        projection = projection[0] if projection else [],
+        projection = projection,
     )
 
 @app.command("reload-sources")
@@ -693,7 +698,7 @@ app.add_typer(app_description, name="description")
 
 @app_description.command("set")
 @restrict_collection()
-def set_description(
+def description_set_command(
     ctx: typer.Context,
     description: Annotated[
         str,
@@ -716,7 +721,7 @@ def set_description(
 
 @app_description.command("delete")
 @restrict_collection()
-def set_description(
+def description_delete_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
     filter_states: FilterStatesAnnotation = None,
