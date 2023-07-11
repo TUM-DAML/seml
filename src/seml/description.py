@@ -42,7 +42,7 @@ def collection_set_description(
     if len(exps) == 0 and sacred_id is not None:
         raise MongoDBError(f"No experiment found with ID {sacred_id}.")
     num_to_overwrite = len([exp for exp in exps if exp.get('seml', {}).get('description', description) != description])
-    if not yes and num_to_overwrite >= SETTINGS.CONFIRM_UPDATE_DESCRIPTION_THRESHOLD and \
+    if not yes and num_to_overwrite >= SETTINGS.CONFIRM_DESCRIPTION_UPDATE_THRESHOLD and \
         not prompt(f"{num_to_overwrite} experiment(s) have a different description. Proceed?", type=bool):
         exit(1)
     result = collection.update_many(filter_dict, update)
@@ -77,7 +77,7 @@ def collection_delete_description(
     filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=sacred_id)
     exps = [exp for exp in collection.find(filter_dict, {'seml.description' : 1})
             if exp.get('seml', {}).get('description', None) is not None]
-    if not yes and len(exps) >= SETTINGS.CONFIRM_DELETE_DESCRIPTION_THRESHOLD and \
+    if not yes and len(exps) >= SETTINGS.CONFIRM_DESCRIPTION_DELETE_THRESHOLD and \
         not prompt(f"Deleting descriptions of {len(exps)} experiment(s). Proceed?", type=bool):
         exit(1)
     result = collection.update_many(filter_dict, update)
