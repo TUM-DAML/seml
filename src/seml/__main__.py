@@ -696,8 +696,7 @@ def status_command(
 
 app_description = typer.Typer(
     no_args_is_help=True,
-    help='Manage descriptions of the experiments in a collection.',
-    chain=bool(os.environ.get('_SEML_COMPLETE'))
+    help='Manage descriptions of the experiments in a collection.'
 )
 app.add_typer(app_description, name="description")
 
