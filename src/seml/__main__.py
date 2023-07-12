@@ -682,7 +682,6 @@ def detect_killed_command(
 @restrict_collection()
 def status_command(
     ctx: typer.Context,
-    full_description: PrintFullDescriptionAnnotation = False,
     update_status: UpdateStatusAnnotation = True,
     projection: ProjectionAnnotation = None,
 ):
@@ -691,7 +690,6 @@ def status_command(
     """
     print_status(ctx.obj['collection'], 
                  update_status=update_status, 
-                 print_full_description=full_description,
                  projection=projection)
 
 app_description = typer.Typer(

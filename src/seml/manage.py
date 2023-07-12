@@ -622,7 +622,6 @@ def print_fail_trace(
 def print_status(
     db_collection_name: str, 
     update_status: bool = True, 
-    print_full_description: bool = False, 
     projection: Optional[List[str]] = None):
     """Prints the status of an experiment collection
 
@@ -632,8 +631,6 @@ def print_status(
         Name of the collection to print status of
     update_status : bool, optional
         Whehter to detect killed experiments, by default True
-    print_full_description : bool, optional
-        Whether to print full descriptions, by default False
     projection : Optional[List[str]], optional
         Additional attributes from the MongoDB to print, by default None
     """
@@ -672,8 +669,7 @@ def print_status(
         Column("Experiment IDs", justify="left"),
         Column("Batch IDs", justify="left"),
         # TODO: Column width of "Description(s)" is a weird magic number, but calculating the width does not easily work with custom projections, slices etc...
-        Column("Description(s)", justify="left", 
-               no_wrap=not print_full_description, overflow='ellipsis', max_width=30), 
+        Column("Description(s)", justify="left"), 
         *[Column(key, justify="left") for key in projection],
         show_header=True,
         collapse_padding=True,
@@ -699,7 +695,6 @@ def print_status(
             ]
         )
     console.print(Align(table, align="center"))
-
 
 def list_database(
         pattern: str,
