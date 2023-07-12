@@ -608,7 +608,8 @@ def print_fail_trace(
                                      row_styles=['none', 'dim'],
                                      padding=(0,0,),
                                      highlight=True)
-            for key in projection:
+            projection_keys_flat = [key for key in flatten(exp) if any(key.startswith(p) for p in projection)]
+            for key in projection_keys_flat:
                 table_projection.add_row(key, str(get_from_nested(exp, key)))
             renderables += [Rule(Text('Projection', style='bold')), Align(table_projection, align='left')]             
         panel = Panel(Group(*renderables),
