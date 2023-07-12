@@ -4,7 +4,7 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, Dict, Hashable, Iterable, List, Tuple, TypeVar
 
 import seml.typer as typer
 
@@ -136,6 +136,66 @@ def flatten(dictionary: dict, parent_key: str = '', sep: str = '.'):
             items.append((new_key, v))
     return dict(items)
 
+def get_from_nested(d: Dict, key: str, sep: str='.') -> Any:
+    """Gets a value from an unflattened dict, e.g. allows to use strings like `config.data` on a nesteddict
+
+    Parameters
+    ----------
+    d : Dict
+        The dict from which to get
+    key : str
+        A path to the value, separated by `sep`
+    sep : str, optional
+        The separator for levels in the nested dict, by default '.'
+
+    Returns
+    -------
+    Any
+        The nested value
+    """
+    for k in key.split(sep):
+        d = d[k]
+    return d
+
+def list_is_prefix(first: List, second: List) -> bool:
+    return len(first) <= len(second) and all(x1 == x2 for x1, x2 in zip(first, second))
+
+def resolve_projection_path_conflicts(projection: Dict[str, bool], sep: str='.') -> Dict[str, bool]:
+    """Removes path conflicts in a MongoDB projection dict. E.g. if you pass the dict
+    `{'config' : 1, 'config.dataset' : 1}`, MongoDB will throw an error. This method will ensure that
+    always the "bigger" projection is returned, i.e. `"config"` in the aforementioned example.
+    Note that this resolution will not work if you pass e.g. `{'config' : 1, 'config.dataset' : 0}`.
+
+    Parameters
+    ----------
+    projection : Dict[str, bool]
+        The projection to resolve
+    sep : str, optional
+        The separator for nested config values, by default '.'
+
+    Returns
+    -------
+    Dict[str, bool]
+        The resolved projection
+    """
+    result = {}
+    for k, v in projection.items():
+        k = tuple(k.split(sep))
+        add_k = True
+        for other in list(result.keys()):
+            if list_is_prefix(k, other):
+                # If `k` is a prefix of any path in `result`, this path will be removed
+                if result[other] != v:
+                    raise ValueError(f'Can not resolve projection {(k, v), (other, result[other])}')
+                del result[other]
+            elif list_is_prefix(other, k):
+                # If any other path in `result` is a prefix of `k` we do not add k
+                if result[other] != v:
+                    raise ValueError(f'Can not resolve projection {(k, v), (other, result[other])}')
+                add_k = False
+        if add_k:
+            result[k] = v
+    return {sep.join(k) : v for k, v in result.items()}
 
 def chunker(seq, size):
     """
@@ -331,3 +391,77 @@ def cache_to_disk(name: str, time_to_live: float) -> Callable[[F], F]:
             return result
         return wrapper
     return cache_fun
+
+
+def to_slices(items: List[int]) -> List[Tuple[int, int]]:
+    """
+    Convert a list of integers to a list of slices.
+    
+    Parameters
+    ----------
+    items: List[int]
+        List of integers.
+    
+    Returns
+    -------
+    List[Tuple[int, int]]
+        List of slices.
+    """
+    slices = []
+    if len(items) == 0:
+        return slices
+    items = sorted(items)
+    start, end = items[0], items[0]
+    for i in items[1:]:
+        if i == end + 1:
+            end = i
+        else:
+            slices.append((start, end))
+            start, end = i, i
+    # last slice
+    slices.append((start, end))
+    return slices
+
+
+def slice_to_str(s: Tuple[int, int]) -> str:
+    """
+    Convert a slice to a string.
+    
+    Parameters
+    ----------
+    s: Tuple[int, int]
+        The slice.
+    
+    Returns
+    -------
+    str
+        The slice as a string.
+    """
+    if s[0] == s[1]:
+        return str(s[0])
+    else:
+        return f'{s[0]}-{s[1]}'
+
+def to_hashable(x: Any) -> Any:
+    """Returns a hashable representation of an object. Currently supports dicts and other iterables (which will be
+    transformed into tuples)
+
+    Parameters
+    ----------
+    x : Any
+        the object to transform
+
+    Returns
+    -------
+    Any
+        the hashable representation
+    """
+    if isinstance(x, Hashable):
+        return x
+    elif isinstance(x, Dict):
+        Hashabledict((k, to_hashable(v)) for k, v in x.items())
+    elif isinstance(x, Iterable):
+        return tuple(map(to_hashable, x))
+    else:
+        raise ValueError(f'{x} of type {type(x)} is not hashable.')
+    

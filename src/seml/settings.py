@@ -70,7 +70,8 @@ SETTINGS = munchify(
             "COMPLETED": ["COMPLETED", "COMPLETING", "STAGE_OUT"],
         },
         "VALID_SEML_CONFIG_VALUES": ['executable', 'name', 'output_dir',
-                                     'conda_environment', 'project_root_dir'],
+                                     'conda_environment', 'project_root_dir', 
+                                     'description'],
         "VALID_SLURM_CONFIG_VALUES": ['experiments_per_job', 'max_simultaneous_jobs',
                                       'sbatch_options_template', 'sbatch_options'],
         "LOGIN_NODE_NAMES": ["fs"],
@@ -91,7 +92,9 @@ SETTINGS = munchify(
         "CONFIRM_CANCEL_THRESHOLD": 10,
         "CONFIRM_DELETE_THRESHOLD": 10,
         "CONFIRM_RESET_THRESHOLD": 10,
-
+        "CONFIRM_DESCRIPTION_DELETE_THRESHOLD" : 10,
+        "CONFIRM_DESCRIPTION_UPDATE_THRESHOLD" : 10,
+        
         "AUTOCOMPLETE_CACHE_ALIVE_TIME": 300,
 
         "SETUP_COMMAND": "",

@@ -2,10 +2,11 @@
 import functools
 import json
 import logging
-import re
 import os
+import re
 import sys
-from typing import Callable, Dict, List, Set, TypeVar
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Set, Tuple, TypeVar
 
 from typing_extensions import Annotated, ParamSpec
 
@@ -15,8 +16,11 @@ from seml.configure import configure
 from seml.database import (clean_unreferenced_artifacts,
                            get_collections_from_mongo_shell_or_pymongo,
                            get_mongodb_config)
+from seml.description import (collection_delete_description,
+                              collection_list_descriptions,
+                              collection_set_description)
 from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
-                         list_database, print_fail_trace, reload_sources,
+                         list_database, print_fail_trace, print_status, reload_sources,
                          reset_experiments)
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
@@ -75,6 +79,19 @@ FilterDictAnnotation = Annotated[Dict, typer.Option(
             "the experiments by.",
     metavar='JSON',
     parser=json.loads,
+)]
+ProjectionAnnotation = Annotated[List[str], typer.Option(
+    '-p',
+    '--projection',
+    help="List of configuration keys, e.g., `config.model`, to additionally print.",
+    parser=lambda s: s.strip(),
+    callback=lambda values: [
+        __x.strip()
+        for _x in values
+        for __x in _x.replace(',', ' ').split()
+        if __x
+    ],
+    metavar='KEY',
 )]
 BatchIdAnnotation = Annotated[int, typer.Option(
     '-b',
@@ -145,14 +162,26 @@ WorkerCPUsAnnotation = Annotated[int, typer.Option(
     '--worker-cpus',
     help="The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.",
 )]
-WorkerEnvAnnotation = Annotated[dict, typer.Option(
+WorkerEnvAnnotation = Annotated[Dict, typer.Option(
     '-we',
     '--worker-env',
     help="Further environment variables to be set for the local worker.",
     metavar='JSON',
     parser=json.loads
 )]
-
+PrintFullDescriptionAnnotation = Annotated[bool, typer.Option(
+    '-fd',
+    '--full-descriptions',
+    help="Whether to print full descriptions (possibly with line breaks).",
+    is_flag=True,
+)]
+UpdateStatusAnnotation = Annotated[bool, typer.Option(
+    '-u',
+    '--update-status',
+    help="Whether to update the status of experiments in the database."
+            "This can take a while for large collections. Use only if necessary.",
+    is_flag=True,
+)]
 
 @app.callback()
 def callback(
@@ -176,6 +205,7 @@ def callback(
 ):
     """SEML - Slurm Experiment Management Library."""
     from rich.logging import RichHandler
+
     from seml.console import console
     if len(logging.root.handlers) == 0:
         logging_level = logging.VERBOSE if verbose else logging.INFO
@@ -211,16 +241,11 @@ def list_command(
         help="Whether to print a progress bar for iterating over collections.",
         is_flag=True,
     )] = False,
-    update_status: Annotated[bool, typer.Option(
-        '-u',
-        '--update-status',
-        help="Whether to update the status of experiments in the database."
-             "This can take a while for large collections. Use only if necessary.",
-        is_flag=True,
-    )] = False,
+    update_status: UpdateStatusAnnotation = False,
+    full_description: PrintFullDescriptionAnnotation = False,
 ):
     """Lists all collections in the database."""
-    list_database(pattern, progress=progress, update_status=update_status)
+    list_database(pattern, progress=progress, update_status=update_status, print_full_description=full_description)
 
 
 @app.command("clean-db")
@@ -310,7 +335,7 @@ def cancel_command(
     """
     Cancel the Slurm job/job step corresponding to experiments, filtered by ID or state.
     """
-    wait = wait or len([a for a in sys.argv if a in command_names(app)]) > 1
+    wait = wait or len([a for a in sys.argv if a in command_tree(app).commands or a in command_tree(app).groups]) > 1
     cancel_experiments(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -375,7 +400,7 @@ def add_command(
         ),
     ] = False,
     overwrite_params: Annotated[
-        dict,
+        Dict,
         typer.Option(
             '-o',
             '--overwrite-params',
@@ -513,8 +538,6 @@ def launch_worker_command(
         worker_environment_vars=worker_env,
     )
 
-
-
 @app.command("print-fail-trace")
 @restrict_collection()
 def print_fail_trace_command(
@@ -523,7 +546,7 @@ def print_fail_trace_command(
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     filter_states: FilterStatesAnnotation = [*States.FAILED, *States.KILLED, *States.INTERRUPTED],
-    yes: YesAnnotation = False,
+    projection: ProjectionAnnotation = None,
 ):
     """
     Prints fail traces of all failed experiments.
@@ -534,9 +557,8 @@ def print_fail_trace_command(
         filter_states=filter_states,
         batch_id=batch_id,
         filter_dict=filter_dict,
-        yes=yes
+        projection = projection,
     )
-
 
 @app.command("reload-sources")
 @restrict_collection()
@@ -570,7 +592,7 @@ def reload_sources_command(
     )
 
 
-@app.command("print_command")
+@app.command("print-command")
 @restrict_collection()
 def print_command_command(
     ctx: typer.Context,
@@ -660,38 +682,128 @@ def detect_killed_command(
 @restrict_collection()
 def status_command(
     ctx: typer.Context,
+    update_status: UpdateStatusAnnotation = True,
+    projection: ProjectionAnnotation = None,
 ):
     """
     Report status of experiments in the database collection.
     """
-    collection = re.escape(ctx.obj['collection'])
-    list_database(
-        rf'^{collection}$',
-        progress=False,
-        update_status=True,
-    )
+    print_status(ctx.obj['collection'], 
+                 update_status=update_status, 
+                 projection=projection)
+
+app_description = typer.Typer(
+    no_args_is_help=True,
+    help='Manage descriptions of the experiments in a collection.',
+    # chain=os.environ.get('_SEML_COMPLETE')
+)
+app.add_typer(app_description, name="description")
+
+@app_description.command("set")
+@restrict_collection()
+def description_set_command(
+    ctx: typer.Context,
+    description: Annotated[
+        str,
+        typer.Argument(
+            help="The description to set.",
+        ),
+    ],
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = None,
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    yes: YesAnnotation = False,
+):
+    """
+    Sets the description of experiment(s).
+    """
+    collection_set_description(ctx.obj['collection'], description, sacred_id=sacred_id,
+                                filter_states=filter_states, filter_dict=filter_dict,
+                                batch_id=batch_id, yes=yes)
+
+@app_description.command("delete")
+@restrict_collection()
+def description_delete_command(
+    ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = None,
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    yes: YesAnnotation = False,
+):
+    """
+    Deletes the description of experiment(s).
+    """
+    collection_delete_description(ctx.obj['collection'], sacred_id=sacred_id,
+                                filter_states=filter_states, filter_dict=filter_dict,
+                                batch_id=batch_id, yes=yes)
+
+
+@app_description.command("list")
+@restrict_collection()
+def description_list_command(ctx: typer.Context, update_status: UpdateStatusAnnotation = False):
+    """
+    Lists the descriptions of all experiments.
+    """
+    collection_list_descriptions(ctx.obj['collection'], update_status=update_status)
+
+
+@dataclass
+class CommandTreeNode:
+    """ Compact representation of the commands (and subtyper commands) of the app"""
+    commands: Set[str]
+    groups: Dict[str, 'CommandTreeNode']
 
 
 @functools.lru_cache()
-def command_names(app: typer.Typer) -> Set[str]:
-    return {
-        cmd.name if cmd.name else cmd.callback.__name__
-        for cmd in app.registered_commands
-    }
+def command_tree(app: typer.Typer) -> CommandTreeNode:
+    return CommandTreeNode(
+        commands = {
+            cmd.name if cmd.name else cmd.callback.__name__
+            for cmd in app.registered_commands
+        },
+        groups = {
+            (group.name if group.name else group.callback.__name__) : command_tree(group.typer_instance)
+            for group in app.registered_groups
+        }
+    )
 
 
-def split_args(args: List[str], commands: Set[str]) -> List[List[str]]:
-    # Divide argv by commands
-    split_argv = [[]]
-    for c in args:
-        if c in commands:
-            split_argv.append([c])
+def split_args(
+        args: List[str],
+        command_tree: CommandTreeNode,
+        combine: bool = True) -> Tuple[List[List[str]], List[str]]:
+    split_cmd_args = [[]]
+    cmd_stack = [command_tree]
+    
+    # Chaining is only allowed in the first level of the group hierarchy, so we only
+    # split into a two level list
+    for arg in args:
+        if arg in cmd_stack[-1].groups:
+            if len(cmd_stack) == 1: # new subtyper at the top level
+                split_cmd_args.append([arg])
+                # chaining is allowed: stack[-1] may consume further commands after its child is done consuming
+                cmd_stack.append(cmd_stack[-1].groups[arg])
+            else:
+                split_cmd_args[-1].append(arg)
+                # no chaining below the first level: stack[-1] will not consume any more commands
+                cmd_stack = cmd_stack[:-1] + [cmd_stack[-1].groups[arg]]
+        elif arg in cmd_stack[-1].commands:
+            if len(cmd_stack) == 1: # new command at the top level
+                split_cmd_args.append([arg])
+            else:
+                split_cmd_args[-1].append(arg)
+                # no chaining below the first level: stack[-1] will not consume any more commands
+                cmd_stack.pop()
         else:
-            split_argv[-1].append(c)
-    if len(split_argv) == 1:
-        return split_argv
-    shared = split_argv[0]
-    chained_commands = split_argv[1:]
+            split_cmd_args[-1].append(arg)
+    
+    # Re-distribute shared args to each command in the first level of the hierarchy
+    if len(split_cmd_args) == 1:
+        return split_cmd_args, cmd_stack
+    shared = split_cmd_args[0]
+    chained_commands = split_cmd_args[1:]
     # If none of the shared args contains a collection
     # name, we add the default collection name.
     if all(arg.startswith('-') for arg in shared):
@@ -700,13 +812,14 @@ def split_args(args: List[str], commands: Set[str]) -> List[List[str]]:
     result = []
     for split in chained_commands:
         result.append(shared + split)
-    return result
+    
+    return result, cmd_stack
 
 
 def main():
     # We have to split the arguments manually to get proper chaining.
     # If we were to use typer built-in chaining, lists would end the chain.
-    for args in split_args(sys.argv[1:], command_names(app)):
+    for args in split_args(sys.argv[1:], command_tree(app))[0]:
         # The app will typically exit after running once.
         # We want to run it multiple times, so we catch the SystemExit exception.
         try:
@@ -725,9 +838,15 @@ if __name__ == "__main__":
 # If we are in autcompletion we must apply our parameter splitting
 # to get correct autocompletion suggestions.
 if os.environ.get('_SEML_COMPLETE') and os.environ.get('COMP_WORDS'):
-    new_comp_words = split_args(
+    commands, stack = split_args(
         os.environ['COMP_WORDS'].split('\n'),
-        command_names(app)
-    )[-1]
+        command_tree(app)
+    )
+    new_comp_words = commands[-1]
     os.environ['COMP_WORDS'] = '\n'.join(new_comp_words)
     os.environ['COMP_CWORD'] = str(len(new_comp_words) - 1)
+    # If we are not at the top level typer, we must not suggest top level commands
+    # Note: `seml collection description list <tab><tab>` does not correctly autocomplete
+    # as chaining is disabled on the app_description typer. However, if one were to enable
+    # that its assumptions about chaining differs from our assumptions about chaining.
+    app.info.chain = len(stack) == 1

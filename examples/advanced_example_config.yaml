@@ -59,6 +59,7 @@ seml:
   name: advanced_example_experiment
   output_dir: examples/logs
   project_root_dir: ..
+  description: An advanced example configuration.
 
 slurm:
   experiments_per_job: 1
