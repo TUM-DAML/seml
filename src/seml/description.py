@@ -4,6 +4,7 @@ from xml.etree.ElementTree import TreeBuilder
 
 from seml.database import (build_filter_dict, get_collection)
 from seml.errors import MongoDBError
+from seml.manage import detect_killed
 from seml.settings import SETTINGS
 from seml.typer import prompt
 from seml.utils import slice_to_str, to_slices
@@ -86,25 +87,40 @@ def collection_delete_description(
     logging.info(f'Deleted the descriptions of {result.modified_count} experiments.')
 
 
-def collection_list_descriptions(db_collection_name: str):
+def collection_list_descriptions(db_collection_name: str, update_status: bool = False):
     """Lists the descriptions of experiments
 
     Parameters
     ----------
     db_collection_name : str
         Name of the collection to list descriptions from
+    update_status : bool
+        Whether to detect killed experiments
     """
     from rich.align import Align
     from rich.box import SIMPLE
     from rich.table import Table
     from seml.console import console
     collection = get_collection(db_collection_name)
+    
+    # Handle status updates
+    if update_status:
+        detect_killed(db_collection_name, print_detected=False)
+    else:
+        logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use the `--update-status` flag instead.")
+    
     description_slices = {
-        (obj['_id'] if obj['_id'] else 'None'): to_slices(obj['_ids'])
+        (obj['_id'] if obj['_id'] else ''): {
+            'ids' : to_slices(obj['ids']),
+            'batch_ids' : to_slices(obj['batch_ids']),
+            'states' : set(obj['states']),
+        }
         for obj in collection.aggregate([{
             '$group': {
                 '_id': '$seml.description',
-                '_ids': {'$addToSet': '$_id'},
+                'ids': {'$addToSet': '$_id'},
+                'batch_ids' : {'$addToSet' : '$batch_id'},
+                'states' : {'$addToSet' : '$status'},
             }
         }])
     }
@@ -119,8 +135,14 @@ def collection_list_descriptions(db_collection_name: str):
         highlight=TreeBuilder()
     )
     table.add_column("Description", justify="left")
-    table.add_column("Experiments", justify="left")
+    table.add_column("Experiment IDs", justify="left")
+    table.add_column("Batch IDs", justify="left")
+    table.add_column("Status", justify="left")
     for description in sorted(description_slices):
         slices = description_slices[description]
-        table.add_row(description, ", ".join(map(slice_to_str, slices)))
+        table.add_row(description, 
+                      ", ".join(map(slice_to_str, slices['ids'])),
+                      ", ".join(map(slice_to_str, slices['batch_ids'])),
+                      ", ".join(slices['states'])
+                    )
     console.print(Align(table, align="center"))
