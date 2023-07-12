@@ -7,6 +7,7 @@ import subprocess
 import time
 from collections import defaultdict
 from typing import Dict, List, Optional
+from xml.etree.ElementTree import TreeBuilder
 
 from seml.config import check_config
 from seml.database import (build_filter_dict, get_collection, get_database,
@@ -16,7 +17,7 @@ from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.typer import prompt
 from seml.utils import (chunker, get_from_nested,
-                        resolve_projection_path_conflicts, s_if)
+                        resolve_projection_path_conflicts, s_if, slice_to_str, to_slices)
 
 States = SETTINGS.STATES
 
@@ -618,6 +619,87 @@ def print_fail_trace(
         console.print(panel)
     logging.info(f'Printed the fail traces of {len(exps)} experiment(s).')
 
+def print_status(
+    db_collection_name: str, 
+    update_status: bool = True, 
+    print_full_description: bool = False, 
+    projection: Optional[List[str]] = None):
+    """Prints the status of an experiment collection
+
+    Parameters
+    ----------
+    db_collection_name : str
+        Name of the collection to print status of
+    update_status : bool, optional
+        Whehter to detect killed experiments, by default True
+    print_full_description : bool, optional
+        Whether to print full descriptions, by default False
+    projection : Optional[List[str]], optional
+        Additional attributes from the MongoDB to print, by default None
+    """
+    
+    from rich.align import Align
+    from rich.box import SIMPLE
+    from rich.table import Table, Column
+    from seml.console import console
+    collection = get_collection(db_collection_name)
+    
+    # Handle status updates
+    if update_status:
+        detect_killed(db_collection_name, print_detected=False)
+    else:
+        logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use the `--update-status` flag instead.")
+    
+    if projection is None:
+        projection = []
+    
+    result = collection.aggregate([{
+        '$group': {
+            '_id': '$status',
+            'ids': {'$addToSet': '$_id'},
+            'batch_ids' : {'$addToSet' : '$batch_id'},
+            'descriptions' : {'$addToSet' : '$seml.description'},
+            'count' : {'$sum' : 1},
+            **{
+                f'projection_{idx}' : {'$addToSet' : f'${key}'}
+                for idx, key in enumerate(projection)
+            }
+        }}])
+    result = sorted(result, key=lambda x: list(States.keys()).index(x['_id']))
+    table = Table(
+        Column("Status", justify="left", footer='Total'),
+        Column("Count", justify="left", footer=str(sum(record['count'] for record in result))),
+        Column("Experiment IDs", justify="left"),
+        Column("Batch IDs", justify="left"),
+        # TODO: Column width of "Description(s)" is a weird magic number, but calculating the width does not easily work with custom projections, slices etc...
+        Column("Description(s)", justify="left", 
+               no_wrap=not print_full_description, overflow='ellipsis', max_width=30), 
+        *[Column(key, justify="left") for key in projection],
+        show_header=True,
+        collapse_padding=True,
+        show_lines=False,
+        show_edge=False,
+        row_styles=["none", "dim"],
+        box=SIMPLE,
+        highlight=TreeBuilder(),
+        show_footer=len(result) > 1,
+    )
+    for record in result:
+        table.add_row(
+            record['_id'],
+            str(record['count']),
+            ", ".join(map(slice_to_str, to_slices(record['ids']))),
+            ", ".join(map(slice_to_str, to_slices(record['batch_ids']))),
+            ", ".join(
+                [f'"{description}"' for description in record['descriptions']]
+                if len(record['descriptions']) > 1 else record['descriptions']),
+            *[
+                ", ".join(map(str, record[f'projection_{idx}']))
+                for idx in range(len(projection))
+            ]
+        )
+    console.print(Align(table, align="center"))
+
 
 def list_database(
         pattern: str,
@@ -664,7 +746,7 @@ def list_database(
         for collection in collection_names:
             detect_killed(collection, print_detected=False)
     else:
-        logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use `seml ... status` instead.")
+        logging.warning(f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use the `--update-status` flag instead.")
     
     # Count the number of experiments in each state
     name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})

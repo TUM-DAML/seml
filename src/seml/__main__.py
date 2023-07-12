@@ -20,7 +20,7 @@ from seml.description import (collection_delete_description,
                               collection_list_descriptions,
                               collection_set_description)
 from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
-                         list_database, print_fail_trace, reload_sources,
+                         list_database, print_fail_trace, print_status, reload_sources,
                          reset_experiments)
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
@@ -175,6 +175,13 @@ PrintFullDescriptionAnnotation = Annotated[bool, typer.Option(
     help="Whether to print full descriptions (possibly with line breaks).",
     is_flag=True,
 )]
+UpdateStatusAnnotation = Annotated[bool, typer.Option(
+    '-u',
+    '--update-status',
+    help="Whether to update the status of experiments in the database."
+            "This can take a while for large collections. Use only if necessary.",
+    is_flag=True,
+)]
 
 @app.callback()
 def callback(
@@ -234,13 +241,7 @@ def list_command(
         help="Whether to print a progress bar for iterating over collections.",
         is_flag=True,
     )] = False,
-    update_status: Annotated[bool, typer.Option(
-        '-u',
-        '--update-status',
-        help="Whether to update the status of experiments in the database."
-             "This can take a while for large collections. Use only if necessary.",
-        is_flag=True,
-    )] = False,
+    update_status: UpdateStatusAnnotation = False,
     full_description: PrintFullDescriptionAnnotation = False,
 ):
     """Lists all collections in the database."""
@@ -682,17 +683,16 @@ def detect_killed_command(
 def status_command(
     ctx: typer.Context,
     full_description: PrintFullDescriptionAnnotation = False,
+    update_status: UpdateStatusAnnotation = True,
+    projection: ProjectionAnnotation = None,
 ):
     """
     Report status of experiments in the database collection.
     """
-    collection = re.escape(ctx.obj['collection'])
-    list_database(
-        rf'^{collection}$',
-        progress=False,
-        update_status=True,
-        print_full_description=full_description,
-    )
+    print_status(ctx.obj['collection'], 
+                 update_status=update_status, 
+                 print_full_description=full_description,
+                 projection=projection)
 
 app_description = typer.Typer(
     no_args_is_help=True,
@@ -744,11 +744,11 @@ def description_delete_command(
 
 @app_description.command("list")
 @restrict_collection()
-def description_list_command(ctx: typer.Context):
+def description_list_command(ctx: typer.Context, update_status: UpdateStatusAnnotation = False):
     """
     Lists the descriptions of all experiments.
     """
-    collection_list_descriptions(ctx.obj['collection'])
+    collection_list_descriptions(ctx.obj['collection'], update_status=update_status)
 
 
 @dataclass
