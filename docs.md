@@ -30,8 +30,8 @@ $ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 * `detect-killed`: Detect experiments where the corresponding...
 * `launch-worker`: Launch a local worker that runs PENDING jobs.
 * `list`: Lists all collections in the database.
+* `print-command`: Print the commands that would be executed...
 * `print-fail-trace`: Prints fail traces of all failed experiments.
-* `print_command`: Print the commands that would be executed...
 * `reload-sources`: Reload stashed source files.
 * `reset`: Reset the state of experiments by setting...
 * `start`: Fetch staged experiments from the database...
@@ -267,6 +267,27 @@ $ seml list [OPTIONS] [PATTERN]
 * `-fd, --full-descriptions`: Whether to print full descriptions (possibly with line breaks).
 * `--help`: Show this message and exit.
 
+## `seml print-command`
+
+Print the commands that would be executed by `start`.
+
+**Usage**:
+
+```console
+$ seml print-command [OPTIONS]
+```
+
+**Options**:
+
+* `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
+* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
+* `-n, --num-experiments INTEGER`: Number of experiments to start. 0: all (staged) experiments   [default: 0]
+* `-wg, --worker-gpus TEXT`: The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.
+* `-wc, --worker-cpus INTEGER`: The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.
+* `-we, --worker-env JSON`: Further environment variables to be set for the local worker.
+* `--help`: Show this message and exit.
+
 ## `seml print-fail-trace`
 
 Prints fail traces of all failed experiments.
@@ -284,27 +305,6 @@ $ seml print-fail-trace [OPTIONS]
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: FAILED, KILLED, INTERRUPTED]
 * `-p, --projection KEY`: List of configuration keys, e.g., `config.model`, to additionally print.
-* `--help`: Show this message and exit.
-
-## `seml print_command`
-
-Print the commands that would be executed by `start`.
-
-**Usage**:
-
-```console
-$ seml print_command [OPTIONS]
-```
-
-**Options**:
-
-* `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
-* `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
-* `-n, --num-experiments INTEGER`: Number of experiments to start. 0: all (staged) experiments   [default: 0]
-* `-wg, --worker-gpus TEXT`: The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.
-* `-wc, --worker-cpus INTEGER`: The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.
-* `-we, --worker-env JSON`: Further environment variables to be set for the local worker.
 * `--help`: Show this message and exit.
 
 ## `seml reload-sources`

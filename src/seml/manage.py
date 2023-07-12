@@ -579,9 +579,9 @@ def print_fail_trace(
     else:
         exps = [collection.find_one({'_id': sacred_id}, mongo_db_projection)]
     for exp in exps:
-        exp_id = exp['_id']
-        status = exp['status']
-        batch_id = exp['batch_id']
+        exp_id = exp.get('_id')
+        status = exp.get('status')
+        batch_id = exp.get('batch_id')
         slurm_array_id = exp.get('slurm', {}).get('array_id', None)
         slurm_task_id = exp.get('slurm', {}).get('task_id', None)
         fail_trace = exp.get('fail_trace', [])

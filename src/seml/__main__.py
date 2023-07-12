@@ -6,7 +6,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Set, TypeVar
+from typing import Callable, Dict, List, Set, Tuple, TypeVar
 
 from typing_extensions import Annotated, ParamSpec
 
@@ -591,7 +591,7 @@ def reload_sources_command(
     )
 
 
-@app.command("print_command")
+@app.command("print-command")
 @restrict_collection()
 def print_command_command(
     ctx: typer.Context,
@@ -696,7 +696,8 @@ def status_command(
 
 app_description = typer.Typer(
     no_args_is_help=True,
-    help='Manage descriptions of the experiments in a collection.'
+    help='Manage descriptions of the experiments in a collection.',
+    # chain=os.environ.get('_SEML_COMPLETE')
 )
 app.add_typer(app_description, name="description")
 
@@ -771,37 +772,40 @@ def command_tree(app: typer.Typer) -> CommandTreeNode:
     )
 
 
-def split_args(args: List[str], command_tree: CommandTreeNode) -> List[List[str]]:
-    split_argv = [[]]
-    stack = [command_tree]
+def split_args(
+        args: List[str],
+        command_tree: CommandTreeNode,
+        combine: bool = True) -> Tuple[List[List[str]], List[str]]:
+    split_cmd_args = [[]]
+    cmd_stack = [command_tree]
     
     # Chaining is only allowed in the first level of the group hierarchy, so we only
     # split into a two level list
     for arg in args:
-        if arg in stack[-1].groups:
-            if len(stack) == 1: # new subtyper at the top level
-                split_argv.append([arg])
+        if arg in cmd_stack[-1].groups:
+            if len(cmd_stack) == 1: # new subtyper at the top level
+                split_cmd_args.append([arg])
                 # chaining is allowed: stack[-1] may consume further commands after its child is done consuming
-                stack.append(stack[-1].groups[arg])
+                cmd_stack.append(cmd_stack[-1].groups[arg])
             else:
-                split_argv[-1].append(arg)
+                split_cmd_args[-1].append(arg)
                 # no chaining below the first level: stack[-1] will not consume any more commands
-                stack = stack[:-1] + [stack[-1].groups[arg]]
-        elif arg in stack[-1].commands:
-            if len(stack) == 1: # new command at the top level
-                split_argv.append([arg])
+                cmd_stack = cmd_stack[:-1] + [cmd_stack[-1].groups[arg]]
+        elif arg in cmd_stack[-1].commands:
+            if len(cmd_stack) == 1: # new command at the top level
+                split_cmd_args.append([arg])
             else:
-                split_argv[-1].append(arg)
+                split_cmd_args[-1].append(arg)
                 # no chaining below the first level: stack[-1] will not consume any more commands
-                stack.pop()
+                cmd_stack.pop()
         else:
-            split_argv[-1].append(arg)
+            split_cmd_args[-1].append(arg)
     
     # Re-distribute shared args to each command in the first level of the hierarchy
-    if len(split_argv) == 1:
-        return split_argv
-    shared = split_argv[0]
-    chained_commands = split_argv[1:]
+    if len(split_cmd_args) == 1:
+        return split_cmd_args, cmd_stack
+    shared = split_cmd_args[0]
+    chained_commands = split_cmd_args[1:]
     # If none of the shared args contains a collection
     # name, we add the default collection name.
     if all(arg.startswith('-') for arg in shared):
@@ -810,13 +814,14 @@ def split_args(args: List[str], command_tree: CommandTreeNode) -> List[List[str]
     result = []
     for split in chained_commands:
         result.append(shared + split)
-    return result
+    
+    return result, cmd_stack
 
 
 def main():
     # We have to split the arguments manually to get proper chaining.
     # If we were to use typer built-in chaining, lists would end the chain.
-    for args in split_args(sys.argv[1:], command_tree(app)):
+    for args in split_args(sys.argv[1:], command_tree(app))[0]:
         # The app will typically exit after running once.
         # We want to run it multiple times, so we catch the SystemExit exception.
         try:
@@ -835,9 +840,15 @@ if __name__ == "__main__":
 # If we are in autcompletion we must apply our parameter splitting
 # to get correct autocompletion suggestions.
 if os.environ.get('_SEML_COMPLETE') and os.environ.get('COMP_WORDS'):
-    new_comp_words = split_args(
+    commands, stack = split_args(
         os.environ['COMP_WORDS'].split('\n'),
-        command_tree(app),
-    )[-1]
+        command_tree(app)
+    )
+    new_comp_words = commands[-1]
     os.environ['COMP_WORDS'] = '\n'.join(new_comp_words)
     os.environ['COMP_CWORD'] = str(len(new_comp_words) - 1)
+    # If we are not at the top level typer, we must not suggest top level commands
+    # Note: `seml collection description list <tab><tab>` does not correctly autocomplete
+    # as chaining is disabled on the app_description typer. However, if one were to enable
+    # that its assumptions about chaining differs from our assumptions about chaining.
+    app.info.chain = len(stack) == 1
