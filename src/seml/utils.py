@@ -4,7 +4,7 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, TypeVar
+from typing import Any, Callable, Dict, Hashable, Iterable, List, Tuple, TypeVar
 
 import seml.typer as typer
 
@@ -441,3 +441,27 @@ def slice_to_str(s: Tuple[int, int]) -> str:
         return str(s[0])
     else:
         return f'{s[0]}-{s[1]}'
+
+def to_hashable(x: Any) -> Any:
+    """Returns a hashable representation of an object. Currently supports dicts and other iterables (which will be
+    transformed into tuples)
+
+    Parameters
+    ----------
+    x : Any
+        the object to transform
+
+    Returns
+    -------
+    Any
+        the hashable representation
+    """
+    if isinstance(x, Hashable):
+        return x
+    elif isinstance(x, Dict):
+        Hashabledict((k, to_hashable(v)) for k, v in x.items())
+    elif isinstance(x, Iterable):
+        return tuple(map(to_hashable, x))
+    else:
+        raise ValueError(f'{x} of type {type(x)} is not hashable.')
+    

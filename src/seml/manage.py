@@ -16,8 +16,8 @@ from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.typer import prompt
-from seml.utils import (chunker, get_from_nested,
-                        resolve_projection_path_conflicts, s_if, slice_to_str, to_slices)
+from seml.utils import (chunker, flatten, get_from_nested,
+                        resolve_projection_path_conflicts, s_if, slice_to_str, to_hashable, to_slices)
 
 States = SETTINGS.STATES
 
@@ -649,6 +649,7 @@ def print_status(
     
     if projection is None:
         projection = []
+    projection = list(resolve_projection_path_conflicts({key : 1 for key in projection}))
     
     result = collection.aggregate([{
         '$group': {
@@ -663,6 +664,22 @@ def print_status(
             }
         }}])
     result = sorted(result, key=lambda x: list(States.keys()).index(x['_id']))
+    # Unpack the (nested) projections
+    # We keep prefixes encoded as ${id} to preserve the order of the projection keys
+    result_projection = []
+    for record in result:
+        result_projection.append(defaultdict(set))
+        for idx, key in enumerate(projection):
+            for values in record[f'projection_{idx}']:
+                for x, y in flatten({f'${idx}' : values}).items():
+                    result_projection[-1][x].add(to_hashable(y))
+    projection_columns = sorted(set(k for record in result_projection for k in record))
+    # For the column headers, we replace ${id} with the projection key
+    columns = []
+    for projection_column in projection_columns:
+        projection_key_idx = int(re.match(r'.*\$([0-9]+)(\..*|$)', projection_column).groups()[0])
+        columns.append(projection_column.replace(f'${projection_key_idx}', projection[projection_key_idx]))
+    
     table = Table(
         Column("Status", justify="left", footer='Total'),
         Column("Count", justify="left", footer=str(sum(record['count'] for record in result))),
@@ -670,7 +687,7 @@ def print_status(
         Column("Batch IDs", justify="left"),
         # TODO: Column width of "Description(s)" is a weird magic number, but calculating the width does not easily work with custom projections, slices etc...
         Column("Description(s)", justify="left"), 
-        *[Column(key, justify="left") for key in projection],
+        *[Column(key, justify="left") for key in columns],
         show_header=True,
         collapse_padding=True,
         show_lines=False,
@@ -680,7 +697,7 @@ def print_status(
         highlight=TreeBuilder(),
         show_footer=len(result) > 1,
     )
-    for record in result:
+    for record, record_projection in zip(result, result_projection):
         table.add_row(
             record['_id'],
             str(record['count']),
@@ -690,8 +707,8 @@ def print_status(
                 [f'"{description}"' for description in record['descriptions']]
                 if len(record['descriptions']) > 1 else record['descriptions']),
             *[
-                ", ".join(map(str, record[f'projection_{idx}']))
-                for idx in range(len(projection))
+                ", ".join(map(str, record_projection.get(key, {})))
+                for key in projection_columns
             ]
         )
     console.print(Align(table, align="center"))
