@@ -2,7 +2,7 @@ import copy
 import datetime
 import logging
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from seml.config import (check_config, generate_configs, read_config,
                          remove_prepended_dashes, resolve_configs)
@@ -111,12 +111,40 @@ def add_configs(collection, seml_config, slurm_config, configs, source_files=Non
 
     collection.insert_many(db_dicts)
 
-def add_config_files(db_collection_name, config_files, force_duplicates, overwrite_params=None, no_hash=False, no_sanity_check=False,
-                    no_code_checkpoint=False):
+def add_config_files(db_collection_name: str, 
+                     config_files: List[str], 
+                     force_duplicates: bool = False, 
+                     overwrite_params: Optional[Dict] = None, 
+                     no_hash: bool = False, 
+                     no_sanity_check: bool = False,
+                     no_code_checkpoint: bool = False, 
+                     resolve: bool = True):
+    """Adds configuration files to the MongoDB
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to which to add
+    config_files : List[str]
+        A list of paths to configuration files (YAML) to add
+    force_duplicates : bool, optional
+        Whether to force adding configurations even if they are already in the MongoDB, by default False
+    overwrite_params : Optional[Dict], optional
+        Optional flat dict to override configuration values, by default None
+    no_hash : bool, optional
+        Whether to skip duplicate detection by computing hashes, which may result in slowdowns, by default False
+    no_sanity_check : bool, optional
+        Whether to skip feeding configuration values into the sacred experiment to detect unsupported or missing keys, by default False
+    no_code_checkpoint : bool, optional
+        Whether to not base the experiments on a copy of the current codebase, by default False
+    resolve : bool, optional
+        Whether to resolve the configuration keys against the sacred experiment and store all configuration keys in the MongoDB, by default True
+    """
     config_files = [os.path.abspath(file) for file in config_files]
     for config_file in config_files:
         add_config_file(db_collection_name, config_file, force_duplicates,
-                        overwrite_params, no_hash, no_sanity_check,no_code_checkpoint)
+                        overwrite_params, no_hash, no_sanity_check,no_code_checkpoint,
+                        resolve=resolve)
 
 
 def assemble_slurm_config_dict(experiment_slurm_config: dict):
@@ -155,25 +183,34 @@ def assemble_slurm_config_dict(experiment_slurm_config: dict):
     return slurm_config
 
 
-def add_config_file(db_collection_name, config_file, force_duplicates, overwrite_params=None, no_hash=False, no_sanity_check=False,
-                    no_code_checkpoint=False):
-    """
-    Add configurations from a config file into the database.
+def add_config_file(db_collection_name: str, 
+                     config_file: str, 
+                     force_duplicates: bool = False, 
+                     overwrite_params: Optional[Dict] = None, 
+                     no_hash: bool = False, 
+                     no_sanity_check: bool = False,
+                     no_code_checkpoint: bool = False, 
+                     resolve: bool = True):
+    """Adds configuration files to the MongoDB
 
     Parameters
     ----------
-    db_collection_name: the MongoDB collection name.
-    config_file: path to the YAML configuration.
-    force_duplicates: if True, disable duplicate detection.
-    overwrite_params: optional flat dictionary to overwrite parameters in all configs.
-    no_hash: if True, disable hashing of the configurations for duplicate detection. This is much slower, so use only
-        if you have a good reason to.
-    no_sanity_check: if True, do not check the config for missing/unused arguments.
-    no_code_checkpoint: if True, do not upload the experiment source code files to the MongoDB.
-
-    Returns
-    -------
-    None
+    db_collection_name : str
+        The collection to which to add
+    config_files : str
+        A path to configuration file (YAML) to add
+    force_duplicates : bool, optional
+        Whether to force adding configurations even if they are already in the MongoDB, by default False
+    overwrite_params : Optional[Dict], optional
+        Optional flat dict to override configuration values, by default None
+    no_hash : bool, optional
+        Whether to skip duplicate detection by computing hashes, which may result in slowdowns, by default False
+    no_sanity_check : bool, optional
+        Whether to skip feeding configuration values into the sacred experiment to detect unsupported or missing keys, by default False
+    no_code_checkpoint : bool, optional
+        Whether to not base the experiments on a copy of the current codebase, by default False
+    resolve : bool, optional
+        Whether to resolve the configuration keys against the sacred experiment and store all configuration keys in the MongoDB, by default True
     """
     seml_config, slurm_config, experiment_config = read_config(config_file)
 
@@ -202,7 +239,8 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
     if not no_sanity_check:
         check_config(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
 
-    configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
+    if resolve:
+        configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
 
     path, commit, dirty = get_git_info(seml_config['executable'], seml_config['working_dir'])
 

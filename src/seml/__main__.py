@@ -182,6 +182,13 @@ UpdateStatusAnnotation = Annotated[bool, typer.Option(
             "This can take a while for large collections. Use only if necessary.",
     is_flag=True,
 )]
+NoResolveConfigsAnnotation = Annotated[bool, typer.Option(
+    '-nr',
+    '--no-resolve',
+    help="Whether skip resolving configurations against the sacred experiment in the source code."
+            "This will not put all config values that are defined into the MongoDB.",
+    is_flag=True,
+)]
 
 @app.callback()
 def callback(
@@ -409,6 +416,7 @@ def add_command(
             parser=json.loads
         ),
     ] = None,
+    no_resolve: NoResolveConfigsAnnotation = False,
 ):
     """
     Add experiments to the database as defined in the configuration.
@@ -420,7 +428,8 @@ def add_command(
         no_hash=no_hash,
         no_sanity_check=no_sanity_check,
         no_code_checkpoint=no_code_checkpoint,
-        overwrite_params=overwrite_params
+        overwrite_params=overwrite_params,
+        resolve=not no_resolve,
     )
 
 @app.command("start")
@@ -580,6 +589,7 @@ def reload_sources_command(
                 "Experiments that were staged together have the same batch_id.",
     )] = None,
     yes: YesAnnotation = False,
+    no_resolve: NoResolveConfigsAnnotation = False,
 ):
     """
     Reload stashed source files.
@@ -588,7 +598,8 @@ def reload_sources_command(
         ctx.obj['collection'],
         batch_ids=batch_ids,
         keep_old=keep_old,
-        yes=yes
+        yes=yes,
+        resolve=not no_resolve,
     )
 
 
