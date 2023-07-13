@@ -6,7 +6,7 @@ import re
 import subprocess
 import time
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from xml.etree.ElementTree import TreeBuilder
 
 from seml.config import check_config, resolve_configs
@@ -639,6 +639,7 @@ def print_fail_trace(
 def print_status(
     db_collection_name: str, 
     update_status: bool = True, 
+    detect_duplicates_: bool = True,
     projection: Optional[List[str]] = None):
     """Prints the status of an experiment collection
 
@@ -656,6 +657,7 @@ def print_status(
     from rich.box import SIMPLE
     from rich.table import Table, Column
     from seml.console import console
+    from rich.text import Text
     collection = get_collection(db_collection_name)
     
     # Handle status updates
@@ -697,11 +699,15 @@ def print_status(
         projection_key_idx = int(re.match(r'.*\$([0-9]+)(\..*|$)', projection_column).groups()[0])
         columns.append(projection_column.replace(f'${projection_key_idx}', projection[projection_key_idx]))
     
+    if detect_duplicates_:
+        duplicate_experiment_ids = set(experiment_id for dups in detect_duplicates(db_collection_name) for experiment_id in dups)
+    
     table = Table(
         Column("Status", justify="left", footer='Total'),
         Column("Count", justify="left", footer=str(sum(record['count'] for record in result))),
         Column("Experiment IDs", justify="left"),
         Column("Batch IDs", justify="left"),
+        *([Column("Duplicates", footer=str(len(duplicate_experiment_ids)))] if detect_duplicates_ else []),
         # TODO: Column width of "Description(s)" is a weird magic number, but calculating the width does not easily work with custom projections, slices etc...
         Column("Description(s)", justify="left"), 
         *[Column(key, justify="left") for key in columns],
@@ -720,6 +726,7 @@ def print_status(
             str(record['count']),
             ", ".join(map(slice_to_str, to_slices(record['ids']))),
             ", ".join(map(slice_to_str, to_slices(record['batch_ids']))),
+            *([str(len(set(record['ids']) & duplicate_experiment_ids))] if detect_duplicates_ else []),
             ", ".join(
                 [f'"{description}"' for description in record['descriptions']]
                 if len(record['descriptions']) > 1 else record['descriptions']),
@@ -840,3 +847,71 @@ def list_database(
     # For some reason the table thinks the terminal is larger than it is
     table = Align(table, align="center", width=console.width - max_len + 1)
     console.print(Align(table, align="center"), soft_wrap=True)
+
+
+def detect_duplicates(db_collection_name: str,
+                      filter_dict: Optional[Dict]=None) -> List[Set[int]]:
+    """Finds duplicate configurations based on their hashes.
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to check
+
+    Returns
+    -------
+    List[Set[int]]
+        All duplicate experiments.
+    """
+    collection = get_collection(db_collection_name)
+    pipeline = [{
+            '$group' : {
+                '_id' : '$config_hash',
+                'ids' : {'$addToSet' : '$_id'},
+                'count' : {'$sum' : 1},}
+        },
+        {
+            '$match' : {
+                'count' : {'$gt' : 1},
+            }
+        }]
+    if filter_dict is not None:
+        pipeline = [{'$match' : filter_dict}] + pipeline
+    duplicates = collection.aggregate(pipeline)
+    return [set(duplicate['ids']) for duplicate in duplicates]
+
+def print_duplicates(
+    db_collection_name: str,
+    filter_states: Optional[List[str]] = None, 
+    batch_id: Optional[int] = None, 
+    filter_dict: Optional[Dict] = None,):
+    """Detects and lists duplicate experiment configurations
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to detect duplicates in
+    filter_states : Optional[List[str]], optional
+        Optional filter on states, by default None
+    batch_id : Optional[int], optional
+        Optional filter on batch IDs, by default None
+    filter_dict : Optional[Dict], optional
+        Optional additional user filters, by default None
+    """
+        
+    from seml.console import console
+    from rich.panel import Panel
+    from rich.text import Text
+    if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
+        detect_killed(db_collection_name, print_detected=False)
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None)
+    duplicates = detect_duplicates(db_collection_name, filter_dict)
+    num_duplicates = sum(map(len, duplicates))
+    panel = Panel(
+        Text.assemble(('Duplicate experiment ID groups: ', 'bold'), 
+                      (', '.join(map(lambda d: str(tuple(sorted(d))), duplicates)))),
+        title=console.render_str(f'Found {num_duplicates} duplicate experiment configurations ({len(duplicates)} groups)'),
+        highlight=True,
+        border_style='red',
+    )
+    console.print(panel)
