@@ -88,6 +88,8 @@ SETTINGS = munchify(
                 "DEFAULT_CHANNEL": "YOUR_DEFAULT_CHANNEL",
             }
         },
+        
+        "CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS" : ['seed'], # keys that will be excluded by seml's duplicate detection 
 
         "CONFIRM_CANCEL_THRESHOLD": 10,
         "CONFIRM_DELETE_THRESHOLD": 10,

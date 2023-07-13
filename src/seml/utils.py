@@ -253,21 +253,41 @@ def merge_dicts(dict1, dict2):
 
     return return_dict
 
+def remove_keys_from_nested(d: Dict, keys: List[str] = []) -> Dict:
+    """Removes keys from a nested dictionary
 
-def make_hash(d: dict):
+    Parameters
+    ----------
+    d : Dict
+        the dict to remove keys from
+    keys : List[str], optional
+        the keys to remove, by default []
+
+    Returns
+    -------
+    Dict
+        a copy of the dict without the values in `keys`
+    """
+    return unflatten({k : v for k, v in flatten(d).items() if k not in keys})
+    
+
+def make_hash(d: Dict, exclude_keys: List[str] = ['seed',]):
     """
     Generate a hash for the input dictionary.
     From: https://stackoverflow.com/a/22003440
     Parameters
     ----------
-    d: input dictionary
+    d : Dict
+        The dictionary to hash
+    exclude_keys : List[str]
+        Keys to not hash.
 
     Returns
     -------
     hash (hex encoded) of the input dictionary.
     """
     import hashlib
-    return hashlib.md5(json.dumps(d, sort_keys=True).encode("utf-8")).hexdigest()
+    return hashlib.md5(json.dumps(remove_keys_from_nested(d, exclude_keys), sort_keys=True).encode("utf-8")).hexdigest()
 
 
 def add_logging_level(levelName, levelNum, methodName=None):
@@ -325,7 +345,7 @@ class LoggingFormatter(logging.Formatter):
 
 class Hashabledict(dict):
     def __hash__(self):
-        return hash(json.dumps(self))
+        return hash(json.dumps(self, sort_keys=True))
 
 @contextmanager
 def working_directory(path: Path):

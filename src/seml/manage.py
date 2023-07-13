@@ -9,7 +9,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional
 from xml.etree.ElementTree import TreeBuilder
 
-from seml.config import check_config
+from seml.config import check_config, resolve_configs
 from seml.database import (build_filter_dict, get_collection, get_database,
                            get_mongodb_config)
 from seml.errors import MongoDBError
@@ -221,7 +221,9 @@ def delete_experiments(
     exp_sources_list = collection.find(filter_dict, {'experiment.sources': 1, 'artifacts': 1})
     for exp in exp_sources_list:
         experiment_files_to_delete.extend(get_experiment_files(exp))
-    collection.delete_many(filter_dict)
+    result = collection.delete_many(filter_dict)
+    if not result.deleted_count == ndelete:
+        logging.error(f'Only {result.deleted_count} of {ndelete} experiments were deleted.')
 
     # Delete sources uploaded by sacred.
     delete_files(collection.database, experiment_files_to_delete)
@@ -440,7 +442,8 @@ def reload_sources(
     db_collection_name: str, 
     batch_ids: Optional[List[int]] = None, 
     keep_old: bool = False,
-    yes: bool = False):
+    yes: bool = False,
+    resolve: bool = True):
     """Reloads the sources of experiment(s)
 
     Parameters
@@ -453,8 +456,11 @@ def reload_sources(
         Whether to keep old source files in the fs, by default False
     yes : bool, optional
         Whether to override confirmation prompts, by default False
+    resolve : bool, optional
+        Whether to re-resolve the config values 
     """
     import gridfs
+    from pymongo import UpdateOne
     collection = get_collection(db_collection_name)
     
     if batch_ids is not None and len(batch_ids) > 0:
@@ -462,11 +468,10 @@ def reload_sources(
     else:
         filter_dict = {}
     db_results = list(collection.find(filter_dict, {'batch_id', 'seml', 'config', 'status'}))
-    id_to_config = {
-        bid: (next(iter(configs))['seml'], [x['config'] for x in configs])
-        for bid, configs in
-        itertools.groupby(db_results, lambda x: x['batch_id'])
-    }
+    id_to_config = {}
+    for bid, configs in itertools.groupby(db_results, lambda x: x['batch_id']):
+        configs = list(configs)
+        id_to_config[bid] = configs[0]['seml'], [x['config'] for x in configs], [x['_id'] for x in configs]
     states = {x['status'] for x in db_results}
 
     if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
@@ -474,7 +479,7 @@ def reload_sources(
         if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
             exit(1)
 
-    for batch_id, (seml_config, configs) in id_to_config.items():
+    for batch_id, (seml_config, configs, experiment_ids) in id_to_config.items():
         if 'working_dir' not in seml_config or not seml_config['working_dir']:
             logging.error(f'Batch {batch_id}: No source files to refresh.')
             continue
@@ -505,6 +510,7 @@ def reload_sources(
             logging.error(f"Batch {batch_id}: Source import failed. Restoring old files.")
             db['fs.files'].update_many(fs_filter_dict, {'$unset': {'metadata.deprecated': ""}})
             raise e
+        
         try:
             # Try to assign the new ones to the experiments
             filter_dict = {
@@ -533,6 +539,16 @@ def reload_sources(
             source_files = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
             for to_delete in source_files:
                 fs.delete(to_delete)
+
+        # Update the configuration by re-resolving against the new source files
+        if resolve:
+            configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
+            result = collection.bulk_write([
+                UpdateOne({'_id' : experiment_id}, {'$set' : {'config' : config}})
+                for config, experiment_id in zip(configs, experiment_ids)
+            ])
+            logging.info(f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).')
+
                 
 def print_fail_trace(
     db_collection_name: str, 

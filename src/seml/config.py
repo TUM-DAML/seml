@@ -6,6 +6,7 @@ import numbers
 import os
 from itertools import combinations
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import yaml
 
@@ -254,6 +255,114 @@ def generate_configs(experiment_config, overwrite_params=None):
     return all_configs
 
 
+def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_configs: Optional[List[Tuple[str]]]=None) -> List[Dict]:
+    """Creates configs from an experiment and update values. This is done by re-implementing sacreds `sacred.initialize.create_run`
+    method. Doing this is significantly faster, but it can be out-of-sync with sacred's current implementation.
+
+    Parameters
+    ----------
+    exp : sacred.Experiment
+        The sacred experiment to create configs for
+    configs : List[Dict]
+        Configuration updates for each experiment
+    named_configs : Optional[List[Tuple[str]]], optional
+        Named configs for each experiment, by default ()
+
+    Returns
+    -------
+    Dict
+        The updated configurations containing all values derived from the experiment.
+    """
+    from sacred.utils import convert_to_nested_dict, recursive_update, iterate_flattened, join_paths, set_by_dotted_path
+    from sacred.initialize import (create_scaffolding, gather_ingredients_topological, distribute_config_updates, 
+                                   get_configuration, get_scaffolding_and_config_name, distribute_presets)
+    from tqdm import tqdm
+    composed = []
+    if named_configs is None:
+        named_configs = [()] * len(configs)
+    for config, named_config in zip(configs, named_configs):
+        
+        # The following code is adapted from sacred directly: This results in a significant speedup
+        # as we only care about the config but not about creating runs, however it is more error prone 
+        # to changes to sacred
+        sorted_ingredients = gather_ingredients_topological(exp)
+        scaffolding = create_scaffolding(exp, sorted_ingredients)
+        # get all split non-empty prefixes sorted from deepest to shallowest
+        prefixes = sorted(
+            [s.split(".") for s in scaffolding if s != ""],
+            reverse=True,
+            key=lambda p: len(p),
+        )
+
+        # --------- configuration process -------------------
+
+        # Phase 1: Config updates
+        config_updates = convert_to_nested_dict(config)
+        distribute_config_updates(prefixes, scaffolding, config_updates)
+        
+        # Phase 2: Named Configs
+        for ncfg in named_config:
+            scaff, cfg_name = get_scaffolding_and_config_name(ncfg, scaffolding)
+            scaff.gather_fallbacks()
+            ncfg_updates = scaff.run_named_config(cfg_name)
+            distribute_presets(scaff.path, prefixes, scaffolding, ncfg_updates)
+            for ncfg_key, value in iterate_flattened(ncfg_updates):
+                set_by_dotted_path(config_updates, join_paths(scaff.path, ncfg_key), value)
+
+        distribute_config_updates(prefixes, scaffolding, config_updates)
+
+        # Phase 3: Normal config scopes
+        for scaffold in scaffolding.values():
+            scaffold.gather_fallbacks()
+            scaffold.set_up_config()
+
+            # update global config
+            config = get_configuration(scaffolding)
+            # run config hooks
+            config_hook_updates = scaffold.run_config_hooks(
+                config, exp.default_command, None
+            )
+            recursive_update(scaffold.config, config_hook_updates)
+
+        # Phase 4: finalize seeding
+        for scaffold in reversed(list(scaffolding.values())):
+            scaffold.set_up_seed()  # partially recursive
+
+        composed.append(get_configuration(scaffolding))
+    return composed
+    
+def resolve_configs(executable: str, conda_env: str, configs: List[Dict], working_dir: str) -> List[Dict]:
+    """Resolves configurations by adding keys that are only added when the experiment is run to the MongoDB
+
+    Parameters
+    ----------
+    executable : str
+        Path to the executable
+    conda_env : str
+        Which conda environment to use
+    configs : List[Dict]
+        All experiment configurations
+    working_dir : str
+        Which working directory to use
+
+    Returns
+    -------
+    List[Dict]
+        Resolved configurations
+    """
+    import sacred
+    exp_module = import_exe(executable, conda_env, working_dir)
+
+    # Extract experiment from module
+    exps = [v for k, v in exp_module.__dict__.items() if type(v) == sacred.Experiment]
+    if len(exps) == 0:
+        raise ExecutableError(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
+    elif len(exps) > 1:
+        raise ExecutableError(f"Found more than 1 Sacred experiment in '{executable}'. "
+                              f"Can't check parameter configs. Disable via --no-sanity-check.")
+    exp = exps[0]
+    return _sacred_create_configs(exp, configs, None)
+    
 def check_config(executable, conda_env, configs, working_dir):
     """Check if the given configs are consistent with the Sacred experiment in the given executable.
 

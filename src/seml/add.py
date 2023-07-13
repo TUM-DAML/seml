@@ -2,19 +2,20 @@ import copy
 import datetime
 import logging
 import os
+from typing import Dict, List
 
 from seml.config import (check_config, generate_configs, read_config,
-                         remove_prepended_dashes)
+                         remove_prepended_dashes, resolve_configs)
 from seml.database import get_collection, get_max_in_collection
 from seml.errors import ConfigError
 from seml.settings import SETTINGS
 from seml.sources import get_git_info, upload_sources
-from seml.utils import flatten, make_hash, merge_dicts, s_if
+from seml.utils import Hashabledict, flatten, make_hash, merge_dicts, remove_keys_from_nested, s_if
 
 States = SETTINGS.STATES
 
 
-def filter_experiments(collection, configurations):
+def filter_experiments(collection: 'pymongo.collection.Collection', configurations: List[Dict], exclude_keys: List[str]):
     """Check database collection for already present entries.
 
     Check the database collection for experiments that have the same configuration.
@@ -25,8 +26,10 @@ def filter_experiments(collection, configurations):
     ----------
     collection: pymongo.collection.Collection
         The MongoDB collection containing the experiments.
-    configurations: list of dicts
+    configurations: List[Dict]
         Contains the individual parameter configurations.
+    exclude_keys: List[str]
+        Which keys are not to be filtered.
 
     Returns
     -------
@@ -42,7 +45,7 @@ def filter_experiments(collection, configurations):
             del config['config_hash']
             lookup_result = collection.find_one({'config_hash': config_hash})
         else:
-            lookup_dict = flatten({'config': config})
+            lookup_dict = flatten({'config': remove_keys_from_nested(config, exclude_keys)})
             lookup_result = collection.find_one(lookup_dict)
 
         if lookup_result is None:
@@ -101,7 +104,7 @@ def add_configs(collection, seml_config, slurm_config, configs, source_files=Non
                  'seml': seml_config,
                  'slurm': slurm_config,
                  'config': c,
-                 'config_hash': make_hash(c),
+                 'config_hash': make_hash(c, exclude_keys=SETTINGS.CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS),
                  'git': git_info,
                  'add_time': datetime.datetime.utcnow()}
                 for ix, c in enumerate(configs)]
@@ -199,6 +202,8 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
     if not no_sanity_check:
         check_config(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
 
+    configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
+
     path, commit, dirty = get_git_info(seml_config['executable'], seml_config['working_dir'])
 
     git_info = None
@@ -207,7 +212,7 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
 
     use_hash = not no_hash
     if use_hash:
-        configs = [{**c, **{'config_hash': make_hash(c)}} for c in configs]
+        configs = [{**c, **{'config_hash': make_hash(c, SETTINGS.CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS)}} for c in configs]
 
     if not force_duplicates:
         len_before = len(configs)
@@ -215,10 +220,12 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
         # First, check for duplicates withing the experiment configurations from the file.
         if not use_hash:
             # slow duplicate detection without hashes
-            unique_configs = []
+            unique_configs, unique_keys = [], set()
             for c in configs:
-                if c not in unique_configs:
+                key = Hashabledict(**remove_keys_from_nested(c, SETTINGS.CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS))
+                if key not in unique_keys:
                     unique_configs.append(c)
+                    unique_keys.add(key)
             configs = unique_configs
         else:
             # fast duplicate detection using hashing.
@@ -227,7 +234,7 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
 
         len_after_deduplication = len(configs)
         # Now, check for duplicate configurations in the database.
-        configs = filter_experiments(collection, configs)
+        configs = filter_experiments(collection, configs, SETTINGS.CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS)
         len_after = len(configs)
         if len_after_deduplication != len_before:
             logging.info(f"{len_before - len_after_deduplication} of {len_before} experiment{s_if(len_before)} were "
@@ -235,6 +242,9 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
         if len_after != len_after_deduplication:
             logging.info(f"{len_after_deduplication - len_after} of {len_after_deduplication} "
                          f"experiment{s_if(len_before)} were already found in the database. They were not added again.")
+    else:
+        for config in configs:
+            del config['config_hash']
 
     # Create an index on the config hash. If the index is already present, this simply does nothing.
     collection.create_index("config_hash")
