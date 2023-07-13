@@ -77,6 +77,8 @@ fixed:
   training.num_epochs: 100
   optimization:
     optimizer_type: Adam
+  $named_config_preprocessing.priority: 1
+  $named_config_postprocessing.priority: 2
 
 grid:
   # SEML supports dot-notation for nested parameter dictionaries. E.g., `model.model_type` resolves to
@@ -87,6 +89,18 @@ grid:
       - variant_1
       - variant_2
     zip_id: model_dataset  # The model_type jointly changes with all other parameters of the mode_dataset group
+
+  $named_config_preprocessing.name:
+    type: choice
+    options:
+      - null
+      - mean
+
+  $named_config_postprocessing.name:
+    type: choice
+    options:
+      - examples/postprocessing_a.yaml
+      - examples/postprocessing_b.yaml
 
   optimization.regularization.weight_decay:
     type: loguniform

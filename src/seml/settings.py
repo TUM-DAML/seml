@@ -89,7 +89,9 @@ SETTINGS = munchify(
             }
         },
         
-        "CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS" : ['seed'], # keys that will be excluded by seml's duplicate detection 
+        "CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS" : ['seed'], # keys that will be excluded by seml's duplicate detection
+        
+        "NAMED_CONFIG_PREFIX" : '$named_config', # prefix for all named configuration parameters
 
         "CONFIRM_CANCEL_THRESHOLD": 10,
         "CONFIRM_DELETE_THRESHOLD": 10,

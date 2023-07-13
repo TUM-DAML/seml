@@ -254,6 +254,14 @@ def generate_configs(experiment_config, overwrite_params=None):
     all_configs = [unflatten(conf) for conf in all_configs]
     return all_configs
 
+def create_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[str]]]:
+    
+    result_configs, result_named_configs = [], []
+    for config in configs:
+        config = flatten(config)
+    
+    
+
 
 def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_configs: Optional[List[Tuple[str]]]=None) -> List[Dict]:
     """Creates configs from an experiment and update values. This is done by re-implementing sacreds `sacred.initialize.create_run`
