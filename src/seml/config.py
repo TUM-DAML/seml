@@ -1,12 +1,14 @@
 import ast
+from collections import defaultdict
 import copy
+from dataclasses import dataclass
 import json
 import logging
 import numbers
 import os
 from itertools import combinations
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import yaml
 
@@ -254,14 +256,46 @@ def generate_configs(experiment_config, overwrite_params=None):
     all_configs = [unflatten(conf) for conf in all_configs]
     return all_configs
 
-def create_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[str]]]:
+
+def generate_named_config(named_config_dict: Dict) -> List[str]:
+    # Parse named config names and priorities
+    names, priorites = {}, defaultdict(lambda: 0)
+    for k, v in named_config_dict.items():
+        if k.startswith(SETTINGS.NAMED_CONFIG_PREFIX):
+            if not isinstance(v, Dict):
+                raise ConfigError(f'Named configs should always be provided as {SETTINGS.NAMED_CONFIG_PREFIX}_'
+                                 '{identifier}.{' + SETTINGS.NAMED_CONFIG_KEY_NAME + '|' + SETTINGS.NAMED_CONFIG_KEY_PRIORITY + '}: value')
+            for attribute, value in v.items():
+                if attribute == SETTINGS.NAMED_CONFIG_KEY_NAME:
+                    if not isinstance(value, str):
+                        raise ConfigError(f'Named config names should be strings, not {value} ({value.__class__})')
+                    names[k] = value
+                elif attribute == SETTINGS.NAMED_CONFIG_KEY_PRIORITY:
+                    try:
+                        value = int(value)
+                    except:
+                        raise ConfigError(f'Named config priorities should be non-negative integers, not {value} ({value.__class__})')
+                    if value < 0:
+                        raise ConfigError(f'Named config priorities should be non-negative')
+                    priorites[k] = -int(value)
+                else:
+                    raise ConfigError(f'Named configs only have the attributes {[SETTINGS.NAMED_CONFIG_KEY_NAME, SETTINGS.NAMED_CONFIG_KEY_PRIORITY]}')
     
-    result_configs, result_named_configs = [], []
-    for config in configs:
-        config = flatten(config)
+    for idx in priorites:
+        if not idx in names:
+            raise ConfigError(f'Defined a priority but not a name for named config {idx}')
     
+    # Sort by priority and use the lexicographical ordering for names in case of conflicts
+    return [names[idx] for idx in sorted(names, key=lambda idx: (-priorites[idx], names[idx]))]
     
 
+def generate_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[str]]]:
+    result_configs, result_named_configs = [], []
+    for config in configs:
+        result_configs.append({k : v for k, v in config.items() if not k.startswith(SETTINGS.NAMED_CONFIG_PREFIX)})
+        result_named_configs.append(generate_named_config(config))
+    return result_configs, result_named_configs
+    
 
 def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_configs: Optional[List[Tuple[str]]]=None) -> List[Dict]:
     """Creates configs from an experiment and update values. This is done by re-implementing sacreds `sacred.initialize.create_run`
@@ -336,10 +370,12 @@ def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_
         for scaffold in reversed(list(scaffolding.values())):
             scaffold.set_up_seed()  # partially recursive
 
-        composed.append(get_configuration(scaffolding))
+        composed.append({k : v for k, v in get_configuration(scaffolding).items() 
+                         if k not in SETTINGS.CONFIG_EXCLUDE_KEYS}) # sacred captures the `__doc__` attribute as well...
     return composed
+   
     
-def resolve_configs(executable: str, conda_env: str, configs: List[Dict], working_dir: str) -> List[Dict]:
+def resolve_configs(executable: str, conda_env: str, configs: List[Dict], named_configs: List[List[str]], working_dir: str) -> List[Dict]:
     """Resolves configurations by adding keys that are only added when the experiment is run to the MongoDB
 
     Parameters
@@ -350,6 +386,8 @@ def resolve_configs(executable: str, conda_env: str, configs: List[Dict], workin
         Which conda environment to use
     configs : List[Dict]
         All experiment configurations
+    named_configs : List[str]
+        For each experiment, the named configurations to use.
     working_dir : str
         Which working directory to use
 
@@ -369,9 +407,10 @@ def resolve_configs(executable: str, conda_env: str, configs: List[Dict], workin
         raise ExecutableError(f"Found more than 1 Sacred experiment in '{executable}'. "
                               f"Can't check parameter configs. Disable via --no-sanity-check.")
     exp = exps[0]
-    return _sacred_create_configs(exp, configs, None)
+    return _sacred_create_configs(exp, configs, named_configs)
+  
     
-def check_config(executable, conda_env, configs, working_dir):
+def check_config(executable: str, conda_env: str, configs: List[Dict], working_dir: str):
     """Check if the given configs are consistent with the Sacred experiment in the given executable.
 
     Parameters
@@ -380,13 +419,10 @@ def check_config(executable, conda_env, configs, working_dir):
         The Python file containing the experiment.
     conda_env: str
         The experiment's Anaconda environment.
-    configs: list of dicts
+    configs: List[Dict]
         Contains the parameter configurations.
-
-    Returns
-    -------
-    None
-
+    working_dir : str
+        The current working directory.
     """
     import sacred
 
@@ -500,6 +536,12 @@ def read_config(config_path):
     for k in seml_dict.keys():
         if k not in SETTINGS.VALID_SEML_CONFIG_VALUES:
             raise ConfigError(f"{k} is not a valid value in the `seml` config block.")
+        
+    if SETTINGS.SEML_CONFIG_VALUE_VERSION in seml_dict:
+        raise ConfigError(f"Using {SETTINGS.SEML_CONFIG_VALUE_VERSION} in the `seml` config block is prohibited.")
+    
+    from importlib.metadata import version
+    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = version('seml')
 
     determine_executable_and_working_dir(config_path, seml_dict)
 

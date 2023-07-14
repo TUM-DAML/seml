@@ -9,14 +9,14 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Set
 from xml.etree.ElementTree import TreeBuilder
 
-from seml.config import check_config, resolve_configs
+from seml.config import check_config, generate_named_configs, resolve_configs
 from seml.database import (build_filter_dict, get_collection, get_database,
                            get_mongodb_config)
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.typer import prompt
-from seml.utils import (chunker, flatten, get_from_nested,
+from seml.utils import (chunker, flatten, get_from_nested, make_hash,
                         resolve_projection_path_conflicts, s_if, slice_to_str, to_hashable, to_slices)
 
 States = SETTINGS.STATES
@@ -461,17 +461,19 @@ def reload_sources(
     """
     import gridfs
     from pymongo import UpdateOne
+    from importlib.metadata import version
+    
     collection = get_collection(db_collection_name)
     
     if batch_ids is not None and len(batch_ids) > 0:
         filter_dict = {'batch_id': {'$in': list(batch_ids)}}
     else:
         filter_dict = {}
-    db_results = list(collection.find(filter_dict, {'batch_id', 'seml', 'config', 'status'}))
+    db_results = list(collection.find(filter_dict, {'batch_id', 'seml', 'config', 'status', 'config_unresolved'}))
     id_to_config = {}
     for bid, configs in itertools.groupby(db_results, lambda x: x['batch_id']):
         configs = list(configs)
-        id_to_config[bid] = configs[0]['seml'], [x['config'] for x in configs], [x['_id'] for x in configs]
+        id_to_config[bid] = configs[0]['seml'], [x['config'] for x in configs], [x.get('config_unresolved', None) for x in configs], [x['_id'] for x in configs]
     states = {x['status'] for x in db_results}
 
     if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
@@ -479,10 +481,31 @@ def reload_sources(
         if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
             exit(1)
 
-    for batch_id, (seml_config, configs, experiment_ids) in id_to_config.items():
+    for batch_id, (seml_config, configs, configs_unresolved, experiment_ids) in id_to_config.items():
+        version_seml_config = seml_config.get(SETTINGS.SEML_CONFIG_VALUE_VERSION, None)
+        if version_seml_config != version('seml'):
+            logging.warn(f'Batch {batch_id} was added with seml version "{version_seml_config}" '
+                         f'which mismatches the current version {version("seml")}')
+        
         if 'working_dir' not in seml_config or not seml_config['working_dir']:
             logging.error(f'Batch {batch_id}: No source files to refresh.')
             continue
+
+        # Update the configuration by re-resolving against the new source files
+        if resolve:
+            if any(c is None for c in configs_unresolved):
+                logging.warn(f'Some experiments of batch {batch_id} do not have an unresolved configuration. '
+                             'The resolved configuration "config" will be used for resolution instead.')
+            configs_unresolved = [c_unresolved if c_unresolved is not None else c for c, c_unresolved in zip(configs, configs_unresolved)]
+            configs, named_configs = generate_named_configs(configs_unresolved)
+            configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, named_configs, seml_config['working_dir'])
+            config_hashes = [make_hash(c) for c in configs]
+            result = collection.bulk_write([
+                UpdateOne({'_id' : experiment_id}, {'$set' : {'config' : config, 'config_hash' : config_hash}})
+                for config, config_hash, experiment_id in zip(configs, config_hashes, experiment_ids)
+            ])
+            logging.info(f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).')
+
 
         # Check whether the configurations aligns with the current source code
         check_config(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
@@ -536,19 +559,11 @@ def reload_sources(
                 'metadata.collection_name': f'{collection.name}',
                 'metadata.deprecated': True
             }
-            source_files = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
-            for to_delete in source_files:
+            source_files_old = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
+            for to_delete in source_files_old:
                 fs.delete(to_delete)
 
-        # Update the configuration by re-resolving against the new source files
-        if resolve:
-            configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
-            result = collection.bulk_write([
-                UpdateOne({'_id' : experiment_id}, {'$set' : {'config' : config}})
-                for config, experiment_id in zip(configs, experiment_ids)
-            ])
-            logging.info(f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).')
-
+        
                 
 def print_fail_trace(
     db_collection_name: str, 

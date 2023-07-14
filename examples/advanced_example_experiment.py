@@ -18,6 +18,32 @@ seml.setup_logger(ex)
 def collect_stats(_run):
     seml.collect_exp_stats(_run)
 
+@ex.named_config
+def preprocessing_none():
+    """ A named configuration that can be enabled in the configuration yaml file """
+    preprocessing = {
+        'mean' : 0.0,
+        'std' : 1.0,
+    }
+    
+@ex.named_config
+def preprocessing_normalize():
+    """ A named configuration that can be enabled in the configuration yaml file """
+    preprocessing = {
+        'mean' : 0.377,
+        'std' : 0.23,
+    }
+    
+@ex.named_config
+def batchnorm():
+    """ A named configuration that can be enabled in the configuration yaml file """
+    model = {'batchnorm' : True}
+
+@ex.named_config
+def no_batchnorm():
+    """ A named configuration that can be enabled in the configuration yaml file """
+    model = {'batchnorm' : False, 'residual' : False}
+
 
 @ex.config
 def config():
@@ -31,18 +57,21 @@ class ModelVariant1:
     """
     A dummy model variant 1, which could, e.g., be a certain model or baseline in practice.
     """
-    def __init__(self, hidden_sizes, dropout):
+    def __init__(self, hidden_sizes, dropout, batchnorm, residual):
         self.hidden_sizes = hidden_sizes
         self.dropout = dropout
-
+        self.batchnorm = batchnorm
+        self.residual = residual
 
 class ModelVariant2:
     """
     A dummy model variant 2, which could, e.g., be a certain model or baseline in practice.
     """
-    def __init__(self, hidden_sizes, dropout):
+    def __init__(self, hidden_sizes, dropout, batchnorm, residual):
         self.hidden_sizes = hidden_sizes
         self.dropout = dropout
+        self.batchnorm = batchnorm
+        self.residual = residual
 
 
 class ExperimentWrapper:
@@ -73,18 +102,22 @@ class ExperimentWrapper:
             self.data = "..."
 
     @ex.capture(prefix="model")
-    def init_model(self, model_type: str, model_params: dict):
+    def init_model(self, model_type: str, model_params: dict, batchnorm: bool, residual: bool=True):
         if model_type == "variant_1":
             # Here we can pass the "model_params" dict to the constructor directly, which can be very useful in
             # practice, since we don't have to do any model-specific processing of the config dictionary.
-            self.model = ModelVariant1(**model_params)
+            self.model = ModelVariant1(**model_params, batchnorm=batchnorm, residual=residual)
         elif model_type == "variant_2":
-            self.model = ModelVariant2(**model_params)
+            self.model = ModelVariant2(**model_params, batchnorm=batchnorm, residual=residual)
 
     @ex.capture(prefix="optimization")
     def init_optimizer(self, regularization: dict, optimizer_type: str):
         weight_decay = regularization['weight_decay']
         self.optimizer = optimizer_type  # initialize optimizer
+
+    @ex.capture(prefix='preprocessing')
+    def init_preprocessing(self, mean: float, std: float):
+        self.preprocessing_parameters = (mean, std)
 
     def init_all(self):
         """
@@ -93,6 +126,7 @@ class ExperimentWrapper:
         self.init_dataset()
         self.init_model()
         self.init_optimizer()
+        self.init_preprocessing()
 
     @ex.capture(prefix="training")
     def train(self, patience, num_epochs):

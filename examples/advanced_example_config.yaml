@@ -78,7 +78,7 @@ fixed:
   optimization:
     optimizer_type: Adam
   $named_config_preprocessing.priority: 1
-  $named_config_postprocessing.priority: 2
+  $named_config_batchnorm.priority: 2
 
 grid:
   # SEML supports dot-notation for nested parameter dictionaries. E.g., `model.model_type` resolves to
@@ -92,15 +92,17 @@ grid:
 
   $named_config_preprocessing.name:
     type: choice
+    # The `name` attribute selects which named config is run (see the methods `preprocessing_none` and `preprocessing_normalize` 
+    # in `advanced_example_experiment.py`)
     options:
-      - null
-      - mean
+      - preprocessing_none
+      - preprocessing_normalize
 
-  $named_config_postprocessing.name:
+  $named_config_batchnorm.name:
     type: choice
     options:
-      - examples/postprocessing_a.yaml
-      - examples/postprocessing_b.yaml
+      - batchnorm
+      - no_batchnorm
 
   optimization.regularization.weight_decay:
     type: loguniform

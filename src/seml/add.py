@@ -2,9 +2,9 @@ import copy
 import datetime
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
-from seml.config import (check_config, generate_configs, read_config,
+from seml.config import (check_config, generate_configs, generate_named_configs, read_config,
                          remove_prepended_dashes, resolve_configs)
 from seml.database import get_collection, get_max_in_collection
 from seml.errors import ConfigError
@@ -15,7 +15,7 @@ from seml.utils import Hashabledict, flatten, make_hash, merge_dicts, remove_key
 States = SETTINGS.STATES
 
 
-def filter_experiments(collection: 'pymongo.collection.Collection', configurations: List[Dict], exclude_keys: List[str]):
+def filter_experiments(collection: 'pymongo.collection.Collection', configurations: List[Dict], exclude_keys: Optional[List[str]] = None):
     """Check database collection for already present entries.
 
     Check the database collection for experiments that have the same configuration.
@@ -28,7 +28,7 @@ def filter_experiments(collection: 'pymongo.collection.Collection', configuratio
         The MongoDB collection containing the experiments.
     configurations: List[Dict]
         Contains the individual parameter configurations.
-    exclude_keys: List[str]
+    exclude_keys: Optional[List[str]]
         Which keys are not to be filtered.
 
     Returns
@@ -37,7 +37,6 @@ def filter_experiments(collection: 'pymongo.collection.Collection', configuratio
         No longer contains configurations that are already in the database collection.
 
     """
-
     filtered_configs = []
     for config in configurations:
         if 'config_hash' in config:
@@ -45,7 +44,7 @@ def filter_experiments(collection: 'pymongo.collection.Collection', configuratio
             del config['config_hash']
             lookup_result = collection.find_one({'config_hash': config_hash})
         else:
-            lookup_dict = flatten({'config': remove_keys_from_nested(config, exclude_keys)})
+            lookup_dict = flatten({'config': remove_keys_from_nested(config, exclude_keys or [])})
             lookup_result = collection.find_one(lookup_dict)
 
         if lookup_result is None:
@@ -54,29 +53,33 @@ def filter_experiments(collection: 'pymongo.collection.Collection', configuratio
     return filtered_configs
 
 
-def add_configs(collection, seml_config, slurm_config, configs, source_files=None,
-                git_info=None):
+def add_configs(
+    collection: 'pymongo.collection.Collection', 
+    seml_config: Dict, 
+    slurm_config: Dict, 
+    configs: List[Dict], 
+    configs_unresolved: List[Dict], 
+    source_files: Optional[List[Tuple]] = None,
+    git_info: Optional[Dict] = None):
     """Put the input configurations into the database.
 
     Parameters
     ----------
     collection: pymongo.collection.Collection
         The MongoDB collection containing the experiments.
-    seml_config: dict
+    seml_config: Dict
         Configuration for the SEML library.
-    slurm_config: dict
+    slurm_config: Dict
         Settings for the Slurm job. See `start_experiments.start_slurm_job` for details.
-    configs: list of dicts
+    configs: List[Dict]
         Contains the parameter configurations.
-    source_files: (optional) list of tuples
+    configs_unresolved: List[Dict]
+        Contains the parameter configurations before resolution.
+    source_files: Optional[List[Tuple]]
         Contains the uploaded source files corresponding to the batch. Entries are of the form
         (object_id, relative_path)
-    git_info: (Optional) dict containing information about the git repo status.
-
-    Returns
-    -------
-    None
-
+    git_info: Optional[Dict]
+        containing information about the git repo status.
     """
 
     if len(configs) == 0:
@@ -98,16 +101,17 @@ def add_configs(collection, seml_config, slurm_config, configs, source_files=Non
 
     if source_files is not None:
         seml_config['source_files'] = source_files
-    db_dicts = [{'_id': start_id + ix,
+    db_dicts = [{'_id': start_id + idx,
                  'batch_id': batch_id,
                  'status': States.STAGED[0],
                  'seml': seml_config,
                  'slurm': slurm_config,
                  'config': c,
-                 'config_hash': make_hash(c, exclude_keys=SETTINGS.CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS),
+                 'config_unresolved' : c_unresolved,
+                 'config_hash': make_hash(c, exclude_keys=SETTINGS.CONFIG_EXCLUDE_KEYS),
                  'git': git_info,
                  'add_time': datetime.datetime.utcnow()}
-                for ix, c in enumerate(configs)]
+                for idx, (c, c_unresolved) in enumerate(zip(configs, configs_unresolved))]
 
     collection.insert_many(db_dicts)
 
@@ -221,7 +225,9 @@ def add_config_file(db_collection_name: str,
     # Assemble the Slurm config:
     slurm_config = assemble_slurm_config_dict(slurm_config)
 
-    configs = generate_configs(experiment_config, overwrite_params=overwrite_params)
+    configs_unresolved = generate_configs(experiment_config, overwrite_params=overwrite_params)
+    configs, named_configs = generate_named_configs(configs_unresolved)
+    configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, named_configs, seml_config['working_dir'])
     collection = get_collection(db_collection_name)
 
     batch_id = get_max_in_collection(collection, "batch_id")
@@ -237,11 +243,9 @@ def add_config_file(db_collection_name: str,
     del seml_config['use_uploaded_sources']
 
     if not no_sanity_check:
+        # Sanity checking uses the resolved values (after considering named configs)
         check_config(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
-
-    if resolve:
-        configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
-
+        
     path, commit, dirty = get_git_info(seml_config['executable'], seml_config['working_dir'])
 
     git_info = None
@@ -250,7 +254,7 @@ def add_config_file(db_collection_name: str,
 
     use_hash = not no_hash
     if use_hash:
-        configs = [{**c, **{'config_hash': make_hash(c, SETTINGS.CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS)}} for c in configs]
+        configs = [{**c, **{'config_hash': make_hash(c)}} for c in configs]
 
     if not force_duplicates:
         len_before = len(configs)
@@ -260,7 +264,7 @@ def add_config_file(db_collection_name: str,
             # slow duplicate detection without hashes
             unique_configs, unique_keys = [], set()
             for c in configs:
-                key = Hashabledict(**remove_keys_from_nested(c, SETTINGS.CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS))
+                key = Hashabledict(**remove_keys_from_nested(c))
                 if key not in unique_keys:
                     unique_configs.append(c)
                     unique_keys.add(key)
@@ -272,7 +276,7 @@ def add_config_file(db_collection_name: str,
 
         len_after_deduplication = len(configs)
         # Now, check for duplicate configurations in the database.
-        configs = filter_experiments(collection, configs, SETTINGS.CONFIG_DUPLICATE_DETECTION_EXCLUDE_KEYS)
+        configs = filter_experiments(collection, configs, SETTINGS.CONFIG_EXCLUDE_KEYS)
         len_after = len(configs)
         if len_after_deduplication != len_before:
             logging.info(f"{len_before - len_after_deduplication} of {len_before} experiment{s_if(len_before)} were "
@@ -288,4 +292,5 @@ def add_config_file(db_collection_name: str,
     collection.create_index("config_hash")
     # Add the configurations to the database with STAGED status.
     if len(configs) > 0:
-        add_configs(collection, seml_config, slurm_config, configs, uploaded_files, git_info)
+        add_configs(collection, seml_config, slurm_config, configs, configs_unresolved, uploaded_files, git_info)
+        
