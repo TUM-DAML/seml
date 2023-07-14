@@ -1,0 +1,26 @@
+fixed:
+  $named_config_model:
+    name: cora_ml
+  $named_config_evaluation:
+    priority: 1
+
+grid:
+  dataset:
+    type: choice
+    options:
+      - big
+      - medium
+      - average
+    
+
+  $named_config_model.priority:
+    type: choice
+    options:
+      - 1
+      - 2
+
+  $named_config_evaluation.name:
+    type: choice
+    options:
+      - standard
+      - advanced

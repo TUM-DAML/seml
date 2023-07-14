@@ -259,7 +259,7 @@ def generate_configs(experiment_config, overwrite_params=None):
 
 def generate_named_config(named_config_dict: Dict) -> List[str]:
     # Parse named config names and priorities
-    names, priorites = {}, defaultdict(lambda: 0)
+    names, priorites = {}, {}
     for k, v in named_config_dict.items():
         if k.startswith(SETTINGS.NAMED_CONFIG_PREFIX):
             if not isinstance(v, Dict):
@@ -275,18 +275,14 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
                         value = int(value)
                     except:
                         raise ConfigError(f'Named config priorities should be non-negative integers, not {value} ({value.__class__})')
-                    if value < 0:
-                        raise ConfigError(f'Named config priorities should be non-negative')
-                    priorites[k] = -int(value)
+                    priorites[k] = value
                 else:
                     raise ConfigError(f'Named configs only have the attributes {[SETTINGS.NAMED_CONFIG_KEY_NAME, SETTINGS.NAMED_CONFIG_KEY_PRIORITY]}')
     
     for idx in priorites:
         if not idx in names:
             raise ConfigError(f'Defined a priority but not a name for named config {idx}')
-    
-    # Sort by priority and use the lexicographical ordering for names in case of conflicts
-    return [names[idx] for idx in sorted(names, key=lambda idx: (-priorites[idx], names[idx]))]
+    return [names[idx] for idx in sorted(names, key=lambda idx: (priorites.get(idx, max(-1, *priorites.values())), names[idx]))]
     
 
 def generate_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[str]]]:

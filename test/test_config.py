@@ -23,6 +23,7 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_WITH_ALL_TYPES = "resources/config/config_with_all_types.yaml"
     CONFIG_WITH_EMPTY_DICT = "resources/config/config_with_empty_dictionary.yaml"
     CONFIG_WITH_ZIPPED_PARAMETERS = "resources/config/config_with_zipped_parameters.yaml"
+    CONFIG_WITH_NAMED_CONFIGS = "resources/config/config_with_named_config.yaml"
     CONFIG_WITH_GRID = "resources/config/config_with_grid.yaml"
     CONFIG_SLURM_DEFAULT = "resources/config/config_slurm_default.yaml"
     CONFIG_SLURM_DEFAULT_EMPTY_SBATCH = "resources/config/config_slurm_default_empty_sbatch.yaml"
@@ -166,6 +167,45 @@ class TestParseConfigDicts(unittest.TestCase):
         ]
         self.assertEqual(configs, expected_configs)
 
+    def test_named_config_python(self):
+        config_dict = self.load_config_dict(self.CONFIG_WITH_NAMED_CONFIGS)
+        configs_unresolved = config.generate_configs(config_dict)
+        configs, named_configs = config.generate_named_configs(configs_unresolved)
+        expected_configs = [
+            {'dataset' : 'big'}, {'dataset' : 'big'}, {'dataset' : 'big'}, {'dataset' : 'big'},
+            {'dataset' : 'medium'}, {'dataset' : 'medium'}, {'dataset' : 'medium'}, {'dataset' : 'medium'},
+            {'dataset' : 'average'}, {'dataset' : 'average'}, {'dataset' : 'average'}, {'dataset' : 'average'},
+        ]
+        self.assertListEqual(configs, expected_configs)
+        expected_named_configs = [
+            # explanation: the grid goes over the evaluation method (standard or advanced) and the priority of cora_ml 
+            # (equal or higher (later in list))
+            # (standard, 1), (advanced, 1), (standard, 2), (advanced, 2)
+            # note that this also tests that the named configs are sorted lexicographically if the priorities match
+            ['cora_ml', 'standard'], ['advanced', 'cora_ml'], ['standard', 'cora_ml'], ['advanced', 'cora_ml'],
+            ['cora_ml', 'standard'], ['advanced', 'cora_ml'], ['standard', 'cora_ml'], ['advanced', 'cora_ml'],
+            ['cora_ml', 'standard'], ['advanced', 'cora_ml'], ['standard', 'cora_ml'], ['advanced', 'cora_ml'],
+        ]
+        self.assertListEqual(named_configs, expected_named_configs)
+        
+    
+    def test_named_config_python_raises(self):
+        
+        # make an unnamed named config
+        config_dict = self.load_config_dict(self.CONFIG_WITH_NAMED_CONFIGS)
+        del config_dict['fixed']['$named_config_model']['name']
+        with self.assertRaises(ConfigError):
+            configs_unresolved = config.generate_configs(config_dict)
+            configs, named_configs = config.generate_named_configs(configs_unresolved)
+            
+        # assign invalid priorities
+        for priority in (None, 'foo'):
+            config_dict = self.load_config_dict(self.CONFIG_WITH_NAMED_CONFIGS)
+            config_dict['fixed']['$named_config_evaluation']['priority'] = priority
+            with self.assertRaises(ConfigError):
+                configs_unresolved = config.generate_configs(config_dict)
+                configs, named_configs = config.generate_named_configs(configs_unresolved)
+                
     def test_duplicate_parameters(self):
         config_dict = self.load_config_dict(self.CONFIG_WITH_DUPLICATE_PARAMETERS_1)
         with self.assertRaises(ConfigError):
