@@ -5,17 +5,20 @@ import os
 from typing import Dict, List, Optional, Tuple
 
 from seml.config import (check_config, generate_configs, generate_named_configs, read_config,
-                         remove_prepended_dashes, resolve_configs)
+                         remove_prepended_dashes, resolve_configs, config_get_exclude_keys)
 from seml.database import get_collection, get_max_in_collection
 from seml.errors import ConfigError
 from seml.settings import SETTINGS
 from seml.sources import get_git_info, upload_sources
-from seml.utils import Hashabledict, flatten, make_hash, merge_dicts, remove_keys_from_nested, s_if
+from seml.utils import Hashabledict, flatten, make_hash, merge_dicts, remove_keys_from_nested, s_if, unflatten
 
 States = SETTINGS.STATES
 
 
-def filter_experiments(collection: 'pymongo.collection.Collection', configurations: List[Dict], exclude_keys: Optional[List[str]] = None):
+def filter_experiments(collection: 'pymongo.collection.Collection', 
+                       configurations: List[Dict],
+                       configurations_unresolved: List[Dict],
+                       use_hash: bool = True):
     """Check database collection for already present entries.
 
     Check the database collection for experiments that have the same configuration.
@@ -28,8 +31,10 @@ def filter_experiments(collection: 'pymongo.collection.Collection', configuratio
         The MongoDB collection containing the experiments.
     configurations: List[Dict]
         Contains the individual parameter configurations.
-    exclude_keys: Optional[List[str]]
-        Which keys are not to be filtered.
+    configurations_unresolved: List[Dict]
+        Contains the individual parameter configurations before resolution via sacred.
+    use_hash : bool
+        Whether to use hashes (faster)
 
     Returns
     -------
@@ -37,16 +42,15 @@ def filter_experiments(collection: 'pymongo.collection.Collection', configuratio
         No longer contains configurations that are already in the database collection.
 
     """
+        
     filtered_configs = []
-    for config in configurations:
-        if 'config_hash' in config:
-            config_hash = config['config_hash']
-            del config['config_hash']
-            lookup_result = collection.find_one({'config_hash': config_hash})
+    for config, config_unresolved in zip(configurations, configurations_unresolved):
+        exclude_keys = config_get_exclude_keys(config, config_unresolved)
+        if use_hash:
+            lookup_result = collection.find_one({'config_hash': make_hash(config, exclude_keys)})
         else:
-            lookup_dict = flatten({'config': remove_keys_from_nested(config, exclude_keys or [])})
-            lookup_result = collection.find_one(lookup_dict)
-
+            lookup_dict = flatten({'config': remove_keys_from_nested(config, exclude_keys)})
+            lookup_result = collection.find_one(unflatten(lookup_dict))
         if lookup_result is None:
             filtered_configs.append(config)
 
@@ -108,12 +112,13 @@ def add_configs(
                  'slurm': slurm_config,
                  'config': c,
                  'config_unresolved' : c_unresolved,
-                 'config_hash': make_hash(c, exclude_keys=SETTINGS.CONFIG_EXCLUDE_KEYS),
+                 'config_hash': make_hash(c, config_get_exclude_keys(c, c_unresolved)),
                  'git': git_info,
                  'add_time': datetime.datetime.utcnow()}
                 for idx, (c, c_unresolved) in enumerate(zip(configs, configs_unresolved))]
 
     collection.insert_many(db_dicts)
+
 
 def add_config_files(db_collection_name: str, 
                      config_files: List[str], 
@@ -254,7 +259,7 @@ def add_config_file(db_collection_name: str,
 
     use_hash = not no_hash
     if use_hash:
-        configs = [{**c, **{'config_hash': make_hash(c)}} for c in configs]
+        config_hashes = [make_hash(c, config_get_exclude_keys(c, c_unresolved)) for c, c_unresolved in zip(configs, configs_unresolved)]
 
     if not force_duplicates:
         len_before = len(configs)
@@ -263,20 +268,20 @@ def add_config_file(db_collection_name: str,
         if not use_hash:
             # slow duplicate detection without hashes
             unique_configs, unique_keys = [], set()
-            for c in configs:
-                key = Hashabledict(**remove_keys_from_nested(c))
+            for c, c_unresolved in zip(configs, configs_unresolved):
+                key = Hashabledict(**remove_keys_from_nested(c, config_get_exclude_keys(c, c_unresolved)))
                 if key not in unique_keys:
                     unique_configs.append(c)
                     unique_keys.add(key)
             configs = unique_configs
         else:
             # fast duplicate detection using hashing.
-            configs_dict = {c['config_hash']: c for c in configs}
+            configs_dict = {config_hash: c for c, config_hash in zip(configs, config_hashes)}
             configs = [v for k, v in configs_dict.items()]
 
         len_after_deduplication = len(configs)
         # Now, check for duplicate configurations in the database.
-        configs = filter_experiments(collection, configs, SETTINGS.CONFIG_EXCLUDE_KEYS)
+        configs = filter_experiments(collection, configs, configs_unresolved, use_hash=use_hash)
         len_after = len(configs)
         if len_after_deduplication != len_before:
             logging.info(f"{len_before - len_after_deduplication} of {len_before} experiment{s_if(len_before)} were "
@@ -284,9 +289,6 @@ def add_config_file(db_collection_name: str,
         if len_after != len_after_deduplication:
             logging.info(f"{len_after_deduplication - len_after} of {len_after_deduplication} "
                          f"experiment{s_if(len_before)} were already found in the database. They were not added again.")
-    else:
-        for config in configs:
-            del config['config_hash']
 
     # Create an index on the config hash. If the index is already present, this simply does nothing.
     collection.create_index("config_hash")

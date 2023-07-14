@@ -9,7 +9,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Set
 from xml.etree.ElementTree import TreeBuilder
 
-from seml.config import check_config, generate_named_configs, resolve_configs
+from seml.config import check_config, generate_named_configs, resolve_configs, config_get_exclude_keys
 from seml.database import (build_filter_dict, get_collection, get_database,
                            get_mongodb_config)
 from seml.errors import MongoDBError
@@ -499,7 +499,14 @@ def reload_sources(
             configs_unresolved = [c_unresolved if c_unresolved is not None else c for c, c_unresolved in zip(configs, configs_unresolved)]
             configs, named_configs = generate_named_configs(configs_unresolved)
             configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, named_configs, seml_config['working_dir'])
-            config_hashes = [make_hash(c) for c in configs]
+            
+            # If the seed was explicited, it should be kept for the new resolved config when reloading resources
+            for config, config_unresolved in zip(configs, configs_unresolved):
+                if SETTINGS.CONFIG_KEY_SEED in configs_unresolved:
+                    config[SETTINGS.CONFIG_KEY_SEED] = config_unresolved[SETTINGS.CONFIG_KEY_SEED]
+                
+            
+            config_hashes = [make_hash(c, config_get_exclude_keys(c, c_unresolved)) for c, c_unresolved in zip(configs, configs_unresolved)]
             result = collection.bulk_write([
                 UpdateOne({'_id' : experiment_id}, {'$set' : {'config' : config, 'config_hash' : config_hash}})
                 for config, config_hash, experiment_id in zip(configs, config_hashes, experiment_ids)

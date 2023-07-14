@@ -29,6 +29,8 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_SLURM_DEFAULT_EMPTY_SBATCH = "resources/config/config_slurm_default_empty_sbatch.yaml"
     CONFIG_SLURM_TEMPLATE = "resources/config/config_slurm_template.yaml"
     CONFIG_SLURM_EXPERIMENT = "resources/config/config_slurm_experiment.yaml"
+    
+    EXPERIMENT_RESOLVE_CONFIG = "resources/scripts/experiment_resolve_config.py"
 
     def load_config_dict(self, path):
         with open(path, 'r') as conf:
@@ -90,6 +92,11 @@ class TestParseConfigDicts(unittest.TestCase):
             }
         }
         self.assertEqual(converted, expected)
+
+    def test_resolve_config(self):
+        
+        config.resolve_configs(self.EXPERIMENT_RESOLVE_CONFIG, None, )
+        
 
     def test_unpack_config_dict(self):
         config_dict = self.load_config_dict(self.SIMPLE_CONFIG_WITH_PARAMETER_COLLECTIONS)

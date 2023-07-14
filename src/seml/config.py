@@ -17,8 +17,8 @@ from seml.parameters import (cartesian_product_zipped_dict, generate_grid,
                              sample_random_configs, zipped_dict)
 from seml.settings import SETTINGS
 from seml.sources import import_exe
-from seml.utils import (Hashabledict, flatten, merge_dicts, unflatten,
-                        working_directory)
+from seml.utils import (Hashabledict, flatten, make_hash, merge_dicts, unflatten,
+                        working_directory, remove_keys_from_nested)
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
 
@@ -315,7 +315,7 @@ def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_
     from sacred.initialize import (create_scaffolding, gather_ingredients_topological, distribute_config_updates, 
                                    get_configuration, get_scaffolding_and_config_name, distribute_presets)
     from tqdm import tqdm
-    composed = []
+    configs_resolved = []
     if named_configs is None:
         named_configs = [()] * len(configs)
     for config, named_config in zip(configs, named_configs):
@@ -366,9 +366,10 @@ def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_
         for scaffold in reversed(list(scaffolding.values())):
             scaffold.set_up_seed()  # partially recursive
 
-        composed.append({k : v for k, v in get_configuration(scaffolding).items() 
-                         if k not in SETTINGS.CONFIG_EXCLUDE_KEYS}) # sacred captures the `__doc__` attribute as well...
-    return composed
+        config_resolved = get_configuration(scaffolding)
+        configs_resolved.append(remove_keys_from_nested(config_resolved, config_get_exclude_keys(config_resolved, config)))
+        
+    return configs_resolved
    
     
 def resolve_configs(executable: str, conda_env: str, configs: List[Dict], named_configs: List[List[str]], working_dir: str) -> List[Dict]:
@@ -610,3 +611,27 @@ def remove_prepended_dashes(param_dict):
         else:
             new_dict[k] = v
     return new_dict
+
+
+def config_get_exclude_keys(config: Dict, config_unresolved: Dict) -> List[str]:
+    """Gets the key that should be excluded from identifying a config. These should
+    e.g. not be used in hashing
+
+    Parameters
+    ----------
+    config : Dict
+        the configuration after resolution by sacred
+    config_unresolved : Dict
+        the configuration before resolution by sacred
+
+    Returns
+    -------
+    List[str]
+        keys that do not identify the config
+    """
+    exclude_keys = SETTINGS.CONFIG_EXCLUDE_KEYS
+    if SETTINGS.CONFIG_KEY_SEED not in config_unresolved:
+        # The seed will only be included (e.g. for hashing) if explicited in the unresolved configuration
+        exclude_keys.append(SETTINGS.CONFIG_KEY_SEED) 
+    return exclude_keys
+    

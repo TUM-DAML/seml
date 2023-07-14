@@ -89,9 +89,10 @@ SETTINGS = munchify(
                 "DEFAULT_CHANNEL": "YOUR_DEFAULT_CHANNEL",
             }
         },
-        # keys that will be excluded from resolved configurations
-        # sacred automatically generates `seed` and named configs will capture `__doc__` docstrings
-        "CONFIG_EXCLUDE_KEYS" : ['seed', '__doc__'], 
+        
+        "CONFIG_EXCLUDE_KEYS" : ['__doc__'], # keys that will be excluded from resolved configurations, sacred for some reason captures the docstring attribute
+        # Which key is treated as the experiment seed
+        "CONFIG_KEY_SEED" : 'seed',
         
         "NAMED_CONFIG_PREFIX" : '$named_config', # prefix for all named configuration parameters
         "NAMED_CONFIG_KEY_NAME" : 'name', # key that identifies the name of a named config
