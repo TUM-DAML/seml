@@ -1,8 +1,11 @@
-from typing import List, Optional, Dict
 import logging
+import string
+from typing import Dict, List, Optional
 from xml.etree.ElementTree import TreeBuilder
 
-from seml.database import (build_filter_dict, get_collection)
+from pymongo import UpdateOne
+
+from seml.database import build_filter_dict, get_collection
 from seml.errors import MongoDBError
 from seml.manage import detect_killed
 from seml.settings import SETTINGS
@@ -39,16 +42,28 @@ def collection_set_description(
         Whether to override confirmation prompts, by default False
     """
     collection = get_collection(db_collection_name)
-    update = {'$set': {'seml.description' : description}}
+    interpolation_vars = [t[1] for t in string.Formatter().parse(description) if t[1] is not None]
+    mongo_db_vars = {var.replace('[', '.').replace(']', '') for var in interpolation_vars}
+    
     filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=sacred_id)
-    exps = [exp for exp in collection.find(filter_dict, {'seml.description' : 1})]
+    exps = list(collection.find(filter_dict, {'seml.description': 1, **{k: 1 for k in mongo_db_vars}}))
     if len(exps) == 0 and sacred_id is not None:
         raise MongoDBError(f"No experiment found with ID {sacred_id}.")
-    num_to_overwrite = len([exp for exp in exps if exp.get('seml', {}).get('description', description) != description])
+    final_desc = {
+        exp['_id']: description.format(**exp)
+        for exp in exps
+    }
+    num_to_overwrite = sum(
+        1 for exp in exps
+        if exp.get('seml', {}).get('description', final_desc[exp['_id']]) != final_desc[exp['_id']]
+    )
     if not yes and num_to_overwrite >= SETTINGS.CONFIRM_DESCRIPTION_UPDATE_THRESHOLD and \
         not prompt(f"{num_to_overwrite} experiment(s) have a different description. Proceed?", type=bool):
         exit(1)
-    result = collection.update_many(filter_dict, update)
+    result = collection.bulk_write([
+        UpdateOne({'_id': _id}, {'$set': {'seml.description': desc}})
+        for _id, desc in final_desc.items()
+    ])
     logging.info(f'Updated the descriptions of {result.modified_count} experiments.')
     
 def collection_delete_description(
@@ -100,6 +115,7 @@ def collection_list_descriptions(db_collection_name: str, update_status: bool = 
     from rich.align import Align
     from rich.box import SIMPLE
     from rich.table import Table
+
     from seml.console import console
     collection = get_collection(db_collection_name)
     
