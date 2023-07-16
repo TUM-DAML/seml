@@ -33,6 +33,7 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_RESOLVE_INTERPOLATION = "resources/config/config_resolve_with_interpolation.yaml"
     
     EXPERIMENT_RESOLVE_CONFIG = "resources/scripts/experiment_resolve_config.py"
+    EXPERIMENT_RESOLVE_INTERPOLATION = "resources/scripts/experiment_resolve_config_interpolate.py"
 
     def load_config_dict(self, path):
         with open(path, 'r') as conf:
@@ -115,7 +116,18 @@ class TestParseConfigDicts(unittest.TestCase):
         self.assertSetEqual(configs, expected_configs)
             
     def test_resolve_config_interpolation(self):
-        
+        config_dict = self.load_config_dict(self.CONFIG_RESOLVE_INTERPOLATION)
+        configs_unresolved = config.generate_configs(config_dict)
+        configs, named_configs = config.generate_named_configs(configs_unresolved)
+        configs = [config for config in config.resolve_configs(self.EXPERIMENT_RESOLVE_INTERPOLATION, None, configs, named_configs, '.')]
+        self.assertEqual(len(configs), 1)
+        expected_config = {
+            'foo' : {'bar' : 3},
+            'param1' : 'value',
+            'interpolated_1' : '3_value',
+            'interpolated_2' : 3
+        }
+        self.assertDictEqual(expected_config, configs[0])
 
     def test_unpack_config_dict(self):
         config_dict = self.load_config_dict(self.SIMPLE_CONFIG_WITH_PARAMETER_COLLECTIONS)

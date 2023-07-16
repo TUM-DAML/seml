@@ -2,7 +2,5 @@ fixed:
   foo:
     bar: 3
   param1: 'value'
-
-grid:
   interpolated_1: ${foo.bar}_${param1}
   interpolated_2: ${foo.bar}
