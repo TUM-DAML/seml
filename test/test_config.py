@@ -30,6 +30,7 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_SLURM_TEMPLATE = "resources/config/config_slurm_template.yaml"
     CONFIG_SLURM_EXPERIMENT = "resources/config/config_slurm_experiment.yaml"
     CONFIG_RESOLVE_CONFIG = "resources/config/config_resolve_config.yaml"
+    CONFIG_RESOLVE_INTERPOLATION = "resources/config/config_resolve_with_interpolation.yaml"
     
     EXPERIMENT_RESOLVE_CONFIG = "resources/scripts/experiment_resolve_config.py"
 
@@ -98,9 +99,6 @@ class TestParseConfigDicts(unittest.TestCase):
         config_dict = self.load_config_dict(self.CONFIG_RESOLVE_CONFIG)
         configs_unresolved = config.generate_configs(config_dict)
         configs, named_configs = config.generate_named_configs(configs_unresolved)
-        print(named_configs)
-        for c in config.resolve_configs(self.EXPERIMENT_RESOLVE_CONFIG, None, configs, named_configs, '.'):
-            print(flatten(c))
             
         configs = {frozenset((k, v) for k, v in flatten(config).items()) for config in config.resolve_configs(self.EXPERIMENT_RESOLVE_CONFIG, None, configs, named_configs, '.')}
         # Note that the yaml config overrides a parameter set by the json config due to its higher priority
@@ -116,6 +114,7 @@ class TestParseConfigDicts(unittest.TestCase):
         }
         self.assertSetEqual(configs, expected_configs)
             
+    def test_resolve_config_interpolation(self):
         
 
     def test_unpack_config_dict(self):

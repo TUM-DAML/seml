@@ -126,8 +126,7 @@ def add_config_files(db_collection_name: str,
                      overwrite_params: Optional[Dict] = None, 
                      no_hash: bool = False, 
                      no_sanity_check: bool = False,
-                     no_code_checkpoint: bool = False, 
-                     resolve: bool = True):
+                     no_code_checkpoint: bool = False, ):
     """Adds configuration files to the MongoDB
 
     Parameters
@@ -146,14 +145,11 @@ def add_config_files(db_collection_name: str,
         Whether to skip feeding configuration values into the sacred experiment to detect unsupported or missing keys, by default False
     no_code_checkpoint : bool, optional
         Whether to not base the experiments on a copy of the current codebase, by default False
-    resolve : bool, optional
-        Whether to resolve the configuration keys against the sacred experiment and store all configuration keys in the MongoDB, by default True
     """
     config_files = [os.path.abspath(file) for file in config_files]
     for config_file in config_files:
         add_config_file(db_collection_name, config_file, force_duplicates,
-                        overwrite_params, no_hash, no_sanity_check,no_code_checkpoint,
-                        resolve=resolve)
+                        overwrite_params, no_hash, no_sanity_check,no_code_checkpoint)
 
 
 def assemble_slurm_config_dict(experiment_slurm_config: dict):
@@ -198,8 +194,7 @@ def add_config_file(db_collection_name: str,
                      overwrite_params: Optional[Dict] = None, 
                      no_hash: bool = False, 
                      no_sanity_check: bool = False,
-                     no_code_checkpoint: bool = False, 
-                     resolve: bool = True):
+                     no_code_checkpoint: bool = False):
     """Adds configuration files to the MongoDB
 
     Parameters
@@ -218,8 +213,6 @@ def add_config_file(db_collection_name: str,
         Whether to skip feeding configuration values into the sacred experiment to detect unsupported or missing keys, by default False
     no_code_checkpoint : bool, optional
         Whether to not base the experiments on a copy of the current codebase, by default False
-    resolve : bool, optional
-        Whether to resolve the configuration keys against the sacred experiment and store all configuration keys in the MongoDB, by default True
     """
     seml_config, slurm_config, experiment_config = read_config(config_file)
 

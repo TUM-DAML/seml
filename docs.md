@@ -27,6 +27,7 @@ $ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 * `configure`: Configure SEML (database, argument...
 * `delete`: Delete experiments by ID or state (does...
 * `description`: Manage descriptions of the experiments in...
+* `detect-duplicates`: Prints duplicate experiment configurations.
 * `detect-killed`: Detect experiments where the corresponding...
 * `launch-worker`: Launch a local worker that runs PENDING jobs.
 * `list`: Lists all collections in the database.
@@ -182,6 +183,7 @@ $ seml description list [OPTIONS]
 
 **Options**:
 
+* `-u, --update-status`: Whether to update the status of experiments in the database.This can take a while for large collections. Use only if necessary.
 * `--help`: Show this message and exit.
 
 ### `seml description set`
@@ -205,6 +207,23 @@ $ seml description set [OPTIONS] DESCRIPTION
 * `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-y, --yes`: Automatically confirm all dialogues with yes.
+* `--help`: Show this message and exit.
+
+## `seml detect-duplicates`
+
+Prints duplicate experiment configurations.
+
+**Usage**:
+
+```console
+$ seml detect-duplicates [OPTIONS]
+```
+
+**Options**:
+
+* `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: STAGED, QUEUED, FAILED, KILLED, INTERRUPTED]
+* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `--help`: Show this message and exit.
 
 ## `seml detect-killed`
@@ -403,5 +422,7 @@ $ seml status [OPTIONS]
 
 **Options**:
 
-* `-fd, --full-descriptions`: Whether to print full descriptions (possibly with line breaks).
+* `-u, --update-status`: Whether to update the status of experiments in the database.This can take a while for large collections. Use only if necessary.  [default: True]
+* `-p, --projection KEY`: List of configuration keys, e.g., `config.model`, to additionally print.
+* `-ndd, --no-detect-duplicates`: Whether to not print if there is any duplicates.
 * `--help`: Show this message and exit.

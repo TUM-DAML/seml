@@ -442,8 +442,7 @@ def reload_sources(
     db_collection_name: str, 
     batch_ids: Optional[List[int]] = None, 
     keep_old: bool = False,
-    yes: bool = False,
-    resolve: bool = True):
+    yes: bool = False,):
     """Reloads the sources of experiment(s)
 
     Parameters
@@ -491,28 +490,25 @@ def reload_sources(
             logging.error(f'Batch {batch_id}: No source files to refresh.')
             continue
 
-        # Update the configuration by re-resolving against the new source files
-        if resolve:
-            if any(c is None for c in configs_unresolved):
-                logging.warn(f'Some experiments of batch {batch_id} do not have an unresolved configuration. '
-                             'The resolved configuration "config" will be used for resolution instead.')
-            configs_unresolved = [c_unresolved if c_unresolved is not None else c for c, c_unresolved in zip(configs, configs_unresolved)]
-            configs, named_configs = generate_named_configs(configs_unresolved)
-            configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, named_configs, seml_config['working_dir'])
+        if any(c is None for c in configs_unresolved):
+            logging.warn(f'Some experiments of batch {batch_id} do not have an unresolved configuration. '
+                            'The resolved configuration "config" will be used for resolution instead.')
+        configs_unresolved = [c_unresolved if c_unresolved is not None else c for c, c_unresolved in zip(configs, configs_unresolved)]
+        configs, named_configs = generate_named_configs(configs_unresolved)
+        configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, named_configs, seml_config['working_dir'])
+        
+        # If the seed was explicited, it should be kept for the new resolved config when reloading resources
+        for config, config_unresolved in zip(configs, configs_unresolved):
+            if SETTINGS.CONFIG_KEY_SEED in configs_unresolved:
+                config[SETTINGS.CONFIG_KEY_SEED] = config_unresolved[SETTINGS.CONFIG_KEY_SEED]
             
-            # If the seed was explicited, it should be kept for the new resolved config when reloading resources
-            for config, config_unresolved in zip(configs, configs_unresolved):
-                if SETTINGS.CONFIG_KEY_SEED in configs_unresolved:
-                    config[SETTINGS.CONFIG_KEY_SEED] = config_unresolved[SETTINGS.CONFIG_KEY_SEED]
-                
-            
-            config_hashes = [make_hash(c, config_get_exclude_keys(c, c_unresolved)) for c, c_unresolved in zip(configs, configs_unresolved)]
-            result = collection.bulk_write([
-                UpdateOne({'_id' : experiment_id}, {'$set' : {'config' : config, 'config_hash' : config_hash}})
-                for config, config_hash, experiment_id in zip(configs, config_hashes, experiment_ids)
-            ])
-            logging.info(f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).')
-
+        
+        config_hashes = [make_hash(c, config_get_exclude_keys(c, c_unresolved)) for c, c_unresolved in zip(configs, configs_unresolved)]
+        result = collection.bulk_write([
+            UpdateOne({'_id' : experiment_id}, {'$set' : {'config' : config, 'config_hash' : config_hash}})
+            for config, config_hash, experiment_id in zip(configs, config_hashes, experiment_ids)
+        ])
+        logging.info(f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).')
 
         # Check whether the configurations aligns with the current source code
         check_config(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
