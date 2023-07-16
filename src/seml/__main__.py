@@ -181,6 +181,11 @@ UpdateStatusAnnotation = Annotated[bool, typer.Option(
             "This can take a while for large collections. Use only if necessary.",
     is_flag=True,
 )]
+NoResolveDescriptionAnnotation = Annotated[bool, typer.Option(
+    '--no-resolve-descriptions',
+    help="Whether to prevent using omegaconf to resolve experiment descriptions",
+    is_flag=True,
+)]
 
 @app.callback()
 def callback(
@@ -408,6 +413,7 @@ def add_command(
             parser=json.loads
         ),
     ] = None,
+    no_resolve_descriptions: NoResolveDescriptionAnnotation = False,
 ):
     """
     Add experiments to the database as defined in the configuration.
@@ -420,6 +426,7 @@ def add_command(
         no_sanity_check=no_sanity_check,
         no_code_checkpoint=no_code_checkpoint,
         overwrite_params=overwrite_params,
+        resolve_descriptions=not no_resolve_descriptions,
     )
 
 @app.command("start")
@@ -736,13 +743,14 @@ def description_set_command(
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     yes: YesAnnotation = False,
+    no_resolve_description: NoResolveDescriptionAnnotation = False,
 ):
     """
     Sets the description of experiment(s).
     """
     collection_set_description(ctx.obj['collection'], description, sacred_id=sacred_id,
                                 filter_states=filter_states, filter_dict=filter_dict,
-                                batch_id=batch_id, yes=yes)
+                                batch_id=batch_id, yes=yes, resolve=not no_resolve_description)
 
 @app_description.command("delete")
 @restrict_collection()
