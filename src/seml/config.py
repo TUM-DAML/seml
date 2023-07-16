@@ -258,8 +258,20 @@ def generate_configs(experiment_config, overwrite_params=None):
 
 
 def generate_named_config(named_config_dict: Dict) -> List[str]:
+    """ Generates a sequence of named configs that is resolved by sacred in-order
+
+    Parameters
+    ----------
+    named_config_dict : Dict
+        Flattened configuration before parsing the named configurations.
+
+    Returns
+    -------
+    List[str]
+        A sequence of named configuration in the order that is defined by the `named_config_dict` input
+    """
     # Parse named config names and priorities
-    names, priorites = {}, {}
+    names, priorities = {}, {}
     for k, v in named_config_dict.items():
         if k.startswith(SETTINGS.NAMED_CONFIG_PREFIX):
             if not isinstance(v, Dict):
@@ -275,17 +287,31 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
                         value = int(value)
                     except:
                         raise ConfigError(f'Named config priorities should be non-negative integers, not {value} ({value.__class__})')
-                    priorites[k] = value
+                    priorities[k] = value
                 else:
                     raise ConfigError(f'Named configs only have the attributes {[SETTINGS.NAMED_CONFIG_KEY_NAME, SETTINGS.NAMED_CONFIG_KEY_PRIORITY]}')
-    
-    for idx in priorites:
+    for idx in priorities:
         if not idx in names:
             raise ConfigError(f'Defined a priority but not a name for named config {idx}')
-    return [names[idx] for idx in sorted(names, key=lambda idx: (priorites.get(idx, max(-1, *priorites.values())), names[idx]))]
+    return [names[idx] for idx in sorted(names, key=lambda idx: (priorities.get(idx, max([-1] + list(priorities.values()))), names[idx]))]
     
 
 def generate_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[str]]]:
+    """From experiment configurations, generates both the config updates as well as the named configs in the order specified.
+
+    Parameters
+    ----------
+    configs : List[Dict]
+        Input configurations.
+
+    Returns
+    -------
+    List[Dict]
+        For each input configuration, the output configuration that does not contain named configuration specifiers anymore.
+    
+    List[List[str]]]
+        For each input configuration, the sequence of named configurations in the order specified.
+    """
     result_configs, result_named_configs = [], []
     for config in configs:
         result_configs.append({k : v for k, v in config.items() if not k.startswith(SETTINGS.NAMED_CONFIG_PREFIX)})

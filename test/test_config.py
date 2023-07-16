@@ -2,14 +2,14 @@ import copy
 import unittest
 
 import yaml
+import itertools
 
 from seml import config, utils
 from seml.add import assemble_slurm_config_dict
 from seml.config import read_config
 from seml.errors import ConfigError
 from seml.settings import SETTINGS
-from seml.utils import merge_dicts
-
+from seml.utils import flatten, merge_dicts
 
 class TestParseConfigDicts(unittest.TestCase):
 
@@ -29,6 +29,7 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_SLURM_DEFAULT_EMPTY_SBATCH = "resources/config/config_slurm_default_empty_sbatch.yaml"
     CONFIG_SLURM_TEMPLATE = "resources/config/config_slurm_template.yaml"
     CONFIG_SLURM_EXPERIMENT = "resources/config/config_slurm_experiment.yaml"
+    CONFIG_RESOLVE_CONFIG = "resources/config/config_resolve_config.yaml"
     
     EXPERIMENT_RESOLVE_CONFIG = "resources/scripts/experiment_resolve_config.py"
 
@@ -94,8 +95,27 @@ class TestParseConfigDicts(unittest.TestCase):
         self.assertEqual(converted, expected)
 
     def test_resolve_config(self):
-        
-        config.resolve_configs(self.EXPERIMENT_RESOLVE_CONFIG, None, )
+        config_dict = self.load_config_dict(self.CONFIG_RESOLVE_CONFIG)
+        configs_unresolved = config.generate_configs(config_dict)
+        configs, named_configs = config.generate_named_configs(configs_unresolved)
+        print(named_configs)
+        for c in config.resolve_configs(self.EXPERIMENT_RESOLVE_CONFIG, None, configs, named_configs, '.'):
+            print(flatten(c))
+            
+        configs = {frozenset((k, v) for k, v in flatten(config).items()) for config in config.resolve_configs(self.EXPERIMENT_RESOLVE_CONFIG, None, configs, named_configs, '.')}
+        # Note that the yaml config overrides a parameter set by the json config due to its higher priority
+        expected_configs = {
+            frozenset((('foo', 33), ('bar', 44), ('py.value', 1), ('json.value', 11), ('yaml.value', -1))), 
+            frozenset((('foo', 33), ('bar', 44), ('py.value', 1), ('json.value', 10000), ('yaml.value', -2))), 
+            frozenset((('foo', 33), ('bar', 44), ('py.value', 1), ('json.value', 22), ('yaml.value', -1))), 
+            frozenset((('foo', 33), ('bar', 44), ('py.value', 1), ('json.value', 10000), ('yaml.value', -2))), 
+            frozenset((('foo', 33), ('bar', 44), ('py.value', 2), ('json.value', 11), ('yaml.value', -1))), 
+            frozenset((('foo', 33), ('bar', 44), ('py.value', 2), ('json.value', 10000), ('yaml.value', -2))), 
+            frozenset((('foo', 33), ('bar', 44), ('py.value', 2), ('json.value', 22), ('yaml.value', -1))), 
+            frozenset((('foo', 33), ('bar', 44), ('py.value', 2), ('json.value', 10000), ('yaml.value', -2))), 
+        }
+        self.assertSetEqual(configs, expected_configs)
+            
         
 
     def test_unpack_config_dict(self):
