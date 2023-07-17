@@ -178,6 +178,12 @@ of samples per parameter with the `samples` value and optionally the random seed
   - `loguniform`:  Uniformly samples in log space between `min` and `max` as specified in the parameter dict.
   - `randint`: Randomly samples integers between `min` (included) and `max` (excluded).
 
+### Named Configurations
+`sacred`, the on which experiments are based on, allows to define subgroups of configurations via its [named configurations](https://sacred.readthedocs.io/en/stable/configuration.html#named-configurations) feature. These can either be defined in external files (yaml, json, ...) or in functions decorated with `experiment.named_config`. SEML also supports this functionality by defining parameter groups that have the prefix `'$named_config'`. Two config values can be defined for such parameter groups:
+- `name`: The name of the named config, i.e. the name of the python function or the path to the file to load
+- `priority`: Defines in which order the named configs will be loaded. Configs with lower priority will be listed first and thus resolved first. Therefore, the highest priority item will have the highest precedence. If no priority is given, this will be treated as `infinity`. Ties are broken based on the name of the named config.
+
+
 ## Add experiments to database
 
 All SEML commands follow the pattern
