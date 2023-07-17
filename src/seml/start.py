@@ -172,7 +172,7 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
     -------
     None
     """
-    import pkg_resources
+    import importlib.resources
 
     # Set Slurm job array options
     sbatch_options['array'] = f"0-{len(exp_array) - 1}"
@@ -199,8 +199,8 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
                      and exp_array[0][0]['seml']['conda_environment'] is not None)
 
     # Construct Slurm script
-    template = pkg_resources.resource_string(__name__, "slurm_template.sh").decode("utf-8")
-    prepare_experiment_script = pkg_resources.resource_string(__name__, "prepare_experiment.py").decode("utf-8")
+    template = importlib.resources.files(__name__).joinpath("slurm_template.sh").read_bytes().decode("utf-8")
+    prepare_experiment_script = importlib.resources.files(__name__).joinpath("prepare_experiment.py").read_bytes().decode("utf-8")
     prepare_experiment_script = prepare_experiment_script.replace("'", "'\\''")
     if 'working_dir' in exp_array[0][0]['seml']:
         working_dir = exp_array[0][0]['seml']['working_dir']
@@ -837,7 +837,7 @@ def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dic
 
 
 def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: bool = False):
-    import pkg_resources
+    import importlib.resources
     sbatch_options = sbatch_options if sbatch_options is not None else {}
     sbatch_options_merged = SETTINGS.SLURM_DEFAULT['sbatch_options']
     sbatch_options_merged.update(SETTINGS.SBATCH_OPTIONS_TEMPLATES.JUPYTER)
@@ -845,7 +845,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     # Construct sbatch options string
     sbatch_options_str = create_slurm_options_string(sbatch_options_merged)
 
-    template = pkg_resources.resource_string(__name__, "jupyter_template.sh").decode("utf-8")
+    template = importlib.resources.files(__name__).joinpath("jupyter_template.sh").read_bytes().decode("utf-8")
 
     script = template.format(
             sbatch_options=sbatch_options_str,

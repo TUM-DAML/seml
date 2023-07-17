@@ -18,7 +18,7 @@ from seml.parameters import (cartesian_product_zipped_dict, generate_grid,
 from seml.settings import SETTINGS
 from seml.sources import import_exe
 from seml.utils import (Hashabledict, flatten, make_hash, merge_dicts, unflatten,
-                        working_directory, remove_keys_from_nested)
+                        working_directory, remove_keys_from_nested, value_to_primitive_datatype)
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
 
@@ -392,7 +392,7 @@ def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_
         for scaffold in reversed(list(scaffolding.values())):
             scaffold.set_up_seed()  # partially recursive
 
-        config_resolved = OmegaConf.to_container(OmegaConf.create(get_configuration(scaffolding)), resolve=True)
+        config_resolved = OmegaConf.to_container(OmegaConf.create(value_to_primitive_datatype(get_configuration(scaffolding))), resolve=True)
         configs_resolved.append(remove_keys_from_nested(config_resolved, config_get_exclude_keys(config_resolved, config)))
         
     return configs_resolved
@@ -428,7 +428,7 @@ def resolve_configs(executable: str, conda_env: str, configs: List[Dict], named_
         raise ExecutableError(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
     elif len(exps) > 1:
         raise ExecutableError(f"Found more than 1 Sacred experiment in '{executable}'. "
-                              f"Can't check parameter configs. Disable via --no-sanity-check.")
+                              f"Can't resolve configs.")
     exp = exps[0]
     return _sacred_create_configs(exp, configs, named_configs)
   

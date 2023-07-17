@@ -7,23 +7,17 @@ from seml.errors import MongoDBError
 from seml.manage import detect_killed
 from seml.settings import SETTINGS
 from seml.typer import prompt
-from seml.utils import slice_to_str, to_slices
+from seml.utils import slice_to_str, to_slices, value_to_primitive_datatype
 
 States = SETTINGS.STATES
 
 def resolve_description(description: str, config: Dict) -> str:
     from omegaconf import OmegaConf
-    import random
-    import string
+    import uuid
     # omegaconf can only resolve dicts that refers to its own values
     # so we add the description string to the config
-    for _ in range(10000):
-        key = ''.join(string.ascii_letters[random.randint(0, len(string.ascii_letters) - 1)] for _ in range(64))
-        if key not in config:
-            break
-    else:
-        raise RuntimeError(f'Could not generate a random key for the description.')
-    config = OmegaConf.create({key : description, **config})
+    key = str(uuid.uuid4())
+    config = OmegaConf.create(value_to_primitive_datatype({key : description, **config}))
     return OmegaConf.to_container(config, resolve=True)[key]
     
 

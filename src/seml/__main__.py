@@ -177,7 +177,7 @@ PrintFullDescriptionAnnotation = Annotated[bool, typer.Option(
 UpdateStatusAnnotation = Annotated[bool, typer.Option(
     '-u',
     '--update-status',
-    help="Whether to update the status of experiments in the database."
+    help="Whether to update the status of experiments in the database. "
             "This can take a while for large collections. Use only if necessary.",
     is_flag=True,
 )]
