@@ -199,8 +199,8 @@ def start_sbatch_job(collection, exp_array, unobserved=False, name=None,
                      and exp_array[0][0]['seml']['conda_environment'] is not None)
 
     # Construct Slurm script
-    template = importlib.resources.files(__name__).joinpath("slurm_template.sh").read_bytes().decode("utf-8")
-    prepare_experiment_script = importlib.resources.files(__name__).joinpath("prepare_experiment.py").read_bytes().decode("utf-8")
+    template = importlib.resources.read_binary('seml', "slurm_template.sh").decode("utf-8")
+    prepare_experiment_script = importlib.resources.read_binary('seml', "prepare_experiment.py").decode("utf-8")
     prepare_experiment_script = prepare_experiment_script.replace("'", "'\\''")
     if 'working_dir' in exp_array[0][0]['seml']:
         working_dir = exp_array[0][0]['seml']['working_dir']
@@ -845,7 +845,7 @@ def start_jupyter_job(sbatch_options: dict = None, conda_env: str = None, lab: b
     # Construct sbatch options string
     sbatch_options_str = create_slurm_options_string(sbatch_options_merged)
 
-    template = importlib.resources.files(__name__).joinpath("jupyter_template.sh").read_bytes().decode("utf-8")
+    template = importlib.resources.read_binary('seml', "jupyter_template.sh").decode("utf-8")
 
     script = template.format(
             sbatch_options=sbatch_options_str,

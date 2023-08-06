@@ -7,7 +7,7 @@ from seml.errors import MongoDBError
 from seml.manage import detect_killed
 from seml.settings import SETTINGS
 from seml.typer import prompt
-from seml.utils import slice_to_str, to_slices, value_to_primitive_datatype
+from seml.utils import slice_to_str, to_slices
 
 States = SETTINGS.STATES
 
@@ -17,7 +17,7 @@ def resolve_description(description: str, config: Dict) -> str:
     # omegaconf can only resolve dicts that refers to its own values
     # so we add the description string to the config
     key = str(uuid.uuid4())
-    config = OmegaConf.create(value_to_primitive_datatype({key : description, **config}))
+    config = OmegaConf.create({key : description, **config}, flags={"allow_objects": True})
     return OmegaConf.to_container(config, resolve=True)[key]
     
 
@@ -60,7 +60,7 @@ def collection_set_description(
     if len(exps) == 0 and sacred_id is not None:
         raise MongoDBError(f"No experiment found with ID {sacred_id}.")
     descriptions_resolved = {
-        exp['_id']: resolve_description(description, exp['config']) if resolve else description
+        exp['_id']: resolve_description(description, exp) if resolve else description
         for exp in exps
     }
     num_to_overwrite = len(list(filter(lambda exp: 

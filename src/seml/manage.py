@@ -927,7 +927,7 @@ def print_duplicates(
     num_duplicates = sum(map(len, duplicates))
     panel = Panel(
         Text.assemble(('Duplicate experiment ID groups: ', 'bold'), 
-                      (', '.join(map(lambda d: str(tuple(sorted(d))), duplicates)))),
+                      (', '.join(sorted(list(map(lambda d: str(tuple(sorted(d))), duplicates)))))),
         title=console.render_str(f'Found {num_duplicates} duplicate experiment configurations ({len(duplicates)} groups)'),
         highlight=True,
         border_style='red',

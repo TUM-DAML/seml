@@ -484,30 +484,5 @@ def to_hashable(x: Any) -> Any:
         return tuple(map(to_hashable, x))
     else:
         raise ValueError(f'{x} of type {type(x)} is not hashable.')
-
-def value_to_primitive_datatype(value: Any) -> Any:
-    """Recursively converts to primitive datatypes from the leaf nodes of a configuration. This, for now,
-    affects `str`, `float` and `int` subclasses (e.g. `np.float`)
-
-    Parameters
-    ----------
-    value : Any
-        The value to (recursively) convert.
-
-    Returns
-    -------
-    Any
-        The converted value.
-    """
-    primitives = (str, float, int)
-    for primitive in primitives:
-        if isinstance(value, primitive):
-            return primitive(value)
-    if isinstance(value, Dict):
-        return {k : value_to_primitive_datatype(v) for k, v in value.items()}
-    elif isinstance(value, (Tuple, List)):
-        return [value_to_primitive_datatype(v) for v in value]
-    else:
-        return value
         
     

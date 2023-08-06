@@ -18,7 +18,7 @@ from seml.parameters import (cartesian_product_zipped_dict, generate_grid,
 from seml.settings import SETTINGS
 from seml.sources import import_exe
 from seml.utils import (Hashabledict, flatten, make_hash, merge_dicts, unflatten,
-                        working_directory, remove_keys_from_nested, value_to_primitive_datatype)
+                        working_directory, remove_keys_from_nested)
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
 
@@ -275,8 +275,8 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
     for k, v in named_config_dict.items():
         if k.startswith(SETTINGS.NAMED_CONFIG_PREFIX):
             if not isinstance(v, Dict):
-                raise ConfigError(f'Named configs should always be provided as {SETTINGS.NAMED_CONFIG_PREFIX}_'
-                                 '{identifier}.{' + SETTINGS.NAMED_CONFIG_KEY_NAME + '|' + SETTINGS.NAMED_CONFIG_KEY_PRIORITY + '}: value')
+                raise ConfigError(f'Named configs should always be provided as {SETTINGS.NAMED_CONFIG_PREFIX}'
+                                 '{identifier}.[' + SETTINGS.NAMED_CONFIG_KEY_NAME + '|' + SETTINGS.NAMED_CONFIG_KEY_PRIORITY + ']: value')
             for attribute, value in v.items():
                 if attribute == SETTINGS.NAMED_CONFIG_KEY_NAME:
                     if not isinstance(value, str):
@@ -392,7 +392,7 @@ def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_
         for scaffold in reversed(list(scaffolding.values())):
             scaffold.set_up_seed()  # partially recursive
 
-        config_resolved = OmegaConf.to_container(OmegaConf.create(value_to_primitive_datatype(get_configuration(scaffolding))), resolve=True)
+        config_resolved = OmegaConf.to_container(OmegaConf.create(get_configuration(scaffolding), flags={"allow_objects": True}), resolve=True)
         configs_resolved.append(remove_keys_from_nested(config_resolved, config_get_exclude_keys(config_resolved, config)))
         
     return configs_resolved

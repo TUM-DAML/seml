@@ -123,7 +123,7 @@ def add_configs(
     if resolve_descriptions:
         for db_dict in db_dicts:
             if 'description' in db_dict['seml']:
-                db_dict['seml']['description'] = resolve_description(db_dict['seml']['description'], db_dict['config'])
+                db_dict['seml']['description'] = resolve_description(db_dict['seml']['description'], db_dict)
 
     collection.insert_many(db_dicts)
 
