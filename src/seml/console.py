@@ -3,9 +3,9 @@ import functools
 import rich
 import rich.box
 import rich.table
-from rich.align import Align
 from rich.console import Console
-from rich.panel import Panel
+from rich.padding import Padding
+from rich.rule import Rule
 
 console = Console()
 
@@ -20,10 +20,9 @@ Table = functools.partial(
     highlight=True
 )
 
+
 def Heading(text: str):
-    return Panel(
-        Align(
-            text,
-            align="center"
-        )
+    return Padding(
+        Rule(text, style='red'),
+        pad=(1, 0, 0, 0)
     )

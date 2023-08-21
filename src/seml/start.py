@@ -747,7 +747,7 @@ def print_command(
                                                  unobserved=True, post_mortem=False, use_json=True)
     env = exp['seml'].get('conda_environment')
 
-    logging.info("********** First experiment **********")
+    console.print(Heading("First experiment"))
     logging.info(f"Executable: {exe}")
     if env is not None:
         logging.info(f"Anaconda environment: {env}")
