@@ -7,7 +7,6 @@ import subprocess
 import time
 from collections import defaultdict
 from typing import Dict, List, Optional
-from xml.etree.ElementTree import TreeBuilder
 
 from seml.config import check_config
 from seml.database import (build_filter_dict, get_collection, get_database,
@@ -558,15 +557,13 @@ def print_fail_trace(
     projection : Optional[List[str]]
         Additional values to print per failed experiment, by default None
     """
-    from rich import box
     from rich.align import Align
     from rich.console import Group
     from rich.panel import Panel
     from rich.rule import Rule
-    from rich.table import Table
     from rich.text import Text
 
-    from seml.console import console
+    from seml.console import console, Table
     detect_killed(db_collection_name, print_detected=False)
     collection = get_collection(db_collection_name)
     if projection is None:
@@ -600,14 +597,7 @@ def print_fail_trace(
             renderables += [text_description, Rule(Text('Fail-Trace', style='bold'))]
         renderables.append(''.join(['\t' + line for line in fail_trace] + []).strip())
         if len(projection) > 0:
-            table_projection = Table(show_header=False, 
-                                     collapse_padding=True,
-                                     show_lines=False,
-                                     show_edge=False,
-                                     box=box.SIMPLE,
-                                     row_styles=['none', 'dim'],
-                                     padding=(0,0,),
-                                     highlight=True)
+            table_projection = Table(show_header=False)
             projection_keys_flat = [key for key in flatten(exp) if any(key.startswith(p) for p in projection)]
             for key in projection_keys_flat:
                 table_projection.add_row(key, str(get_from_nested(exp, key)))
@@ -637,9 +627,8 @@ def print_status(
     """
     
     from rich.align import Align
-    from rich.box import SIMPLE
-    from rich.table import Table, Column
-    from seml.console import console
+    from rich.table import Column
+    from seml.console import console, Table
     collection = get_collection(db_collection_name)
     
     # Handle status updates
@@ -690,12 +679,6 @@ def print_status(
         Column("Description(s)", justify="left"), 
         *[Column(key, justify="left") for key in columns],
         show_header=True,
-        collapse_padding=True,
-        show_lines=False,
-        show_edge=False,
-        row_styles=["none", "dim"],
-        box=SIMPLE,
-        highlight=TreeBuilder(),
         show_footer=len(result) > 1,
     )
     for record, record_projection in zip(result, result_projection):
@@ -740,12 +723,11 @@ def list_database(
         Whether to print full descriptions (wrap-arround) or truncate the descriptions otherwise.
     """
     import pandas as pd
-    from rich import box
     from rich.align import Align
-    from rich.table import Column, Table
+    from rich.table import Column
     from tqdm.auto import tqdm
 
-    from seml.console import console
+    from seml.console import console, Table
 
     # Get the database
     if mongodb_config is None:
@@ -812,12 +794,6 @@ def list_database(
         Column("Description(s)", justify="left", max_width=console.width - max_len - sum(map(len, df.columns)) + 1, 
                no_wrap=not print_full_description, overflow='ellipsis'),
         show_footer=df.shape[0] > 1,
-        collapse_padding=True,
-        show_lines=False,
-        show_edge=False,
-        box=box.SIMPLE,
-        row_styles=['none', 'dim'],
-        padding=(0,0,)
     )
     for collection_name, row in df.iterrows():
         table.add_row(collection_name, *[str(x) for x in row.to_list()], name_to_descriptions[collection_name])
