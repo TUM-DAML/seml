@@ -1,4 +1,6 @@
 import logging
+import json
+from bson.json_util import dumps, loads
 from typing import List
 
 from seml.errors import MongoDBError
@@ -7,6 +9,7 @@ from seml.typer import prompt
 from seml.utils import s_if
 
 States = SETTINGS.STATES
+
 
 def get_collection(collection_name, mongodb_config=None, suffix=None):
     if mongodb_config is None:
@@ -18,19 +21,58 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
     return db[collection_name]
 
 
+def export_collection(collection_name, path=None):
+    collection = get_collection(collection_name)
+    cursor = collection.find({})
+    if path == None:
+        path = f'{collection_name}.bson'
+    with open(path, 'w') as file:
+        file.write(dumps(cursor))
+    logging.info(
+        f"Successfully exported {collection_name} to {path}.")
+
+
+def import_collection(collection_name, path):
+    mongodb_config = get_mongodb_config()
+    db = get_database(**mongodb_config)
+
+    if collection_name in db.list_collection_names():
+        logging.error(f"Collection {collection_name} already exists.")
+        return
+
+    collection = db[collection_name]
+
+    with open(path, 'r') as file:
+        try:
+            data = loads(file.read())
+        except:
+            logging.error(
+                "We only support loading collections from BSON files.")
+            return
+
+    if isinstance(data, list):
+        collection.insert_many(data)
+    else:
+        collection.insert_one(data)
+
+    logging.info(
+        f"Successfully imported new collection {collection_name} from {path}.")
+
+
 def get_mongo_client(db_name, host, port, username, password, **kwargs):
     import pymongo
     client = pymongo.MongoClient(host, int(port), username=username, password=password,
-                             authSource=db_name, **kwargs)
+                                 authSource=db_name, **kwargs)
     return client
 
 
 def get_database(db_name, host, port, username, password, **kwargs):
-    db = get_mongo_client(db_name, host, port, username, password, **kwargs)[db_name]
+    db = get_mongo_client(db_name, host, port, username,
+                          password, **kwargs)[db_name]
     return db
 
 
-def get_collections_from_mongo_shell_or_pymongo(db_name: str, host: str, port: int, username: str, 
+def get_collections_from_mongo_shell_or_pymongo(db_name: str, host: str, port: int, username: str,
                                                 password: str, **kwargs) -> List[str]:
     """ Gets all collections in the database by first using the mongo shell and if that fails uses pymongo.
 
@@ -40,19 +82,22 @@ def get_collections_from_mongo_shell_or_pymongo(db_name: str, host: str, port: i
         port (int): the port at which to access the mongodb
         username (str): the username
         password (str): the password
-        
+
     Returns:
         List[str]: all collections in the database
     """
     import subprocess
     cmd = f'mongo -u "{username}" --authenticationDatabase "{db_name}" {host}:{port}/{db_name} -p {password} --eval "db.getCollectionNames()" --quiet'
     try:
-        output = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL)
-        collection_names = eval(output) # technically this is a json, but we want to avoid loading the json module
+        output = subprocess.check_output(
+            cmd, shell=True, stderr=subprocess.DEVNULL)
+        # technically this is a json, but we want to avoid loading the json module
+        collection_names = eval(output)
     except subprocess.CalledProcessError:
         db = get_database(db_name, host, port, username, password, **kwargs)
         collection_names = db.list_collection_names()
     return [name for name in collection_names if not name in ('fs.chunks', 'fs.files')]
+
 
 def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     """Read the MongoDB connection configuration.
@@ -86,7 +131,8 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     config_str = "\nPlease run `seml configure` to provide your credentials."
 
     if not path.exists():
-        raise MongoDBError(f"MongoDB credentials could not be read at '{path}'.{config_str}")
+        raise MongoDBError(
+            f"MongoDB credentials could not be read at '{path}'.{config_str}")
 
     with open(path, 'r') as f:
         for line in f.readlines():
@@ -262,19 +308,23 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     for collection_name in tq:
         tq.set_postfix(collection=collection_name)
         collection = db[collection_name]
-        experiments = list(collection.find({}, {'artifacts': 1, 'experiment.sources': 1, 'source_files': 1}))
+        experiments = list(collection.find(
+            {}, {'artifacts': 1, 'experiment.sources': 1, 'source_files': 1}))
         for exp in experiments:
             if 'artifacts' in exp:
                 try:
                     referenced_files.update({x[1] for x in exp['artifacts']})
                 except KeyError:
-                    referenced_files.update({x['file_id'] for x in exp['artifacts']})
+                    referenced_files.update(
+                        {x['file_id'] for x in exp['artifacts']})
             if 'experiment' in exp and 'sources' in exp['experiment']:
-                referenced_files.update({x[1] for x in exp['experiment']['sources']})
+                referenced_files.update(
+                    {x[1] for x in exp['experiment']['sources']})
             if 'source_files' in exp:
                 referenced_files.update({x[1] for x in exp['source_files']})
 
-    all_files_in_db = list(db['fs.files'].find({}, {'_id': 1, 'filename': 1, 'metadata': 1}))
+    all_files_in_db = list(db['fs.files'].find(
+        {}, {'_id': 1, 'filename': 1, 'metadata': 1}))
     filtered_file_ids = set()
     for file in all_files_in_db:
         if 'filename' in file:
@@ -303,4 +353,5 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
         exit(1)
     logging.info('Deleting not referenced artifacts...')
     delete_files(db, not_referenced_artifacts, progress=True)
-    logging.info(f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.')
+    logging.info(
+        f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.')
