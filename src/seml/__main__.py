@@ -13,8 +13,8 @@ import seml.typer as typer
 from seml.add import add_config_files
 from seml.configure import configure
 from seml.database import (clean_unreferenced_artifacts,
-                           import_collection, export_collection,
                            get_collections_from_mongo_shell_or_pymongo,
+                           import_collection, export_collection,
                            get_mongodb_config)
 from seml.description import (collection_delete_description,
                               collection_list_descriptions,
@@ -32,18 +32,15 @@ States = SETTINGS.STATES
 P = ParamSpec("P")
 R = TypeVar("R")
 
-
 def restrict_collection(require: bool = True):
     """ Decorator to require a collection name. """
     def decorator(fun: Callable[P, R]) -> Callable[P, R]:
         @functools.wraps(fun)
         def wrapper(ctx: typer.Context, *args, **kwargs):
             if require and not ctx.obj['collection']:
-                raise typer.BadParameter(
-                    'Please specify a collection name.', ctx=ctx)
+                raise typer.BadParameter('Please specify a collection name.', ctx=ctx)
             elif not require and ctx.obj['collection']:
-                raise typer.BadParameter(
-                    'Please do not specify a collection name.', ctx=ctx)
+                raise typer.BadParameter('Please do not specify a collection name.', ctx=ctx)
             return fun(ctx, *args, **kwargs)
         return wrapper
     return decorator
@@ -73,13 +70,13 @@ SacredIdAnnotation = Annotated[int, typer.Option(
     '-id',
     '--sacred-id',
     help="Sacred ID (_id in the database collection) of the experiment. "
-    "Takes precedence over other filters.",
+            "Takes precedence over other filters.",
 )]
 FilterDictAnnotation = Annotated[Dict, typer.Option(
     '-f',
     '--filter-dict',
     help="Dictionary (passed as a string, e.g. '{\"config.dataset\": \"cora_ml\"}') to filter "
-    "the experiments by.",
+            "the experiments by.",
     metavar='JSON',
     parser=json.loads,
 )]
@@ -100,7 +97,7 @@ BatchIdAnnotation = Annotated[int, typer.Option(
     '-b',
     '--batch-id',
     help="Batch ID (batch_id in the database collection) of the experiments. "
-    "Experiments that were staged together have the same batch_id.",
+            "Experiments that were staged together have the same batch_id.",
 )]
 
 _STATE_LIST = [s for states in States.values() for s in states]
@@ -128,7 +125,7 @@ NumExperimentsAnnotation = Annotated[int, typer.Option(
     '-n',
     '--num-experiments',
     help="Number of experiments to start. "
-    "0: all (staged) experiments ",
+            "0: all (staged) experiments ",
 )]
 NoFileOutputAnnotation = Annotated[bool, typer.Option(
     '-nf',
@@ -146,7 +143,7 @@ StealSlurmAnnotation = Annotated[bool, typer.Option(
     '-ss',
     '--steal-slurm',
     help="Local jobs 'steal' from the Slurm queue, "
-    "i.e. also execute experiments waiting for execution via Slurm.",
+        "i.e. also execute experiments waiting for execution via Slurm.",
     is_flag=True,
 )]
 PostMortemAnnotation = Annotated[bool, typer.Option(
@@ -182,10 +179,9 @@ UpdateStatusAnnotation = Annotated[bool, typer.Option(
     '-u',
     '--update-status',
     help="Whether to update the status of experiments in the database."
-    "This can take a while for large collections. Use only if necessary.",
+            "This can take a while for large collections. Use only if necessary.",
     is_flag=True,
 )]
-
 
 @app.callback()
 def callback(
@@ -249,8 +245,7 @@ def list_command(
     full_description: PrintFullDescriptionAnnotation = False,
 ):
     """Lists all collections in the database."""
-    list_database(pattern, progress=progress, update_status=update_status,
-                  print_full_description=full_description)
+    list_database(pattern, progress=progress, update_status=update_status, print_full_description=full_description)
 
 
 @app.command("clean-db")
@@ -315,8 +310,7 @@ def start_jupyter_command(
     Start a Jupyter slurm job. Uses SBATCH options defined in settings.py under
     SBATCH_OPTIONS_TEMPLATES.JUPYTER
     """
-    start_jupyter_job(lab=lab, conda_env=conda_env,
-                      sbatch_options=sbatch_options)
+    start_jupyter_job(lab=lab, conda_env=conda_env, sbatch_options=sbatch_options)
 
 
 @app.command("cancel")
@@ -341,8 +335,7 @@ def cancel_command(
     """
     Cancel the Slurm job/job step corresponding to experiments, filtered by ID or state.
     """
-    wait = wait or len([a for a in sys.argv if a in command_tree(
-        app).commands or a in command_tree(app).groups]) > 1
+    wait = wait or len([a for a in sys.argv if a in command_tree(app).commands or a in command_tree(app).groups]) > 1
     cancel_experiments(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -429,7 +422,6 @@ def add_command(
         no_code_checkpoint=no_code_checkpoint,
         overwrite_params=overwrite_params
     )
-
 
 @app.command("start")
 @restrict_collection()
@@ -546,7 +538,6 @@ def launch_worker_command(
         worker_environment_vars=worker_env,
     )
 
-
 @app.command("print-fail-trace")
 @restrict_collection()
 def print_fail_trace_command(
@@ -554,8 +545,7 @@ def print_fail_trace_command(
     sacred_id: SacredIdAnnotation = None,
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
-    filter_states: FilterStatesAnnotation = [
-        *States.FAILED, *States.KILLED, *States.INTERRUPTED],
+    filter_states: FilterStatesAnnotation = [*States.FAILED, *States.KILLED, *States.INTERRUPTED],
     projection: ProjectionAnnotation = None,
 ):
     """
@@ -567,9 +557,8 @@ def print_fail_trace_command(
         filter_states=filter_states,
         batch_id=batch_id,
         filter_dict=filter_dict,
-        projection=projection,
+        projection = projection,
     )
-
 
 @app.command("reload-sources")
 @restrict_collection()
@@ -588,7 +577,7 @@ def reload_sources_command(
         '-b',
         '--batch-ids',
         help="Batch IDs (batch_id in the database collection) of the experiments. "
-        "Experiments that were staged together have the same batch_id.",
+                "Experiments that were staged together have the same batch_id.",
     )] = None,
     yes: YesAnnotation = False,
 ):
@@ -630,13 +619,13 @@ def print_command_command(
     )
 
 
+
 @app.command("reset")
 @restrict_collection()
 def reset_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
-    filter_states: FilterStatesAnnotation = [
-        *States.FAILED, *States.KILLED, *States.INTERRUPTED],
+    filter_states: FilterStatesAnnotation = [*States.FAILED, *States.KILLED, *States.INTERRUPTED],
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     yes: YesAnnotation = False,
@@ -660,8 +649,7 @@ def reset_command(
 def delete_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
-    filter_states: FilterStatesAnnotation = [
-        *States.STAGED, *States.FAILED, *States.KILLED, *States.INTERRUPTED],
+    filter_states: FilterStatesAnnotation = [*States.STAGED, *States.FAILED, *States.KILLED, *States.INTERRUPTED],
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     yes: YesAnnotation = False,
@@ -700,10 +688,9 @@ def status_command(
     """
     Report status of experiments in the database collection.
     """
-    print_status(ctx.obj['collection'],
-                 update_status=update_status,
+    print_status(ctx.obj['collection'], 
+                 update_status=update_status, 
                  projection=projection)
-
 
 app_description = typer.Typer(
     no_args_is_help=True,
@@ -711,7 +698,6 @@ app_description = typer.Typer(
     # chain=os.environ.get('_SEML_COMPLETE')
 )
 app.add_typer(app_description, name="description")
-
 
 @app_description.command("set")
 @restrict_collection()
@@ -733,9 +719,8 @@ def description_set_command(
     Sets the description of experiment(s).
     """
     collection_set_description(ctx.obj['collection'], description, sacred_id=sacred_id,
-                               filter_states=filter_states, filter_dict=filter_dict,
-                               batch_id=batch_id, yes=yes)
-
+                                filter_states=filter_states, filter_dict=filter_dict,
+                                batch_id=batch_id, yes=yes)
 
 @app_description.command("delete")
 @restrict_collection()
@@ -751,8 +736,8 @@ def description_delete_command(
     Deletes the description of experiment(s).
     """
     collection_delete_description(ctx.obj['collection'], sacred_id=sacred_id,
-                                  filter_states=filter_states, filter_dict=filter_dict,
-                                  batch_id=batch_id, yes=yes)
+                                filter_states=filter_states, filter_dict=filter_dict,
+                                batch_id=batch_id, yes=yes)
 
 
 @app_description.command("list")
@@ -761,8 +746,7 @@ def description_list_command(ctx: typer.Context, update_status: UpdateStatusAnno
     """
     Lists the descriptions of all experiments.
     """
-    collection_list_descriptions(
-        ctx.obj['collection'], update_status=update_status)
+    collection_list_descriptions(ctx.obj['collection'], update_status=update_status)
 
 
 @app.command("export")
@@ -815,12 +799,12 @@ class CommandTreeNode:
 @functools.lru_cache()
 def command_tree(app: typer.Typer) -> CommandTreeNode:
     return CommandTreeNode(
-        commands={
+        commands = {
             cmd.name if cmd.name else cmd.callback.__name__
             for cmd in app.registered_commands
         },
-        groups={
-            (group.name if group.name else group.callback.__name__): command_tree(group.typer_instance)
+        groups = {
+            (group.name if group.name else group.callback.__name__) : command_tree(group.typer_instance)
             for group in app.registered_groups
         }
     )
@@ -832,12 +816,12 @@ def split_args(
         combine: bool = True) -> Tuple[List[List[str]], List[str]]:
     split_cmd_args = [[]]
     cmd_stack = [command_tree]
-
+    
     # Chaining is only allowed in the first level of the group hierarchy, so we only
     # split into a two level list
     for arg in args:
         if arg in cmd_stack[-1].groups:
-            if len(cmd_stack) == 1:  # new subtyper at the top level
+            if len(cmd_stack) == 1: # new subtyper at the top level
                 split_cmd_args.append([arg])
                 # chaining is allowed: stack[-1] may consume further commands after its child is done consuming
                 cmd_stack.append(cmd_stack[-1].groups[arg])
@@ -846,7 +830,7 @@ def split_args(
                 # no chaining below the first level: stack[-1] will not consume any more commands
                 cmd_stack = cmd_stack[:-1] + [cmd_stack[-1].groups[arg]]
         elif arg in cmd_stack[-1].commands:
-            if len(cmd_stack) == 1:  # new command at the top level
+            if len(cmd_stack) == 1: # new command at the top level
                 split_cmd_args.append([arg])
             else:
                 split_cmd_args[-1].append(arg)
@@ -854,7 +838,7 @@ def split_args(
                 cmd_stack.pop()
         else:
             split_cmd_args[-1].append(arg)
-
+    
     # Re-distribute shared args to each command in the first level of the hierarchy
     if len(split_cmd_args) == 1:
         return split_cmd_args, cmd_stack
@@ -868,7 +852,7 @@ def split_args(
     result = []
     for split in chained_commands:
         result.append(shared + split)
-
+    
     return result, cmd_stack
 
 
