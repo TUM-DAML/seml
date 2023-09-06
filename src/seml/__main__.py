@@ -753,30 +753,41 @@ def description_list_command(ctx: typer.Context, update_status: UpdateStatusAnno
 @restrict_collection()
 def export_command(
     ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = None,
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
     path: Annotated[
         str,
         typer.Option(
-            '-f',
-            "--file",
+            '-o',
+            "--output",
             help="Specify path to export the collection to.",
             is_flag=False,
         ),
     ] = None
 ):
     """
-        Export collection to JSON.
+        Export collection to BSON.
     """
-    export_collection(ctx.obj['collection'], path)
+    export_collection(
+            ctx.obj['collection'],
+            path,
+            sacred_id=sacred_id,
+            filter_states=filter_states,
+            batch_id=batch_id,
+            filter_dict=filter_dict
+    )
 
 
 @app.command("import")
 @restrict_collection()
-def export_command(
+def import_command(
     ctx: typer.Context,
     path: Annotated[
         str,
         typer.Argument(
-            help="Specify path to a JSON file to import a collection from.",
+            help="Specify path to a BSON file to import a collection from.",
             exists=True,
             file_okay=True,
             dir_okay=False,
@@ -784,7 +795,7 @@ def export_command(
     ]
 ):
     """
-        Import new collection from JSON.
+        Import new collection from BSON.
     """
     import_collection(ctx.obj['collection'], path)
 

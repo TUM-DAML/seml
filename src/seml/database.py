@@ -1,7 +1,8 @@
 import logging
 import json
+import os
 from bson.json_util import dumps, loads
-from typing import List
+from typing import List, Optional, Dict
 
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
@@ -20,18 +21,26 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
     return db[collection_name]
 
 
-def export_collection(collection_name, path=None):
+def export_collection(
+        collection_name: str, 
+        path: Optional[str] = None,
+        sacred_id: Optional[int] = None,
+        filter_states: Optional[List[str]] = None,
+        batch_id: Optional[int] = None,
+        filter_dict: Optional[Dict] = None,
+    ):
     collection = get_collection(collection_name)
-    cursor = collection.find({})
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=sacred_id)
+    cursor = collection.find(filter_dict)
     if path == None:
         path = f'{collection_name}.bson'
-    with open(path, 'w') as file:
+    with open(os.path.expanduser(os.path.expandvars(path)), 'w') as file:
         file.write(dumps(cursor))
     logging.info(
         f"Successfully exported {collection_name} to {path}.")
 
 
-def import_collection(collection_name, path):
+def import_collection(collection_name: str, path: str):
     mongodb_config = get_mongodb_config()
     db = get_database(**mongodb_config)
 
@@ -41,7 +50,7 @@ def import_collection(collection_name, path):
 
     collection = db[collection_name]
 
-    with open(path, 'r') as file:
+    with open(os.path.expanduser(os.path.expandvars(path)), 'r') as file:
         try:
             data = loads(file.read())
         except:
