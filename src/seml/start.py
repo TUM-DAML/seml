@@ -720,8 +720,6 @@ def print_command(
     worker_cpus: Optional[int] = None,
     worker_environment_vars: Dict = None):
     import rich
-    from rich.panel import Panel
-    from rich.align import Align
 
     from seml.console import console, Heading
 
@@ -755,26 +753,26 @@ def print_command(
     console.print(Heading("Arguments for VS Code debugger"))
     rich.print_json(data=["with", "--debug"] + vscode_config)
     console.print(Heading("Arguments for PyCharm debugger"))
-    rich.print("with --debug " + get_config_overrides(config))
+    print("with --debug " + get_config_overrides(config))
 
     console.print(Heading("Command for post-mortem debugging"))
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
                                                     verbose=logging.root.level <= logging.VERBOSE,
                                                     unobserved=True, post_mortem=True)
-    rich.print(get_shell_command(interpreter, exe, config, env=env_dict))
+    print(get_shell_command(interpreter, exe, config, env=env_dict))
 
     console.print(Heading("Command for remote debugging"))
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
                                                     verbose=logging.root.level <= logging.VERBOSE,
                                                     unobserved=True, debug_server=True, print_info=False)
-    rich.print(get_shell_command(interpreter, exe, config, env=env_dict))
+    print(get_shell_command(interpreter, exe, config, env=env_dict))
 
     console.print(Heading("All raw commands"))
     logging.root.setLevel(orig_level)
     for exp in exps_list:
         interpreter, exe, config = get_command_from_exp(
                 exp, collection.name, verbose=logging.root.level <= logging.VERBOSE)
-        rich.print(get_shell_command(interpreter, exe, config, env=env_dict))
+        print(get_shell_command(interpreter, exe, config, env=env_dict))
 
 
 def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
