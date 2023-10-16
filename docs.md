@@ -60,6 +60,7 @@ $ seml add [OPTIONS] CONFIG_FILES...
 * `-ncc, --no-code-checkpoint`: Disable this if you want your experiments to use the current codeinstead of the code at the time of adding.
 * `-f, --force`: Force adding the experiment even if it already exists in the database.
 * `-o, --overwrite-params JSON`: Dictionary (passed as a string, e.g. '{"epochs": 100}') to overwrite parameters in the config.
+* `-d, --description TEXT`: A description for the experiment.
 * `--no-resolve-descriptions`: Whether to prevent using omegaconf to resolve experiment descriptions
 * `--help`: Show this message and exit.
 

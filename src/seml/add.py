@@ -66,6 +66,7 @@ def add_configs(
     configs_unresolved: List[Dict], 
     source_files: Optional[List[Tuple]] = None,
     git_info: Optional[Dict] = None,
+    description: Optional[str] = None,
     resolve_descriptions: bool = True):
     """Put the input configurations into the database.
 
@@ -86,6 +87,8 @@ def add_configs(
         (object_id, relative_path)
     git_info: Optional[Dict]
         containing information about the git repo status.
+    description : Optional[str], optional
+        Optional description for the experiments, by default None
     resolve_descriptions : bool, optional
         Whether to use omegaconf to resolve descriptions.
     """
@@ -120,6 +123,9 @@ def add_configs(
                  'git': git_info,
                  'add_time': datetime.datetime.utcnow()}
                 for idx, (c, c_unresolved) in enumerate(zip(configs, configs_unresolved))]
+    if description is not None:
+        for db_dict in db_dicts:
+            db_dict['seml']['description'] = description
     if resolve_descriptions:
         for db_dict in db_dicts:
             if 'description' in db_dict['seml']:
@@ -135,6 +141,7 @@ def add_config_files(db_collection_name: str,
                      no_hash: bool = False, 
                      no_sanity_check: bool = False,
                      no_code_checkpoint: bool = False,
+                     description: Optional[str] = None,
                      resolve_descriptions: bool = True,):
     """Adds configuration files to the MongoDB
 
@@ -154,6 +161,8 @@ def add_config_files(db_collection_name: str,
         Whether to skip feeding configuration values into the sacred experiment to detect unsupported or missing keys, by default False
     no_code_checkpoint : bool, optional
         Whether to not base the experiments on a copy of the current codebase, by default False
+    description : Optional[str], optional
+        Optional description for the experiments, by default None
     resolve_descriptions : bool, optional
         Whether to use omegaconf to resolve experiment descriptions.
     """
@@ -161,6 +170,7 @@ def add_config_files(db_collection_name: str,
     for config_file in config_files:
         add_config_file(db_collection_name, config_file, force_duplicates,
                         overwrite_params, no_hash, no_sanity_check,no_code_checkpoint,
+                        description=description,
                         resolve_descriptions=resolve_descriptions)
 
 
@@ -201,13 +211,14 @@ def assemble_slurm_config_dict(experiment_slurm_config: dict):
 
 
 def add_config_file(db_collection_name: str, 
-                     config_file: str, 
-                     force_duplicates: bool = False, 
-                     overwrite_params: Optional[Dict] = None, 
-                     no_hash: bool = False, 
-                     no_sanity_check: bool = False,
-                     no_code_checkpoint: bool = False,
-                     resolve_descriptions: bool = True,):
+                    config_file: str, 
+                    force_duplicates: bool = False, 
+                    overwrite_params: Optional[Dict] = None, 
+                    no_hash: bool = False, 
+                    no_sanity_check: bool = False,
+                    no_code_checkpoint: bool = False,
+                    description: Optional[str] = None,
+                    resolve_descriptions: bool = True,):
     """Adds configuration files to the MongoDB
 
     Parameters
@@ -226,6 +237,8 @@ def add_config_file(db_collection_name: str,
         Whether to skip feeding configuration values into the sacred experiment to detect unsupported or missing keys, by default False
     no_code_checkpoint : bool, optional
         Whether to not base the experiments on a copy of the current codebase, by default False
+    description : Optional[str], optional
+        Optional description for the experiments, by default None
     resolve_descriptions : bool, optional
         Whether to use omegaconf to resolve descriptions
     """
@@ -302,5 +315,15 @@ def add_config_file(db_collection_name: str,
     collection.create_index("config_hash")
     # Add the configurations to the database with STAGED status.
     if len(configs) > 0:
-        add_configs(collection, seml_config, slurm_config, configs, configs_unresolved, uploaded_files, git_info, resolve_descriptions=resolve_descriptions)
+        add_configs(
+            collection,
+            seml_config,
+            slurm_config,
+            configs,
+            configs_unresolved,
+            uploaded_files,
+            git_info,
+            description=description,
+            resolve_descriptions=resolve_descriptions
+        )
         

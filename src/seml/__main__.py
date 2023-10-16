@@ -413,6 +413,14 @@ def add_command(
             parser=json.loads
         ),
     ] = None,
+    description: Annotated[
+        str,
+        typer.Option(
+            '-d',
+            '--description',
+            help="A description for the experiment.",
+        ),
+    ] = None,
     no_resolve_descriptions: NoResolveDescriptionAnnotation = False,
 ):
     """
@@ -426,6 +434,7 @@ def add_command(
         no_sanity_check=no_sanity_check,
         no_code_checkpoint=no_code_checkpoint,
         overwrite_params=overwrite_params,
+        description=description,
         resolve_descriptions=not no_resolve_descriptions,
     )
 
