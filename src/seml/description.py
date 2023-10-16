@@ -1,8 +1,5 @@
 import logging
-import string
 from typing import Dict, List, Optional
-
-from pymongo import UpdateOne
 
 from seml.database import build_filter_dict, get_collection
 from seml.errors import MongoDBError
@@ -13,6 +10,16 @@ from seml.utils import slice_to_str, to_slices
 
 States = SETTINGS.STATES
 
+def resolve_description(description: str, config: Dict) -> str:
+    from omegaconf import OmegaConf
+    import uuid
+    # omegaconf can only resolve dicts that refers to its own values
+    # so we add the description string to the config
+    key = str(uuid.uuid4())
+    config = OmegaConf.create({key : description, **config}, flags={"allow_objects": True})
+    return OmegaConf.to_container(config, resolve=True)[key]
+    
+
 def collection_set_description(
     db_collection_name: str,
     description: str,
@@ -20,7 +27,8 @@ def collection_set_description(
     filter_states: Optional[List[str]] = None,
     filter_dict: Optional[Dict] = None,
     batch_id: Optional[int] = None,
-    yes: bool = False):
+    yes: bool = False,
+    resolve: bool = True):
     """ Sets (or updates) the description of experiment(s). 
     
     Parameters
@@ -39,29 +47,34 @@ def collection_set_description(
         Filter on the batch ID of experiments, by default None
     yes : bool, optional
         Whether to override confirmation prompts, by default False
+    resolve : bool, optional
+        Whether to use omegaconf to resolve descriptions
     """
+    from pymongo import UpdateOne
+    
     collection = get_collection(db_collection_name)
-    interpolation_vars = [t[1] for t in string.Formatter().parse(description) if t[1] is not None]
-    mongo_db_vars = {var.replace('[', '.').replace(']', '') for var in interpolation_vars}
     
     filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=sacred_id)
-    exps = list(collection.find(filter_dict, {'seml.description': 1, **{k: 1 for k in mongo_db_vars}}))
+    exps = list(collection.find(filter_dict, {'seml.description': 1, 'config' : 1, 'status' : 1}))
     if len(exps) == 0 and sacred_id is not None:
         raise MongoDBError(f"No experiment found with ID {sacred_id}.")
-    final_desc = {
-        exp['_id']: description.format(**exp)
+    descriptions_resolved = {
+        exp['_id']: resolve_description(description, exp) if resolve else description
         for exp in exps
     }
-    num_to_overwrite = sum(
-        1 for exp in exps
-        if exp.get('seml', {}).get('description', final_desc[exp['_id']]) != final_desc[exp['_id']]
-    )
+    num_to_overwrite = len(list(filter(lambda exp: 
+        exp.get('seml', {}).get('description', descriptions_resolved[exp['_id']]) != descriptions_resolved[exp['_id']], 
+        exps)))
+        
     if not yes and num_to_overwrite >= SETTINGS.CONFIRM_DESCRIPTION_UPDATE_THRESHOLD and \
         not prompt(f"{num_to_overwrite} experiment(s) have a different description. Proceed?", type=bool):
         exit(1)
+    if len(list(filter(lambda exp: exp['status'] in States.RUNNING, exps))):
+        logging.warn(f'Updating the description of {States.RUNNING[0]} experiments: This may not have an'
+                     ' effect, as sacred overwrites experiments with each tick.')
     result = collection.bulk_write([
-        UpdateOne({'_id': _id}, {'$set': {'seml.description': desc}})
-        for _id, desc in final_desc.items()
+        UpdateOne({'_id': _id}, {'$set': {'seml.description': description}})
+        for _id, description in descriptions_resolved.items()
     ])
     logging.info(f'Updated the descriptions of {result.modified_count} experiments.')
     

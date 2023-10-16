@@ -1,0 +1,26 @@
+fixed:
+  +model:
+    name: cora_ml
+  +evaluation:
+    priority: 1
+
+grid:
+  dataset:
+    type: choice
+    options:
+      - big
+      - medium
+      - average
+    
+
+  +model.priority:
+    type: choice
+    options:
+      - 1
+      - 2
+
+  +evaluation.name:
+    type: choice
+    options:
+      - standard
+      - advanced

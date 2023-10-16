@@ -72,6 +72,7 @@ SETTINGS = munchify(
         "VALID_SEML_CONFIG_VALUES": ['executable', 'name', 'output_dir',
                                      'conda_environment', 'project_root_dir', 
                                      'description'],
+        "SEML_CONFIG_VALUE_VERSION" : 'version',
         "VALID_SLURM_CONFIG_VALUES": ['experiments_per_job', 'max_simultaneous_jobs',
                                       'sbatch_options_template', 'sbatch_options'],
         "LOGIN_NODE_NAMES": ["fs"],
@@ -88,6 +89,14 @@ SETTINGS = munchify(
                 "DEFAULT_CHANNEL": "YOUR_DEFAULT_CHANNEL",
             }
         },
+        
+        "CONFIG_EXCLUDE_KEYS" : ['__doc__'], # keys that will be excluded from resolved configurations, sacred for some reason captures the docstring attribute
+        # Which key is treated as the experiment seed
+        "CONFIG_KEY_SEED" : 'seed',
+        
+        "NAMED_CONFIG_PREFIX" : '+', # prefix for all named configuration parameters
+        "NAMED_CONFIG_KEY_NAME" : 'name', # key that identifies the name of a named config
+        "NAMED_CONFIG_KEY_PRIORITY" : 'priority', # key that identifies the priority of a named config
 
         "CONFIRM_CANCEL_THRESHOLD": 10,
         "CONFIRM_DELETE_THRESHOLD": 10,

@@ -1,0 +1,6 @@
+yaml:
+    value: -2
+
+# overwrites the json value due to higher priority value
+json:
+    value: 10000

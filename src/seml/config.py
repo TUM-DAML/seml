@@ -1,11 +1,14 @@
 import ast
+from collections import defaultdict
 import copy
+from dataclasses import dataclass
 import json
 import logging
 import numbers
 import os
 from itertools import combinations
 from pathlib import Path
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import yaml
 
@@ -14,8 +17,8 @@ from seml.parameters import (cartesian_product_zipped_dict, generate_grid,
                              sample_random_configs, zipped_dict)
 from seml.settings import SETTINGS
 from seml.sources import import_exe
-from seml.utils import (Hashabledict, flatten, merge_dicts, unflatten,
-                        working_directory)
+from seml.utils import (Hashabledict, flatten, make_hash, merge_dicts, unflatten,
+                        working_directory, remove_keys_from_nested)
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
 
@@ -254,7 +257,183 @@ def generate_configs(experiment_config, overwrite_params=None):
     return all_configs
 
 
-def check_config(executable, conda_env, configs, working_dir):
+def generate_named_config(named_config_dict: Dict) -> List[str]:
+    """ Generates a sequence of named configs that is resolved by sacred in-order
+
+    Parameters
+    ----------
+    named_config_dict : Dict
+        Flattened configuration before parsing the named configurations.
+
+    Returns
+    -------
+    List[str]
+        A sequence of named configuration in the order that is defined by the `named_config_dict` input
+    """
+    # Parse named config names and priorities
+    names, priorities = {}, {}
+    for k, v in named_config_dict.items():
+        if k.startswith(SETTINGS.NAMED_CONFIG_PREFIX):
+            if not isinstance(v, Dict):
+                raise ConfigError(f'Named configs should always be provided as {SETTINGS.NAMED_CONFIG_PREFIX}'
+                                 '{identifier}.[' + SETTINGS.NAMED_CONFIG_KEY_NAME + '|' + SETTINGS.NAMED_CONFIG_KEY_PRIORITY + ']: value')
+            for attribute, value in v.items():
+                if attribute == SETTINGS.NAMED_CONFIG_KEY_NAME:
+                    if not isinstance(value, str):
+                        raise ConfigError(f'Named config names should be strings, not {value} ({value.__class__})')
+                    names[k] = value
+                elif attribute == SETTINGS.NAMED_CONFIG_KEY_PRIORITY:
+                    try:
+                        value = int(value)
+                    except:
+                        raise ConfigError(f'Named config priorities should be non-negative integers, not {value} ({value.__class__})')
+                    priorities[k] = value
+                else:
+                    raise ConfigError(f'Named configs only have the attributes {[SETTINGS.NAMED_CONFIG_KEY_NAME, SETTINGS.NAMED_CONFIG_KEY_PRIORITY]}')
+    for idx in priorities:
+        if not idx in names:
+            raise ConfigError(f'Defined a priority but not a name for named config {idx}')
+    return [names[idx] for idx in sorted(names, key=lambda idx: (priorities.get(idx, float('inf')), names[idx]))]
+    
+
+def generate_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[str]]]:
+    """From experiment configurations, generates both the config updates as well as the named configs in the order specified.
+
+    Parameters
+    ----------
+    configs : List[Dict]
+        Input configurations.
+
+    Returns
+    -------
+    List[Dict]
+        For each input configuration, the output configuration that does not contain named configuration specifiers anymore.
+    
+    List[List[str]]]
+        For each input configuration, the sequence of named configurations in the order specified.
+    """
+    result_configs, result_named_configs = [], []
+    for config in configs:
+        result_configs.append({k : v for k, v in config.items() if not k.startswith(SETTINGS.NAMED_CONFIG_PREFIX)})
+        result_named_configs.append(generate_named_config(config))
+    return result_configs, result_named_configs
+    
+
+def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_configs: Optional[List[Tuple[str]]]=None) -> List[Dict]:
+    """Creates configs from an experiment and update values. This is done by re-implementing sacreds `sacred.initialize.create_run`
+    method. Doing this is significantly faster, but it can be out-of-sync with sacred's current implementation.
+
+    Parameters
+    ----------
+    exp : sacred.Experiment
+        The sacred experiment to create configs for
+    configs : List[Dict]
+        Configuration updates for each experiment
+    named_configs : Optional[List[Tuple[str]]], optional
+        Named configs for each experiment, by default ()
+
+    Returns
+    -------
+    Dict
+        The updated configurations containing all values derived from the experiment.
+    """
+    from sacred.utils import convert_to_nested_dict, recursive_update, iterate_flattened, join_paths, set_by_dotted_path
+    from sacred.initialize import (create_scaffolding, gather_ingredients_topological, distribute_config_updates, 
+                                   get_configuration, get_scaffolding_and_config_name, distribute_presets)
+    from omegaconf import OmegaConf
+    configs_resolved = []
+    if named_configs is None:
+        named_configs = [()] * len(configs)
+    for config, named_config in zip(configs, named_configs):
+        
+        # The following code is adapted from sacred directly: This results in a significant speedup
+        # as we only care about the config but not about creating runs, however it is more error prone 
+        # to changes to sacred
+        sorted_ingredients = gather_ingredients_topological(exp)
+        scaffolding = create_scaffolding(exp, sorted_ingredients)
+        # get all split non-empty prefixes sorted from deepest to shallowest
+        prefixes = sorted(
+            [s.split(".") for s in scaffolding if s != ""],
+            reverse=True,
+            key=lambda p: len(p),
+        )
+
+        # --------- configuration process -------------------
+
+        # Phase 1: Config updates
+        config_updates = convert_to_nested_dict(config)
+        distribute_config_updates(prefixes, scaffolding, config_updates)
+        
+        # Phase 2: Named Configs
+        for ncfg in named_config:
+            scaff, cfg_name = get_scaffolding_and_config_name(ncfg, scaffolding)
+            scaff.gather_fallbacks()
+            ncfg_updates = scaff.run_named_config(cfg_name)
+            distribute_presets(scaff.path, prefixes, scaffolding, ncfg_updates)
+            for ncfg_key, value in iterate_flattened(ncfg_updates):
+                set_by_dotted_path(config_updates, join_paths(scaff.path, ncfg_key), value)
+
+        distribute_config_updates(prefixes, scaffolding, config_updates)
+
+        # Phase 3: Normal config scopes
+        for scaffold in scaffolding.values():
+            scaffold.gather_fallbacks()
+            scaffold.set_up_config()
+
+            # update global config
+            config = get_configuration(scaffolding)
+            # run config hooks
+            config_hook_updates = scaffold.run_config_hooks(
+                config, exp.default_command, None
+            )
+            recursive_update(scaffold.config, config_hook_updates)
+
+        # Phase 4: finalize seeding
+        for scaffold in reversed(list(scaffolding.values())):
+            scaffold.set_up_seed()  # partially recursive
+
+        config_resolved = OmegaConf.to_container(OmegaConf.create(get_configuration(scaffolding), flags={"allow_objects": True}), resolve=True)
+        configs_resolved.append(remove_keys_from_nested(config_resolved, config_get_exclude_keys(config_resolved, config)))
+        
+    return configs_resolved
+   
+    
+def resolve_configs(executable: str, conda_env: str, configs: List[Dict], named_configs: List[List[str]], working_dir: str) -> List[Dict]:
+    """Resolves configurations by adding keys that are only added when the experiment is run to the MongoDB
+
+    Parameters
+    ----------
+    executable : str
+        Path to the executable
+    conda_env : str
+        Which conda environment to use
+    configs : List[Dict]
+        All experiment configurations
+    named_configs : List[str]
+        For each experiment, the named configurations to use.
+    working_dir : str
+        Which working directory to use
+
+    Returns
+    -------
+    List[Dict]
+        Resolved configurations
+    """
+    import sacred
+    exp_module = import_exe(executable, conda_env, working_dir)
+
+    # Extract experiment from module
+    exps = [v for k, v in exp_module.__dict__.items() if type(v) == sacred.Experiment]
+    if len(exps) == 0:
+        raise ExecutableError(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
+    elif len(exps) > 1:
+        raise ExecutableError(f"Found more than 1 Sacred experiment in '{executable}'. "
+                              f"Can't resolve configs.")
+    exp = exps[0]
+    return _sacred_create_configs(exp, configs, named_configs)
+  
+    
+def check_config(executable: str, conda_env: str, configs: List[Dict], working_dir: str):
     """Check if the given configs are consistent with the Sacred experiment in the given executable.
 
     Parameters
@@ -263,13 +442,10 @@ def check_config(executable, conda_env, configs, working_dir):
         The Python file containing the experiment.
     conda_env: str
         The experiment's Anaconda environment.
-    configs: list of dicts
+    configs: List[Dict]
         Contains the parameter configurations.
-
-    Returns
-    -------
-    None
-
+    working_dir : str
+        The current working directory.
     """
     import sacred
 
@@ -383,6 +559,12 @@ def read_config(config_path):
     for k in seml_dict.keys():
         if k not in SETTINGS.VALID_SEML_CONFIG_VALUES:
             raise ConfigError(f"{k} is not a valid value in the `seml` config block.")
+        
+    if SETTINGS.SEML_CONFIG_VALUE_VERSION in seml_dict:
+        raise ConfigError(f"Using {SETTINGS.SEML_CONFIG_VALUE_VERSION} in the `seml` config block is prohibited.")
+    
+    from importlib.metadata import version
+    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = version('seml')
 
     determine_executable_and_working_dir(config_path, seml_dict)
 
@@ -455,3 +637,27 @@ def remove_prepended_dashes(param_dict):
         else:
             new_dict[k] = v
     return new_dict
+
+
+def config_get_exclude_keys(config: Dict, config_unresolved: Dict) -> List[str]:
+    """Gets the key that should be excluded from identifying a config. These should
+    e.g. not be used in hashing
+
+    Parameters
+    ----------
+    config : Dict
+        the configuration after resolution by sacred
+    config_unresolved : Dict
+        the configuration before resolution by sacred
+
+    Returns
+    -------
+    List[str]
+        keys that do not identify the config
+    """
+    exclude_keys = SETTINGS.CONFIG_EXCLUDE_KEYS
+    if SETTINGS.CONFIG_KEY_SEED not in config_unresolved:
+        # The seed will only be included (e.g. for hashing) if explicited in the unresolved configuration
+        exclude_keys.append(SETTINGS.CONFIG_KEY_SEED) 
+    return exclude_keys
+    

@@ -1,0 +1,6 @@
+fixed:
+  foo:
+    bar: 3
+  param1: 'value'
+  interpolated_1: ${foo.bar}_${param1}
+  interpolated_2: ${foo.bar}

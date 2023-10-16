@@ -6,16 +6,16 @@ import re
 import subprocess
 import time
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
-from seml.config import check_config
+from seml.config import check_config, generate_named_configs, resolve_configs, config_get_exclude_keys
 from seml.database import (build_filter_dict, get_collection, get_database,
                            get_mongodb_config)
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.typer import prompt
-from seml.utils import (chunker, flatten, get_from_nested,
+from seml.utils import (chunker, flatten, get_from_nested, make_hash,
                         resolve_projection_path_conflicts, s_if, slice_to_str, to_hashable, to_slices)
 
 States = SETTINGS.STATES
@@ -220,7 +220,9 @@ def delete_experiments(
     exp_sources_list = collection.find(filter_dict, {'experiment.sources': 1, 'artifacts': 1})
     for exp in exp_sources_list:
         experiment_files_to_delete.extend(get_experiment_files(exp))
-    collection.delete_many(filter_dict)
+    result = collection.delete_many(filter_dict)
+    if not result.deleted_count == ndelete:
+        logging.error(f'Only {result.deleted_count} of {ndelete} experiments were deleted.')
 
     # Delete sources uploaded by sacred.
     delete_files(collection.database, experiment_files_to_delete)
@@ -439,7 +441,7 @@ def reload_sources(
     db_collection_name: str, 
     batch_ids: Optional[List[int]] = None, 
     keep_old: bool = False,
-    yes: bool = False):
+    yes: bool = False,):
     """Reloads the sources of experiment(s)
 
     Parameters
@@ -452,20 +454,24 @@ def reload_sources(
         Whether to keep old source files in the fs, by default False
     yes : bool, optional
         Whether to override confirmation prompts, by default False
+    resolve : bool, optional
+        Whether to re-resolve the config values 
     """
     import gridfs
+    from pymongo import UpdateOne
+    from importlib.metadata import version
+    
     collection = get_collection(db_collection_name)
     
     if batch_ids is not None and len(batch_ids) > 0:
         filter_dict = {'batch_id': {'$in': list(batch_ids)}}
     else:
         filter_dict = {}
-    db_results = list(collection.find(filter_dict, {'batch_id', 'seml', 'config', 'status'}))
-    id_to_config = {
-        bid: (next(iter(configs))['seml'], [x['config'] for x in configs])
-        for bid, configs in
-        itertools.groupby(db_results, lambda x: x['batch_id'])
-    }
+    db_results = list(collection.find(filter_dict, {'batch_id', 'seml', 'config', 'status', 'config_unresolved'}))
+    id_to_config = {}
+    for bid, configs in itertools.groupby(db_results, lambda x: x['batch_id']):
+        configs = list(configs)
+        id_to_config[bid] = configs[0]['seml'], [x['config'] for x in configs], [x.get('config_unresolved', None) for x in configs], [x['_id'] for x in configs]
     states = {x['status'] for x in db_results}
 
     if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
@@ -473,10 +479,35 @@ def reload_sources(
         if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
             exit(1)
 
-    for batch_id, (seml_config, configs) in id_to_config.items():
+    for batch_id, (seml_config, configs, configs_unresolved, experiment_ids) in id_to_config.items():
+        version_seml_config = seml_config.get(SETTINGS.SEML_CONFIG_VALUE_VERSION, None)
+        if version_seml_config != version('seml'):
+            logging.warn(f'Batch {batch_id} was added with seml version "{version_seml_config}" '
+                         f'which mismatches the current version {version("seml")}')
+        
         if 'working_dir' not in seml_config or not seml_config['working_dir']:
             logging.error(f'Batch {batch_id}: No source files to refresh.')
             continue
+
+        if any(c is None for c in configs_unresolved):
+            logging.warn(f'Some experiments of batch {batch_id} do not have an unresolved configuration. '
+                            'The resolved configuration "config" will be used for resolution instead.')
+        configs_unresolved = [c_unresolved if c_unresolved is not None else c for c, c_unresolved in zip(configs, configs_unresolved)]
+        configs, named_configs = generate_named_configs(configs_unresolved)
+        configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, named_configs, seml_config['working_dir'])
+        
+        # If the seed was explicited, it should be kept for the new resolved config when reloading resources
+        for config, config_unresolved in zip(configs, configs_unresolved):
+            if SETTINGS.CONFIG_KEY_SEED in configs_unresolved:
+                config[SETTINGS.CONFIG_KEY_SEED] = config_unresolved[SETTINGS.CONFIG_KEY_SEED]
+            
+        
+        config_hashes = [make_hash(c, config_get_exclude_keys(c, c_unresolved)) for c, c_unresolved in zip(configs, configs_unresolved)]
+        result = collection.bulk_write([
+            UpdateOne({'_id' : experiment_id}, {'$set' : {'config' : config, 'config_hash' : config_hash}})
+            for config, config_hash, experiment_id in zip(configs, config_hashes, experiment_ids)
+        ])
+        logging.info(f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).')
 
         # Check whether the configurations aligns with the current source code
         check_config(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
@@ -504,6 +535,7 @@ def reload_sources(
             logging.error(f"Batch {batch_id}: Source import failed. Restoring old files.")
             db['fs.files'].update_many(fs_filter_dict, {'$unset': {'metadata.deprecated': ""}})
             raise e
+        
         try:
             # Try to assign the new ones to the experiments
             filter_dict = {
@@ -529,9 +561,11 @@ def reload_sources(
                 'metadata.collection_name': f'{collection.name}',
                 'metadata.deprecated': True
             }
-            source_files = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
-            for to_delete in source_files:
+            source_files_old = [x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})]
+            for to_delete in source_files_old:
                 fs.delete(to_delete)
+
+        
                 
 def print_fail_trace(
     db_collection_name: str, 
@@ -669,12 +703,14 @@ def print_status(
     for projection_column in projection_columns:
         projection_key_idx = int(re.match(r'.*\$([0-9]+)(\..*|$)', projection_column).groups()[0])
         columns.append(projection_column.replace(f'${projection_key_idx}', projection[projection_key_idx]))
+    duplicate_experiment_ids = set(experiment_id for dups in detect_duplicates(db_collection_name) for experiment_id in dups)
     
     table = Table(
         Column("Status", justify="left", footer='Total'),
         Column("Count", justify="left", footer=str(sum(record['count'] for record in result))),
         Column("Experiment IDs", justify="left"),
         Column("Batch IDs", justify="left"),
+        Column("Duplicates", footer=str(len(duplicate_experiment_ids))),
         # TODO: Column width of "Description(s)" is a weird magic number, but calculating the width does not easily work with custom projections, slices etc...
         Column("Description(s)", justify="left"), 
         *[Column(key, justify="left") for key in columns],
@@ -687,6 +723,7 @@ def print_status(
             str(record['count']),
             ", ".join(map(slice_to_str, to_slices(record['ids']))),
             ", ".join(map(slice_to_str, to_slices(record['batch_ids']))),
+            str(len(set(record['ids']) & duplicate_experiment_ids)),
             ", ".join(
                 [f'"{description}"' for description in record['descriptions']]
                 if len(record['descriptions']) > 1 else record['descriptions']),
@@ -800,3 +837,72 @@ def list_database(
     # For some reason the table thinks the terminal is larger than it is
     table = Align(table, align="center", width=console.width - max_len + 1)
     console.print(Align(table, align="center"), soft_wrap=True)
+
+
+def detect_duplicates(db_collection_name: str,
+                      filter_dict: Optional[Dict]=None) -> List[Set[int]]:
+    """Finds duplicate configurations based on their hashes.
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to check
+
+    Returns
+    -------
+    List[Set[int]]
+        All duplicate experiments.
+    """
+    collection = get_collection(db_collection_name)
+    pipeline = [{
+            '$group' : {
+                '_id' : '$config_hash',
+                'ids' : {'$addToSet' : '$_id'},
+                'count' : {'$sum' : 1},}
+        },
+        {
+            '$match' : {
+                'count' : {'$gt' : 1},
+            }
+        }]
+    if filter_dict is not None:
+        pipeline = [{'$match' : filter_dict}] + pipeline
+    duplicates = collection.aggregate(pipeline)
+    return [set(duplicate['ids']) for duplicate in duplicates]
+
+def print_duplicates(
+    db_collection_name: str,
+    filter_states: Optional[List[str]] = None, 
+    batch_id: Optional[int] = None, 
+    filter_dict: Optional[Dict] = None,):
+    """Detects and lists duplicate experiment configurations
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to detect duplicates in
+    filter_states : Optional[List[str]], optional
+        Optional filter on states, by default None
+    batch_id : Optional[int], optional
+        Optional filter on batch IDs, by default None
+    filter_dict : Optional[Dict], optional
+        Optional additional user filters, by default None
+    """
+        
+    from seml.console import console
+    from rich.panel import Panel
+    from rich.text import Text
+    if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
+        detect_killed(db_collection_name, print_detected=False)
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None)
+    duplicates = detect_duplicates(db_collection_name, filter_dict)
+    num_duplicates = sum(map(len, duplicates))
+    sorted_duplicates = sorted(list(map(lambda d: tuple(sorted(d)), duplicates)))
+    panel = Panel(
+        Text.assemble(('Duplicate experiment ID groups: ', 'bold'), 
+                      (', '.join(map(str, sorted_duplicates)))),
+        title=console.render_str(f'Found {num_duplicates} duplicate experiment configurations ({len(duplicates)} groups)'),
+        highlight=True,
+        border_style='red',
+    )
+    console.print(panel)

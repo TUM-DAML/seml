@@ -19,7 +19,7 @@ from seml.description import (collection_delete_description,
                               collection_list_descriptions,
                               collection_set_description)
 from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
-                         list_database, print_fail_trace, print_status, reload_sources,
+                         list_database, print_duplicates, print_fail_trace, print_status, reload_sources,
                          reset_experiments)
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
@@ -177,8 +177,13 @@ PrintFullDescriptionAnnotation = Annotated[bool, typer.Option(
 UpdateStatusAnnotation = Annotated[bool, typer.Option(
     '-u',
     '--update-status',
-    help="Whether to update the status of experiments in the database."
+    help="Whether to update the status of experiments in the database. "
             "This can take a while for large collections. Use only if necessary.",
+    is_flag=True,
+)]
+NoResolveDescriptionAnnotation = Annotated[bool, typer.Option(
+    '--no-resolve-descriptions',
+    help="Whether to prevent using omegaconf to resolve experiment descriptions",
     is_flag=True,
 )]
 
@@ -408,6 +413,7 @@ def add_command(
             parser=json.loads
         ),
     ] = None,
+    no_resolve_descriptions: NoResolveDescriptionAnnotation = False,
 ):
     """
     Add experiments to the database as defined in the configuration.
@@ -419,7 +425,8 @@ def add_command(
         no_hash=no_hash,
         no_sanity_check=no_sanity_check,
         no_code_checkpoint=no_code_checkpoint,
-        overwrite_params=overwrite_params
+        overwrite_params=overwrite_params,
+        resolve_descriptions=not no_resolve_descriptions,
     )
 
 @app.command("start")
@@ -587,7 +594,7 @@ def reload_sources_command(
         ctx.obj['collection'],
         batch_ids=batch_ids,
         keep_old=keep_old,
-        yes=yes
+        yes=yes,
     )
 
 
@@ -698,6 +705,22 @@ app_description = typer.Typer(
 )
 app.add_typer(app_description, name="description")
 
+@app.command("detect-duplicates")
+@restrict_collection()
+def detect_duplicates_command(
+    ctx: typer.Context,
+    filter_states: FilterStatesAnnotation = [*States.STAGED, *States.FAILED, *States.KILLED, *States.INTERRUPTED],
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+):
+    """
+    Prints duplicate experiment configurations.
+    """
+    print_duplicates(ctx.obj['collection'],
+                     filter_states=filter_states,
+                     filter_dict=filter_dict,
+                     batch_id=batch_id)
+
 @app_description.command("set")
 @restrict_collection()
 def description_set_command(
@@ -713,13 +736,14 @@ def description_set_command(
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     yes: YesAnnotation = False,
+    no_resolve_description: NoResolveDescriptionAnnotation = False,
 ):
     """
     Sets the description of experiment(s).
     """
     collection_set_description(ctx.obj['collection'], description, sacred_id=sacred_id,
                                 filter_states=filter_states, filter_dict=filter_dict,
-                                batch_id=batch_id, yes=yes)
+                                batch_id=batch_id, yes=yes, resolve=not no_resolve_description)
 
 @app_description.command("delete")
 @restrict_collection()

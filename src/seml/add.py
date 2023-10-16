@@ -2,19 +2,24 @@ import copy
 import datetime
 import logging
 import os
+from typing import Dict, List, Optional, Tuple
 
-from seml.config import (check_config, generate_configs, read_config,
-                         remove_prepended_dashes)
+from seml.config import (check_config, generate_configs, generate_named_configs, read_config,
+                         remove_prepended_dashes, resolve_configs, config_get_exclude_keys)
 from seml.database import get_collection, get_max_in_collection
+from seml.description import resolve_description
 from seml.errors import ConfigError
 from seml.settings import SETTINGS
 from seml.sources import get_git_info, upload_sources
-from seml.utils import flatten, make_hash, merge_dicts, s_if
+from seml.utils import Hashabledict, flatten, make_hash, merge_dicts, remove_keys_from_nested, s_if, unflatten
 
 States = SETTINGS.STATES
 
 
-def filter_experiments(collection, configurations):
+def filter_experiments(collection: 'pymongo.collection.Collection', 
+                       configurations: List[Dict],
+                       configurations_unresolved: List[Dict],
+                       use_hash: bool = True):
     """Check database collection for already present entries.
 
     Check the database collection for experiments that have the same configuration.
@@ -25,8 +30,12 @@ def filter_experiments(collection, configurations):
     ----------
     collection: pymongo.collection.Collection
         The MongoDB collection containing the experiments.
-    configurations: list of dicts
+    configurations: List[Dict]
         Contains the individual parameter configurations.
+    configurations_unresolved: List[Dict]
+        Contains the individual parameter configurations before resolution via sacred.
+    use_hash : bool
+        Whether to use hashes (faster)
 
     Returns
     -------
@@ -34,46 +43,51 @@ def filter_experiments(collection, configurations):
         No longer contains configurations that are already in the database collection.
 
     """
-
+        
     filtered_configs = []
-    for config in configurations:
-        if 'config_hash' in config:
-            config_hash = config['config_hash']
-            del config['config_hash']
-            lookup_result = collection.find_one({'config_hash': config_hash})
+    for config, config_unresolved in zip(configurations, configurations_unresolved):
+        exclude_keys = config_get_exclude_keys(config, config_unresolved)
+        if use_hash:
+            lookup_result = collection.find_one({'config_hash': make_hash(config, exclude_keys)})
         else:
-            lookup_dict = flatten({'config': config})
-            lookup_result = collection.find_one(lookup_dict)
-
+            lookup_dict = flatten({'config': remove_keys_from_nested(config, exclude_keys)})
+            lookup_result = collection.find_one(unflatten(lookup_dict))
         if lookup_result is None:
             filtered_configs.append(config)
 
     return filtered_configs
 
 
-def add_configs(collection, seml_config, slurm_config, configs, source_files=None,
-                git_info=None):
+def add_configs(
+    collection: 'pymongo.collection.Collection', 
+    seml_config: Dict, 
+    slurm_config: Dict, 
+    configs: List[Dict], 
+    configs_unresolved: List[Dict], 
+    source_files: Optional[List[Tuple]] = None,
+    git_info: Optional[Dict] = None,
+    resolve_descriptions: bool = True):
     """Put the input configurations into the database.
 
     Parameters
     ----------
     collection: pymongo.collection.Collection
         The MongoDB collection containing the experiments.
-    seml_config: dict
+    seml_config: Dict
         Configuration for the SEML library.
-    slurm_config: dict
+    slurm_config: Dict
         Settings for the Slurm job. See `start_experiments.start_slurm_job` for details.
-    configs: list of dicts
+    configs: List[Dict]
         Contains the parameter configurations.
-    source_files: (optional) list of tuples
+    configs_unresolved: List[Dict]
+        Contains the parameter configurations before resolution.
+    source_files: Optional[List[Tuple]]
         Contains the uploaded source files corresponding to the batch. Entries are of the form
         (object_id, relative_path)
-    git_info: (Optional) dict containing information about the git repo status.
-
-    Returns
-    -------
-    None
-
+    git_info: Optional[Dict]
+        containing information about the git repo status.
+    resolve_descriptions : bool, optional
+        Whether to use omegaconf to resolve descriptions.
     """
 
     if len(configs) == 0:
@@ -95,25 +109,59 @@ def add_configs(collection, seml_config, slurm_config, configs, source_files=Non
 
     if source_files is not None:
         seml_config['source_files'] = source_files
-    db_dicts = [{'_id': start_id + ix,
+    db_dicts = [{'_id': start_id + idx,
                  'batch_id': batch_id,
                  'status': States.STAGED[0],
                  'seml': seml_config,
                  'slurm': slurm_config,
                  'config': c,
-                 'config_hash': make_hash(c),
+                 'config_unresolved' : c_unresolved,
+                 'config_hash': make_hash(c, config_get_exclude_keys(c, c_unresolved)),
                  'git': git_info,
                  'add_time': datetime.datetime.utcnow()}
-                for ix, c in enumerate(configs)]
+                for idx, (c, c_unresolved) in enumerate(zip(configs, configs_unresolved))]
+    if resolve_descriptions:
+        for db_dict in db_dicts:
+            if 'description' in db_dict['seml']:
+                db_dict['seml']['description'] = resolve_description(db_dict['seml']['description'], db_dict)
 
     collection.insert_many(db_dicts)
 
-def add_config_files(db_collection_name, config_files, force_duplicates, overwrite_params=None, no_hash=False, no_sanity_check=False,
-                    no_code_checkpoint=False):
+
+def add_config_files(db_collection_name: str, 
+                     config_files: List[str], 
+                     force_duplicates: bool = False, 
+                     overwrite_params: Optional[Dict] = None, 
+                     no_hash: bool = False, 
+                     no_sanity_check: bool = False,
+                     no_code_checkpoint: bool = False,
+                     resolve_descriptions: bool = True,):
+    """Adds configuration files to the MongoDB
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to which to add
+    config_files : List[str]
+        A list of paths to configuration files (YAML) to add
+    force_duplicates : bool, optional
+        Whether to force adding configurations even if they are already in the MongoDB, by default False
+    overwrite_params : Optional[Dict], optional
+        Optional flat dict to override configuration values, by default None
+    no_hash : bool, optional
+        Whether to skip duplicate detection by computing hashes, which may result in slowdowns, by default False
+    no_sanity_check : bool, optional
+        Whether to skip feeding configuration values into the sacred experiment to detect unsupported or missing keys, by default False
+    no_code_checkpoint : bool, optional
+        Whether to not base the experiments on a copy of the current codebase, by default False
+    resolve_descriptions : bool, optional
+        Whether to use omegaconf to resolve experiment descriptions.
+    """
     config_files = [os.path.abspath(file) for file in config_files]
     for config_file in config_files:
         add_config_file(db_collection_name, config_file, force_duplicates,
-                        overwrite_params, no_hash, no_sanity_check,no_code_checkpoint)
+                        overwrite_params, no_hash, no_sanity_check,no_code_checkpoint,
+                        resolve_descriptions=resolve_descriptions)
 
 
 def assemble_slurm_config_dict(experiment_slurm_config: dict):
@@ -152,25 +200,34 @@ def assemble_slurm_config_dict(experiment_slurm_config: dict):
     return slurm_config
 
 
-def add_config_file(db_collection_name, config_file, force_duplicates, overwrite_params=None, no_hash=False, no_sanity_check=False,
-                    no_code_checkpoint=False):
-    """
-    Add configurations from a config file into the database.
+def add_config_file(db_collection_name: str, 
+                     config_file: str, 
+                     force_duplicates: bool = False, 
+                     overwrite_params: Optional[Dict] = None, 
+                     no_hash: bool = False, 
+                     no_sanity_check: bool = False,
+                     no_code_checkpoint: bool = False,
+                     resolve_descriptions: bool = True,):
+    """Adds configuration files to the MongoDB
 
     Parameters
     ----------
-    db_collection_name: the MongoDB collection name.
-    config_file: path to the YAML configuration.
-    force_duplicates: if True, disable duplicate detection.
-    overwrite_params: optional flat dictionary to overwrite parameters in all configs.
-    no_hash: if True, disable hashing of the configurations for duplicate detection. This is much slower, so use only
-        if you have a good reason to.
-    no_sanity_check: if True, do not check the config for missing/unused arguments.
-    no_code_checkpoint: if True, do not upload the experiment source code files to the MongoDB.
-
-    Returns
-    -------
-    None
+    db_collection_name : str
+        The collection to which to add
+    config_files : str
+        A path to configuration file (YAML) to add
+    force_duplicates : bool, optional
+        Whether to force adding configurations even if they are already in the MongoDB, by default False
+    overwrite_params : Optional[Dict], optional
+        Optional flat dict to override configuration values, by default None
+    no_hash : bool, optional
+        Whether to skip duplicate detection by computing hashes, which may result in slowdowns, by default False
+    no_sanity_check : bool, optional
+        Whether to skip feeding configuration values into the sacred experiment to detect unsupported or missing keys, by default False
+    no_code_checkpoint : bool, optional
+        Whether to not base the experiments on a copy of the current codebase, by default False
+    resolve_descriptions : bool, optional
+        Whether to use omegaconf to resolve descriptions
     """
     seml_config, slurm_config, experiment_config = read_config(config_file)
 
@@ -181,7 +238,9 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
     # Assemble the Slurm config:
     slurm_config = assemble_slurm_config_dict(slurm_config)
 
-    configs = generate_configs(experiment_config, overwrite_params=overwrite_params)
+    configs_unresolved = generate_configs(experiment_config, overwrite_params=overwrite_params)
+    configs, named_configs = generate_named_configs(configs_unresolved)
+    configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, named_configs, seml_config['working_dir'])
     collection = get_collection(db_collection_name)
 
     batch_id = get_max_in_collection(collection, "batch_id")
@@ -197,8 +256,9 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
     del seml_config['use_uploaded_sources']
 
     if not no_sanity_check:
+        # Sanity checking uses the resolved values (after considering named configs)
         check_config(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
-
+        
     path, commit, dirty = get_git_info(seml_config['executable'], seml_config['working_dir'])
 
     git_info = None
@@ -207,7 +267,7 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
 
     use_hash = not no_hash
     if use_hash:
-        configs = [{**c, **{'config_hash': make_hash(c)}} for c in configs]
+        config_hashes = [make_hash(c, config_get_exclude_keys(c, c_unresolved)) for c, c_unresolved in zip(configs, configs_unresolved)]
 
     if not force_duplicates:
         len_before = len(configs)
@@ -215,19 +275,21 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
         # First, check for duplicates withing the experiment configurations from the file.
         if not use_hash:
             # slow duplicate detection without hashes
-            unique_configs = []
-            for c in configs:
-                if c not in unique_configs:
+            unique_configs, unique_keys = [], set()
+            for c, c_unresolved in zip(configs, configs_unresolved):
+                key = Hashabledict(**remove_keys_from_nested(c, config_get_exclude_keys(c, c_unresolved)))
+                if key not in unique_keys:
                     unique_configs.append(c)
+                    unique_keys.add(key)
             configs = unique_configs
         else:
             # fast duplicate detection using hashing.
-            configs_dict = {c['config_hash']: c for c in configs}
+            configs_dict = {config_hash: c for c, config_hash in zip(configs, config_hashes)}
             configs = [v for k, v in configs_dict.items()]
 
         len_after_deduplication = len(configs)
         # Now, check for duplicate configurations in the database.
-        configs = filter_experiments(collection, configs)
+        configs = filter_experiments(collection, configs, configs_unresolved, use_hash=use_hash)
         len_after = len(configs)
         if len_after_deduplication != len_before:
             logging.info(f"{len_before - len_after_deduplication} of {len_before} experiment{s_if(len_before)} were "
@@ -240,4 +302,5 @@ def add_config_file(db_collection_name, config_file, force_duplicates, overwrite
     collection.create_index("config_hash")
     # Add the configurations to the database with STAGED status.
     if len(configs) > 0:
-        add_configs(collection, seml_config, slurm_config, configs, uploaded_files, git_info)
+        add_configs(collection, seml_config, slurm_config, configs, configs_unresolved, uploaded_files, git_info, resolve_descriptions=resolve_descriptions)
+        
