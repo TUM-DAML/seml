@@ -657,7 +657,6 @@ def print_fail_trace(
 def print_status(
     db_collection_name: str, 
     update_status: bool = True, 
-    detect_duplicates_: bool = True,
     projection: Optional[List[str]] = None):
     """Prints the status of an experiment collection
 
@@ -675,7 +674,6 @@ def print_status(
     from rich.box import SIMPLE
     from rich.table import Table, Column
     from seml.console import console
-    from rich.text import Text
     collection = get_collection(db_collection_name)
     
     # Handle status updates
@@ -716,16 +714,14 @@ def print_status(
     for projection_column in projection_columns:
         projection_key_idx = int(re.match(r'.*\$([0-9]+)(\..*|$)', projection_column).groups()[0])
         columns.append(projection_column.replace(f'${projection_key_idx}', projection[projection_key_idx]))
-    
-    if detect_duplicates_:
-        duplicate_experiment_ids = set(experiment_id for dups in detect_duplicates(db_collection_name) for experiment_id in dups)
+    duplicate_experiment_ids = set(experiment_id for dups in detect_duplicates(db_collection_name) for experiment_id in dups)
     
     table = Table(
         Column("Status", justify="left", footer='Total'),
         Column("Count", justify="left", footer=str(sum(record['count'] for record in result))),
         Column("Experiment IDs", justify="left"),
         Column("Batch IDs", justify="left"),
-        *([Column("Duplicates", footer=str(len(duplicate_experiment_ids)))] if detect_duplicates_ else []),
+        Column("Duplicates", footer=str(len(duplicate_experiment_ids))),
         # TODO: Column width of "Description(s)" is a weird magic number, but calculating the width does not easily work with custom projections, slices etc...
         Column("Description(s)", justify="left"), 
         *[Column(key, justify="left") for key in columns],
@@ -744,7 +740,7 @@ def print_status(
             str(record['count']),
             ", ".join(map(slice_to_str, to_slices(record['ids']))),
             ", ".join(map(slice_to_str, to_slices(record['batch_ids']))),
-            *([str(len(set(record['ids']) & duplicate_experiment_ids))] if detect_duplicates_ else []),
+            str(len(set(record['ids']) & duplicate_experiment_ids)),
             ", ".join(
                 [f'"{description}"' for description in record['descriptions']]
                 if len(record['descriptions']) > 1 else record['descriptions']),
@@ -925,9 +921,10 @@ def print_duplicates(
     filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None)
     duplicates = detect_duplicates(db_collection_name, filter_dict)
     num_duplicates = sum(map(len, duplicates))
+    sorted_duplicates = sorted(list(map(lambda d: tuple(sorted(d)), duplicates)))
     panel = Panel(
         Text.assemble(('Duplicate experiment ID groups: ', 'bold'), 
-                      (', '.join(sorted(list(map(lambda d: str(tuple(sorted(d))), duplicates)))))),
+                      (', '.join(map(str, sorted_duplicates)))),
         title=console.render_str(f'Found {num_duplicates} duplicate experiment configurations ({len(duplicates)} groups)'),
         highlight=True,
         border_style='red',

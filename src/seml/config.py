@@ -293,7 +293,7 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
     for idx in priorities:
         if not idx in names:
             raise ConfigError(f'Defined a priority but not a name for named config {idx}')
-    return [names[idx] for idx in sorted(names, key=lambda idx: (priorities.get(idx, max([-1] + list(priorities.values()))), names[idx]))]
+    return [names[idx] for idx in sorted(names, key=lambda idx: (priorities.get(idx, float('inf')), names[idx]))]
     
 
 def generate_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[str]]]:

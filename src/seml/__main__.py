@@ -690,20 +690,13 @@ def status_command(
     ctx: typer.Context,
     update_status: UpdateStatusAnnotation = True,
     projection: ProjectionAnnotation = None,
-    no_detect_duplicates: Annotated[bool, typer.Option(
-        '-ndd',
-        '--no-detect-duplicates',
-        help="Whether to not print if there is any duplicates.",
-        is_flag=True,
-    )] = False
 ):
     """
     Report status of experiments in the database collection.
     """
     print_status(ctx.obj['collection'], 
                  update_status=update_status, 
-                 projection=projection,
-                 detect_duplicates_=not no_detect_duplicates)
+                 projection=projection)
 
 app_description = typer.Typer(
     no_args_is_help=True,
