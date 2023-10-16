@@ -60,6 +60,7 @@ $ seml add [OPTIONS] CONFIG_FILES...
 * `-ncc, --no-code-checkpoint`: Disable this if you want your experiments to use the current codeinstead of the code at the time of adding.
 * `-f, --force`: Force adding the experiment even if it already exists in the database.
 * `-o, --overwrite-params JSON`: Dictionary (passed as a string, e.g. '{"epochs": 100}') to overwrite parameters in the config.
+* `--no-resolve-descriptions`: Whether to prevent using omegaconf to resolve experiment descriptions
 * `--help`: Show this message and exit.
 
 ## `seml cancel`
@@ -183,7 +184,7 @@ $ seml description list [OPTIONS]
 
 **Options**:
 
-* `-u, --update-status`: Whether to update the status of experiments in the database.This can take a while for large collections. Use only if necessary.
+* `-u, --update-status`: Whether to update the status of experiments in the database. This can take a while for large collections. Use only if necessary.
 * `--help`: Show this message and exit.
 
 ### `seml description set`
@@ -207,6 +208,7 @@ $ seml description set [OPTIONS] DESCRIPTION
 * `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-y, --yes`: Automatically confirm all dialogues with yes.
+* `--no-resolve-descriptions`: Whether to prevent using omegaconf to resolve experiment descriptions
 * `--help`: Show this message and exit.
 
 ## `seml detect-duplicates`
@@ -282,7 +284,7 @@ $ seml list [OPTIONS] [PATTERN]
 **Options**:
 
 * `-p, --progress`: Whether to print a progress bar for iterating over collections.
-* `-u, --update-status`: Whether to update the status of experiments in the database.This can take a while for large collections. Use only if necessary.
+* `-u, --update-status`: Whether to update the status of experiments in the database. This can take a while for large collections. Use only if necessary.
 * `-fd, --full-descriptions`: Whether to print full descriptions (possibly with line breaks).
 * `--help`: Show this message and exit.
 
@@ -422,7 +424,6 @@ $ seml status [OPTIONS]
 
 **Options**:
 
-* `-u, --update-status`: Whether to update the status of experiments in the database.This can take a while for large collections. Use only if necessary.  [default: True]
+* `-u, --update-status`: Whether to update the status of experiments in the database. This can take a while for large collections. Use only if necessary.  [default: True]
 * `-p, --projection KEY`: List of configuration keys, e.g., `config.model`, to additionally print.
-* `-ndd, --no-detect-duplicates`: Whether to not print if there is any duplicates.
 * `--help`: Show this message and exit.
