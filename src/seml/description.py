@@ -125,10 +125,8 @@ def collection_list_descriptions(db_collection_name: str, update_status: bool = 
         Whether to detect killed experiments
     """
     from rich.align import Align
-    from rich.box import SIMPLE
-    from rich.table import Table
 
-    from seml.console import console
+    from seml.console import console, Table
     collection = get_collection(db_collection_name)
     
     # Handle status updates
@@ -153,15 +151,7 @@ def collection_list_descriptions(db_collection_name: str, update_status: bool = 
         }])
     }
 
-    table = Table(
-        show_header=True,
-        collapse_padding=True,
-        show_lines=False,
-        show_edge=False,
-        row_styles=["none", "dim"],
-        box=SIMPLE,
-        highlight=True
-    )
+    table = Table(show_header=True)
     table.add_column("Description", justify="left")
     table.add_column("Experiment IDs", justify="left")
     table.add_column("Batch IDs", justify="left")

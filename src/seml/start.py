@@ -9,6 +9,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
+from typing import Dict, Optional
 
 from seml.database import build_filter_dict, get_collection
 from seml.errors import ArgumentError, ConfigError, MongoDBError
@@ -709,8 +710,18 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     tq.close()
 
 
-def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps,
-                  worker_gpus=None, worker_cpus=None, worker_environment_vars=None):
+def print_command(
+    db_collection_name: str,
+    sacred_id: Optional[int],
+    batch_id: Optional[int],
+    filter_dict: Dict,
+    num_exps: int,
+    worker_gpus: Optional[str] = None,
+    worker_cpus: Optional[int] = None,
+    worker_environment_vars: Dict = None):
+    import rich
+
+    from seml.console import console, Heading
 
     collection = get_collection(db_collection_name)
 
@@ -734,34 +745,34 @@ def print_command(db_collection_name, sacred_id, batch_id, filter_dict, num_exps
                                                  unobserved=True, post_mortem=False, use_json=True)
     env = exp['seml'].get('conda_environment')
 
-    logging.info("********** First experiment **********")
+    console.print(Heading("First experiment"))
     logging.info(f"Executable: {exe}")
     if env is not None:
         logging.info(f"Anaconda environment: {env}")
 
-    logging.info("\nArguments for VS Code debugger:")
-    logging.info(json.dumps(["with", "--debug"] + vscode_config))
-    logging.info("Arguments for PyCharm debugger:")
-    logging.info("with --debug " + get_config_overrides(config))
+    console.print(Heading("Arguments for VS Code debugger"))
+    rich.print_json(data=["with", "--debug"] + vscode_config)
+    console.print(Heading("Arguments for PyCharm debugger"))
+    print("with --debug " + get_config_overrides(config))
 
-    logging.info("\nCommand for post-mortem debugging:")
+    console.print(Heading("Command for post-mortem debugging"))
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
                                                     verbose=logging.root.level <= logging.VERBOSE,
                                                     unobserved=True, post_mortem=True)
-    logging.info(get_shell_command(interpreter, exe, config, env=env_dict))
+    print(get_shell_command(interpreter, exe, config, env=env_dict))
 
-    logging.info("\nCommand for remote debugging:")
+    console.print(Heading("Command for remote debugging"))
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
                                                     verbose=logging.root.level <= logging.VERBOSE,
                                                     unobserved=True, debug_server=True, print_info=False)
-    logging.info(get_shell_command(interpreter, exe, config, env=env_dict))
+    print(get_shell_command(interpreter, exe, config, env=env_dict))
 
-    logging.info("\n********** All raw commands **********")
+    console.print(Heading("All raw commands"))
     logging.root.setLevel(orig_level)
     for exp in exps_list:
         interpreter, exe, config = get_command_from_exp(
                 exp, collection.name, verbose=logging.root.level <= logging.VERBOSE)
-        logging.info(get_shell_command(interpreter, exe, config, env=env_dict))
+        print(get_shell_command(interpreter, exe, config, env=env_dict))
 
 
 def start_experiments(db_collection_name, local, sacred_id, batch_id, filter_dict,
