@@ -62,16 +62,16 @@ Contact us at zuegnerd@in.tum.de, johannes.gasteiger@tum.de, or n.gao@tum.de for
 When you use SEML in your own work, please cite the software along the lines of the following bibtex:
 
 ```
-@software{seml_2022,
-  author = {Z{\"u}gner, Daniel and Gasteiger, Johannes and Gao, Nicholas},
+@software{seml_2023,
+  author = {Z{\"u}gner, Daniel and Gasteiger, Johannes and Gao, Nicholas and Dominik Fuchsgruber},
   title = {{SEML: Slurm Experiment Management Library}},
   url = {https://github.com/TUM-DAML/seml},
-  version = {0.3.7},
-  year = {2022}
+  version = {0.4.0},
+  year = {2023}
 }
 ```
 
 
 Copyright (C) 2023
-Daniel Zügner, Johannes Gasteiger, and Nicholas Gao  
+Daniel Zügner, Johannes Gasteiger, Nicholas Gao, Dominik Fuchsgruber
 Technical University of Munich
