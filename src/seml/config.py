@@ -274,9 +274,12 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
     names, priorities = {}, {}
     for k, v in named_config_dict.items():
         if k.startswith(SETTINGS.NAMED_CONFIG_PREFIX):
+            if isinstance(v, str):
+                v = dict(name=str(v))
             if not isinstance(v, Dict):
-                raise ConfigError(f'Named configs should always be provided as {SETTINGS.NAMED_CONFIG_PREFIX}'
-                                 '{identifier}.[' + SETTINGS.NAMED_CONFIG_KEY_NAME + '|' + SETTINGS.NAMED_CONFIG_KEY_PRIORITY + ']: value')
+                raise ConfigError(f'Named configs must be given as '
+                                 f'{SETTINGS.NAMED_CONFIG_PREFIX}{"{identifier}"}: str | '
+                                 '{"name": str, "priority": int}')
             for attribute, value in v.items():
                 if attribute == SETTINGS.NAMED_CONFIG_KEY_NAME:
                     if not isinstance(value, str):

@@ -77,7 +77,7 @@ fixed:
   training.num_epochs: 100
   optimization:
     optimizer_type: Adam
-  +preprocessing.priority: 1
+  # +preprocessing.priority: 1
   +batchnorm.priority: 2
 
 grid:
@@ -90,7 +90,7 @@ grid:
       - variant_2
     zip_id: model_dataset  # The model_type jointly changes with all other parameters of the mode_dataset group
 
-  +preprocessing.name:
+  +preprocessing:
     type: choice
     # The `name` attribute selects which named config is run (see the methods `preprocessing_none` and `preprocessing_normalize` 
     # in `advanced_example_experiment.py`)
