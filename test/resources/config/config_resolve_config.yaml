@@ -1,26 +1,26 @@
 fixed:
   foo: 33
   bar: 44
-  $named_config_json.priority: 1
-  $named_config_yaml.priority: 2 # yaml can overwrite the json
+  +json.priority: 1
+  +yaml.priority: 2 # yaml can overwrite the json
 
 grid:
   # Load parameters from python code
-  $named_config_py.name:
+  +py.name:
     type: choice
     options:
       - py_named_1
       - py_named_2
 
   # Load parameters from a json file
-  $named_config_json.name:
+  +json.name:
     type: choice
     options:
       - resources/config/config_resolve_config_named_1.json
       - resources/config/config_resolve_config_named_2.json
 
   # Load parameters from a yaml file
-  $named_config_yaml.name:
+  +yaml.name:
     type: choice
     options:
       - resources/config/config_resolve_config_named_1.yaml

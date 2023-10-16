@@ -231,7 +231,7 @@ class TestParseConfigDicts(unittest.TestCase):
         
         # make an unnamed named config
         config_dict = self.load_config_dict(self.CONFIG_WITH_NAMED_CONFIGS)
-        del config_dict['fixed']['$named_config_model']['name']
+        del config_dict['fixed']['+model']['name']
         with self.assertRaises(ConfigError):
             configs_unresolved = config.generate_configs(config_dict)
             configs, named_configs = config.generate_named_configs(configs_unresolved)
@@ -239,7 +239,7 @@ class TestParseConfigDicts(unittest.TestCase):
         # assign invalid priorities
         for priority in (None, 'foo'):
             config_dict = self.load_config_dict(self.CONFIG_WITH_NAMED_CONFIGS)
-            config_dict['fixed']['$named_config_evaluation']['priority'] = priority
+            config_dict['fixed']['+evaluation']['priority'] = priority
             with self.assertRaises(ConfigError):
                 configs_unresolved = config.generate_configs(config_dict)
                 configs, named_configs = config.generate_named_configs(configs_unresolved)
