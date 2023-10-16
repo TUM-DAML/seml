@@ -77,7 +77,6 @@ fixed:
   training.num_epochs: 100
   optimization:
     optimizer_type: Adam
-  # +preprocessing.priority: 1
   +batchnorm.priority: 2
 
 grid:

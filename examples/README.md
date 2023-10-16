@@ -184,6 +184,16 @@ of samples per parameter with the `samples` value and optionally the random seed
 - `priority`: Defines in which order the named configs will be loaded. Configs with lower priority will be listed first and thus resolved first. Therefore, the highest priority item will have the highest precedence. If no priority is given, this will be treated as `infinity`. Ties are broken based on the name of the named config.
 
 
+
+### Variable Interpolation
+Config values can be interpolated relative to other values using [OmegaConf](https://omegaconf.readthedocs.io/en/2.3_branch/usage.html#variable-interpolation). For example:
+
+```yaml
+model.name: resnet
+dataset: mnist
+something.name: ${model.name}_${dataset} # will have value: resnet_mnist
+```
+
 ## Add experiments to database
 
 All SEML commands follow the pattern
