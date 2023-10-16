@@ -7,7 +7,6 @@ import subprocess
 import time
 from collections import defaultdict
 from typing import Dict, List, Optional, Set
-from xml.etree.ElementTree import TreeBuilder
 
 from seml.config import check_config, generate_named_configs, resolve_configs, config_get_exclude_keys
 from seml.database import (build_filter_dict, get_collection, get_database,
@@ -731,7 +730,7 @@ def print_status(
         show_edge=False,
         row_styles=["none", "dim"],
         box=SIMPLE,
-        highlight=TreeBuilder(),
+        highlight=True,
         show_footer=len(result) > 1,
     )
     for record, record_projection in zip(result, result_projection):

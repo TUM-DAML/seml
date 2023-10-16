@@ -1,6 +1,5 @@
 import logging
 from typing import Dict, List, Optional
-from xml.etree.ElementTree import TreeBuilder
 
 from seml.database import build_filter_dict, get_collection
 from seml.errors import MongoDBError
@@ -161,7 +160,7 @@ def collection_list_descriptions(db_collection_name: str, update_status: bool = 
         show_edge=False,
         row_styles=["none", "dim"],
         box=SIMPLE,
-        highlight=TreeBuilder()
+        highlight=True
     )
     table.add_column("Description", justify="left")
     table.add_column("Experiment IDs", justify="left")
