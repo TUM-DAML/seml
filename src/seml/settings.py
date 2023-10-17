@@ -94,6 +94,8 @@ SETTINGS = munchify(
         # Which key is treated as the experiment seed
         "CONFIG_KEY_SEED" : 'seed',
         
+        "ALLOW_INTERPOLATION_IN" : ['seml.description', 'config'], # in which fields to allow variable interpolation
+        
         "NAMED_CONFIG_PREFIX" : '+', # prefix for all named configuration parameters
         "NAMED_CONFIG_KEY_NAME" : 'name', # key that identifies the name of a named config
         "NAMED_CONFIG_KEY_PRIORITY" : 'priority', # key that identifies the priority of a named config

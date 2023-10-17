@@ -55,7 +55,7 @@ def collection_set_description(
     collection = get_collection(db_collection_name)
     
     filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=sacred_id)
-    exps = list(collection.find(filter_dict, {'seml.description': 1, 'config' : 1, 'status' : 1}))
+    exps = list(collection.find(filter_dict, {}))
     if len(exps) == 0 and sacred_id is not None:
         raise MongoDBError(f"No experiment found with ID {sacred_id}.")
     descriptions_resolved = {

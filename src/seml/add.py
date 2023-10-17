@@ -174,14 +174,15 @@ def assemble_slurm_config_dict(experiment_slurm_config: dict):
     slurm_config['sbatch_options'] = remove_prepended_dashes(slurm_config['sbatch_options'])
     return slurm_config
 
-def resolve_interpolations(documents: List[Dict], allow_interpolations_in: Tuple[str] = ('config', )) -> List[Dict]:
+def resolve_interpolations(documents: List[Dict], 
+                           allow_interpolations_in: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN) -> List[Dict]:
     """Resolves variable interpolation using `OmegaConf`
 
     Parameters
     ----------
     documents : List[Dict]
         The documents to resolve.
-    allow_interpolations_in : Tuple[str]
+    allow_interpolations_in : List[str]
         All keys that should be permitted to do variable interpolation. Raises a `ConfigError` if other keys attempt interpolation.
 
     Returns
@@ -190,14 +191,15 @@ def resolve_interpolations(documents: List[Dict], allow_interpolations_in: Tuple
         The resolved documents.
     """
     from omegaconf import OmegaConf
-    resolved_documents = [
-        OmegaConf.to_container(OmegaConf.create(document, flags={"allow_objects": True}), resolve=True)
-        for document in documents
-    ]
-    for unresolved, resolved in zip(documents, resolved_documents):
-        for key in unresolved:
-            if key not in allow_interpolations_in and resolved[key] != unresolved[key]:
+    resolved_documents = []
+    for unresolved in documents:
+        resolved = OmegaConf.to_container(OmegaConf.create(unresolved, flags={"allow_objects": True}), resolve=True)
+        # Verify that interpolation was only done where it is allowed
+        resolved_flat, unresolved_flat = flatten(resolved), flatten(unresolved)
+        for key in resolved_flat:
+            if resolved_flat[key] != unresolved_flat[key] and not any(key.startswith(allowed_key) for allowed_key in allow_interpolations_in):
                 raise ConfigError(f'Variable interpolation is only allowed for "config" of an experiment, not "{key}"')
+        resolved_documents.append(resolved)
     return resolved_documents
     
 

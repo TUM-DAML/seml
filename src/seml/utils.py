@@ -261,14 +261,14 @@ def remove_keys_from_nested(d: Dict, keys: List[str] = []) -> Dict:
     d : Dict
         the dict to remove keys from
     keys : List[str], optional
-        the keys to remove, by default []
+        the keys to remove, by default []. Prefixes are also allowed.
 
     Returns
     -------
     Dict
         a copy of the dict without the values in `keys`
     """
-    return unflatten({k : v for k, v in flatten(d).items() if k not in keys})
+    return unflatten({k : v for k, v in flatten(d).items() if not any(k.startswith(key) for key in keys)})
     
 
 def make_hash(d: Dict, exclude_keys: List[str] = ['seed',]):
