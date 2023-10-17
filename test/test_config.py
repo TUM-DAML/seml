@@ -4,7 +4,7 @@ import unittest
 import yaml
 import itertools
 
-from seml import config, utils
+from seml import config, utils, add
 from seml.add import assemble_slurm_config_dict
 from seml.config import read_config
 from seml.errors import ConfigError
@@ -120,14 +120,18 @@ class TestParseConfigDicts(unittest.TestCase):
         configs_unresolved = config.generate_configs(config_dict)
         configs, named_configs = config.generate_named_configs(configs_unresolved)
         configs = [config for config in config.resolve_configs(self.EXPERIMENT_RESOLVE_INTERPOLATION, None, configs, named_configs, '.')]
-        self.assertEqual(len(configs), 1)
-        expected_config = {
-            'foo' : {'bar' : 3},
-            'param1' : 'value',
-            'interpolated_1' : '3_value',
-            'interpolated_2' : 3
+        documents = add.resolve_interpolations([{'config' : config} for config in configs])
+        
+        self.assertEqual(len(documents), 1)
+        expected_document = {
+            'config' : {
+                'foo' : {'bar' : 3},
+                'param1' : 'value',
+                'interpolated_1' : '3_value',
+                'interpolated_2' : 3
+            }
         }
-        self.assertDictEqual(expected_config, configs[0])
+        self.assertDictEqual(expected_document, documents[0])
 
     def test_unpack_config_dict(self):
         config_dict = self.load_config_dict(self.SIMPLE_CONFIG_WITH_PARAMETER_COLLECTIONS)

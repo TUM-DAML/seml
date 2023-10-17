@@ -51,7 +51,7 @@ def config():
     db_collection = None
     if db_collection is not None:
         ex.observers.append(seml.create_mongodb_observer(db_collection, overwrite=overwrite))
-    name = '${model.model_type}_${data.dataset}'
+    name = '${config.model.model_type}_${config.data.dataset}'
 
 
 class ModelVariant1:

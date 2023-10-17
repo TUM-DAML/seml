@@ -343,7 +343,6 @@ def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_
     from sacred.utils import convert_to_nested_dict, recursive_update, iterate_flattened, join_paths, set_by_dotted_path
     from sacred.initialize import (create_scaffolding, gather_ingredients_topological, distribute_config_updates, 
                                    get_configuration, get_scaffolding_and_config_name, distribute_presets)
-    from omegaconf import OmegaConf
     configs_resolved = []
     if named_configs is None:
         named_configs = [()] * len(configs)
@@ -395,12 +394,11 @@ def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_
         for scaffold in reversed(list(scaffolding.values())):
             scaffold.set_up_seed()  # partially recursive
 
-        config_resolved = OmegaConf.to_container(OmegaConf.create(get_configuration(scaffolding), flags={"allow_objects": True}), resolve=True)
+        config_resolved = get_configuration(scaffolding)
         configs_resolved.append(remove_keys_from_nested(config_resolved, config_get_exclude_keys(config_resolved, config)))
         
     return configs_resolved
    
-    
 def resolve_configs(executable: str, conda_env: str, configs: List[Dict], named_configs: List[List[str]], working_dir: str) -> List[Dict]:
     """Resolves configurations by adding keys that are only added when the experiment is run to the MongoDB
 
