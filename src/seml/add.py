@@ -3,6 +3,7 @@ import datetime
 import logging
 import os
 from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 from seml.config import (check_config, generate_configs, generate_named_configs, read_config,
                          remove_prepended_dashes, resolve_configs, config_get_exclude_keys)
@@ -14,7 +15,6 @@ from seml.sources import get_git_info, upload_sources
 from seml.utils import Hashabledict, flatten, make_hash, merge_dicts, remove_keys_from_nested, s_if, unflatten
 
 States = SETTINGS.STATES
-
 
 def filter_experiments(collection: 'pymongo.collection.Collection', 
                        documents: List[Dict],
@@ -174,13 +174,15 @@ def assemble_slurm_config_dict(experiment_slurm_config: dict):
     slurm_config['sbatch_options'] = remove_prepended_dashes(slurm_config['sbatch_options'])
     return slurm_config
 
-def resolve_interpolations(documents: List[Dict]) -> List[Dict]:
+def resolve_interpolations(documents: List[Dict], allow_interpolations_in: Tuple[str] = ('config', )) -> List[Dict]:
     """Resolves variable interpolation using `OmegaConf`
 
     Parameters
     ----------
     documents : List[Dict]
         The documents to resolve.
+    allow_interpolations_in : Tuple[str]
+        All keys that should be permitted to do variable interpolation. Raises a `ConfigError` if other keys attempt interpolation.
 
     Returns
     -------
@@ -188,10 +190,16 @@ def resolve_interpolations(documents: List[Dict]) -> List[Dict]:
         The resolved documents.
     """
     from omegaconf import OmegaConf
-    return [
+    resolved_documents = [
         OmegaConf.to_container(OmegaConf.create(document, flags={"allow_objects": True}), resolve=True)
         for document in documents
     ]
+    for unresolved, resolved in zip(documents, resolved_documents):
+        for key in unresolved:
+            if key not in allow_interpolations_in and resolved[key] != unresolved[key]:
+                raise ConfigError(f'Variable interpolation is only allowed for "config" of an experiment, not "{key}"')
+    return resolved_documents
+    
 
 def add_config_file(db_collection_name: str, 
                     config_file: str, 

@@ -132,6 +132,11 @@ class TestParseConfigDicts(unittest.TestCase):
             }
         }
         self.assertDictEqual(expected_document, documents[0])
+        
+        # assert that only the config can be interpolated
+        with self.assertRaises(ConfigError):
+            add.resolve_interpolations([{'config' : config, 'foo' : '${config.param1}'} for config in configs])
+
 
     def test_unpack_config_dict(self):
         config_dict = self.load_config_dict(self.SIMPLE_CONFIG_WITH_PARAMETER_COLLECTIONS)
