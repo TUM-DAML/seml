@@ -45,11 +45,12 @@ def get_collections_from_mongo_shell_or_pymongo(db_name: str, host: str, port: i
         List[str]: all collections in the database
     """
     import subprocess
-    cmd = f'mongo -u "{username}" --authenticationDatabase "{db_name}" {host}:{port}/{db_name} -p {password} --eval "db.getCollectionNames()" --quiet'
+    cmd = f"mongo -u '{username}' --authenticationDatabase '{db_name}' {host}:{port}/{db_name} -p {password} "\
+           "--eval 'db.getCollectionNames().forEach(function(f){print(f)})' --quiet"
     try:
         output = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL)
-        collection_names = eval(output) # technically this is a json, but we want to avoid loading the json module
-    except subprocess.CalledProcessError:
+        collection_names = output.decode('utf-8').split('\n')
+    except (subprocess.CalledProcessError, SyntaxError):
         db = get_database(db_name, host, port, username, password, **kwargs)
         collection_names = db.list_collection_names()
     return [name for name in collection_names if not name in ('fs.chunks', 'fs.files')]
