@@ -24,7 +24,7 @@ dependencies = [
     "numpy>=1.15",
     "pymongo>=3.11",
     "pandas",
-    "sacred @ git+https://github.com/IDSIA/sacred.git@17c530660d5b405af0f5c286b1a93f3d8911d026#egg=sacred",
+    "sacred>=0.8.4",
     "pyyaml>=5.1",
     "jsonpickle>=2.2",
     "munch>=2.0.4",
