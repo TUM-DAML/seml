@@ -25,7 +25,7 @@ To get started, install **`SEML`** either via `pip`:
 ```bash
 pip install seml
 ```
-or `conda`:
+or `conda` (the conda version may be outdated, we highly recommend the pypi version!):
 ```bash
 conda install -c conda-forge seml
 ```
