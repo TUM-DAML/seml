@@ -273,14 +273,15 @@ def add_config_file(db_collection_name: str,
     ]
     # Resolve variable interpolation, but not for `config_unresolved`
     documents = resolve_interpolations(documents)
-    documents = [
-        {**{'config_unresolved' : config_unresolved}, **document} for document, config_unresolved in zip(documents, configs_unresolved)
-    ]
-
+    
     # Upload source files: This also determines the batch_id
     if seml_config['use_uploaded_sources'] and not no_code_checkpoint:
         seml_config['source_files'] = upload_sources(seml_config, collection, batch_id)
     del seml_config['use_uploaded_sources']
+    documents = [
+        {**document, **{'seml' : seml_config, 'config_unresolved' : raw_conf}}
+        for document, raw_conf in zip(documents, configs_unresolved)
+    ]
 
     if not no_sanity_check:
         # Sanity checking uses the resolved values (after considering named configs)
@@ -308,7 +309,7 @@ def add_config_file(db_collection_name: str,
         else:
             # fast duplicate detection using hashing.
             documents_dict = {document['config_hash']: document for document in documents}
-            documents = [v for k, v in documents_dict.items()]
+            documents = list(documents_dict.values())
 
         len_after_deduplication = len(documents)
         # Now, check for duplicate configurations in the database.
