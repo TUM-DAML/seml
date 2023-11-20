@@ -1,5 +1,5 @@
 # Start a Jupyter job
-To start a Jupyter instance, you can use the convenience function `seml jupyter`. This requires having Jupyter Notebook or Jupyter Lab installed in the current (or specified) environment.
+To start a Jupyter instance, you can use the convenience function `seml start-jupyter`. This requires having Jupyter Notebook or Jupyter Lab installed in the current (or specified) environment.
 
 To modify the default Slurm `SBATCH`
 options, see `seml/settings.py`. The easiest way of changing these is via a file in `$HOME/.config/seml/settings.py`.

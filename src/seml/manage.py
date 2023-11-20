@@ -132,7 +132,7 @@ def cancel_experiments(
             
         logging.info(f"Cancelling {ncancel} experiment{s_if(ncancel)}.")
         if ncancel >= SETTINGS.CONFIRM_CANCEL_THRESHOLD:
-            if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+            if not yes and not prompt("Are you sure? (y/n)", type=bool):
                 exit(1)
 
         filter_dict_new = copy.deepcopy(filter_dict)
@@ -174,7 +174,7 @@ def cancel_experiments(
         collection.update_many(filter_dict, {'$set': {"status": States.INTERRUPTED[0],
                                                         "stop_time": datetime.datetime.utcnow()}})
     except subprocess.CalledProcessError:
-        logging.warning(f"One or multiple Slurm jobs were no longer running when I tried to cancel them.")
+        logging.warning("One or multiple Slurm jobs were no longer running when I tried to cancel them.")
 
 
 def delete_experiments(
