@@ -197,7 +197,7 @@ def resolve_interpolations(documents: List[Dict],
         # Verify that interpolation was only done where it is allowed
         resolved_flat, unresolved_flat = flatten(resolved), flatten(unresolved)
         for key in resolved_flat:
-            if resolved_flat[key] != unresolved_flat[key] and not any(key.startswith(allowed_key) for allowed_key in allow_interpolations_in):
+            if key in unresolved_flat and resolved_flat[key] != unresolved_flat[key] and not any(key.startswith(allowed_key) for allowed_key in allow_interpolations_in):
                 raise ConfigError(f'Variable interpolation is only allowed for "config" of an experiment, not "{key}"')
         resolved_documents.append(resolved)
     return resolved_documents

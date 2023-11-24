@@ -424,7 +424,7 @@ def resolve_configs(executable: str, conda_env: str, configs: List[Dict], named_
     exp_module = import_exe(executable, conda_env, working_dir)
 
     # Extract experiment from module
-    exps = [v for k, v in exp_module.__dict__.items() if type(v) == sacred.Experiment]
+    exps = [v for k, v in exp_module.__dict__.items() if isinstance(v, sacred.Experiment)]
     if len(exps) == 0:
         raise ExecutableError(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
     elif len(exps) > 1:
@@ -453,7 +453,7 @@ def check_config(executable: str, conda_env: str, configs: List[Dict], working_d
     exp_module = import_exe(executable, conda_env, working_dir)
 
     # Extract experiment from module
-    exps = [v for k, v in exp_module.__dict__.items() if type(v) == sacred.Experiment]
+    exps = [v for k, v in exp_module.__dict__.items() if isinstance(v, sacred.Experiment)]
     if len(exps) == 0:
         raise ExecutableError(f"Found no Sacred experiment. Something is wrong in '{executable}'.")
     elif len(exps) > 1:
