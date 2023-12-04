@@ -1,5 +1,8 @@
 import logging
-from typing import List
+import json
+import os
+from bson.json_util import dumps, loads
+from typing import List, Optional, Dict
 
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
@@ -16,6 +19,52 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
         collection_name = f'{collection_name}{suffix}'
 
     return db[collection_name]
+
+
+def export_collection(
+        collection_name: str, 
+        path: Optional[str] = None,
+        sacred_id: Optional[int] = None,
+        filter_states: Optional[List[str]] = None,
+        batch_id: Optional[int] = None,
+        filter_dict: Optional[Dict] = None,
+    ):
+    collection = get_collection(collection_name)
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=sacred_id)
+    cursor = collection.find(filter_dict)
+    if path == None:
+        path = f'{collection_name}.bson'
+    with open(os.path.expanduser(os.path.expandvars(path)), 'w') as file:
+        file.write(dumps(cursor))
+    logging.info(
+        f"Successfully exported {collection_name} to {path}.")
+
+
+def import_collection(collection_name: str, path: str):
+    mongodb_config = get_mongodb_config()
+    db = get_database(**mongodb_config)
+
+    if collection_name in db.list_collection_names():
+        logging.error(f"Collection {collection_name} already exists.")
+        return
+
+    collection = db[collection_name]
+
+    with open(os.path.expanduser(os.path.expandvars(path)), 'r') as file:
+        try:
+            data = loads(file.read())
+        except:
+            logging.error(
+                "We only support loading collections from BSON files.")
+            return
+
+    if isinstance(data, list):
+        collection.insert_many(data)
+    else:
+        collection.insert_one(data)
+
+    logging.info(
+        f"Successfully imported new collection {collection_name} from {path}.")
 
 
 def get_mongo_client(db_name, host, port, username, password, **kwargs):

@@ -14,6 +14,7 @@ from seml.add import add_config_files
 from seml.configure import configure
 from seml.database import (clean_unreferenced_artifacts,
                            get_collections_from_mongo_shell_or_pymongo,
+                           import_collection, export_collection,
                            get_mongodb_config)
 from seml.description import (collection_delete_description,
                               collection_list_descriptions,
@@ -779,6 +780,57 @@ def description_list_command(ctx: typer.Context, update_status: UpdateStatusAnno
     Lists the descriptions of all experiments.
     """
     collection_list_descriptions(ctx.obj['collection'], update_status=update_status)
+
+
+@app.command("export")
+@restrict_collection()
+def export_command(
+    ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = None,
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    path: Annotated[
+        str,
+        typer.Option(
+            '-o',
+            "--output",
+            help="Specify path to export the collection to.",
+            is_flag=False,
+        ),
+    ] = None
+):
+    """
+        Export collection to BSON.
+    """
+    export_collection(
+            ctx.obj['collection'],
+            path,
+            sacred_id=sacred_id,
+            filter_states=filter_states,
+            batch_id=batch_id,
+            filter_dict=filter_dict
+    )
+
+
+@app.command("import")
+@restrict_collection()
+def import_command(
+    ctx: typer.Context,
+    path: Annotated[
+        str,
+        typer.Argument(
+            help="Specify path to a BSON file to import a collection from.",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+        ),
+    ]
+):
+    """
+        Import new collection from BSON.
+    """
+    import_collection(ctx.obj['collection'], path)
 
 
 @dataclass
