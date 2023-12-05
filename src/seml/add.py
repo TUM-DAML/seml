@@ -6,7 +6,8 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
 from seml.config import (check_config, generate_configs, generate_named_configs, read_config,
-                         remove_prepended_dashes, resolve_configs, config_get_exclude_keys)
+                         remove_prepended_dashes, resolve_configs, config_get_exclude_keys,
+                         resolve_interpolations)
 from seml.database import get_collection, get_max_in_collection
 from seml.description import resolve_description
 from seml.errors import ConfigError
@@ -174,34 +175,6 @@ def assemble_slurm_config_dict(experiment_slurm_config: dict):
     slurm_config['sbatch_options'] = remove_prepended_dashes(slurm_config['sbatch_options'])
     return slurm_config
 
-def resolve_interpolations(documents: List[Dict], 
-                           allow_interpolations_in: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN) -> List[Dict]:
-    """Resolves variable interpolation using `OmegaConf`
-
-    Parameters
-    ----------
-    documents : List[Dict]
-        The documents to resolve.
-    allow_interpolations_in : List[str]
-        All keys that should be permitted to do variable interpolation. Raises a `ConfigError` if other keys attempt interpolation.
-
-    Returns
-    -------
-    List[Dict]
-        The resolved documents.
-    """
-    from omegaconf import OmegaConf
-    resolved_documents = []
-    for unresolved in documents:
-        resolved = OmegaConf.to_container(OmegaConf.create(unresolved, flags={"allow_objects": True}), resolve=True)
-        # Verify that interpolation was only done where it is allowed
-        resolved_flat, unresolved_flat = flatten(resolved), flatten(unresolved)
-        for key in resolved_flat:
-            if key in unresolved_flat and resolved_flat[key] != unresolved_flat[key] and not any(key.startswith(allowed_key) for allowed_key in allow_interpolations_in):
-                raise ConfigError(f'Variable interpolation is only allowed for "config" of an experiment, not "{key}"')
-        resolved_documents.append(resolved)
-    return resolved_documents
-    
 
 def add_config_file(db_collection_name: str, 
                     config_file: str, 
@@ -269,7 +242,8 @@ def add_config_file(db_collection_name: str,
             'git' : git_info,
             'batch_id' : batch_id, # needs to be determined now for source file uploading
             'config' : config,
-        } for config in configs
+            'config_unresolved' : config_unresolved,
+        } for config, config_unresolved in zip(configs, configs_unresolved)
     ]
     # Resolve variable interpolation, but not for `config_unresolved`
     documents = resolve_interpolations(documents)
@@ -279,15 +253,13 @@ def add_config_file(db_collection_name: str,
         seml_config['source_files'] = upload_sources(seml_config, collection, batch_id)
     del seml_config['use_uploaded_sources']
     documents = [
-        {**document, **{'seml' : seml_config, 'config_unresolved' : raw_conf}}
-        for document, raw_conf in zip(documents, configs_unresolved)
+        {**document, **{'seml' : seml_config}} for document in documents
     ]
 
     if not no_sanity_check:
         # Sanity checking uses the resolved values (after considering named configs)
         check_config(seml_config['executable'], seml_config['conda_environment'], [document['config'] for document in documents], 
                      seml_config['working_dir'])
-        
 
     use_hash = not no_hash
     for document in documents:

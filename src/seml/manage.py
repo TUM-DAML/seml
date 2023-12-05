@@ -8,7 +8,8 @@ import time
 from collections import defaultdict
 from typing import Dict, List, Optional, Set
 
-from seml.config import check_config, generate_named_configs, resolve_configs, config_get_exclude_keys
+from seml.config import (check_config, generate_named_configs, resolve_configs, config_get_exclude_keys, 
+                         resolve_interpolations)
 from seml.database import (build_filter_dict, get_collection, get_database,
                            get_mongodb_config)
 from seml.errors import MongoDBError
@@ -468,18 +469,19 @@ def reload_sources(
     else:
         filter_dict = {}
     db_results = list(collection.find(filter_dict, {'batch_id', 'seml', 'config', 'status', 'config_unresolved'}))
-    id_to_config = {}
-    for bid, configs in itertools.groupby(db_results, lambda x: x['batch_id']):
-        configs = list(configs)
-        id_to_config[bid] = configs[0]['seml'], [x['config'] for x in configs], [x.get('config_unresolved', None) for x in configs], [x['_id'] for x in configs]
+    id_to_document = {}
+    for bid, documents in itertools.groupby(db_results, lambda x: x['batch_id']):
+        id_to_document[bid] = list(documents)
     states = {x['status'] for x in db_results}
 
     if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
-        logging.info(f'Some of the experiments is still in RUNNING, PENDING or COMPLETED.')
+        logging.info(f'Some of the experiments are still in RUNNING, PENDING or COMPLETED.')
         if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
             exit(1)
 
-    for batch_id, (seml_config, configs, configs_unresolved, experiment_ids) in id_to_config.items():
+    for batch_id, documents in id_to_document.items():
+        seml_config = documents[0]['seml']
+        
         version_seml_config = seml_config.get(SETTINGS.SEML_CONFIG_VALUE_VERSION, None)
         if version_seml_config != version('seml'):
             logging.warn(f'Batch {batch_id} was added with seml version "{version_seml_config}" '
@@ -489,10 +491,10 @@ def reload_sources(
             logging.error(f'Batch {batch_id}: No source files to refresh.')
             continue
 
-        if any(c is None for c in configs_unresolved):
-            logging.warn(f'Some experiments of batch {batch_id} do not have an unresolved configuration. '
-                            'The resolved configuration "config" will be used for resolution instead.')
-        configs_unresolved = [c_unresolved if c_unresolved is not None else c for c, c_unresolved in zip(configs, configs_unresolved)]
+        if any(document.get('config_unresolved', None) is None for document in documents):
+            logging.warn(f'Batch {batch_id}: Some experiments do not have an unresolved configuration. '
+                         'The resolved configuration "config" will be used for resolution instead.')
+        configs_unresolved = [document.get('config_unresolved', document['config']) for document in documents]
         configs, named_configs = generate_named_configs(configs_unresolved)
         configs = resolve_configs(seml_config['executable'], seml_config['conda_environment'], configs, named_configs, seml_config['working_dir'])
         
@@ -500,17 +502,19 @@ def reload_sources(
         for config, config_unresolved in zip(configs, configs_unresolved):
             if SETTINGS.CONFIG_KEY_SEED in configs_unresolved:
                 config[SETTINGS.CONFIG_KEY_SEED] = config_unresolved[SETTINGS.CONFIG_KEY_SEED]
-            
         
-        config_hashes = [make_hash(c, config_get_exclude_keys(c, c_unresolved)) for c, c_unresolved in zip(configs, configs_unresolved)]
+        documents = [{**document, 'config' : config} for document, config in zip(documents, configs)]
+        documents = resolve_interpolations(documents)
+        
         result = collection.bulk_write([
-            UpdateOne({'_id' : experiment_id}, {'$set' : {'config' : config, 'config_hash' : config_hash}})
-            for config, config_hash, experiment_id in zip(configs, config_hashes, experiment_ids)
+            UpdateOne({'_id' : document['_id']}, {'$set' : {'config' : document['config'], 
+                                                            'config_hash' : make_hash(document['config'], config_get_exclude_keys(document['config'], document['config_unresolved']))}})
+            for document in documents
         ])
         logging.info(f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).')
 
         # Check whether the configurations aligns with the current source code
-        check_config(seml_config['executable'], seml_config['conda_environment'], configs, seml_config['working_dir'])
+        check_config(seml_config['executable'], seml_config['conda_environment'], [document['config'] for document in documents], seml_config['working_dir'])
 
         # Find the currently used source files
         db = collection.database
