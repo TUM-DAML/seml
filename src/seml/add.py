@@ -236,17 +236,15 @@ def add_config_file(db_collection_name: str,
     
     # Create documents that can be interpolated
     documents = [
-        {
+        resolve_interpolations({
             'seml' : seml_config, 
             'slurm' : slurm_config,
             'git' : git_info,
             'batch_id' : batch_id, # needs to be determined now for source file uploading
             'config' : config,
             'config_unresolved' : config_unresolved,
-        } for config, config_unresolved in zip(configs, configs_unresolved)
+        }) for config, config_unresolved in zip(configs, configs_unresolved)
     ]
-    # Resolve variable interpolation, but not for `config_unresolved`
-    documents = resolve_interpolations(documents)
     
     # Upload source files: This also determines the batch_id
     if seml_config['use_uploaded_sources'] and not no_code_checkpoint:

@@ -503,8 +503,7 @@ def reload_sources(
             if SETTINGS.CONFIG_KEY_SEED in configs_unresolved:
                 config[SETTINGS.CONFIG_KEY_SEED] = config_unresolved[SETTINGS.CONFIG_KEY_SEED]
         
-        documents = [{**document, 'config' : config} for document, config in zip(documents, configs)]
-        documents = resolve_interpolations(documents)
+        documents = [resolve_interpolations({**document, 'config' : config}) for document, config in zip(documents, configs)]
         
         result = collection.bulk_write([
             UpdateOne({'_id' : document['_id']}, {'$set' : {'config' : document['config'], 

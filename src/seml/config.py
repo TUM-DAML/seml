@@ -664,38 +664,35 @@ def config_get_exclude_keys(config: Dict, config_unresolved: Dict) -> List[str]:
     return exclude_keys
     
 
-def resolve_interpolations(documents: List[Dict], 
-                           allow_interpolations_in: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN) -> List[Dict]:
+def resolve_interpolations(document: Dict, 
+                           allow_interpolations_in: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN) -> Dict:
     """Resolves variable interpolation using `OmegaConf`
 
     Parameters
     ----------
-    documents : List[Dict]
-        The documents to resolve.
+    documents : Dict
+        The document to resolve.
     allow_interpolations_in : List[str]
         All keys that should be permitted to do variable interpolation. Other keys are taken from the unresolved config.
 
     Returns
     -------
-    List[Dict]
-        The resolved documents.
+    Dict
+        The resolved document
     """
     from omegaconf import OmegaConf
-    resolved_documents = []
-    for unresolved in documents:
-        resolved = OmegaConf.to_container(OmegaConf.create(unresolved, flags={"allow_objects": True}), resolve=True)
-        resolved_flat = {
-            key : value for key, value in flatten(resolved, sep='.').items() 
-            if any(list_is_prefix(allowed_key.split('.'), key.split('.')) for allowed_key in allow_interpolations_in)
-        }
-        unresolved_flat = {
-            key : value for key, value in flatten(unresolved, sep='.').items() 
-            if not any(list_is_prefix(allowed_key.split('.'), key.split('.')) for allowed_key in allow_interpolations_in)
-        } 
-        assert resolved_flat.keys().isdisjoint(unresolved_flat.keys()), f"Overlap between unresolved and resolved dicts: {resolved_flat.keys().intersection(unresolved_flat.keys())}"
-        resolved = unflatten({**resolved_flat, **unresolved_flat})
-        resolved_documents.append(resolved)
-    return resolved_documents
+    resolved = OmegaConf.to_container(OmegaConf.create(document, flags={"allow_objects": True}), resolve=True)
+    resolved_flat = {
+        key : value for key, value in flatten(resolved, sep='.').items() 
+        if any(list_is_prefix(allowed_key.split('.'), key.split('.')) for allowed_key in allow_interpolations_in)
+    }
+    unresolved_flat = {
+        key : value for key, value in flatten(document, sep='.').items() 
+        if not any(list_is_prefix(allowed_key.split('.'), key.split('.')) for allowed_key in allow_interpolations_in)
+    } 
+    assert resolved_flat.keys().isdisjoint(unresolved_flat.keys()), f"Overlap between unresolved and resolved dicts: {resolved_flat.keys().intersection(unresolved_flat.keys())}"
+    resolved = unflatten({**resolved_flat, **unresolved_flat})
+    return resolved
 
     
     

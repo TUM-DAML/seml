@@ -120,7 +120,7 @@ class TestParseConfigDicts(unittest.TestCase):
         configs_unresolved = config.generate_configs(config_dict)
         configs, named_configs = config.generate_named_configs(configs_unresolved)
         configs = [config for config in config.resolve_configs(self.EXPERIMENT_RESOLVE_INTERPOLATION, None, configs, named_configs, '.')]
-        documents = add.resolve_interpolations([{'config' : config} for config in configs])
+        documents = [add.resolve_interpolations({'config' : config}) for config in configs]
         
         self.assertEqual(len(documents), 1)
         expected_document = {
@@ -133,10 +133,10 @@ class TestParseConfigDicts(unittest.TestCase):
         }
         self.assertDictEqual(expected_document, documents[0])
         
-        # assert that only the config can be interpolated
-        with self.assertRaises(ConfigError):
-            add.resolve_interpolations([{'config' : config, 'foo' : '${config.param1}'} for config in configs])
-
+        # Only `config` should be resolved
+        self.assertEqual(add.resolve_interpolations({'config' : configs[0], 'foo' : '${config.param1}'},
+                                                    allow_interpolations_in=['config'])['foo'], '${config.param1}')
+        
 
     def test_unpack_config_dict(self):
         config_dict = self.load_config_dict(self.SIMPLE_CONFIG_WITH_PARAMETER_COLLECTIONS)
