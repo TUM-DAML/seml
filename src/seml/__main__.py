@@ -18,7 +18,7 @@ from seml.database import (clean_unreferenced_artifacts,
 from seml.description import (collection_delete_description,
                               collection_list_descriptions,
                               collection_set_description)
-from seml.manage import (cancel_experiments, delete_experiments, detect_killed,
+from seml.manage import (cancel_experiments, delete_experiments, detect_killed, drop_collections,
                          list_database, print_duplicates, print_fail_trace, print_status, reload_sources,
                          reset_experiments)
 from seml.settings import SETTINGS
@@ -680,6 +680,23 @@ def delete_command(
         filter_dict=filter_dict,
         yes=yes
     )
+
+
+@app.command("drop")
+@restrict_collection(False)
+def drop_command(
+    ctx: typer.Context,
+    pattern: Annotated[str, typer.Argument(
+        help="A regex that must match the collections to print."
+    )] = r'.*',
+    yes: YesAnnotation = False,
+):
+    """
+    Drop collections from the database.
+    
+    Note: This is a dangerous operation and should only be used if you know what you are doing.
+    """
+    drop_collections(pattern=pattern, yes=yes)
 
 
 @app.command("detect-killed")

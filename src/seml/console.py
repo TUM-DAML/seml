@@ -1,4 +1,5 @@
 import functools
+from typing import Sequence
 
 import rich
 import rich.box
@@ -26,3 +27,33 @@ def Heading(text: str):
         Rule(text, style='red'),
         pad=(1, 0, 0, 0)
     )
+
+
+def list_items(items: Sequence[str]):
+    """
+    Print a list of items in columns, using as many columns as possible
+    while keeping the items readable. This will look similar to bash autcompletition suggestions.
+    
+    Parameters
+    ----------
+    items : Sequence[str]
+        The items to print.
+    """
+    # Calculate available width
+    available_width = console.width
+
+    # Determine the number of columns based on available width
+    max_len = max(len(s) for s in items)
+    num_columns = max(1, available_width // (max_len + 1))
+
+    # Create a table with the calculated number of columns
+    table = rich.table.Table.grid(expand=True, pad_edge=True)
+    for i in range(num_columns):
+        table.add_column()
+
+    # Add suggestions to the table, distributing them across columns
+    for i in range(0, len(items), num_columns):
+        table.add_row(*items[i:i+num_columns])
+
+    # Print the table
+    console.print(table)
