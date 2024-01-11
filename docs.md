@@ -309,6 +309,7 @@ $ seml print-command [OPTIONS]
 * `-wc, --worker-cpus INTEGER`: The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.
 * `-we, --worker-env JSON`: Further environment variables to be set for the local worker.
 * `--help`: Show this message and exit.
+* `--unresolved`: Whether to print the command without resolving e.g. named configurations.
 
 ## `seml print-fail-trace`
 
