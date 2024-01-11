@@ -214,7 +214,7 @@ def delete_experiments(
 
     logging.info(f"Deleting {ndelete} configuration{s_if(ndelete)} from database collection.")
     if ndelete >= SETTINGS.CONFIRM_DELETE_THRESHOLD:
-        if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+        if not yes and not prompt("Are you sure? (y/n)", type=bool):
             exit(1)
     
     # Collect sources uploaded by sacred.
@@ -235,6 +235,44 @@ def delete_experiments(
 
     if collection.count_documents({}) == 0:
         collection.drop()
+
+
+def drop_collections(
+    pattern: str,
+    mongodb_config: Optional[Dict] = None,
+    yes: bool = False
+):
+    """
+    Drops collections matching the given pattern.
+
+    Parameters
+    ----------
+    pattern : str
+        The regex collection names have to match against
+    mongodb_config : dict or None
+        A configuration for the mongodb. If None, the standard config is used.
+    yes : bool
+        Whether to override confirmation prompts
+    """
+    from seml.console import list_items
+    # Get the database
+    if mongodb_config is None:
+        mongodb_config = get_mongodb_config()
+    db = get_database(**mongodb_config)
+    expression = re.compile(pattern)
+    collection_names = [name for name in db.list_collection_names()
+                        if name not in ('fs.chunks', 'fs.files') and expression.match(name)]
+    if len(collection_names) == 0:
+        logging.info('No collections found.')
+        return
+    if not yes:
+        logging.info(f'The following {len(collection_names)} collection will be deleted:')
+        list_items(collection_names)
+        if not prompt("Are you sure? (y/n)", type=bool):
+            return
+    for name in collection_names:
+        delete_experiments(name, yes=True)
+
 
 def reset_slurm_dict(exp: Dict):
     """Resets the slurm dict of an experiment
@@ -320,7 +358,7 @@ def reset_experiments(
 
     logging.info(f"Resetting the state of {nreset} experiment{s_if(nreset)}.")
     if nreset >= SETTINGS.CONFIRM_RESET_THRESHOLD:
-        if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+        if not yes and not prompt("Are you sure? (y/n)", type=bool):
             exit(1)
     for exp in exps:
         reset_single_experiment(collection, exp)
@@ -475,8 +513,8 @@ def reload_sources(
     states = {x['status'] for x in db_results}
 
     if any([s in (States.RUNNING + States.PENDING + States.COMPLETED) for s in states]):
-        logging.info(f'Some of the experiments are still in RUNNING, PENDING or COMPLETED.')
-        if not yes and not prompt(f"Are you sure? (y/n)", type=bool):
+        logging.info('Some of the experiments is still in RUNNING, PENDING or COMPLETED.')
+        if not yes and not prompt("Are you sure? (y/n)", type=bool):
             exit(1)
 
     for batch_id, documents in id_to_document.items():

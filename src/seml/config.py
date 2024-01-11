@@ -432,8 +432,9 @@ def resolve_configs(executable: str, conda_env: str, configs: List[Dict], named_
         raise ExecutableError(f"Found more than 1 Sacred experiment in '{executable}'. "
                               f"Can't resolve configs.")
     exp = exps[0]
-    return _sacred_create_configs(exp, configs, named_configs)
-    
+    with working_directory(working_dir):
+        return _sacred_create_configs(exp, configs, named_configs)
+  
     
 def check_config(executable: str, conda_env: str, configs: List[Dict], working_dir: str):
     """Check if the given configs are consistent with the Sacred experiment in the given executable.
