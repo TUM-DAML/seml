@@ -803,7 +803,7 @@ def list_database(
     import pandas as pd
     from rich.align import Align
     from rich.table import Column
-    from tqdm.auto import tqdm
+    from rich.progress import track
 
     from seml.console import console, Table
 
@@ -824,7 +824,7 @@ def list_database(
     # Count the number of experiments in each state
     name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
     name_to_descriptions = defaultdict(lambda: '')
-    it = tqdm(collection_names, disable=not progress)
+    it = track(collection_names, disable=not progress)
 
     inv_states = {v: k for k, states in States.items() for v in states}
     for collection_name in it:

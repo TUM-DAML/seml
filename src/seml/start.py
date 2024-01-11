@@ -662,7 +662,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     -------
     None
     """
-    from tqdm.auto import tqdm
+    from rich.progress import track
     check_compute_node()
 
     if 'SLURM_JOBID' in os.environ:
@@ -692,7 +692,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
 
     exp_query.update(filter_dict)
 
-    tq = tqdm()
+    tq = track()
     while collection.count_documents(exp_query) > 0 and jobs_counter < num_exps:
         if unobserved:
             exp = collection.find_one(exp_query)

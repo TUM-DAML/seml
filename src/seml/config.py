@@ -341,12 +341,12 @@ def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_
     from sacred.utils import convert_to_nested_dict, recursive_update, iterate_flattened, join_paths, set_by_dotted_path
     from sacred.initialize import (create_scaffolding, gather_ingredients_topological, distribute_config_updates, 
                                    get_configuration, get_scaffolding_and_config_name, distribute_presets)
-    from tqdm import tqdm
+    from rich.progress import track
     
     configs_resolved = []
     if named_configs is None:
         named_configs = [()] * len(configs)
-    for config, named_config in tqdm(list(zip(configs, named_configs)), desc='Resolving configurations', 
+    for config, named_config in track(list(zip(configs, named_configs)), description='Resolving configurations', 
                                     disable=len(configs) < SETTINGS.CONFIG_RESOLUTION_PROGRESS_BAR_THRESHOLD):
         
         # The following code is adapted from sacred directly: This results in a significant speedup

@@ -221,9 +221,9 @@ def upload_file(filename, db_collection, batch_id, filetype):
 
 def delete_files(database, file_ids, progress=False):
     import gridfs
-    from tqdm.auto import tqdm
+    from rich.progress import track
     fs = gridfs.GridFS(database)
-    it = tqdm(file_ids, disable=not progress)
+    it = track(file_ids, disable=not progress)
     for to_delete in it:
         fs.delete(to_delete)
 
@@ -243,7 +243,7 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     -------
     None
     """
-    from tqdm.auto import tqdm
+    from rich.progress import track
     all_collections = not bool(db_collection_name)
     if all_collections:
         config = get_mongodb_config()
@@ -258,7 +258,7 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     collection_names = collection_names - collection_blacklist
 
     referenced_files = set()
-    tq = tqdm(collection_names)
+    tq = track(collection_names)
     logging.info('Scanning collections for orphaned artifacts...')
     for collection_name in tq:
         tq.set_postfix(collection=collection_name)
