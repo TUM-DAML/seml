@@ -237,7 +237,7 @@ def generate_configs(experiment_config, overwrite_params=None):
         all_configs.extend(with_random)
 
     # Cast NumPy integers to normal integers since PyMongo doesn't like them
-    all_configs = [{k: int(v) if isinstance(v, numbers.Integral) else v
+    all_configs = [{k: int(v) if isinstance(v, numbers.Integral) and not isinstance(v, bool) else v
                     for k, v in config.items()}
                    for config in all_configs]
 
