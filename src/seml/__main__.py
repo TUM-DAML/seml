@@ -891,9 +891,24 @@ if os.environ.get('_SEML_COMPLETE') and os.environ.get('COMP_WORDS'):
         os.environ['COMP_WORDS'].split('\n'),
         command_tree(app)
     )
-    new_comp_words = commands[-1]
-    os.environ['COMP_WORDS'] = '\n'.join(new_comp_words)
-    os.environ['COMP_CWORD'] = str(len(new_comp_words) - 1)
+    cword = int(os.environ['COMP_CWORD'])
+    if cword > 1:
+        # Case where we complete a command
+        # To find the right command, we must subtract the length of all previous commands
+        # let's subtract -2 everywhere for seml <collection>
+        cword -= 2
+        for cmd in commands:
+            cmd_length = len(cmd)-2
+            # We found our current command
+            if cmd_length >= cword:
+                break
+            cword -= cmd_length
+        cword += 2 # add back the -2 we subtracted above
+    else:
+        # If we complete collection names
+        cmd = commands[0]
+    os.environ['COMP_WORDS'] = '\n'.join(cmd)
+    os.environ['COMP_CWORD'] = str(cword)
     # If we are not at the top level typer, we must not suggest top level commands
     # Note: `seml collection description list <tab><tab>` does not correctly autocomplete
     # as chaining is disabled on the app_description typer. However, if one were to enable
