@@ -662,7 +662,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     -------
     None
     """
-    from rich.progress import track
+    from rich.progress import Progress
     check_compute_node()
 
     if 'SLURM_JOBID' in os.environ:
@@ -692,47 +692,47 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
 
     exp_query.update(filter_dict)
 
-    tq = track()
-    while collection.count_documents(exp_query) > 0 and jobs_counter < num_exps:
-        if unobserved:
-            exp = collection.find_one(exp_query)
-        else:
-            exp = collection.find_one_and_update(exp_query, {"$set": {"status": States.RUNNING[0]}})
-        if exp is None:
-            continue
-        if 'array_id' in exp['slurm']:
-            # Clean up MongoDB entry
-            slurm_ids = {'array_id': exp['slurm']['array_id'],
-                         'task_id': exp['slurm']['task_id']}
-            reset_slurm_dict(exp)
-            collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
+    with Progress(auto_refresh=False) as progress:
+        task = progress.add_task("Running experiments...", total=None)
+        while collection.count_documents(exp_query) > 0 and jobs_counter < num_exps:
+            if unobserved:
+                exp = collection.find_one(exp_query)
+            else:
+                exp = collection.find_one_and_update(exp_query, {"$set": {"status": States.RUNNING[0]}})
+            if exp is None:
+                continue
+            if 'array_id' in exp['slurm']:
+                # Clean up MongoDB entry
+                slurm_ids = {'array_id': exp['slurm']['array_id'],
+                            'task_id': exp['slurm']['task_id']}
+                reset_slurm_dict(exp)
+                collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
 
-            # Cancel Slurm job; after cleaning up to prevent race conditions
-            cancel_experiment_by_id(collection, exp['_id'], set_interrupted=False, slurm_dict=slurm_ids)
+                # Cancel Slurm job; after cleaning up to prevent race conditions
+                cancel_experiment_by_id(collection, exp['_id'], set_interrupted=False, slurm_dict=slurm_ids)
 
-        tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
+            progress.console.print(f"current id : {exp['_id']}, failed={num_exceptions}/{jobs_counter} experiments")
 
-        # Add newline if we need to avoid tqdm's output
-        if debug_server or output_to_console or logging.root.level <= logging.VERBOSE:
-            print(file=sys.stderr)
+            # Add newline if we need to avoid tqdm's output
+            if debug_server or output_to_console or logging.root.level <= logging.VERBOSE:
+                print(file=sys.stderr)
 
-        if output_to_file:
-            output_dir_path = get_output_dir_path(exp)
-        else:
-            output_dir_path = None
-        try:
-            success = start_local_job(collection=collection, exp=exp, unobserved=unobserved, post_mortem=post_mortem,
-                                      output_dir_path=output_dir_path, output_to_console=output_to_console,
-                                      debug_server=debug_server)
-            if success is False:
-                num_exceptions += 1
-        except KeyboardInterrupt:
-            logging.info("Caught KeyboardInterrupt signal. Aborting.")
-            exit(1)
-        jobs_counter += 1
-        tq.update()
-        tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
-    tq.close()
+            if output_to_file:
+                output_dir_path = get_output_dir_path(exp)
+            else:
+                output_dir_path = None
+            try:
+                success = start_local_job(collection=collection, exp=exp, unobserved=unobserved, post_mortem=post_mortem,
+                                        output_dir_path=output_dir_path, output_to_console=output_to_console,
+                                        debug_server=debug_server)
+                if success is False:
+                    num_exceptions += 1
+            except KeyboardInterrupt:
+                logging.info("Caught KeyboardInterrupt signal. Aborting.")
+                exit(1)
+            jobs_counter += 1
+            progress.advance(task)
+            #tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
 
 
 def print_command(

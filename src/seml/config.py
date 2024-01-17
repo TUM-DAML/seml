@@ -470,15 +470,17 @@ def check_config(executable: str, conda_env: str, configs: List[Dict], working_d
             for cf in exp.captured_functions
             for n in cf.signature.arguments
     }
+    
+    config_keys_empty_run = flatten(empty_run.config).keys()
 
     for config in configs:
-        config_added = {k: v for k, v in config.items() if k not in empty_run.config.keys()}
-        config_flattened = {k for k, _ in sacred.utils.iterate_flattened(config_added)}
-
+        config_flat = flatten(config)
+        config_keys_added = {k for k in config_flat.keys() if k not in config_keys_empty_run}
+        
         # Check for unused arguments
-        for conf in sorted(config_flattened):
+        for conf in sorted(config_keys_added):
             if not (set(sacred.utils.iter_prefixes(conf)) & captured_args):
-                raise sacred.utils.ConfigAddedError(conf, config=config_added)
+                raise sacred.utils.ConfigAddedError(conf, config=config_keys_added)
 
         # Check for missing arguments
         options = empty_run.config.copy()
