@@ -29,6 +29,7 @@ $ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 * `description`: Manage descriptions of the experiments in...
 * `detect-duplicates`: Prints duplicate experiment configurations.
 * `detect-killed`: Detect experiments where the corresponding...
+* `drop`: Drop collections from the database.
 * `launch-worker`: Launch a local worker that runs PENDING jobs.
 * `list`: Lists all collections in the database.
 * `print-command`: Print the commands that would be executed...
@@ -243,6 +244,27 @@ $ seml detect-killed [OPTIONS]
 
 * `--help`: Show this message and exit.
 
+## `seml drop`
+
+Drop collections from the database.
+
+Note: This is a dangerous operation and should only be used if you know what you are doing.
+
+**Usage**:
+
+```console
+$ seml drop [OPTIONS] [PATTERN]
+```
+
+**Arguments**:
+
+* `[PATTERN]`: A regex that must match the collections to print.  [default: .*]
+
+**Options**:
+
+* `-y, --yes`: Automatically confirm all dialogues with yes.
+* `--help`: Show this message and exit.
+
 ## `seml launch-worker`
 
 Launch a local worker that runs PENDING jobs.
@@ -302,14 +324,16 @@ $ seml print-command [OPTIONS]
 **Options**:
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
+* `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: STAGED, QUEUED]
 * `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-n, --num-experiments INTEGER`: Number of experiments to start. 0: all (staged) experiments   [default: 0]
 * `-wg, --worker-gpus TEXT`: The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.
 * `-wc, --worker-cpus INTEGER`: The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.
 * `-we, --worker-env JSON`: Further environment variables to be set for the local worker.
+* `--unresolved`: Whether to print the unresolved command.
+* `--no-interpolation`: Whether disable variable interpolation. Only compatible with --unresolved.
 * `--help`: Show this message and exit.
-* `--unresolved`: Whether to print the command without resolving e.g. named configurations.
 
 ## `seml print-fail-trace`
 
