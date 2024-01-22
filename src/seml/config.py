@@ -353,7 +353,7 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
                 elif attribute == SETTINGS.NAMED_CONFIG_KEY_PRIORITY:
                     try:
                         value = int(value)
-                    except IOError:
+                    except (ValueError, TypeError):
                         raise ConfigError(
                             f"Named config priorities should be non-negative integers, not {value} ({value.__class__})"
                         )
