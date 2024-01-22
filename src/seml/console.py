@@ -16,7 +16,7 @@ Table = functools.partial(
     show_lines=False,
     show_edge=False,
     box=rich.box.SIMPLE,
-    row_styles=["none", "dim"],
+    row_styles=['none', 'dim'],
     padding=(
         0,
         0,
@@ -26,7 +26,7 @@ Table = functools.partial(
 
 
 def Heading(text: str):
-    return Padding(Rule(text, style="red"), pad=(1, 0, 0, 0))
+    return Padding(Rule(text, style='red'), pad=(1, 0, 0, 0))
 
 
 def list_items(items: Sequence[str]):

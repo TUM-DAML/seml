@@ -29,7 +29,7 @@ from seml.utils import (
     list_is_prefix,
 )
 
-RESERVED_KEYS = ["grid", "fixed", "random"]
+RESERVED_KEYS = ['grid', 'fixed', 'random']
 
 
 def unpack_config(config):
@@ -43,8 +43,8 @@ def unpack_config(config):
         if key not in RESERVED_KEYS:
             children[key] = value
         else:
-            if key == "random":
-                if "samples" not in value:
+            if key == 'random':
+                if 'samples' not in value:
                     raise ConfigError(
                         'Random parameters must specify "samples", i.e. the number of random samples.'
                     )
@@ -57,11 +57,11 @@ def unpack_config(config):
 def extract_parameter_set(input_config: dict, key: str):
     flattened_dict = flatten(input_config.get(key, {}))
     keys = flattened_dict.keys()
-    if key != "fixed":
+    if key != 'fixed':
         keys = [
-            ".".join(k.split(".")[:-1])
+            '.'.join(k.split('.')[:-1])
             for k in keys
-            if flattened_dict[k] != "parameter_collection"
+            if flattened_dict[k] != 'parameter_collection'
         ]
     return set(keys)
 
@@ -69,33 +69,33 @@ def extract_parameter_set(input_config: dict, key: str):
 def convert_parameter_collections(input_config: dict):
     flattened_dict = flatten(input_config)
     parameter_collection_keys = [
-        k for k in flattened_dict.keys() if flattened_dict[k] == "parameter_collection"
+        k for k in flattened_dict.keys() if flattened_dict[k] == 'parameter_collection'
     ]
     if len(parameter_collection_keys) > 0:
         logging.warning(
-            "Parameter collections are deprecated. Use dot-notation for nested parameters instead."
+            'Parameter collections are deprecated. Use dot-notation for nested parameters instead.'
         )
     while len(parameter_collection_keys) > 0:
         k = parameter_collection_keys[0]
         del flattened_dict[k]
         # sub1.sub2.type ==> # sub1.sub2
-        k = ".".join(k.split(".")[:-1])
+        k = '.'.join(k.split('.')[:-1])
         parameter_collections_params = [
             param_key for param_key in flattened_dict.keys() if param_key.startswith(k)
         ]
         for p in parameter_collections_params:
-            if f"{k}.params" in p:
-                new_key = p.replace(f"{k}.params", k)
+            if f'{k}.params' in p:
+                new_key = p.replace(f'{k}.params', k)
                 if new_key in flattened_dict:
                     raise ConfigError(
-                        f"Could not convert parameter collections due to key collision: {new_key}."
+                        f'Could not convert parameter collections due to key collision: {new_key}.'
                     )
                 flattened_dict[new_key] = flattened_dict[p]
                 del flattened_dict[p]
         parameter_collection_keys = [
             k
             for k in flattened_dict.keys()
-            if flattened_dict[k] == "parameter_collection"
+            if flattened_dict[k] == 'parameter_collection'
         ]
     return unflatten(flattened_dict)
 
@@ -104,7 +104,7 @@ def standardize_config(config: dict):
     config = unflatten(flatten(config), levels=[0])
     out_dict = {}
     for k in RESERVED_KEYS:
-        if k == "fixed":
+        if k == 'fixed':
             out_dict[k] = config.get(k, {})
         else:
             out_dict[k] = unflatten(config.get(k, {}), levels=[-1])
@@ -126,23 +126,23 @@ def detect_duplicate_parameters(
     inverted_config: dict, sub_config_name: str = None, ignore_keys: dict = None
 ):
     if ignore_keys is None:
-        ignore_keys = {"random": ("seed", "samples")}
+        ignore_keys = {'random': ('seed', 'samples')}
 
     duplicate_keys = []
     for p, L in inverted_config.items():
         if len(L) > 1:
-            if "random" in L and p in ignore_keys["random"]:
+            if 'random' in L and p in ignore_keys['random']:
                 continue
             duplicate_keys.append((p, L))
 
     if len(duplicate_keys) > 0:
         if sub_config_name:
             raise ConfigError(
-                f"Found duplicate keys in sub-config {sub_config_name}: "
-                f"{duplicate_keys}"
+                f'Found duplicate keys in sub-config {sub_config_name}: '
+                f'{duplicate_keys}'
             )
         else:
-            raise ConfigError(f"Found duplicate keys: {duplicate_keys}")
+            raise ConfigError(f'Found duplicate keys: {duplicate_keys}')
 
     start_characters = set([x[0] for x in inverted_config.keys()])
     buckets = {
@@ -152,15 +152,15 @@ def detect_duplicate_parameters(
 
     if sub_config_name:
         error_str = (
-            f"Conflicting parameters in sub-config {sub_config_name}, most likely "
-            "due to ambiguous use of dot-notation in the config dict. Found "
+            f'Conflicting parameters in sub-config {sub_config_name}, most likely '
+            'due to ambiguous use of dot-notation in the config dict. Found '
             "parameter '{p1}' in dot-notation starting with other parameter "
             "'{p2}', which is ambiguous."
         )
     else:
         error_str = (
-            "Conflicting parameters, most likely "
-            "due to ambiguous use of dot-notation in the config dict. Found "
+            'Conflicting parameters, most likely '
+            'due to ambiguous use of dot-notation in the config dict. Found '
             "parameter '{p1}' in dot-notation starting with other parameter "
             "'{p2}', which is ambiguous."
         )
@@ -168,10 +168,10 @@ def detect_duplicate_parameters(
     for k in buckets.keys():
         for p1, p2 in combinations(buckets[k], r=2):
             if p1.startswith(
-                f"{p2}."
+                f'{p2}.'
             ):  # with "." after p2 to catch cases like "test" and "test1", which are valid.
                 raise ConfigError(error_str.format(p1=p1, p2=p2))
-            elif p2.startswith(f"{p1}."):
+            elif p2.startswith(f'{p1}.'):
                 raise ConfigError(error_str.format(p1=p1, p2=p2))
 
 
@@ -212,9 +212,9 @@ def generate_configs(experiment_config, overwrite_params=None):
     reserved = standardize_config(reserved)
     if not any([len(reserved.get(k, {})) > 0 for k in RESERVED_KEYS]):
         raise ConfigError(
-            "No parameters defined under grid, fixed, or random in the config file."
+            'No parameters defined under grid, fixed, or random in the config file.'
         )
-    level_stack = [("", next_level)]
+    level_stack = [('', next_level)]
     config_levels = [reserved]
     final_configs = []
 
@@ -223,11 +223,11 @@ def generate_configs(experiment_config, overwrite_params=None):
     while len(level_stack) > 0:
         current_sub_name, sub_vals = level_stack.pop(0)
         sub_config, sub_levels = unpack_config(sub_vals)
-        if current_sub_name != "" and not any(
+        if current_sub_name != '' and not any(
             [len(sub_config.get(k, {})) > 0 for k in RESERVED_KEYS]
         ):
             raise ConfigError(
-                f"No parameters defined under grid, fixed, or random in sub-config {current_sub_name}."
+                f'No parameters defined under grid, fixed, or random in sub-config {current_sub_name}.'
             )
         sub_config = standardize_config(sub_config)
         config_above = config_levels.pop(0)
@@ -243,7 +243,7 @@ def generate_configs(experiment_config, overwrite_params=None):
         if len(redefined_parameters) > 0:
             logging.info(
                 f"Found redefined parameters in sub-config '{current_sub_name}': {redefined_parameters}. "
-                f"Definitions in sub-configs override more general ones."
+                f'Definitions in sub-configs override more general ones.'
             )
             config_above = copy.deepcopy(config_above)
             for p in redefined_parameters:
@@ -258,7 +258,7 @@ def generate_configs(experiment_config, overwrite_params=None):
 
         for sub_name, sub_vals in sub_levels.items():
             new_sub_name = (
-                f"{current_sub_name}.{sub_name}" if current_sub_name != "" else sub_name
+                f'{current_sub_name}.{sub_name}' if current_sub_name != '' else sub_name
             )
             level_stack.append((new_sub_name, sub_vals))
             config_levels.append(config)
@@ -266,13 +266,13 @@ def generate_configs(experiment_config, overwrite_params=None):
     all_configs = []
     for subconfig_name, conf in final_configs:
         conf = standardize_config(conf)
-        random_params = conf.get("random", {})
-        fixed_params = flatten(conf.get("fixed", {}))
-        grid_params = conf.get("grid", {})
+        random_params = conf.get('random', {})
+        fixed_params = flatten(conf.get('fixed', {}))
+        grid_params = conf.get('grid', {})
 
         if len(random_params) > 0:
-            num_samples = random_params["samples"]
-            root_seed = random_params.get("seed", None)
+            num_samples = random_params['samples']
+            root_seed = random_params.get('seed', None)
             random_sampled = sample_random_configs(
                 flatten(random_params), seed=root_seed, samples=num_samples
             )
@@ -311,7 +311,7 @@ def generate_configs(experiment_config, overwrite_params=None):
         if base_length != new_length:
             diff = base_length - new_length
             logging.warning(
-                f"Parameter overwrite caused {diff} identical configs. Duplicates were removed."
+                f'Parameter overwrite caused {diff} identical configs. Duplicates were removed.'
             )
 
     all_configs = [unflatten(conf) for conf in all_configs]
@@ -347,7 +347,7 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
                 if attribute == SETTINGS.NAMED_CONFIG_KEY_NAME:
                     if not isinstance(value, str):
                         raise ConfigError(
-                            f"Named config names should be strings, not {value} ({value.__class__})"
+                            f'Named config names should be strings, not {value} ({value.__class__})'
                         )
                     names[k] = value
                 elif attribute == SETTINGS.NAMED_CONFIG_KEY_PRIORITY:
@@ -355,22 +355,22 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
                         value = int(value)
                     except (ValueError, TypeError):
                         raise ConfigError(
-                            f"Named config priorities should be non-negative integers, not {value} ({value.__class__})"
+                            f'Named config priorities should be non-negative integers, not {value} ({value.__class__})'
                         )
                     priorities[k] = value
                 else:
                     raise ConfigError(
-                        f"Named configs only have the attributes {[SETTINGS.NAMED_CONFIG_KEY_NAME, SETTINGS.NAMED_CONFIG_KEY_PRIORITY]}"
+                        f'Named configs only have the attributes {[SETTINGS.NAMED_CONFIG_KEY_NAME, SETTINGS.NAMED_CONFIG_KEY_PRIORITY]}'
                     )
     for idx in priorities:
         if idx not in names:
             raise ConfigError(
-                f"Defined a priority but not a name for named config {idx}"
+                f'Defined a priority but not a name for named config {idx}'
             )
     return [
         names[idx]
         for idx in sorted(
-            names, key=lambda idx: (priorities.get(idx, float("inf")), names[idx])
+            names, key=lambda idx: (priorities.get(idx, float('inf')), names[idx])
         )
     ]
 
@@ -405,7 +405,7 @@ def generate_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[s
 
 
 def _sacred_create_configs(
-    exp: "sacred.Experiment",
+    exp: 'sacred.Experiment',
     configs: List[Dict],
     named_configs: Optional[List[Tuple[str]]] = None,
 ) -> List[Dict]:
@@ -448,7 +448,7 @@ def _sacred_create_configs(
         named_configs = [()] * len(configs)
     for config, named_config in track(
         list(zip(configs, named_configs)),
-        description="Resolving configurations",
+        description='Resolving configurations',
         disable=len(configs) < SETTINGS.CONFIG_RESOLUTION_PROGRESS_BAR_THRESHOLD,
     ):
         # The following code is adapted from sacred directly: This results in a significant speedup
@@ -458,7 +458,7 @@ def _sacred_create_configs(
         scaffolding = create_scaffolding(exp, sorted_ingredients)
         # get all split non-empty prefixes sorted from deepest to shallowest
         prefixes = sorted(
-            [s.split(".") for s in scaffolding if s != ""],
+            [s.split('.') for s in scaffolding if s != ''],
             reverse=True,
             key=lambda p: len(p),
         )
@@ -687,41 +687,41 @@ YamlUniqueLoader.add_constructor(
 
 
 def read_config(config_path):
-    with open(config_path, "r") as conf:
+    with open(config_path, 'r') as conf:
         config_dict = convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
 
-    if "seml" not in config_dict:
+    if 'seml' not in config_dict:
         raise ConfigError("Please specify a 'seml' dictionary.")
 
-    seml_dict = config_dict["seml"]
-    del config_dict["seml"]
+    seml_dict = config_dict['seml']
+    del config_dict['seml']
 
     for k in seml_dict.keys():
         if k not in SETTINGS.VALID_SEML_CONFIG_VALUES:
-            raise ConfigError(f"{k} is not a valid value in the `seml` config block.")
+            raise ConfigError(f'{k} is not a valid value in the `seml` config block.')
 
     if SETTINGS.SEML_CONFIG_VALUE_VERSION in seml_dict:
         raise ConfigError(
-            f"Using {SETTINGS.SEML_CONFIG_VALUE_VERSION} in the `seml` config block is prohibited."
+            f'Using {SETTINGS.SEML_CONFIG_VALUE_VERSION} in the `seml` config block is prohibited.'
         )
 
     from importlib.metadata import version
 
-    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = version("seml")
+    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = version('seml')
 
     determine_executable_and_working_dir(config_path, seml_dict)
 
-    if "slurm" in config_dict and config_dict["slurm"] is not None:
-        slurm_dict = config_dict["slurm"]
-        del config_dict["slurm"]
+    if 'slurm' in config_dict and config_dict['slurm'] is not None:
+        slurm_dict = config_dict['slurm']
+        del config_dict['slurm']
 
         for k in slurm_dict.keys():
             if k not in SETTINGS.VALID_SLURM_CONFIG_VALUES:
                 raise ConfigError(
-                    f"{k} is not a valid value in the `slurm` config block."
+                    f'{k} is not a valid value in the `slurm` config block.'
                 )
-            if k == "sbatch_options" and slurm_dict["sbatch_options"] is None:
-                slurm_dict["sbatch_options"] = {}
+            if k == 'sbatch_options' and slurm_dict['sbatch_options'] is None:
+                slurm_dict['sbatch_options'] = {}
 
         return seml_dict, slurm_dict, config_dict
     else:
@@ -742,48 +742,48 @@ def determine_executable_and_working_dir(config_path, seml_dict):
     """
     config_dir = str(Path(config_path).expanduser().resolve().parent)
     working_dir = config_dir
-    if "executable" not in seml_dict:
-        raise ConfigError("Please specify an executable path for the experiment.")
-    executable = seml_dict["executable"]
+    if 'executable' not in seml_dict:
+        raise ConfigError('Please specify an executable path for the experiment.')
+    executable = seml_dict['executable']
     with working_directory(working_dir):
         executable_relative_to_config = os.path.exists(executable)
     executable_relative_to_project_root = False
-    if "project_root_dir" in seml_dict:
+    if 'project_root_dir' in seml_dict:
         with working_directory(config_dir):
             working_dir = str(
-                Path(seml_dict["project_root_dir"]).expanduser().resolve()
+                Path(seml_dict['project_root_dir']).expanduser().resolve()
             )
-        seml_dict["use_uploaded_sources"] = True
+        seml_dict['use_uploaded_sources'] = True
         with working_directory(working_dir):  # use project root as base dir from now on
             executable_relative_to_project_root = os.path.exists(executable)
-        del seml_dict["project_root_dir"]  # from now on we use only the working dir
+        del seml_dict['project_root_dir']  # from now on we use only the working dir
     else:
-        seml_dict["use_uploaded_sources"] = False
+        seml_dict['use_uploaded_sources'] = False
         logging.warning(
             "'project_root_dir' not defined in seml config. Source files will not be saved in MongoDB."
         )
-    seml_dict["working_dir"] = working_dir
+    seml_dict['working_dir'] = working_dir
     if not (executable_relative_to_config or executable_relative_to_project_root):
-        raise ExecutableError("Could not find the executable.")
+        raise ExecutableError('Could not find the executable.')
     with working_directory(working_dir):
         executable = str(Path(executable).expanduser().resolve())
         if executable_relative_to_project_root:
-            seml_dict["executable"] = str(Path(executable).relative_to(working_dir))
+            seml_dict['executable'] = str(Path(executable).relative_to(working_dir))
         else:
-            seml_dict["executable"] = str(Path(executable).relative_to(config_dir))
+            seml_dict['executable'] = str(Path(executable).relative_to(config_dir))
 
-        if "output_dir" in seml_dict:
-            seml_dict["output_dir"] = str(
-                Path(seml_dict["output_dir"]).expanduser().resolve()
+        if 'output_dir' in seml_dict:
+            seml_dict['output_dir'] = str(
+                Path(seml_dict['output_dir']).expanduser().resolve()
             )
 
 
 def remove_prepended_dashes(param_dict):
     new_dict = {}
     for k, v in param_dict.items():
-        if k.startswith("--"):
+        if k.startswith('--'):
             new_dict[k[2:]] = v
-        elif k.startswith("-"):
+        elif k.startswith('-'):
             new_dict[k[1:]] = v
         else:
             new_dict[k] = v
@@ -833,26 +833,26 @@ def resolve_interpolations(
     from omegaconf import OmegaConf
 
     resolved = OmegaConf.to_container(
-        OmegaConf.create(document, flags={"allow_objects": True}), resolve=True
+        OmegaConf.create(document, flags={'allow_objects': True}), resolve=True
     )
     resolved_flat = {
         key: value
-        for key, value in flatten(resolved, sep=".").items()
+        for key, value in flatten(resolved, sep='.').items()
         if any(
-            list_is_prefix(allowed_key.split("."), key.split("."))
+            list_is_prefix(allowed_key.split('.'), key.split('.'))
             for allowed_key in allow_interpolations_in
         )
     }
     unresolved_flat = {
         key: value
-        for key, value in flatten(document, sep=".").items()
+        for key, value in flatten(document, sep='.').items()
         if not any(
-            list_is_prefix(allowed_key.split("."), key.split("."))
+            list_is_prefix(allowed_key.split('.'), key.split('.'))
             for allowed_key in allow_interpolations_in
         )
     }
     assert resolved_flat.keys().isdisjoint(
         unresolved_flat.keys()
-    ), f"Overlap between unresolved and resolved dicts: {resolved_flat.keys().intersection(unresolved_flat.keys())}"
+    ), f'Overlap between unresolved and resolved dicts: {resolved_flat.keys().intersection(unresolved_flat.keys())}'
     resolved = unflatten({**resolved_flat, **unresolved_flat})
     return resolved

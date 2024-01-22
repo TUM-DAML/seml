@@ -10,7 +10,7 @@ class ModuleHider(MetaPathFinder):
 
     def find_spec(self, fullname, path, target=None):
         if fullname in self.hidden_modules:
-            raise ImportError("No module named {}".format(fullname))
+            raise ImportError('No module named {}'.format(fullname))
 
     def __enter__(self):
         if self.hide:

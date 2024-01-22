@@ -14,15 +14,15 @@ def get_network_interfaces():
     max_possible = 8  # initial value
     while True:
         _bytes = max_possible * struct_size
-        names = array.array("B")
+        names = array.array('B')
         for i in range(0, _bytes):
             names.append(0)
         outbytes = struct.unpack(
-            "iL",
+            'iL',
             fcntl.ioctl(
                 s.fileno(),
                 0x8912,  # SIOCGIFCONF
-                struct.pack("iL", _bytes, names.buffer_info()[0]),
+                struct.pack('iL', _bytes, names.buffer_info()[0]),
             ),
         )[0]
         if outbytes == _bytes:
@@ -32,7 +32,7 @@ def get_network_interfaces():
     namestr = names.tobytes()
     ifaces = {}
     for i in range(0, outbytes, struct_size):
-        iface_name = bytes.decode(namestr[i : i + 16]).split("\0", 1)[0]
+        iface_name = bytes.decode(namestr[i : i + 16]).split('\0', 1)[0]
         iface_addr = socket.inet_ntoa(namestr[i + 20 : i + 24])
         ifaces[iface_name] = iface_addr
 
@@ -41,8 +41,8 @@ def get_network_interfaces():
 
 def find_free_port():
     ifaces = get_network_interfaces()
-    if "lo" in ifaces:
-        del ifaces["lo"]
+    if 'lo' in ifaces:
+        del ifaces['lo']
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
         s.bind((list(ifaces.values())[0], 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

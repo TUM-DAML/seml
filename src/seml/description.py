@@ -19,7 +19,7 @@ def resolve_description(description: str, config: Dict) -> str:
     # so we add the description string to the config
     key = str(uuid.uuid4())
     config = OmegaConf.create(
-        {key: description, **config}, flags={"allow_objects": True}
+        {key: description, **config}, flags={'allow_objects': True}
     )
     return OmegaConf.to_container(config, resolve=True)[key]
 
@@ -64,18 +64,18 @@ def collection_set_description(
     )
     exps = list(collection.find(filter_dict, {}))
     if len(exps) == 0 and sacred_id is not None:
-        raise MongoDBError(f"No experiment found with ID {sacred_id}.")
+        raise MongoDBError(f'No experiment found with ID {sacred_id}.')
     descriptions_resolved = {
-        exp["_id"]: resolve_description(description, exp) if resolve else description
+        exp['_id']: resolve_description(description, exp) if resolve else description
         for exp in exps
     }
     num_to_overwrite = len(
         list(
             filter(
-                lambda exp: exp.get("seml", {}).get(
-                    "description", descriptions_resolved[exp["_id"]]
+                lambda exp: exp.get('seml', {}).get(
+                    'description', descriptions_resolved[exp['_id']]
                 )
-                != descriptions_resolved[exp["_id"]],
+                != descriptions_resolved[exp['_id']],
                 exps,
             )
         )
@@ -85,23 +85,23 @@ def collection_set_description(
         not yes
         and num_to_overwrite >= SETTINGS.CONFIRM_DESCRIPTION_UPDATE_THRESHOLD
         and not prompt(
-            f"{num_to_overwrite} experiment(s) have a different description. Proceed?",
+            f'{num_to_overwrite} experiment(s) have a different description. Proceed?',
             type=bool,
         )
     ):
         exit(1)
-    if len(list(filter(lambda exp: exp["status"] in States.RUNNING, exps))):
+    if len(list(filter(lambda exp: exp['status'] in States.RUNNING, exps))):
         logging.warn(
-            f"Updating the description of {States.RUNNING[0]} experiments: This may not have an"
-            " effect, as sacred overwrites experiments with each tick."
+            f'Updating the description of {States.RUNNING[0]} experiments: This may not have an'
+            ' effect, as sacred overwrites experiments with each tick.'
         )
     result = collection.bulk_write(
         [
-            UpdateOne({"_id": _id}, {"$set": {"seml.description": description}})
+            UpdateOne({'_id': _id}, {'$set': {'seml.description': description}})
             for _id, description in descriptions_resolved.items()
         ]
     )
-    logging.info(f"Updated the descriptions of {result.modified_count} experiments.")
+    logging.info(f'Updated the descriptions of {result.modified_count} experiments.')
 
 
 def collection_delete_description(
@@ -130,25 +130,25 @@ def collection_delete_description(
         Whether to override confirmation prompts, by default False
     """
     collection = get_collection(db_collection_name)
-    update = {"$unset": {"seml.description": ""}}
+    update = {'$unset': {'seml.description': ''}}
     filter_dict = build_filter_dict(
         filter_states, batch_id, filter_dict, sacred_id=sacred_id
     )
     exps = [
         exp
-        for exp in collection.find(filter_dict, {"seml.description": 1})
-        if exp.get("seml", {}).get("description", None) is not None
+        for exp in collection.find(filter_dict, {'seml.description': 1})
+        if exp.get('seml', {}).get('description', None) is not None
     ]
     if (
         not yes
         and len(exps) >= SETTINGS.CONFIRM_DESCRIPTION_DELETE_THRESHOLD
         and not prompt(
-            f"Deleting descriptions of {len(exps)} experiment(s). Proceed?", type=bool
+            f'Deleting descriptions of {len(exps)} experiment(s). Proceed?', type=bool
         )
     ):
         exit(1)
     result = collection.update_many(filter_dict, update)
-    logging.info(f"Deleted the descriptions of {result.modified_count} experiments.")
+    logging.info(f'Deleted the descriptions of {result.modified_count} experiments.')
 
 
 def collection_list_descriptions(db_collection_name: str, update_status: bool = False):
@@ -172,23 +172,23 @@ def collection_list_descriptions(db_collection_name: str, update_status: bool = 
         detect_killed(db_collection_name, print_detected=False)
     else:
         logging.warning(
-            f"Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use the `--update-status` flag instead."
+            f'Status of {States.RUNNING[0]} experiments may not reflect if they have died or been canceled. Use the `--update-status` flag instead.'
         )
 
     description_slices = {
-        (obj["_id"] if obj["_id"] else ""): {
-            "ids": to_slices(obj["ids"]),
-            "batch_ids": to_slices(obj["batch_ids"]),
-            "states": set(obj["states"]),
+        (obj['_id'] if obj['_id'] else ''): {
+            'ids': to_slices(obj['ids']),
+            'batch_ids': to_slices(obj['batch_ids']),
+            'states': set(obj['states']),
         }
         for obj in collection.aggregate(
             [
                 {
-                    "$group": {
-                        "_id": "$seml.description",
-                        "ids": {"$addToSet": "$_id"},
-                        "batch_ids": {"$addToSet": "$batch_id"},
-                        "states": {"$addToSet": "$status"},
+                    '$group': {
+                        '_id': '$seml.description',
+                        'ids': {'$addToSet': '$_id'},
+                        'batch_ids': {'$addToSet': '$batch_id'},
+                        'states': {'$addToSet': '$status'},
                     }
                 }
             ]
@@ -196,16 +196,16 @@ def collection_list_descriptions(db_collection_name: str, update_status: bool = 
     }
 
     table = Table(show_header=True)
-    table.add_column("Description", justify="left")
-    table.add_column("Experiment IDs", justify="left")
-    table.add_column("Batch IDs", justify="left")
-    table.add_column("Status", justify="left")
+    table.add_column('Description', justify='left')
+    table.add_column('Experiment IDs', justify='left')
+    table.add_column('Batch IDs', justify='left')
+    table.add_column('Status', justify='left')
     for description in sorted(description_slices):
         slices = description_slices[description]
         table.add_row(
             description,
-            ", ".join(map(slice_to_str, slices["ids"])),
-            ", ".join(map(slice_to_str, slices["batch_ids"])),
-            ", ".join(slices["states"]),
+            ', '.join(map(slice_to_str, slices['ids'])),
+            ', '.join(map(slice_to_str, slices['batch_ids'])),
+            ', '.join(slices['states']),
         )
-    console.print(Align(table, align="center"))
+    console.print(Align(table, align='center'))

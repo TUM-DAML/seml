@@ -36,8 +36,8 @@ class MattermostObserver(RunObserver):
         self,
         webhook_url,
         channel=None,
-        bot_name="sacredbot",
-        icon=":angel:",
+        bot_name='sacredbot',
+        icon=':angel:',
         notify_on_started=False,
         notify_on_completed=True,
         notify_on_failed=True,
@@ -100,24 +100,24 @@ class MattermostObserver(RunObserver):
         self.bot_name = bot_name
         self.icon = icon
         self.completed_text = completed_text or (
-            ":white_check_mark: *{experiment[name]}* "
-            "completed after _{elapsed_time}_ with result: \n```json\n{result}\n````\n"
+            ':white_check_mark: *{experiment[name]}* '
+            'completed after _{elapsed_time}_ with result: \n```json\n{result}\n````\n'
         )
         self.started_text = started_text or (
-            ":hourglass_flowing_sand: *{experiment[name]}* "
-            "started on host `{host_info[hostname]}` at _{start_time}_."
+            ':hourglass_flowing_sand: *{experiment[name]}* '
+            'started on host `{host_info[hostname]}` at _{start_time}_.'
         )
         self.interrupted_text = interrupted_text or (
-            ":warning: *{experiment[name]}* " "interrupted after _{elapsed_time}_"
+            ':warning: *{experiment[name]}* ' 'interrupted after _{elapsed_time}_'
         )
         self.failed_text = failed_text or (
-            ":x: *{experiment[name]}* failed after " "_{elapsed_time}_ with `{error}`"
+            ':x: *{experiment[name]}* failed after ' '_{elapsed_time}_ with `{error}`'
         )
         self.heartbeat_text = heartbeat_text or (
-            ":heartpulse: *{experiment[name]}* has been up and running for "
-            "_{elapsed_time}_. "
-            "Current info dict: \n```json\n{info}\n```\n"
-            "Next heartbeat will be sent in about _{heartbeat_interval}_, i.e., on _{next_heartbeat_date}_."
+            ':heartpulse: *{experiment[name]}* has been up and running for '
+            '_{elapsed_time}_. '
+            'Current info dict: \n```json\n{info}\n```\n'
+            'Next heartbeat will be sent in about _{heartbeat_interval}_, i.e., on _{next_heartbeat_date}_.'
         )
 
         self.run = None
@@ -134,7 +134,7 @@ class MattermostObserver(RunObserver):
         self.heartbeat_interval = None
         if heartbeat_interval is not None:
             # unfortunately datetime.strptime() doesn't work with timedeltas, so we parse the date ourselves:
-            pattern = re.compile("([0-9]+)-([0-9]+):([0-9]+)")
+            pattern = re.compile('([0-9]+)-([0-9]+):([0-9]+)')
             days, hours, minutes = pattern.match(heartbeat_interval).groups()
             self.heartbeat_interval = timedelta(
                 days=int(days), hours=int(hours), minutes=int(minutes)
@@ -150,29 +150,29 @@ class MattermostObserver(RunObserver):
             start_time = to_local_timezone(start_time)
 
         self.run = {
-            "_id": _id,
-            "config": config,
-            "start_time": start_time,
-            "experiment": ex_info,
-            "command": command,
-            "host_info": host_info,
+            '_id': _id,
+            'config': config,
+            'start_time': start_time,
+            'experiment': ex_info,
+            'command': command,
+            'host_info': host_info,
         }
         if self.heartbeat_interval is not None:
-            self.run["heartbeat_interval"] = td_format(self.heartbeat_interval)
+            self.run['heartbeat_interval'] = td_format(self.heartbeat_interval)
             self.last_heartbeat_notification = start_time
 
         if not self.notify_on_started:
             return
 
         data = {
-            "username": self.bot_name,
-            "icon_emoji": self.icon,
-            "text": self.get_started_text(),
+            'username': self.bot_name,
+            'icon_emoji': self.icon,
+            'text': self.get_started_text(),
         }
 
         if self.channel is not None:
-            data["channel"] = self.channel
-        headers = {"Content-type": "application/json", "Accept": "text/plain"}
+            data['channel'] = self.channel
+        headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
         requests.post(self.webhook_url, data=json.dumps(data), headers=headers)
 
     def get_completed_text(self):
@@ -199,18 +199,18 @@ class MattermostObserver(RunObserver):
         if self.convert_utc_to_local_timezone:
             stop_time = to_local_timezone(stop_time)
 
-        self.run["result"] = json.dumps(result, indent=4, cls=NumpyEncoder)
-        self.run["stop_time"] = stop_time
-        self.run["elapsed_time"] = td_format(stop_time - self.run["start_time"])
+        self.run['result'] = json.dumps(result, indent=4, cls=NumpyEncoder)
+        self.run['stop_time'] = stop_time
+        self.run['elapsed_time'] = td_format(stop_time - self.run['start_time'])
 
         data = {
-            "username": self.bot_name,
-            "icon_emoji": self.icon,
-            "text": self.get_completed_text(),
+            'username': self.bot_name,
+            'icon_emoji': self.icon,
+            'text': self.get_completed_text(),
         }
         if self.channel is not None:
-            data["channel"] = self.channel
-        headers = {"Content-type": "application/json", "Accept": "text/plain"}
+            data['channel'] = self.channel
+        headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
         requests.post(self.webhook_url, data=json.dumps(data), headers=headers)
 
     def interrupted_event(self, interrupt_time, status):
@@ -222,18 +222,18 @@ class MattermostObserver(RunObserver):
         if self.convert_utc_to_local_timezone:
             interrupt_time = to_local_timezone(interrupt_time)
 
-        self.run["status"] = status
-        self.run["interrupt_time"] = interrupt_time
-        self.run["elapsed_time"] = td_format(interrupt_time - self.run["start_time"])
+        self.run['status'] = status
+        self.run['interrupt_time'] = interrupt_time
+        self.run['elapsed_time'] = td_format(interrupt_time - self.run['start_time'])
 
         data = {
-            "username": self.bot_name,
-            "icon_emoji": self.icon,
-            "text": self.get_interrupted_text(),
+            'username': self.bot_name,
+            'icon_emoji': self.icon,
+            'text': self.get_interrupted_text(),
         }
         if self.channel is not None:
-            data["channel"] = self.channel
-        headers = {"Content-type": "application/json", "Accept": "text/plain"}
+            data['channel'] = self.channel
+        headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
         requests.post(self.webhook_url, data=json.dumps(data), headers=headers)
 
     def failed_event(self, fail_time, fail_trace):
@@ -244,19 +244,19 @@ class MattermostObserver(RunObserver):
         if self.convert_utc_to_local_timezone:
             fail_time = to_local_timezone(fail_time)
 
-        self.run["fail_trace"] = "\n".join(fail_trace)
-        self.run["error"] = fail_trace[-1].strip()
-        self.run["fail_time"] = fail_time
-        self.run["elapsed_time"] = td_format(fail_time - self.run["start_time"])
+        self.run['fail_trace'] = '\n'.join(fail_trace)
+        self.run['error'] = fail_trace[-1].strip()
+        self.run['fail_time'] = fail_time
+        self.run['elapsed_time'] = td_format(fail_time - self.run['start_time'])
 
         data = {
-            "username": self.bot_name,
-            "icon_emoji": self.icon,
-            "text": self.get_failed_text(),
+            'username': self.bot_name,
+            'icon_emoji': self.icon,
+            'text': self.get_failed_text(),
         }
         if self.channel is not None:
-            data["channel"] = self.channel
-        headers = {"Content-type": "application/json", "Accept": "text/plain"}
+            data['channel'] = self.channel
+        headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
         requests.post(self.webhook_url, data=json.dumps(data), headers=headers)
 
     def heartbeat_event(self, info, captured_out, beat_time, result):
@@ -272,19 +272,19 @@ class MattermostObserver(RunObserver):
             return
 
         next_heartbeat_notification = beat_time + self.heartbeat_interval
-        self.run["next_heartbeat_date"] = datetime.strftime(
-            next_heartbeat_notification, "%Y-%m-%d %H:%M"
+        self.run['next_heartbeat_date'] = datetime.strftime(
+            next_heartbeat_notification, '%Y-%m-%d %H:%M'
         )
-        self.run["elapsed_time"] = td_format(beat_time - self.run["start_time"])
-        self.run["info"] = json.dumps(info, indent=4, default=json_util.default)
+        self.run['elapsed_time'] = td_format(beat_time - self.run['start_time'])
+        self.run['info'] = json.dumps(info, indent=4, default=json_util.default)
 
         data = {
-            "username": self.bot_name,
-            "icon_emoji": self.icon,
-            "text": self.get_heartbeat_text(),
+            'username': self.bot_name,
+            'icon_emoji': self.icon,
+            'text': self.get_heartbeat_text(),
         }
         if self.channel is not None:
-            data["channel"] = self.channel
-        headers = {"Content-type": "application/json", "Accept": "text/plain"}
+            data['channel'] = self.channel
+        headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
         requests.post(self.webhook_url, data=json.dumps(data), headers=headers)
         self.last_heartbeat_notification = beat_time

@@ -33,7 +33,7 @@ States = SETTINGS.STATES
 
 
 def filter_experiments(
-    collection: "pymongo.collection.Collection",
+    collection: 'pymongo.collection.Collection',
     documents: List[Dict],
     use_hash: bool = True,
 ):
@@ -62,13 +62,13 @@ def filter_experiments(
     for document in documents:
         if use_hash:
             lookup_result = collection.find_one(
-                {"config_hash": document["config_hash"]}
+                {'config_hash': document['config_hash']}
             )
         else:
             lookup_dict = flatten(
                 {
-                    "config": remove_keys_from_nested(
-                        document["config"], document["config_unresolved"]
+                    'config': remove_keys_from_nested(
+                        document['config'], document['config_unresolved']
                     )
                 }
             )
@@ -79,7 +79,7 @@ def filter_experiments(
 
 
 def add_configs(
-    collection: "pymongo.collection.Collection",
+    collection: 'pymongo.collection.Collection',
     documents: List[Dict],
     description: Optional[str] = None,
     resolve_descriptions: bool = True,
@@ -101,7 +101,7 @@ def add_configs(
     if len(documents) == 0:
         return
 
-    start_id = get_max_in_collection(collection, "_id")
+    start_id = get_max_in_collection(collection, '_id')
     if start_id is None:
         start_id = 1
     else:
@@ -115,21 +115,21 @@ def add_configs(
         {
             **document,
             **{
-                "_id": start_id + idx,
-                "status": States.STAGED[0],
-                "add_time": datetime.datetime.utcnow(),
+                '_id': start_id + idx,
+                'status': States.STAGED[0],
+                'add_time': datetime.datetime.utcnow(),
             },
         }
         for idx, document in enumerate(documents)
     ]
     if description is not None:
         for db_dict in documents:
-            db_dict["seml"]["description"] = description
+            db_dict['seml']['description'] = description
     if resolve_descriptions:
         for db_dict in documents:
-            if "description" in db_dict["seml"]:
-                db_dict["seml"]["description"] = resolve_description(
-                    db_dict["seml"]["description"], db_dict
+            if 'description' in db_dict['seml']:
+                db_dict['seml']['description'] = resolve_description(
+                    db_dict['seml']['description'], db_dict
                 )
 
     collection.insert_many(documents)
@@ -206,22 +206,22 @@ def assemble_slurm_config_dict(experiment_slurm_config: dict):
     slurm_config_base = copy.deepcopy(SETTINGS.SLURM_DEFAULT)
 
     # Check for and use sbatch options template
-    sbatch_options_template = slurm_config.get("sbatch_options_template", None)
+    sbatch_options_template = slurm_config.get('sbatch_options_template', None)
     if sbatch_options_template is not None:
         if sbatch_options_template not in SETTINGS.SBATCH_OPTIONS_TEMPLATES:
             raise ConfigError(
                 f"sbatch options template '{sbatch_options_template}' not found in settings.py."
             )
-        slurm_config_base["sbatch_options"] = merge_dicts(
-            slurm_config_base["sbatch_options"],
+        slurm_config_base['sbatch_options'] = merge_dicts(
+            slurm_config_base['sbatch_options'],
             SETTINGS.SBATCH_OPTIONS_TEMPLATES[sbatch_options_template],
         )
 
     # Integrate experiment specific config
     slurm_config = merge_dicts(slurm_config_base, slurm_config)
 
-    slurm_config["sbatch_options"] = remove_prepended_dashes(
-        slurm_config["sbatch_options"]
+    slurm_config['sbatch_options'] = remove_prepended_dashes(
+        slurm_config['sbatch_options']
     )
     return slurm_config
 
@@ -265,17 +265,17 @@ def add_config_file(
     seml_config, slurm_config, experiment_config = read_config(config_file)
 
     # Use current Anaconda environment if not specified
-    if "conda_environment" not in seml_config:
-        seml_config["conda_environment"] = os.environ.get("CONDA_DEFAULT_ENV")
+    if 'conda_environment' not in seml_config:
+        seml_config['conda_environment'] = os.environ.get('CONDA_DEFAULT_ENV')
 
     path, commit, dirty = get_git_info(
-        seml_config["executable"], seml_config["working_dir"]
+        seml_config['executable'], seml_config['working_dir']
     )
     git_info = None
     if path is not None:
-        git_info = {"path": path, "commit": commit, "dirty": dirty}
+        git_info = {'path': path, 'commit': commit, 'dirty': dirty}
 
-    batch_id = get_max_in_collection(collection, "batch_id")
+    batch_id = get_max_in_collection(collection, 'batch_id')
     if batch_id is None:
         batch_id = 1
     else:
@@ -289,48 +289,48 @@ def add_config_file(
     )
     configs, named_configs = generate_named_configs(configs_unresolved)
     configs = resolve_configs(
-        seml_config["executable"],
-        seml_config["conda_environment"],
+        seml_config['executable'],
+        seml_config['conda_environment'],
         configs,
         named_configs,
-        seml_config["working_dir"],
+        seml_config['working_dir'],
     )
 
     # Create documents that can be interpolated
     documents = [
         resolve_interpolations(
             {
-                "seml": seml_config,
-                "slurm": slurm_config,
-                "git": git_info,
-                "batch_id": batch_id,  # needs to be determined now for source file uploading
-                "config": config,
-                "config_unresolved": config_unresolved,
+                'seml': seml_config,
+                'slurm': slurm_config,
+                'git': git_info,
+                'batch_id': batch_id,  # needs to be determined now for source file uploading
+                'config': config,
+                'config_unresolved': config_unresolved,
             }
         )
         for config, config_unresolved in zip(configs, configs_unresolved)
     ]
 
     # Upload source files: This also determines the batch_id
-    if seml_config["use_uploaded_sources"] and not no_code_checkpoint:
-        seml_config["source_files"] = upload_sources(seml_config, collection, batch_id)
-    del seml_config["use_uploaded_sources"]
-    documents = [{**document, **{"seml": seml_config}} for document in documents]
+    if seml_config['use_uploaded_sources'] and not no_code_checkpoint:
+        seml_config['source_files'] = upload_sources(seml_config, collection, batch_id)
+    del seml_config['use_uploaded_sources']
+    documents = [{**document, **{'seml': seml_config}} for document in documents]
 
     if not no_sanity_check:
         # Sanity checking uses the resolved values (after considering named configs)
         check_config(
-            seml_config["executable"],
-            seml_config["conda_environment"],
-            [document["config"] for document in documents],
-            seml_config["working_dir"],
+            seml_config['executable'],
+            seml_config['conda_environment'],
+            [document['config'] for document in documents],
+            seml_config['working_dir'],
         )
 
     use_hash = not no_hash
     for document in documents:
-        document["config_hash"] = make_hash(
-            document["config"],
-            config_get_exclude_keys(document["config"], document["config_unresolved"]),
+        document['config_hash'] = make_hash(
+            document['config'],
+            config_get_exclude_keys(document['config'], document['config_unresolved']),
         )
 
     if not force_duplicates:
@@ -343,9 +343,9 @@ def add_config_file(
             for document in documents:
                 key = Hashabledict(
                     **remove_keys_from_nested(
-                        document["config"],
+                        document['config'],
                         config_get_exclude_keys(
-                            document["config"], document["config_unresolved"]
+                            document['config'], document['config_unresolved']
                         ),
                     )
                 )
@@ -356,7 +356,7 @@ def add_config_file(
         else:
             # fast duplicate detection using hashing.
             documents_dict = {
-                document["config_hash"]: document for document in documents
+                document['config_hash']: document for document in documents
             }
             documents = list(documents_dict.values())
 
@@ -366,17 +366,17 @@ def add_config_file(
         len_after = len(documents)
         if len_after_deduplication != len_before:
             logging.info(
-                f"{len_before - len_after_deduplication} of {len_before} experiment{s_if(len_before)} were "
-                f"duplicates. Adding only the {len_after_deduplication} unique configurations."
+                f'{len_before - len_after_deduplication} of {len_before} experiment{s_if(len_before)} were '
+                f'duplicates. Adding only the {len_after_deduplication} unique configurations.'
             )
         if len_after != len_after_deduplication:
             logging.info(
-                f"{len_after_deduplication - len_after} of {len_after_deduplication} "
-                f"experiment{s_if(len_before)} were already found in the database. They were not added again."
+                f'{len_after_deduplication - len_after} of {len_after_deduplication} '
+                f'experiment{s_if(len_before)} were already found in the database. They were not added again.'
             )
 
     # Create an index on the config hash. If the index is already present, this simply does nothing.
-    collection.create_index("config_hash")
+    collection.create_index('config_hash')
     # Add the configurations to the database with STAGED status.
     if len(configs) > 0:
         add_configs(

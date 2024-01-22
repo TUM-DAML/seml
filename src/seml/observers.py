@@ -5,12 +5,12 @@ from seml.database import get_mongo_client, get_mongodb_config
 from seml.settings import SETTINGS
 
 __all__ = [
-    "create_mongodb_observer",
-    "create_slack_observer",
-    "create_neptune_observer",
-    "create_file_storage_observer",
-    "add_to_file_storage_observer",
-    "create_mattermost_observer",
+    'create_mongodb_observer',
+    'create_slack_observer',
+    'create_neptune_observer',
+    'create_file_storage_observer',
+    'add_to_file_storage_observer',
+    'create_mattermost_observer',
 ]
 
 
@@ -38,7 +38,7 @@ def create_mongodb_observer(collection, mongodb_config=None, overwrite=None):
     observer = MongoObserver(
         client=get_mongo_client(**mongodb_config),
         collection=collection,
-        db_name=mongodb_config["db_name"],
+        db_name=mongodb_config['db_name'],
         overwrite=overwrite,
     )
     return observer
@@ -50,14 +50,14 @@ def create_file_storage_observer(runs_folder_name, basedir=None, **kwargs):
     if basedir is None:
         basedir = SETTINGS.OBSERVERS.FILE.DEFAULT_BASE_DIR
         logging.info(
-            f"Starting file observer in location {basedir}/{runs_folder_name}. To change the default base "
-            f"directory, modify entry SETTINGS.OBSERVERS.FILE.DEFAULT_BASE_DIR in seml/settings.py."
+            f'Starting file observer in location {basedir}/{runs_folder_name}. To change the default base '
+            f'directory, modify entry SETTINGS.OBSERVERS.FILE.DEFAULT_BASE_DIR in seml/settings.py.'
         )
     else:
         logging.info(
-            f"Starting file observer in location {basedir}/{runs_folder_name}."
+            f'Starting file observer in location {basedir}/{runs_folder_name}.'
         )
-    observer = FileStorageObserver(f"{basedir}/{runs_folder_name}", kwargs)
+    observer = FileStorageObserver(f'{basedir}/{runs_folder_name}', kwargs)
     return observer
 
 
@@ -79,7 +79,7 @@ def add_to_file_storage_observer(file, experiment, delete_local_file=False):
     """
     has_file_observer = False
     for obs in experiment.current_run.observers:
-        if "FileStorageObserver" in str(type(obs)):
+        if 'FileStorageObserver' in str(type(obs)):
             obs.artifact_event(
                 name=None,
                 filename=file,
@@ -98,15 +98,15 @@ def create_slack_observer(webhook=None):
 
     slack_obs = None
     if webhook is None:
-        if "OBSERVERS" in SETTINGS and "SLACK" in SETTINGS.OBSERVERS:
-            if "WEBHOOK" in SETTINGS.OBSERVERS.SLACK:
+        if 'OBSERVERS' in SETTINGS and 'SLACK' in SETTINGS.OBSERVERS:
+            if 'WEBHOOK' in SETTINGS.OBSERVERS.SLACK:
                 webhook = SETTINGS.OBSERVERS.SLACK.WEBHOOK
                 slack_obs = SlackObserver(webhook)
     else:
         slack_obs = SlackObserver(webhook)
 
     if slack_obs is None:
-        logging.warning("Failed to create Slack observer.")
+        logging.warning('Failed to create Slack observer.')
     return slack_obs
 
 
@@ -131,43 +131,43 @@ def create_mattermost_observer(webhook=None, channel=None, **kwargs):
     from seml.mattermost_observer import MattermostObserver
 
     if channel is None:
-        if "OBSERVERS" in SETTINGS and "MATTERMOST" in SETTINGS.OBSERVERS:
-            if channel is None and "DEFAULT_CHANNEL" in SETTINGS.OBSERVERS.MATTERMOST:
+        if 'OBSERVERS' in SETTINGS and 'MATTERMOST' in SETTINGS.OBSERVERS:
+            if channel is None and 'DEFAULT_CHANNEL' in SETTINGS.OBSERVERS.MATTERMOST:
                 channel = SETTINGS.OBSERVERS.MATTERMOST.DEFAULT_CHANNEL
     if webhook is None:
-        if "OBSERVERS" in SETTINGS and "MATTERMOST" in SETTINGS.OBSERVERS:
-            if channel is None and "DEFAULT_CHANNEL" in SETTINGS.OBSERVERS.MATTERMOST:
+        if 'OBSERVERS' in SETTINGS and 'MATTERMOST' in SETTINGS.OBSERVERS:
+            if channel is None and 'DEFAULT_CHANNEL' in SETTINGS.OBSERVERS.MATTERMOST:
                 channel = SETTINGS.OBSERVERS.MATTERMOST.DEFAULT_CHANNEL
-            if "WEBHOOK" in SETTINGS.OBSERVERS.MATTERMOST:
+            if 'WEBHOOK' in SETTINGS.OBSERVERS.MATTERMOST:
                 webhook = SETTINGS.OBSERVERS.MATTERMOST.WEBHOOK
         else:
-            raise ValueError("No webhook provided and none found in settings.py.")
+            raise ValueError('No webhook provided and none found in settings.py.')
 
     mattermost_observer = MattermostObserver(webhook, channel=channel, **kwargs)
     return mattermost_observer
 
 
 def create_neptune_observer(
-    project_name, api_token=None, source_extensions=["**/*.py", "**/*.yaml", "**/*.yml"]
+    project_name, api_token=None, source_extensions=['**/*.py', '**/*.yaml', '**/*.yml']
 ):
     try:
         from neptunecontrib.monitoring.sacred import NeptuneObserver
     except ImportError:
         logging.error(
-            "Could not import neptunecontrib. Install via `pip install neptune-contrib`."
+            'Could not import neptunecontrib. Install via `pip install neptune-contrib`.'
         )
 
     if api_token is None:
-        if "OBSERVERS" in SETTINGS and "NEPTUNE" in SETTINGS.OBSERVERS:
-            if "AUTH_TOKEN" in SETTINGS.OBSERVERS.NEPTUNE:
+        if 'OBSERVERS' in SETTINGS and 'NEPTUNE' in SETTINGS.OBSERVERS:
+            if 'AUTH_TOKEN' in SETTINGS.OBSERVERS.NEPTUNE:
                 api_token = SETTINGS.OBSERVERS.NEPTUNE.AUTH_TOKEN
                 # Ignore example token setting
-                if api_token == "YOUR_AUTH_TOKEN":
+                if api_token == 'YOUR_AUTH_TOKEN':
                     api_token = None
 
     if api_token is None:
         logging.info(
-            "No API token for Neptune provided. Trying to use environment variable NEPTUNE_API_TOKEN."
+            'No API token for Neptune provided. Trying to use environment variable NEPTUNE_API_TOKEN.'
         )
     neptune_obs = NeptuneObserver(
         api_token=api_token,

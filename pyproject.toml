@@ -48,6 +48,11 @@ ignore = [
     "F821", # ignore undefined name for type annotations (this is due to lazy imports)
 ]
 
+[tool.ruff.format]
+quote-style="single"
+line-ending = "lf"
+docstring-code-format = false
+
 [project.urls]
 Homepage = "https://github.com/TUM-DAML/seml"
 Documentation = "https://github.com/TUM-DAML/seml/blob/master/docs.md"

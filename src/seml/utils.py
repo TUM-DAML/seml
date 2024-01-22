@@ -10,10 +10,10 @@ import seml.typer as typer
 
 
 def s_if(n: int) -> str:
-    return "" if n == 1 else "s"
+    return '' if n == 1 else 's'
 
 
-def unflatten(dictionary: dict, sep: str = ".", recursive: bool = False, levels=None):
+def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=None):
     """
     Turns a flattened dict into a nested one, e.g. {'a.b':2, 'c':3} becomes {'a':{'b': 2}, 'c': 3}
     From https://stackoverflow.com/questions/6037503/python-unflatten-dict.
@@ -36,7 +36,7 @@ def unflatten(dictionary: dict, sep: str = ".", recursive: bool = False, levels=
     """
 
     duplicate_key_warning_str = (
-        "Duplicate key detected in recursive dictionary unflattening. "
+        'Duplicate key detected in recursive dictionary unflattening. '
         "Overwriting previous entries of '{}'."
     )
 
@@ -45,11 +45,11 @@ def unflatten(dictionary: dict, sep: str = ".", recursive: bool = False, levels=
             levels = [levels]
         if len(levels) == 0:
             raise ValueError(
-                "Need at least one level to unflatten when levels != None."
+                'Need at least one level to unflatten when levels != None.'
             )
         if not isinstance(levels[0], int):
             raise TypeError(
-                f"Levels must be list or set of integers, got type {type(levels[0])}."
+                f'Levels must be list or set of integers, got type {type(levels[0])}.'
             )
 
     result_dict = dict()
@@ -69,12 +69,12 @@ def unflatten(dictionary: dict, sep: str = ".", recursive: bool = False, levels=
                         new_ix = max(0, new_ix)
                     if new_ix < 0:
                         raise IndexError(
-                            f"Dictionary key level out of bounds. ({new_ix} < 0)."
+                            f'Dictionary key level out of bounds. ({new_ix} < 0).'
                         )
                     key_levels[ix] = new_ix
                 if key_levels[ix] >= len(parts):
                     raise IndexError(
-                        f"Dictionary key level {key_levels[ix]} out of bounds for size {len(parts)}."
+                        f'Dictionary key level {key_levels[ix]} out of bounds for size {len(parts)}.'
                     )
             key_levels = sorted(key_levels)
 
@@ -117,7 +117,7 @@ def unflatten(dictionary: dict, sep: str = ".", recursive: bool = False, levels=
     return result_dict
 
 
-def flatten(dictionary: dict, parent_key: str = "", sep: str = "."):
+def flatten(dictionary: dict, parent_key: str = '', sep: str = '.'):
     """
     Flatten a nested dictionary, e.g. {'a':{'b': 2}, 'c': 3} becomes {'a.b':2, 'c':3}.
     From https://stackoverflow.com/questions/6027558/flatten-nested-dictionaries-compressing-keys
@@ -149,7 +149,7 @@ def flatten(dictionary: dict, parent_key: str = "", sep: str = "."):
     return dict(items)
 
 
-def get_from_nested(d: Dict, key: str, sep: str = ".") -> Any:
+def get_from_nested(d: Dict, key: str, sep: str = '.') -> Any:
     """Gets a value from an unflattened dict, e.g. allows to use strings like `config.data` on a nesteddict
 
     Parameters
@@ -176,7 +176,7 @@ def list_is_prefix(first: List, second: List) -> bool:
 
 
 def resolve_projection_path_conflicts(
-    projection: Dict[str, bool], sep: str = "."
+    projection: Dict[str, bool], sep: str = '.'
 ) -> Dict[str, bool]:
     """Removes path conflicts in a MongoDB projection dict. E.g. if you pass the dict
     `{'config' : 1, 'config.dataset' : 1}`, MongoDB will throw an error. This method will ensure that
@@ -204,14 +204,14 @@ def resolve_projection_path_conflicts(
                 # If `k` is a prefix of any path in `result`, this path will be removed
                 if result[other] != v:
                     raise ValueError(
-                        f"Can not resolve projection {(k, v), (other, result[other])}"
+                        f'Can not resolve projection {(k, v), (other, result[other])}'
                     )
                 del result[other]
             elif list_is_prefix(other, k):
                 # If any other path in `result` is a prefix of `k` we do not add k
                 if result[other] != v:
                     raise ValueError(
-                        f"Can not resolve projection {(k, v), (other, result[other])}"
+                        f'Can not resolve projection {(k, v), (other, result[other])}'
                     )
                 add_k = False
         if add_k:
@@ -258,9 +258,9 @@ def merge_dicts(dict1, dict2):
 
     """
     if not isinstance(dict1, dict):
-        raise ValueError(f"Expecting dict1 to be dict, found {type(dict1)}.")
+        raise ValueError(f'Expecting dict1 to be dict, found {type(dict1)}.')
     if not isinstance(dict2, dict):
-        raise ValueError(f"Expecting dict2 to be dict, found {type(dict2)}.")
+        raise ValueError(f'Expecting dict2 to be dict, found {type(dict2)}.')
 
     return_dict = copy.deepcopy(dict1)
 
@@ -303,7 +303,7 @@ def remove_keys_from_nested(d: Dict, keys: List[str] = []) -> Dict:
 def make_hash(
     d: Dict,
     exclude_keys: List[str] = [
-        "seed",
+        'seed',
     ],
 ):
     """
@@ -324,7 +324,7 @@ def make_hash(
 
     return hashlib.md5(
         json.dumps(remove_keys_from_nested(d, exclude_keys), sort_keys=True).encode(
-            "utf-8"
+            'utf-8'
         )
     ).hexdigest()
 
@@ -346,11 +346,11 @@ def add_logging_level(levelName, levelNum, methodName=None):
         methodName = levelName.lower()
 
     if hasattr(logging, levelName):
-        raise AttributeError(f"{levelName} already defined in logging module.")
+        raise AttributeError(f'{levelName} already defined in logging module.')
     if hasattr(logging, methodName):
-        raise AttributeError(f"{methodName} already defined in logging module.")
+        raise AttributeError(f'{methodName} already defined in logging module.')
     if hasattr(logging.getLoggerClass(), methodName):
-        raise AttributeError(f"{methodName} already defined in logger class.")
+        raise AttributeError(f'{methodName} already defined in logger class.')
 
     def logForLevel(self, message, *args, **kwargs):
         if self.isEnabledFor(levelNum):
@@ -365,19 +365,19 @@ def add_logging_level(levelName, levelNum, methodName=None):
     setattr(logging, methodName, logToRoot)
 
 
-add_logging_level("VERBOSE", 19)
+add_logging_level('VERBOSE', 19)
 
 
 class LoggingFormatter(logging.Formatter):
     FORMATS = {
-        logging.INFO: "%(msg)s",
-        logging.VERBOSE: "%(msg)s",
-        logging.DEBUG: "DEBUG: %(module)s: %(lineno)d: %(msg)s",
-        "DEFAULT": "%(levelname)s: %(msg)s",
+        logging.INFO: '%(msg)s',
+        logging.VERBOSE: '%(msg)s',
+        logging.DEBUG: 'DEBUG: %(module)s: %(lineno)d: %(msg)s',
+        'DEFAULT': '%(levelname)s: %(msg)s',
     }
 
     def format(self, record):
-        log_fmt = self.FORMATS.get(record.levelno, self.FORMATS["DEFAULT"])
+        log_fmt = self.FORMATS.get(record.levelno, self.FORMATS['DEFAULT'])
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
@@ -405,7 +405,7 @@ def working_directory(path: Path):
         os.chdir(origin)
 
 
-F = TypeVar("F", bound=Callable[[], Any])
+F = TypeVar('F', bound=Callable[[], Any])
 
 
 def cache_to_disk(name: str, time_to_live: float) -> Callable[[F], F]:
@@ -428,22 +428,22 @@ def cache_to_disk(name: str, time_to_live: float) -> Callable[[F], F]:
         def wrapper() -> Any:
             import time
 
-            cache_path = Path(typer.get_app_dir("seml")) / f"{name}.json"
+            cache_path = Path(typer.get_app_dir('seml')) / f'{name}.json'
             # Load from cache
             # if it fails or is expired we will compute it again
             if cache_path.exists():
                 try:
                     with open(cache_path) as f:
                         cache = json.load(f)
-                    if cache["expire"] > time.time():
-                        return cache["result"]
+                    if cache['expire'] > time.time():
+                        return cache['result']
                 except IOError:
                     pass
             # Compute and save to cache
             result = fun()
-            cache = {"result": result, "expire": time.time() + time_to_live}
+            cache = {'result': result, 'expire': time.time() + time_to_live}
             try:
-                with open(cache_path, "w") as f:
+                with open(cache_path, 'w') as f:
                     json.dump(cache, f)
             except IOError:
                 # If the writing fails for any reason we can just continue.
@@ -502,7 +502,7 @@ def slice_to_str(s: Tuple[int, int]) -> str:
     if s[0] == s[1]:
         return str(s[0])
     else:
-        return f"{s[0]}-{s[1]}"
+        return f'{s[0]}-{s[1]}'
 
 
 def to_hashable(x: Any) -> Any:
@@ -526,4 +526,4 @@ def to_hashable(x: Any) -> Any:
     elif isinstance(x, Iterable):
         return tuple(map(to_hashable, x))
     else:
-        raise ValueError(f"{x} of type {type(x)} is not hashable.")
+        raise ValueError(f'{x} of type {type(x)} is not hashable.')
