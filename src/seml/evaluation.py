@@ -7,7 +7,7 @@ from seml.settings import SETTINGS
 
 States = SETTINGS.STATES
 
-__all__ = ['get_results']
+__all__ = ["get_results"]
 
 
 def parse_jsonpickle(db_entry):
@@ -23,9 +23,15 @@ def parse_jsonpickle(db_entry):
     return parsed
 
 
-def get_results(db_collection_name, fields=None,
-                to_data_frame=False, mongodb_config=None,
-                states=None, filter_dict=None, parallel=False):
+def get_results(
+    db_collection_name,
+    fields=None,
+    to_data_frame=False,
+    mongodb_config=None,
+    states=None,
+    filter_dict=None,
+    parallel=False,
+):
     """
     Get experiment results from the MongoDB.
     Parameters
@@ -51,8 +57,9 @@ def get_results(db_collection_name, fields=None,
     """
     import pandas as pd
     from rich.progress import track
+
     if fields is None:
-        fields = ['config', 'result']
+        fields = ["config", "result"]
 
     if states is None:
         states = States.COMPLETED
@@ -60,24 +67,29 @@ def get_results(db_collection_name, fields=None,
     if filter_dict is None:
         filter_dict = {}
 
-    collection = get_collection(db_collection_name, mongodb_config=mongodb_config,)
+    collection = get_collection(
+        db_collection_name,
+        mongodb_config=mongodb_config,
+    )
 
     if len(states) > 0:
-        if 'status' in filter_dict:
-            logging.warning("'states' argument is not empty and will overwrite 'filter_dict['status']'.")
+        if "status" in filter_dict:
+            logging.warning(
+                "'states' argument is not empty and will overwrite 'filter_dict['status']'."
+            )
         filter_dict = deepcopy(filter_dict)
-        filter_dict['status'] = {'$in': states}
+        filter_dict["status"] = {"$in": states}
 
     cursor = collection.find(filter_dict, fields)
     results = [x for x in track(cursor, total=collection.count_documents(filter_dict))]
 
     if parallel:
         from multiprocessing import Pool
+
         with Pool() as p:
-            parsed = list(track(p.imap(parse_jsonpickle, results),
-                               total=len(results)))
+            parsed = list(track(p.imap(parse_jsonpickle, results), total=len(results)))
     else:
         parsed = [parse_jsonpickle(entry) for entry in track(results)]
     if to_data_frame:
-        parsed = pd.json_normalize(parsed, sep='.')
+        parsed = pd.json_normalize(parsed, sep=".")
     return parsed

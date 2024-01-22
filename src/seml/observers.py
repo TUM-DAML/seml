@@ -4,14 +4,18 @@ import os
 from seml.database import get_mongo_client, get_mongodb_config
 from seml.settings import SETTINGS
 
-__all__ = ['create_mongodb_observer', 'create_slack_observer', 'create_neptune_observer',
-           'create_file_storage_observer', 'add_to_file_storage_observer', 'create_mattermost_observer']
+__all__ = [
+    "create_mongodb_observer",
+    "create_slack_observer",
+    "create_neptune_observer",
+    "create_file_storage_observer",
+    "add_to_file_storage_observer",
+    "create_mattermost_observer",
+]
 
 
-def create_mongodb_observer(collection,
-                            mongodb_config=None,
-                            overwrite=None):
-    """ Create a MongoDB observer for a Sacred experiment
+def create_mongodb_observer(collection, mongodb_config=None, overwrite=None):
+    """Create a MongoDB observer for a Sacred experiment
 
     Parameters
     ----------
@@ -34,7 +38,7 @@ def create_mongodb_observer(collection,
     observer = MongoObserver(
         client=get_mongo_client(**mongodb_config),
         collection=collection,
-        db_name=mongodb_config['db_name'],
+        db_name=mongodb_config["db_name"],
         overwrite=overwrite,
     )
     return observer
@@ -42,12 +46,17 @@ def create_mongodb_observer(collection,
 
 def create_file_storage_observer(runs_folder_name, basedir=None, **kwargs):
     from sacred.observers import FileStorageObserver
+
     if basedir is None:
         basedir = SETTINGS.OBSERVERS.FILE.DEFAULT_BASE_DIR
-        logging.info(f"Starting file observer in location {basedir}/{runs_folder_name}. To change the default base "
-                     f"directory, modify entry SETTINGS.OBSERVERS.FILE.DEFAULT_BASE_DIR in seml/settings.py.")
+        logging.info(
+            f"Starting file observer in location {basedir}/{runs_folder_name}. To change the default base "
+            f"directory, modify entry SETTINGS.OBSERVERS.FILE.DEFAULT_BASE_DIR in seml/settings.py."
+        )
     else:
-        logging.info(f"Starting file observer in location {basedir}/{runs_folder_name}.")
+        logging.info(
+            f"Starting file observer in location {basedir}/{runs_folder_name}."
+        )
     observer = FileStorageObserver(f"{basedir}/{runs_folder_name}", kwargs)
     return observer
 
@@ -71,14 +80,18 @@ def add_to_file_storage_observer(file, experiment, delete_local_file=False):
     has_file_observer = False
     for obs in experiment.current_run.observers:
         if "FileStorageObserver" in str(type(obs)):
-            obs.artifact_event(name=None, filename=file, )
+            obs.artifact_event(
+                name=None,
+                filename=file,
+            )
             has_file_observer = True
     if not has_file_observer:
         logging.warning(
             "'add_to_file_storage_observer' was called but found no FileStorageObserver for the experiment."
-                        )
+        )
     if delete_local_file:
         os.remove(file)
+
 
 def create_slack_observer(webhook=None):
     from sacred.observers import SlackObserver
@@ -93,7 +106,7 @@ def create_slack_observer(webhook=None):
         slack_obs = SlackObserver(webhook)
 
     if slack_obs is None:
-        logging.warning('Failed to create Slack observer.')
+        logging.warning("Failed to create Slack observer.")
     return slack_obs
 
 
@@ -128,18 +141,21 @@ def create_mattermost_observer(webhook=None, channel=None, **kwargs):
             if "WEBHOOK" in SETTINGS.OBSERVERS.MATTERMOST:
                 webhook = SETTINGS.OBSERVERS.MATTERMOST.WEBHOOK
         else:
-            raise ValueError('No webhook provided and none found in settings.py.')
+            raise ValueError("No webhook provided and none found in settings.py.")
 
     mattermost_observer = MattermostObserver(webhook, channel=channel, **kwargs)
     return mattermost_observer
 
 
-def create_neptune_observer(project_name, api_token=None,
-                            source_extensions=['**/*.py', '**/*.yaml', '**/*.yml']):
+def create_neptune_observer(
+    project_name, api_token=None, source_extensions=["**/*.py", "**/*.yaml", "**/*.yml"]
+):
     try:
         from neptunecontrib.monitoring.sacred import NeptuneObserver
     except ImportError:
-        logging.error("Could not import neptunecontrib. Install via `pip install neptune-contrib`.")
+        logging.error(
+            "Could not import neptunecontrib. Install via `pip install neptune-contrib`."
+        )
 
     if api_token is None:
         if "OBSERVERS" in SETTINGS and "NEPTUNE" in SETTINGS.OBSERVERS:
@@ -150,6 +166,12 @@ def create_neptune_observer(project_name, api_token=None,
                     api_token = None
 
     if api_token is None:
-        logging.info('No API token for Neptune provided. Trying to use environment variable NEPTUNE_API_TOKEN.')
-    neptune_obs = NeptuneObserver(api_token=api_token, project_name=project_name, source_extensions=source_extensions)
+        logging.info(
+            "No API token for Neptune provided. Trying to use environment variable NEPTUNE_API_TOKEN."
+        )
+    neptune_obs = NeptuneObserver(
+        api_token=api_token,
+        project_name=project_name,
+        source_extensions=source_extensions,
+    )
     return neptune_obs

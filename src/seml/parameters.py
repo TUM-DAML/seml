@@ -34,15 +34,19 @@ def sample_random_configs(random_config, samples=1, seed=None):
     rdm_keys = [k for k in random_config.keys() if k not in ["samples", "seed"]]
     random_config = {k: random_config[k] for k in rdm_keys}
     random_parameter_dicts = unflatten(random_config, levels=-1)
-    random_samples = [sample_parameter(random_parameter_dicts[k], samples, seed, parent_key=k)
-                      for k in random_parameter_dicts.keys()]
+    random_samples = [
+        sample_parameter(random_parameter_dicts[k], samples, seed, parent_key=k)
+        for k in random_parameter_dicts.keys()
+    ]
     random_samples = dict([sub for item in random_samples for sub in item])
-    random_configurations = [{k: v[ix] for k, v in random_samples.items()} for ix in range(samples)]
+    random_configurations = [
+        {k: v[ix] for k, v in random_samples.items()} for ix in range(samples)
+    ]
 
     return random_configurations
 
 
-def sample_parameter(parameter, samples, seed=None, parent_key=''):
+def sample_parameter(parameter, samples, seed=None, parent_key=""):
     """
     Generate random samples from the specified parameter.
 
@@ -77,53 +81,59 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
     if "type" not in parameter:
         raise ConfigError(f"No type found in parameter {parameter}")
     return_items = []
-    allowed_keys = ['seed', 'type']
-    if 'seed' in parameter:
-        np.random.seed(parameter['seed'])
+    allowed_keys = ["seed", "type"]
+    if "seed" in parameter:
+        np.random.seed(parameter["seed"])
     elif seed is not None:
         np.random.seed(seed)
 
-    param_type = parameter['type']
+    param_type = parameter["type"]
 
     if param_type == "choice":
-        choices = parameter['options']
+        choices = parameter["options"]
         allowed_keys.append("options")
         sampled_values = [random.choice(choices) for _ in range(samples)]
         return_items.append((parent_key, sampled_values))
 
     elif param_type == "uniform":
-        min_val = parameter['min']
-        max_val = parameter['max']
-        allowed_keys.extend(['min', 'max'])
+        min_val = parameter["min"]
+        max_val = parameter["max"]
+        allowed_keys.extend(["min", "max"])
         sampled_values = np.random.uniform(min_val, max_val, samples)
         return_items.append((parent_key, sampled_values))
 
     elif param_type == "loguniform":
-        if parameter['min'] <= 0:
+        if parameter["min"] <= 0:
             raise ConfigError("Cannot take log of values <= 0")
-        min_val = np.log(parameter['min'])
-        max_val = np.log(parameter['max'])
-        allowed_keys.extend(['min', 'max'])
+        min_val = np.log(parameter["min"])
+        max_val = np.log(parameter["max"])
+        allowed_keys.extend(["min", "max"])
         sampled_values = np.exp(np.random.uniform(min_val, max_val, samples))
         return_items.append((parent_key, sampled_values))
 
     elif param_type == "randint":
-        min_val = int(parameter['min'])
-        max_val = int(parameter['max'])
-        allowed_keys.extend(['min', 'max'])
+        min_val = int(parameter["min"])
+        max_val = int(parameter["max"])
+        allowed_keys.extend(["min", "max"])
         sampled_values = np.random.randint(min_val, max_val, samples)
         return_items.append((parent_key, sampled_values))
 
     elif param_type == "randint_unique":
-        min_val = int(parameter['min'])
-        max_val = int(parameter['max'])
-        allowed_keys.extend(['min', 'max'])
-        sampled_values = np.random.choice(np.arange(min_val, max_val), samples, replace=False)
+        min_val = int(parameter["min"])
+        max_val = int(parameter["max"])
+        allowed_keys.extend(["min", "max"])
+        sampled_values = np.random.choice(
+            np.arange(min_val, max_val), samples, replace=False
+        )
         return_items.append((parent_key, sampled_values))
 
     elif param_type == "parameter_collection":
-        sub_items = [sample_parameter(v, parent_key=f'{parent_key}.{k}',
-                                      seed=seed, samples=samples) for k, v in parameter['params'].items()]
+        sub_items = [
+            sample_parameter(
+                v, parent_key=f"{parent_key}.{k}", seed=seed, samples=samples
+            )
+            for k, v in parameter["params"].items()
+        ]
         return_items.extend([sub_item for item in sub_items for sub_item in item])
 
     else:
@@ -132,12 +142,14 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
     if param_type != "parameter_collection":
         extra_keys = set(parameter.keys()).difference(set(allowed_keys))
         if len(extra_keys) > 0:
-            raise ConfigError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
-                              f"{allowed_keys}. Unexpected keys: {extra_keys}")
+            raise ConfigError(
+                f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
+                f"{allowed_keys}. Unexpected keys: {extra_keys}"
+            )
     return return_items
 
 
-def generate_grid(parameter, parent_key=''):
+def generate_grid(parameter, parent_key=""):
     """
     Generate a grid of parameter values from the input configuration.
 
@@ -163,45 +175,49 @@ def generate_grid(parameter, parent_key=''):
 
     """
     import numpy as np
+
     if "type" not in parameter:
         raise ConfigError(f"No type found in parameter {parameter}")
 
-    param_type = parameter['type']
-    allowed_keys = ['type', 'zip_id']
+    param_type = parameter["type"]
+    allowed_keys = ["type", "zip_id"]
 
     return_items = []
 
     if param_type == "choice":
-        values = parameter['options']
-        allowed_keys.append('options')
+        values = parameter["options"]
+        allowed_keys.append("options")
         return_items.append((parent_key, values))
 
     elif param_type == "range":
-        min_val = parameter['min']
-        max_val = parameter['max']
-        step = parameter['step']
-        allowed_keys.extend(['min', 'max', 'step'])
+        min_val = parameter["min"]
+        max_val = parameter["max"]
+        step = parameter["step"]
+        allowed_keys.extend(["min", "max", "step"])
         values = list(np.arange(min_val, max_val, step))
         return_items.append((parent_key, values))
 
     elif param_type == "uniform":
-        min_val = parameter['min']
-        max_val = parameter['max']
-        num = int(parameter['num'])
-        allowed_keys.extend(['min', 'max', 'num'])
+        min_val = parameter["min"]
+        max_val = parameter["max"]
+        num = int(parameter["num"])
+        allowed_keys.extend(["min", "max", "num"])
         values = list(np.linspace(min_val, max_val, num, endpoint=True))
         return_items.append((parent_key, values))
 
     elif param_type == "loguniform":
-        min_val = parameter['min']
-        max_val = parameter['max']
-        num = int(parameter['num'])
-        allowed_keys.extend(['min', 'max', 'num'])
+        min_val = parameter["min"]
+        max_val = parameter["max"]
+        num = int(parameter["num"])
+        allowed_keys.extend(["min", "max", "num"])
         values = np.logspace(np.log10(min_val), np.log10(max_val), num, endpoint=True)
         return_items.append((parent_key, values))
 
     elif param_type == "parameter_collection":
-        sub_items = [generate_grid(v, parent_key=f'{parent_key}.{k}') for k, v in parameter['params'].items()]
+        sub_items = [
+            generate_grid(v, parent_key=f"{parent_key}.{k}")
+            for k, v in parameter["params"].items()
+        ]
         return_items.extend([sub_item for item in sub_items for sub_item in item])
 
     else:
@@ -210,14 +226,13 @@ def generate_grid(parameter, parent_key=''):
     if param_type != "parameter_collection":
         extra_keys = set(parameter.keys()).difference(set(allowed_keys))
         if len(extra_keys) > 0:
-            raise ConfigError(f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
-                              f"{allowed_keys}. Unexpected keys: {extra_keys}")
+            raise ConfigError(
+                f"Unexpected keys in parameter definition. Allowed keys for type '{param_type}' are "
+                f"{allowed_keys}. Unexpected keys: {extra_keys}"
+            )
 
-    zip_id = parameter['zip_id'] if 'zip_id' in parameter else uuid.uuid4()
-    return_items = [
-        (item[0], (item[1], zip_id))
-        for item in return_items
-    ]
+    zip_id = parameter["zip_id"] if "zip_id" in parameter else uuid.uuid4()
+    return_items = [(item[0], (item[1], zip_id)) for item in return_items]
     return return_items
 
 
@@ -246,11 +261,13 @@ def zipped_dict(input_dict):
     zipped_dict = DefaultDict(dict)
     for k, (val, zip_id) in input_dict.items():
         zipped_dict[zip_id][k] = val
-    
+
     # Check that parameters in within a bundle have the same number of configurations.
     for k, bundle in zipped_dict.items():
         if len({len(x) for x in bundle.values()}) != 1:
-            raise ConfigError(f"Parameters with zip_id '{k}' have different number of configurations!")
+            raise ConfigError(
+                f"Parameters with zip_id '{k}' have different number of configurations!"
+            )
     return zipped_dict
 
 
@@ -267,13 +284,12 @@ def cartesian_product_zipped_dict(zipped_dict):
 
     """
     zip_lengths = {
-        k: len(next(iter(bundle.values())))
-        for k, bundle in zipped_dict.items()
+        k: len(next(iter(bundle.values()))) for k, bundle in zipped_dict.items()
     }
-    
+
     for idx in itertools.product(*[range(k) for k in zip_lengths.values()]):
         yield {
-            key: values[i] 
-            for zip_id, i in zip(zipped_dict, idx) 
+            key: values[i]
+            for zip_id, i in zip(zipped_dict, idx)
             for key, values in zipped_dict[zip_id].items()
         }

@@ -36,6 +36,18 @@ dependencies = [
     "omegaconf>=2.3.0, <3.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "pre-commit"
+]
+
+[tool.ruff.lint]
+ignore = [
+    "F821", # ignore undefined name for type annotations (this is due to lazy imports)
+]
+
 [project.urls]
 Homepage = "https://github.com/TUM-DAML/seml"
 Documentation = "https://github.com/TUM-DAML/seml/blob/master/docs.md"

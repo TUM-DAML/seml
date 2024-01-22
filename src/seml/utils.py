@@ -4,16 +4,16 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Hashable, Iterable, List, Mapping, Sequence, Tuple, TypeVar
+from typing import Any, Callable, Dict, Hashable, Iterable, List, Tuple, TypeVar
 
 import seml.typer as typer
 
 
 def s_if(n: int) -> str:
-    return '' if n == 1 else 's'
+    return "" if n == 1 else "s"
 
 
-def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=None):
+def unflatten(dictionary: dict, sep: str = ".", recursive: bool = False, levels=None):
     """
     Turns a flattened dict into a nested one, e.g. {'a.b':2, 'c':3} becomes {'a':{'b': 2}, 'c': 3}
     From https://stackoverflow.com/questions/6037503/python-unflatten-dict.
@@ -35,16 +35,22 @@ def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=
     result_dict: the nested dictionary.
     """
 
-    duplicate_key_warning_str = ("Duplicate key detected in recursive dictionary unflattening. "
-                                 "Overwriting previous entries of '{}'.")
+    duplicate_key_warning_str = (
+        "Duplicate key detected in recursive dictionary unflattening. "
+        "Overwriting previous entries of '{}'."
+    )
 
     if levels is not None:
         if not isinstance(levels, tuple) and not isinstance(levels, list):
             levels = [levels]
         if len(levels) == 0:
-            raise ValueError("Need at least one level to unflatten when levels != None.")
+            raise ValueError(
+                "Need at least one level to unflatten when levels != None."
+            )
         if not isinstance(levels[0], int):
-            raise TypeError(f"Levels must be list or set of integers, got type {type(levels[0])}.")
+            raise TypeError(
+                f"Levels must be list or set of integers, got type {type(levels[0])}."
+            )
 
     result_dict = dict()
     for key, value in dictionary.items():
@@ -57,21 +63,27 @@ def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=
             for ix in range(len(key_levels)):
                 if key_levels[ix] < 0:
                     new_ix = len(parts) + key_levels[ix] - 1
-                    if key_levels[ix] == -1:  # special case so that indexing with -1 never throws an error.
+                    if (
+                        key_levels[ix] == -1
+                    ):  # special case so that indexing with -1 never throws an error.
                         new_ix = max(0, new_ix)
                     if new_ix < 0:
-                        raise IndexError(f"Dictionary key level out of bounds. ({new_ix} < 0).")
+                        raise IndexError(
+                            f"Dictionary key level out of bounds. ({new_ix} < 0)."
+                        )
                     key_levels[ix] = new_ix
                 if key_levels[ix] >= len(parts):
-                    raise IndexError(f"Dictionary key level {key_levels[ix]} out of bounds for size {len(parts)}.")
+                    raise IndexError(
+                        f"Dictionary key level {key_levels[ix]} out of bounds for size {len(parts)}."
+                    )
             key_levels = sorted(key_levels)
 
             key_levels = list(set(key_levels))
             new_parts = []
             ix_current = 0
-            for l in key_levels:
-                new_parts.append(sep.join(parts[ix_current:l+1]))
-                ix_current = l+1
+            for level in key_levels:
+                new_parts.append(sep.join(parts[ix_current : level + 1]))
+                ix_current = level + 1
 
             if ix_current < len(parts):
                 new_parts.append(sep.join(parts[ix_current::]))
@@ -105,7 +117,7 @@ def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=
     return result_dict
 
 
-def flatten(dictionary: dict, parent_key: str = '', sep: str = '.'):
+def flatten(dictionary: dict, parent_key: str = "", sep: str = "."):
     """
     Flatten a nested dictionary, e.g. {'a':{'b': 2}, 'c': 3} becomes {'a.b':2, 'c':3}.
     From https://stackoverflow.com/questions/6027558/flatten-nested-dictionaries-compressing-keys
@@ -136,7 +148,8 @@ def flatten(dictionary: dict, parent_key: str = '', sep: str = '.'):
             items.append((new_key, v))
     return dict(items)
 
-def get_from_nested(d: Dict, key: str, sep: str='.') -> Any:
+
+def get_from_nested(d: Dict, key: str, sep: str = ".") -> Any:
     """Gets a value from an unflattened dict, e.g. allows to use strings like `config.data` on a nesteddict
 
     Parameters
@@ -157,10 +170,14 @@ def get_from_nested(d: Dict, key: str, sep: str='.') -> Any:
         d = d[k]
     return d
 
+
 def list_is_prefix(first: List, second: List) -> bool:
     return len(first) <= len(second) and all(x1 == x2 for x1, x2 in zip(first, second))
 
-def resolve_projection_path_conflicts(projection: Dict[str, bool], sep: str='.') -> Dict[str, bool]:
+
+def resolve_projection_path_conflicts(
+    projection: Dict[str, bool], sep: str = "."
+) -> Dict[str, bool]:
     """Removes path conflicts in a MongoDB projection dict. E.g. if you pass the dict
     `{'config' : 1, 'config.dataset' : 1}`, MongoDB will throw an error. This method will ensure that
     always the "bigger" projection is returned, i.e. `"config"` in the aforementioned example.
@@ -186,16 +203,21 @@ def resolve_projection_path_conflicts(projection: Dict[str, bool], sep: str='.')
             if list_is_prefix(k, other):
                 # If `k` is a prefix of any path in `result`, this path will be removed
                 if result[other] != v:
-                    raise ValueError(f'Can not resolve projection {(k, v), (other, result[other])}')
+                    raise ValueError(
+                        f"Can not resolve projection {(k, v), (other, result[other])}"
+                    )
                 del result[other]
             elif list_is_prefix(other, k):
                 # If any other path in `result` is a prefix of `k` we do not add k
                 if result[other] != v:
-                    raise ValueError(f'Can not resolve projection {(k, v), (other, result[other])}')
+                    raise ValueError(
+                        f"Can not resolve projection {(k, v), (other, result[other])}"
+                    )
                 add_k = False
         if add_k:
             result[k] = v
-    return {sep.join(k) : v for k, v in result.items()}
+    return {sep.join(k): v for k, v in result.items()}
+
 
 def chunker(seq, size):
     """
@@ -212,7 +234,7 @@ def chunker(seq, size):
     -------
     The list of lists of size `size`
     """
-    return (seq[pos:pos + size] for pos in range(0, len(seq), size))
+    return (seq[pos : pos + size] for pos in range(0, len(seq), size))
 
 
 def merge_dicts(dict1, dict2):
@@ -253,6 +275,7 @@ def merge_dicts(dict1, dict2):
 
     return return_dict
 
+
 def remove_keys_from_nested(d: Dict, keys: List[str] = []) -> Dict:
     """Removes keys from a nested dictionary
 
@@ -268,10 +291,21 @@ def remove_keys_from_nested(d: Dict, keys: List[str] = []) -> Dict:
     Dict
         a copy of the dict without the values in `keys`
     """
-    return unflatten({k : v for k, v in flatten(d).items() if not any(k.startswith(key) for key in keys)})
-    
+    return unflatten(
+        {
+            k: v
+            for k, v in flatten(d).items()
+            if not any(k.startswith(key) for key in keys)
+        }
+    )
 
-def make_hash(d: Dict, exclude_keys: List[str] = ['seed',]):
+
+def make_hash(
+    d: Dict,
+    exclude_keys: List[str] = [
+        "seed",
+    ],
+):
     """
     Generate a hash for the input dictionary.
     From: https://stackoverflow.com/a/22003440
@@ -287,7 +321,12 @@ def make_hash(d: Dict, exclude_keys: List[str] = ['seed',]):
     hash (hex encoded) of the input dictionary.
     """
     import hashlib
-    return hashlib.md5(json.dumps(remove_keys_from_nested(d, exclude_keys), sort_keys=True).encode("utf-8")).hexdigest()
+
+    return hashlib.md5(
+        json.dumps(remove_keys_from_nested(d, exclude_keys), sort_keys=True).encode(
+            "utf-8"
+        )
+    ).hexdigest()
 
 
 def add_logging_level(levelName, levelNum, methodName=None):
@@ -326,7 +365,7 @@ def add_logging_level(levelName, levelNum, methodName=None):
     setattr(logging, methodName, logToRoot)
 
 
-add_logging_level('VERBOSE', 19)
+add_logging_level("VERBOSE", 19)
 
 
 class LoggingFormatter(logging.Formatter):
@@ -338,7 +377,7 @@ class LoggingFormatter(logging.Formatter):
     }
 
     def format(self, record):
-        log_fmt = self.FORMATS.get(record.levelno, self.FORMATS['DEFAULT'])
+        log_fmt = self.FORMATS.get(record.levelno, self.FORMATS["DEFAULT"])
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
@@ -347,11 +386,12 @@ class Hashabledict(dict):
     def __hash__(self):
         return hash(json.dumps(self, sort_keys=True))
 
+
 @contextmanager
 def working_directory(path: Path):
     """
     Context manager to temporarily change the working directory.
-    
+
     Parameters
     ----------
     path: Path
@@ -365,63 +405,65 @@ def working_directory(path: Path):
         os.chdir(origin)
 
 
-F = TypeVar('F', bound=Callable[[], Any])
+F = TypeVar("F", bound=Callable[[], Any])
+
 
 def cache_to_disk(name: str, time_to_live: float) -> Callable[[F], F]:
     """
     Cache the result of a function to disk.
-    
+
     Parameters
     ----------
     name: str
         Name of the cache file.
     time_to_live: float
         Time to live of the cache in seconds.
-    
+
     Returns
     -------
     The decorated function.
     """
+
     def cache_fun(fun: F) -> F:
         def wrapper() -> Any:
             import time
-            cache_path = Path(typer.get_app_dir('seml')) / f'{name}.json'
+
+            cache_path = Path(typer.get_app_dir("seml")) / f"{name}.json"
             # Load from cache
             # if it fails or is expired we will compute it again
             if cache_path.exists():
                 try:
                     with open(cache_path) as f:
                         cache = json.load(f)
-                    if cache['expire'] > time.time():
-                        return cache['result']
-                except:
+                    if cache["expire"] > time.time():
+                        return cache["result"]
+                except IOError:
                     pass
             # Compute and save to cache
             result = fun()
-            cache = {
-                'result': result,
-                'expire': time.time() + time_to_live
-            }
+            cache = {"result": result, "expire": time.time() + time_to_live}
             try:
-                with open(cache_path, 'w') as f:
+                with open(cache_path, "w") as f:
                     json.dump(cache, f)
-            except:
+            except IOError:
                 # If the writing fails for any reason we can just continue.
                 pass
             return result
+
         return wrapper
+
     return cache_fun
 
 
 def to_slices(items: List[int]) -> List[Tuple[int, int]]:
     """
     Convert a list of integers to a list of slices.
-    
+
     Parameters
     ----------
     items: List[int]
         List of integers.
-    
+
     Returns
     -------
     List[Tuple[int, int]]
@@ -446,12 +488,12 @@ def to_slices(items: List[int]) -> List[Tuple[int, int]]:
 def slice_to_str(s: Tuple[int, int]) -> str:
     """
     Convert a slice to a string.
-    
+
     Parameters
     ----------
     s: Tuple[int, int]
         The slice.
-    
+
     Returns
     -------
     str
@@ -460,7 +502,8 @@ def slice_to_str(s: Tuple[int, int]) -> str:
     if s[0] == s[1]:
         return str(s[0])
     else:
-        return f'{s[0]}-{s[1]}'
+        return f"{s[0]}-{s[1]}"
+
 
 def to_hashable(x: Any) -> Any:
     """Returns a hashable representation of an object. Currently supports dicts and other iterables (which will be
@@ -483,6 +526,4 @@ def to_hashable(x: Any) -> Any:
     elif isinstance(x, Iterable):
         return tuple(map(to_hashable, x))
     else:
-        raise ValueError(f'{x} of type {type(x)} is not hashable.')
-        
-    
+        raise ValueError(f"{x} of type {type(x)} is not hashable.")

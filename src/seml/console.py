@@ -16,24 +16,24 @@ Table = functools.partial(
     show_lines=False,
     show_edge=False,
     box=rich.box.SIMPLE,
-    row_styles=['none', 'dim'],
-    padding=(0,0,),
-    highlight=True
+    row_styles=["none", "dim"],
+    padding=(
+        0,
+        0,
+    ),
+    highlight=True,
 )
 
 
 def Heading(text: str):
-    return Padding(
-        Rule(text, style='red'),
-        pad=(1, 0, 0, 0)
-    )
+    return Padding(Rule(text, style="red"), pad=(1, 0, 0, 0))
 
 
 def list_items(items: Sequence[str]):
     """
     Print a list of items in columns, using as many columns as possible
     while keeping the items readable. This will look similar to bash autcompletition suggestions.
-    
+
     Parameters
     ----------
     items : Sequence[str]
@@ -53,7 +53,7 @@ def list_items(items: Sequence[str]):
 
     # Add suggestions to the table, distributing them across columns
     for i in range(0, len(items), num_columns):
-        table.add_row(*items[i:i+num_columns])
+        table.add_row(*items[i : i + num_columns])
 
     # Print the table
     console.print(table)

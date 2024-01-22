@@ -8,20 +8,28 @@ from seml.utils import s_if
 
 States = SETTINGS.STATES
 
+
 def get_collection(collection_name, mongodb_config=None, suffix=None):
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
     db = get_database(**mongodb_config)
     if suffix is not None and not collection_name.endswith(suffix):
-        collection_name = f'{collection_name}{suffix}'
+        collection_name = f"{collection_name}{suffix}"
 
     return db[collection_name]
 
 
 def get_mongo_client(db_name, host, port, username, password, **kwargs):
     import pymongo
-    client = pymongo.MongoClient(host, int(port), username=username, password=password,
-                             authSource=db_name, **kwargs)
+
+    client = pymongo.MongoClient(
+        host,
+        int(port),
+        username=username,
+        password=password,
+        authSource=db_name,
+        **kwargs,
+    )
     return client
 
 
@@ -30,9 +38,10 @@ def get_database(db_name, host, port, username, password, **kwargs):
     return db
 
 
-def get_collections_from_mongo_shell_or_pymongo(db_name: str, host: str, port: int, username: str, 
-                                                password: str, **kwargs) -> List[str]:
-    """ Gets all collections in the database by first using the mongo shell and if that fails uses pymongo.
+def get_collections_from_mongo_shell_or_pymongo(
+    db_name: str, host: str, port: int, username: str, password: str, **kwargs
+) -> List[str]:
+    """Gets all collections in the database by first using the mongo shell and if that fails uses pymongo.
 
     Args:
         db_name (str): the name of the database
@@ -40,20 +49,24 @@ def get_collections_from_mongo_shell_or_pymongo(db_name: str, host: str, port: i
         port (int): the port at which to access the mongodb
         username (str): the username
         password (str): the password
-        
+
     Returns:
         List[str]: all collections in the database
     """
     import subprocess
-    cmd = f"mongo -u '{username}' --authenticationDatabase '{db_name}' {host}:{port}/{db_name} -p {password} "\
-           "--eval 'db.getCollectionNames().forEach(function(f){print(f)})' --quiet"
+
+    cmd = (
+        f"mongo -u '{username}' --authenticationDatabase '{db_name}' {host}:{port}/{db_name} -p {password} "
+        "--eval 'db.getCollectionNames().forEach(function(f){print(f)})' --quiet"
+    )
     try:
         output = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL)
-        collection_names = output.decode('utf-8').split('\n')
+        collection_names = output.decode("utf-8").split("\n")
     except (subprocess.CalledProcessError, SyntaxError):
         db = get_database(db_name, host, port, username, password, **kwargs)
         collection_names = db.list_collection_names()
-    return [name for name in collection_names if not name in ('fs.chunks', 'fs.files')]
+    return [name for name in collection_names if name not in ("fs.chunks", "fs.files")]
+
 
 def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     """Read the MongoDB connection configuration.
@@ -87,31 +100,44 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     config_str = "\nPlease run `seml configure` to provide your credentials."
 
     if not path.exists():
-        raise MongoDBError(f"MongoDB credentials could not be read at '{path}'.{config_str}")
+        raise MongoDBError(
+            f"MongoDB credentials could not be read at '{path}'.{config_str}"
+        )
 
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         for line in f.readlines():
             # ignore lines that are empty
             if len(line.strip()) > 0:
-                split = line.split(':')
+                split = line.split(":")
                 key = split[0].strip()
                 value = split[1].strip()
                 access_dict[key] = value
 
-    required_entries = ['username', 'password', 'port', 'host', 'database']
+    required_entries = ["username", "password", "port", "host", "database"]
     for entry in required_entries:
         if entry not in access_dict:
             raise MongoDBError(f"No {entry} found in '{path}'.{config_str}")
 
-    db_port = access_dict['port']
-    db_name = access_dict['database']
-    db_host = access_dict['host']
-    db_username = access_dict['username']
-    db_password = access_dict['password']
+    db_port = access_dict["port"]
+    db_name = access_dict["database"]
+    db_host = access_dict["host"]
+    db_username = access_dict["username"]
+    db_password = access_dict["password"]
     # False is the default value for PyMongo > 4.0
-    db_direct = access_dict['directConnection'] == 'True' if 'directConnection' in access_dict else False
+    db_direct = (
+        access_dict["directConnection"] == "True"
+        if "directConnection" in access_dict
+        else False
+    )
 
-    return {'password': db_password, 'username': db_username, 'host': db_host, 'db_name': db_name, 'port': db_port, 'directConnection': db_direct}
+    return {
+        "password": db_password,
+        "username": db_username,
+        "host": db_host,
+        "db_name": db_name,
+        "port": db_port,
+        "directConnection": db_direct,
+    }
 
 
 def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
@@ -136,26 +162,30 @@ def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
     """
 
     if sacred_id is not None:
-        return {'_id': sacred_id}
+        return {"_id": sacred_id}
 
     if filter_dict is None:
         filter_dict = {}
 
     if filter_states is not None and len(filter_states) > 0:
-        if 'status' not in filter_dict:
-            filter_dict['status'] = {'$in': filter_states}
+        if "status" not in filter_dict:
+            filter_dict["status"] = {"$in": filter_states}
         else:
-            logging.warning(f"'status' was defined in the filter dictionary passed via the command line (-f): "
-                            f"{filter_dict['status']} AND --status was set to {filter_states}. "
-                            f"I'm using the value passed via -f.")
+            logging.warning(
+                f"'status' was defined in the filter dictionary passed via the command line (-f): "
+                f"{filter_dict['status']} AND --status was set to {filter_states}. "
+                f"I'm using the value passed via -f."
+            )
 
     if batch_id is not None:
-        if 'batch_id' not in filter_dict:
-            filter_dict['batch_id'] = batch_id
+        if "batch_id" not in filter_dict:
+            filter_dict["batch_id"] = batch_id
         else:
-            logging.warning(f"'batch_id' was defined in the filter dictionary passed via the command line (-f): "
-                            f"{filter_dict['status']} AND --batch-id was set to {filter_states}. "
-                            f"I'm using the value passed via -f.")
+            logging.warning(
+                f"'batch_id' was defined in the filter dictionary passed via the command line (-f): "
+                f"{filter_dict['status']} AND --batch-id was set to {filter_states}. "
+                f"I'm using the value passed via -f."
+            )
     return filter_dict
 
 
@@ -175,9 +205,9 @@ def get_max_in_collection(collection, field: str):
 
     ndocs = collection.count_documents({})
     if field == "_id":
-        c = collection.find({}, {'_id': 1})
+        c = collection.find({}, {"_id": 1})
     else:
-        c = collection.find({}, {'_id': 1, field: 1})
+        c = collection.find({}, {"_id": 1, field: 1})
     b = c.sort(field, pymongo.DESCENDING).limit(1)
     if ndocs != 0:
         b_next = b.next()
@@ -203,15 +233,20 @@ def upload_file(filename, db_collection, batch_id, filetype):
     file_id: ID of the inserted file, or None if there was an error.
     """
     import gridfs
+
     db = db_collection.database
     fs = gridfs.GridFS(db)
     try:
         with open(filename, "rb") as f:
             db_filename = f"file://{db_collection.name}/{batch_id}/{filename}"
             file_id = fs.put(
-                f, filename=db_filename, metadata={"collection_name": db_collection.name,
-                                                   "batch_id": batch_id,
-                                                   "type": filetype}
+                f,
+                filename=db_filename,
+                metadata={
+                    "collection_name": db_collection.name,
+                    "batch_id": batch_id,
+                    "type": filetype,
+                },
             )
             return file_id
     except IOError:
@@ -222,6 +257,7 @@ def upload_file(filename, db_collection, batch_id, filetype):
 def delete_files(database, file_ids, progress=False):
     import gridfs
     from rich.progress import track
+
     fs = gridfs.GridFS(database)
     it = track(file_ids, disable=not progress)
     for to_delete in it:
@@ -244,6 +280,7 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     None
     """
     from rich.progress import track
+
     all_collections = not bool(db_collection_name)
     if all_collections:
         config = get_mongodb_config()
@@ -254,44 +291,56 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
         db = collection.database
         collection_names = [collection.name]
     collection_names = set(collection_names)
-    collection_blacklist = {'fs.chunks', 'fs.files'}
+    collection_blacklist = {"fs.chunks", "fs.files"}
     collection_names = collection_names - collection_blacklist
 
     referenced_files = set()
     tq = track(collection_names)
-    logging.info('Scanning collections for orphaned artifacts...')
+    logging.info("Scanning collections for orphaned artifacts...")
     for collection_name in tq:
         tq.set_postfix(collection=collection_name)
         collection = db[collection_name]
-        experiments = list(collection.find({}, {'artifacts': 1, 'experiment.sources': 1, 'source_files': 1}))
+        experiments = list(
+            collection.find(
+                {}, {"artifacts": 1, "experiment.sources": 1, "source_files": 1}
+            )
+        )
         for exp in experiments:
-            if 'artifacts' in exp:
+            if "artifacts" in exp:
                 try:
-                    referenced_files.update({x[1] for x in exp['artifacts']})
+                    referenced_files.update({x[1] for x in exp["artifacts"]})
                 except KeyError:
-                    referenced_files.update({x['file_id'] for x in exp['artifacts']})
-            if 'experiment' in exp and 'sources' in exp['experiment']:
-                referenced_files.update({x[1] for x in exp['experiment']['sources']})
-            if 'source_files' in exp:
-                referenced_files.update({x[1] for x in exp['source_files']})
+                    referenced_files.update({x["file_id"] for x in exp["artifacts"]})
+            if "experiment" in exp and "sources" in exp["experiment"]:
+                referenced_files.update({x[1] for x in exp["experiment"]["sources"]})
+            if "source_files" in exp:
+                referenced_files.update({x[1] for x in exp["source_files"]})
 
-    all_files_in_db = list(db['fs.files'].find({}, {'_id': 1, 'filename': 1, 'metadata': 1}))
+    all_files_in_db = list(
+        db["fs.files"].find({}, {"_id": 1, "filename": 1, "metadata": 1})
+    )
     filtered_file_ids = set()
     for file in all_files_in_db:
-        if 'filename' in file:
-            filename = file['filename']
+        if "filename" in file:
+            filename = file["filename"]
             file_collection = None
-            if filename.startswith("file://") and 'metadata' in file and file['metadata']:
+            if (
+                filename.startswith("file://")
+                and "metadata" in file
+                and file["metadata"]
+            ):
                 # seml-uploaded source
-                metadata = file['metadata']
-                file_collection = metadata.get('collection_name')
+                metadata = file["metadata"]
+                file_collection = metadata.get("collection_name")
             elif filename.startswith("artifact://"):
                 # artifact uploaded by Sacred
                 filename = filename[11:]
                 file_collection = filename.split("/")[0]
-            if (file_collection is not None and file_collection in collection_names) or all_collections:
+            if (
+                file_collection is not None and file_collection in collection_names
+            ) or all_collections:
                 # only delete files corresponding to collections we want to clean
-                filtered_file_ids.add(file['_id'])
+                filtered_file_ids.add(file["_id"])
 
     not_referenced_artifacts = filtered_file_ids - referenced_files
     n_delete = len(not_referenced_artifacts)
@@ -299,9 +348,13 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
         logging.info("No unreferenced artifacts found.")
         return
 
-    logging.info(f"Deleting {n_delete} not referenced artifact{s_if(n_delete)} from database {db.name}. WARNING: This cannot be undone! Artifacts/ files might have been inserted to MongoDB manually or by tools other than seml/ sacred. They will be deleted.")
+    logging.info(
+        f"Deleting {n_delete} not referenced artifact{s_if(n_delete)} from database {db.name}. WARNING: This cannot be undone! Artifacts/ files might have been inserted to MongoDB manually or by tools other than seml/ sacred. They will be deleted."
+    )
     if not yes and not prompt("Are you sure? (y/n)", type=bool):
         exit(1)
-    logging.info('Deleting not referenced artifacts...')
+    logging.info("Deleting not referenced artifacts...")
     delete_files(db, not_referenced_artifacts, progress=True)
-    logging.info(f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.')
+    logging.info(
+        f"Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}."
+    )
