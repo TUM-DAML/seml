@@ -51,7 +51,6 @@ ignore = [
 [tool.ruff.format]
 quote-style="single"
 line-ending = "lf"
-docstring-code-format = false
 
 [project.urls]
 Homepage = "https://github.com/TUM-DAML/seml"
