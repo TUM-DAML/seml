@@ -18,6 +18,8 @@ seml.setup_logger(ex)
 def collect_stats(_run):
     seml.collect_exp_stats(_run)
 
+# Named configs can be used to define subconfigurations in a modular way. They can be composed in the experiment's configuration yaml file.
+
 @ex.named_config
 def preprocessing_none():
     """ A named configuration that can be enabled in the configuration yaml file """
@@ -119,6 +121,10 @@ class ExperimentWrapper:
     @ex.capture(prefix='preprocessing')
     def init_preprocessing(self, mean: float, std: float):
         self.preprocessing_parameters = (mean, std)
+        
+    @ex.capture(prefix='augmentation')
+    def init_augmentation(self, flip: bool):
+        self.augmentation_parameters = (flip,)
 
     def init_all(self):
         """
@@ -128,6 +134,7 @@ class ExperimentWrapper:
         self.init_model()
         self.init_optimizer()
         self.init_preprocessing()
+        self.init_augmentation()
 
     @ex.capture(prefix="training")
     def train(self, patience, num_epochs):

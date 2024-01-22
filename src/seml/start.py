@@ -9,7 +9,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from seml.database import build_filter_dict, get_collection
 from seml.errors import ArgumentError, ConfigError, MongoDBError
@@ -19,6 +19,8 @@ from seml.network import find_free_port
 from seml.settings import SETTINGS
 from seml.sources import load_sources_from_db
 from seml.utils import s_if
+from seml.config import generate_named_configs
+from seml.config import resolve_interpolations as resolve_config_interpolations
 
 States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
@@ -34,12 +36,32 @@ def value_to_string(value, use_json=False):
 
 
 def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=False,
-                         post_mortem=False, debug=False, debug_server=False, print_info=True, use_json=False):
+                         post_mortem=False, debug=False, debug_server=False, print_info=True, use_json=False,
+                         unresolved=False, resolve_interpolations: bool = True):
     if 'executable' not in exp['seml']:
         raise MongoDBError(f"No executable found for experiment {exp['_id']}. Aborting.")
     exe = exp['seml']['executable']
 
-    config = exp['config']
+    if unresolved:
+        config_unresolved = exp.get('config_unresolved', exp['config'])
+        config, named_configs = tuple(zip(*generate_named_configs([config_unresolved])))[0]
+        # Variable interpolation in unresolved and named configs
+        
+        if resolve_interpolations:
+            import uuid
+            key_named_configs = str(uuid.uuid4())
+            interpolated = resolve_config_interpolations({**exp, 'config_unresolved': config_unresolved, key_named_configs: named_configs},
+                allow_interpolations_in=list(SETTINGS.ALLOW_INTERPOLATION_IN) + ['config_unresolved', key_named_configs])
+
+            config = {k : v for k, v in interpolated['config_unresolved'].items() if not k.startswith(SETTINGS.NAMED_CONFIG_PREFIX)}
+            named_configs = interpolated[key_named_configs]
+        else:
+            config = {k : v for k, v in config_unresolved.items() if not k.startswith(SETTINGS.NAMED_CONFIG_PREFIX)}
+    else:
+        assert resolve_interpolations, 'In resolved configs, interpolations are automatically resolved'
+        config = exp['config']
+        named_configs = []
+    
     config['db_collection'] = db_collection_name
     if not unobserved:
         config['overwrite'] = exp['_id']
@@ -48,6 +70,9 @@ def get_command_from_exp(exp, db_collection_name, verbose=False, unobserved=Fals
     # may cause messy commands with lots of single quotes JSON doesn't match Python 1:1, e.g.,
     # boolean values are lower case in JSON (true, false) but start with capital letters in Python.
     config_strings = [f"{key}={value_to_string(val, use_json)}" for key, val in config.items()]
+    config_strings += named_configs
+    
+    # TODO (?): Variable interpolation for unresolved CLI calls
 
     if not verbose:
         config_strings.append("--force")
@@ -637,7 +662,7 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
     -------
     None
     """
-    from tqdm.auto import tqdm
+    from rich.progress import Progress
     check_compute_node()
 
     if 'SLURM_JOBID' in os.environ:
@@ -667,65 +692,68 @@ def start_local_worker(collection, num_exps=0, filter_dict=None, unobserved=Fals
 
     exp_query.update(filter_dict)
 
-    tq = tqdm()
-    while collection.count_documents(exp_query) > 0 and jobs_counter < num_exps:
-        if unobserved:
-            exp = collection.find_one(exp_query)
-        else:
-            exp = collection.find_one_and_update(exp_query, {"$set": {"status": States.RUNNING[0]}})
-        if exp is None:
-            continue
-        if 'array_id' in exp['slurm']:
-            # Clean up MongoDB entry
-            slurm_ids = {'array_id': exp['slurm']['array_id'],
-                         'task_id': exp['slurm']['task_id']}
-            reset_slurm_dict(exp)
-            collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
+    with Progress(auto_refresh=False) as progress:
+        task = progress.add_task("Running experiments...", total=None)
+        while collection.count_documents(exp_query) > 0 and jobs_counter < num_exps:
+            if unobserved:
+                exp = collection.find_one(exp_query)
+            else:
+                exp = collection.find_one_and_update(exp_query, {"$set": {"status": States.RUNNING[0]}})
+            if exp is None:
+                continue
+            if 'array_id' in exp['slurm']:
+                # Clean up MongoDB entry
+                slurm_ids = {'array_id': exp['slurm']['array_id'],
+                            'task_id': exp['slurm']['task_id']}
+                reset_slurm_dict(exp)
+                collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
 
-            # Cancel Slurm job; after cleaning up to prevent race conditions
-            cancel_experiment_by_id(collection, exp['_id'], set_interrupted=False, slurm_dict=slurm_ids)
+                # Cancel Slurm job; after cleaning up to prevent race conditions
+                cancel_experiment_by_id(collection, exp['_id'], set_interrupted=False, slurm_dict=slurm_ids)
 
-        tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
+            progress.console.print(f"current id : {exp['_id']}, failed={num_exceptions}/{jobs_counter} experiments")
 
-        # Add newline if we need to avoid tqdm's output
-        if debug_server or output_to_console or logging.root.level <= logging.VERBOSE:
-            print(file=sys.stderr)
+            # Add newline if we need to avoid tqdm's output
+            if debug_server or output_to_console or logging.root.level <= logging.VERBOSE:
+                print(file=sys.stderr)
 
-        if output_to_file:
-            output_dir_path = get_output_dir_path(exp)
-        else:
-            output_dir_path = None
-        try:
-            success = start_local_job(collection=collection, exp=exp, unobserved=unobserved, post_mortem=post_mortem,
-                                      output_dir_path=output_dir_path, output_to_console=output_to_console,
-                                      debug_server=debug_server)
-            if success is False:
-                num_exceptions += 1
-        except KeyboardInterrupt:
-            logging.info("Caught KeyboardInterrupt signal. Aborting.")
-            exit(1)
-        jobs_counter += 1
-        tq.update()
-        tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
-    tq.close()
+            if output_to_file:
+                output_dir_path = get_output_dir_path(exp)
+            else:
+                output_dir_path = None
+            try:
+                success = start_local_job(collection=collection, exp=exp, unobserved=unobserved, post_mortem=post_mortem,
+                                        output_dir_path=output_dir_path, output_to_console=output_to_console,
+                                        debug_server=debug_server)
+                if success is False:
+                    num_exceptions += 1
+            except KeyboardInterrupt:
+                logging.info("Caught KeyboardInterrupt signal. Aborting.")
+                exit(1)
+            jobs_counter += 1
+            progress.advance(task)
+            #tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
 
 
 def print_command(
     db_collection_name: str,
     sacred_id: Optional[int],
     batch_id: Optional[int],
+    filter_states: List,
     filter_dict: Dict,
     num_exps: int,
     worker_gpus: Optional[str] = None,
     worker_cpus: Optional[int] = None,
-    worker_environment_vars: Dict = None):
+    worker_environment_vars: Dict = None,
+    unresolved: bool = False,
+    resolve_interpolations: bool = True
+    ):
     import rich
 
     from seml.console import console, Heading
-
     collection = get_collection(db_collection_name)
 
-    filter_dict = build_filter_dict(States.STAGED, batch_id, filter_dict, sacred_id)
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id)
 
     env_dict = get_environment_variables(worker_gpus, worker_cpus, worker_environment_vars)
 
@@ -739,10 +767,12 @@ def print_command(
     exp = exps_list[0]
     _, exe, config = get_command_from_exp(exp, collection.name,
                                           verbose=logging.root.level <= logging.VERBOSE,
-                                          unobserved=True, post_mortem=False)
+                                          unobserved=True, post_mortem=False, unresolved=unresolved, 
+                                          resolve_interpolations=resolve_interpolations)
     _, exe, vscode_config = get_command_from_exp(exp, collection.name,
                                                  verbose=logging.root.level <= logging.VERBOSE,
-                                                 unobserved=True, post_mortem=False, use_json=True)
+                                                 unobserved=True, post_mortem=False, use_json=True, unresolved=unresolved,
+                                                 resolve_interpolations=resolve_interpolations)
     env = exp['seml'].get('conda_environment')
 
     console.print(Heading("First experiment"))
@@ -758,20 +788,23 @@ def print_command(
     console.print(Heading("Command for post-mortem debugging"))
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
                                                     verbose=logging.root.level <= logging.VERBOSE,
-                                                    unobserved=True, post_mortem=True)
+                                                    unobserved=True, post_mortem=True, unresolved=unresolved,
+                                                    resolve_interpolations=resolve_interpolations)
     print(get_shell_command(interpreter, exe, config, env=env_dict))
 
     console.print(Heading("Command for remote debugging"))
     interpreter, exe, config = get_command_from_exp(exps_list[0], collection.name,
                                                     verbose=logging.root.level <= logging.VERBOSE,
-                                                    unobserved=True, debug_server=True, print_info=False)
+                                                    unobserved=True, debug_server=True, print_info=False, unresolved=unresolved,
+                                                    resolve_interpolations=resolve_interpolations)
     print(get_shell_command(interpreter, exe, config, env=env_dict))
 
     console.print(Heading("All raw commands"))
     logging.root.setLevel(orig_level)
     for exp in exps_list:
         interpreter, exe, config = get_command_from_exp(
-                exp, collection.name, verbose=logging.root.level <= logging.VERBOSE)
+                exp, collection.name, verbose=logging.root.level <= logging.VERBOSE, unresolved=unresolved,
+                resolve_interpolations=resolve_interpolations)
         print(get_shell_command(interpreter, exe, config, env=env_dict))
 
 

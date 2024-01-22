@@ -50,7 +50,7 @@ def get_results(db_collection_name, fields=None,
 
     """
     import pandas as pd
-    from tqdm.auto import tqdm
+    from rich.progress import track
     if fields is None:
         fields = ['config', 'result']
 
@@ -69,15 +69,15 @@ def get_results(db_collection_name, fields=None,
         filter_dict['status'] = {'$in': states}
 
     cursor = collection.find(filter_dict, fields)
-    results = [x for x in tqdm(cursor, total=collection.count_documents(filter_dict))]
+    results = [x for x in track(cursor, total=collection.count_documents(filter_dict))]
 
     if parallel:
         from multiprocessing import Pool
         with Pool() as p:
-            parsed = list(tqdm(p.imap(parse_jsonpickle, results),
+            parsed = list(track(p.imap(parse_jsonpickle, results),
                                total=len(results)))
     else:
-        parsed = [parse_jsonpickle(entry) for entry in tqdm(results)]
+        parsed = [parse_jsonpickle(entry) for entry in track(results)]
     if to_data_frame:
         parsed = pd.json_normalize(parsed, sep='.')
     return parsed

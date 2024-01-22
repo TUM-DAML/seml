@@ -55,10 +55,10 @@
 
 
 seml:
-  executable: examples/advanced_example_experiment.py
+  executable: advanced_example_experiment.py
   name: advanced_example_experiment
-  output_dir: examples/logs
-  project_root_dir: ..
+  output_dir: logs
+  project_root_dir: .
   description: 'An advanced example configuration. We can also use variable interpolation here: ${config.model.model_type}'
 
 slurm:
@@ -89,19 +89,29 @@ grid:
       - variant_2
     zip_id: model_dataset  # The model_type jointly changes with all other parameters of the mode_dataset group
 
-  +preprocessing:
-    type: choice
-    # The `name` attribute selects which named config is run (see the methods `preprocessing_none` and `preprocessing_normalize` 
-    # in `advanced_example_experiment.py`)
-    options:
-      - preprocessing_none
-      - preprocessing_normalize
 
+  # The `+` prefix indicates that a named config should be used. The `name` attribute selects which named config is run
+  # Here, setting `batchnorm.name` to `batchnorm`, will run the named config `batchnorm` (see `advanced_example_experiment.py`)
+  # Setting `batchnorm.priority` to `2`, will affect the order in which the named configs are loaded
   +batchnorm.name:
     type: choice
     options:
       - batchnorm
       - no_batchnorm
+
+  # Instead of setting the `name` attribute, you can equivalently set `preprocessing` to a the corresponding named config.
+  # seml will infer to set the `name` attribute for you
+  +preprocessing:
+    type: choice
+    options:
+      - preprocessing_none
+      - preprocessing_normalize
+
+  # You can also specify named configs from file paths, e.g. yaml files. These paths are expected to be relative to `project_root_dir`.
+  +augmentation:
+    type: choice
+    options:
+      - config/flip_augmentation.yaml
 
   optimization.regularization.weight_decay:
     type: loguniform

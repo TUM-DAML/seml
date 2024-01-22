@@ -612,12 +612,30 @@ def reload_sources_command(
 def print_command_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = States.STAGED,
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     num_exps: NumExperimentsAnnotation = 0,
     worker_gpus: WorkerGPUsAnnotation = None,
     worker_cpus: WorkerCPUsAnnotation = None,
     worker_env: WorkerEnvAnnotation = None,
+    unresolved: Annotated[
+        bool,
+        typer.Option(
+            '--unresolved',
+            help="Whether to print the unresolved command.",
+            is_flag=True,
+        ),
+    ] = False,
+    no_interpolation: Annotated[
+        bool,
+        typer.Option(
+            '--no-interpolation',
+            help="Whether disable variable interpolation. Only compatible with --unresolved.",
+            is_flag=True,
+        ),
+    ] = False,
+    
 ):
     """
     Print the commands that would be executed by `start`.
@@ -626,11 +644,14 @@ def print_command_command(
         ctx.obj['collection'],
         sacred_id=sacred_id,
         batch_id=batch_id,
+        filter_states=filter_states,
         filter_dict=filter_dict,
         num_exps=num_exps,
         worker_gpus=worker_gpus,
         worker_cpus=worker_cpus,
         worker_environment_vars=worker_env,
+        unresolved=unresolved,
+        resolve_interpolations=not no_interpolation,
     )
 
 

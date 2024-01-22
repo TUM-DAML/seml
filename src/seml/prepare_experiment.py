@@ -68,7 +68,11 @@ if __name__ == "__main__":
                                                     unobserved=args.unobserved, post_mortem=args.post_mortem,
                                                     debug_server=args.debug_server)
     cmd = get_shell_command(interpreter, exe, config)
-    updates = {'seml.command': cmd}
+    cmd_unresolved = get_shell_command(*get_command_from_exp(exp, db_collection_name, verbose=args.verbose,
+                                                             unobserved=args.unobserved,
+                                                             post_mortem=args.post_mortem,
+                                                             debug_server=args.debug_server, unresolved=True))
+    updates = {'seml.command': cmd, 'seml.command_unresolved': cmd_unresolved}
 
     if use_stored_sources:
         temp_dir = args.stored_sources_dir

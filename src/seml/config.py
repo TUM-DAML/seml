@@ -1,14 +1,12 @@
 import ast
-from collections import defaultdict
 import copy
-from dataclasses import dataclass
 import json
 import logging
 import numbers
 import os
 from itertools import combinations
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import yaml
 
@@ -18,7 +16,7 @@ from seml.parameters import (cartesian_product_zipped_dict, generate_grid,
 from seml.settings import SETTINGS
 from seml.sources import import_exe
 from seml.utils import (Hashabledict, flatten, make_hash, merge_dicts, unflatten,
-                        working_directory, remove_keys_from_nested)
+                        working_directory, remove_keys_from_nested, list_is_prefix)
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
 
@@ -239,7 +237,7 @@ def generate_configs(experiment_config, overwrite_params=None):
         all_configs.extend(with_random)
 
     # Cast NumPy integers to normal integers since PyMongo doesn't like them
-    all_configs = [{k: int(v) if isinstance(v, numbers.Integral) else v
+    all_configs = [{k: int(v) if isinstance(v, numbers.Integral) and not isinstance(v, bool) else v
                     for k, v in config.items()}
                    for config in all_configs]
 
@@ -343,10 +341,13 @@ def _sacred_create_configs(exp: 'sacred.Experiment', configs: List[Dict], named_
     from sacred.utils import convert_to_nested_dict, recursive_update, iterate_flattened, join_paths, set_by_dotted_path
     from sacred.initialize import (create_scaffolding, gather_ingredients_topological, distribute_config_updates, 
                                    get_configuration, get_scaffolding_and_config_name, distribute_presets)
+    from rich.progress import track
+    
     configs_resolved = []
     if named_configs is None:
         named_configs = [()] * len(configs)
-    for config, named_config in zip(configs, named_configs):
+    for config, named_config in track(list(zip(configs, named_configs)), description='Resolving configurations', 
+                                    disable=len(configs) < SETTINGS.CONFIG_RESOLUTION_PROGRESS_BAR_THRESHOLD):
         
         # The following code is adapted from sacred directly: This results in a significant speedup
         # as we only care about the config but not about creating runs, however it is more error prone 
@@ -422,7 +423,7 @@ def resolve_configs(executable: str, conda_env: str, configs: List[Dict], named_
     """
     import sacred
     exp_module = import_exe(executable, conda_env, working_dir)
-
+    
     # Extract experiment from module
     exps = [v for k, v in exp_module.__dict__.items() if isinstance(v, sacred.Experiment)]
     if len(exps) == 0:
@@ -431,7 +432,8 @@ def resolve_configs(executable: str, conda_env: str, configs: List[Dict], named_
         raise ExecutableError(f"Found more than 1 Sacred experiment in '{executable}'. "
                               f"Can't resolve configs.")
     exp = exps[0]
-    return _sacred_create_configs(exp, configs, named_configs)
+    with working_directory(working_dir):
+        return _sacred_create_configs(exp, configs, named_configs)
   
     
 def check_config(executable: str, conda_env: str, configs: List[Dict], working_dir: str):
@@ -468,15 +470,17 @@ def check_config(executable: str, conda_env: str, configs: List[Dict], working_d
             for cf in exp.captured_functions
             for n in cf.signature.arguments
     }
+    
+    config_keys_empty_run = flatten(empty_run.config).keys()
 
     for config in configs:
-        config_added = {k: v for k, v in config.items() if k not in empty_run.config.keys()}
-        config_flattened = {k for k, _ in sacred.utils.iterate_flattened(config_added)}
-
+        config_flat = flatten(config)
+        config_keys_added = {k for k in config_flat.keys() if k not in config_keys_empty_run}
+        
         # Check for unused arguments
-        for conf in sorted(config_flattened):
+        for conf in sorted(config_keys_added):
             if not (set(sacred.utils.iter_prefixes(conf)) & captured_args):
-                raise sacred.utils.ConfigAddedError(conf, config=config_added)
+                raise sacred.utils.ConfigAddedError(conf, config=config_keys_added)
 
         # Check for missing arguments
         options = empty_run.config.copy()
@@ -661,4 +665,37 @@ def config_get_exclude_keys(config: Dict, config_unresolved: Dict) -> List[str]:
         # The seed will only be included (e.g. for hashing) if explicited in the unresolved configuration
         exclude_keys.append(SETTINGS.CONFIG_KEY_SEED) 
     return exclude_keys
+    
+
+def resolve_interpolations(document: Dict, 
+                           allow_interpolations_in: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN) -> Dict:
+    """Resolves variable interpolation using `OmegaConf`
+
+    Parameters
+    ----------
+    documents : Dict
+        The document to resolve.
+    allow_interpolations_in : List[str]
+        All keys that should be permitted to do variable interpolation. Other keys are taken from the unresolved config.
+
+    Returns
+    -------
+    Dict
+        The resolved document
+    """
+    from omegaconf import OmegaConf
+    resolved = OmegaConf.to_container(OmegaConf.create(document, flags={"allow_objects": True}), resolve=True)
+    resolved_flat = {
+        key : value for key, value in flatten(resolved, sep='.').items() 
+        if any(list_is_prefix(allowed_key.split('.'), key.split('.')) for allowed_key in allow_interpolations_in)
+    }
+    unresolved_flat = {
+        key : value for key, value in flatten(document, sep='.').items() 
+        if not any(list_is_prefix(allowed_key.split('.'), key.split('.')) for allowed_key in allow_interpolations_in)
+    } 
+    assert resolved_flat.keys().isdisjoint(unresolved_flat.keys()), f"Overlap between unresolved and resolved dicts: {resolved_flat.keys().intersection(unresolved_flat.keys())}"
+    resolved = unflatten({**resolved_flat, **unresolved_flat})
+    return resolved
+
+    
     
