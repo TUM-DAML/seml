@@ -2,7 +2,7 @@ import copy
 import datetime
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 from seml.config import (
     check_config,
@@ -28,6 +28,9 @@ from seml.utils import (
     s_if,
     unflatten,
 )
+
+if TYPE_CHECKING:
+    import pymongo
 
 States = SETTINGS.STATES
 

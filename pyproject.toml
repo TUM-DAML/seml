@@ -43,11 +43,6 @@ dev = [
     "pre-commit"
 ]
 
-[tool.ruff.lint]
-ignore = [
-    "F821", # ignore undefined name for type annotations (this is due to lazy imports)
-]
-
 [tool.ruff.format]
 quote-style="single"
 line-ending = "lf"

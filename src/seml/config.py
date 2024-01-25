@@ -6,7 +6,7 @@ import numbers
 import os
 from itertools import combinations
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import yaml
 
@@ -28,6 +28,9 @@ from seml.utils import (
     remove_keys_from_nested,
     list_is_prefix,
 )
+
+if TYPE_CHECKING:
+    import sacred
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
 
