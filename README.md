@@ -33,6 +33,15 @@ Then configure your MongoDB via:
 ```bash
 seml configure  --mongodb # provide your MongoDB credentials
 ```
+### Development
+If you want to develop `seml` please clone the repository and install it via
+```bash
+pip install -e .[dev]
+```
+and install pre-commit hooks via
+```bash
+pre-commit install
+``` 
 
 ## Documentation
 Documentation is available in our [docs.md](docs.md) or via the CLI:

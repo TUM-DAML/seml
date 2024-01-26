@@ -18,33 +18,38 @@ seml.setup_logger(ex)
 def collect_stats(_run):
     seml.collect_exp_stats(_run)
 
+
 # Named configs can be used to define subconfigurations in a modular way. They can be composed in the experiment's configuration yaml file.
+
 
 @ex.named_config
 def preprocessing_none():
-    """ A named configuration that can be enabled in the configuration yaml file """
+    """A named configuration that can be enabled in the configuration yaml file"""
     preprocessing = {
-        'mean' : 0.0,
-        'std' : 1.0,
+        "mean": 0.0,
+        "std": 1.0,
     }
-    
+
+
 @ex.named_config
 def preprocessing_normalize():
-    """ A named configuration that can be enabled in the configuration yaml file """
+    """A named configuration that can be enabled in the configuration yaml file"""
     preprocessing = {
-        'mean' : 0.377,
-        'std' : 0.23,
+        "mean": 0.377,
+        "std": 0.23,
     }
-    
+
+
 @ex.named_config
 def batchnorm():
-    """ A named configuration that can be enabled in the configuration yaml file """
-    model = {'batchnorm' : True}
+    """A named configuration that can be enabled in the configuration yaml file"""
+    model = {"batchnorm": True}
+
 
 @ex.named_config
 def no_batchnorm():
-    """ A named configuration that can be enabled in the configuration yaml file """
-    model = {'batchnorm' : False, 'residual' : False}
+    """A named configuration that can be enabled in the configuration yaml file"""
+    model = {"batchnorm": False, "residual": False}
 
 
 @ex.config
@@ -52,24 +57,29 @@ def config():
     overwrite = None
     db_collection = None
     if db_collection is not None:
-        ex.observers.append(seml.create_mongodb_observer(db_collection, overwrite=overwrite))
-    name = '${config.model.model_type}_${config.data.dataset}'
+        ex.observers.append(
+            seml.create_mongodb_observer(db_collection, overwrite=overwrite)
+        )
+    name = "${config.model.model_type}_${config.data.dataset}"
 
 
 class ModelVariant1:
     """
     A dummy model variant 1, which could, e.g., be a certain model or baseline in practice.
     """
+
     def __init__(self, hidden_sizes, dropout, batchnorm, residual):
         self.hidden_sizes = hidden_sizes
         self.dropout = dropout
         self.batchnorm = batchnorm
         self.residual = residual
 
+
 class ModelVariant2:
     """
     A dummy model variant 2, which could, e.g., be a certain model or baseline in practice.
     """
+
     def __init__(self, hidden_sizes, dropout, batchnorm, residual):
         self.hidden_sizes = hidden_sizes
         self.dropout = dropout
@@ -105,24 +115,34 @@ class ExperimentWrapper:
             self.data = "..."
 
     @ex.capture(prefix="model")
-    def init_model(self, model_type: str, model_params: dict, batchnorm: bool, residual: bool=True):
+    def init_model(
+        self,
+        model_type: str,
+        model_params: dict,
+        batchnorm: bool,
+        residual: bool = True,
+    ):
         if model_type == "variant_1":
             # Here we can pass the "model_params" dict to the constructor directly, which can be very useful in
             # practice, since we don't have to do any model-specific processing of the config dictionary.
-            self.model = ModelVariant1(**model_params, batchnorm=batchnorm, residual=residual)
+            self.model = ModelVariant1(
+                **model_params, batchnorm=batchnorm, residual=residual
+            )
         elif model_type == "variant_2":
-            self.model = ModelVariant2(**model_params, batchnorm=batchnorm, residual=residual)
+            self.model = ModelVariant2(
+                **model_params, batchnorm=batchnorm, residual=residual
+            )
 
     @ex.capture(prefix="optimization")
     def init_optimizer(self, regularization: dict, optimizer_type: str):
-        weight_decay = regularization['weight_decay']
+        weight_decay = regularization["weight_decay"]
         self.optimizer = optimizer_type  # initialize optimizer
 
-    @ex.capture(prefix='preprocessing')
+    @ex.capture(prefix="preprocessing")
     def init_preprocessing(self, mean: float, std: float):
         self.preprocessing_parameters = (mean, std)
-        
-    @ex.capture(prefix='augmentation')
+
+    @ex.capture(prefix="augmentation")
     def init_augmentation(self, flip: bool):
         self.augmentation_parameters = (flip,)
 
@@ -143,8 +163,8 @@ class ExperimentWrapper:
             # simulate training
             continue
         results = {
-            'test_acc': 0.5 + 0.3 * np.random.randn(),
-            'test_loss': np.random.uniform(0, 10),
+            "test_acc": 0.5 + 0.3 * np.random.randn(),
+            "test_loss": np.random.uniform(0, 10),
             # ...
         }
         return results
@@ -154,7 +174,7 @@ class ExperimentWrapper:
 # where we can then for instance load a pretrained model to inspect the performance.
 @ex.command(unobserved=True)
 def get_experiment(init_all=False):
-    print('get_experiment')
+    print("get_experiment")
     experiment = ExperimentWrapper(init_all=init_all)
     return experiment
 

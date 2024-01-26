@@ -8,6 +8,7 @@ from bson import json_util
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
         import numpy as np
+
         if isinstance(obj, np.integer):
             return int(obj)
         elif isinstance(obj, np.floating):
@@ -29,8 +30,13 @@ class PythonEncoder(json.JSONEncoder):
         else:
             _encoder = json.encoder.encode_basestring
 
-        def floatstr(o, allow_nan=self.allow_nan,
-                _repr=float.__repr__, _inf=json.encoder.INFINITY, _neginf=-json.encoder.INFINITY):
+        def floatstr(
+            o,
+            allow_nan=self.allow_nan,
+            _repr=float.__repr__,
+            _inf=json.encoder.INFINITY,
+            _neginf=-json.encoder.INFINITY,
+        ):
             # Check for specials.  Note that this type of test is processor
             # and/or platform-specific, so do tests which don't depend on the
             # internals.
@@ -46,32 +52,49 @@ class PythonEncoder(json.JSONEncoder):
 
             if not allow_nan:
                 raise ValueError(
-                    "Out of range float values are not JSON compliant: " +
-                    repr(o))
+                    'Out of range float values are not JSON compliant: ' + repr(o)
+                )
 
             return text
 
         _iterencode = _make_iterencode(
-            markers, self.default, _encoder, self.indent, floatstr,
-            self.key_separator, self.item_separator, self.sort_keys,
-            self.skipkeys, _one_shot)
+            markers,
+            self.default,
+            _encoder,
+            self.indent,
+            floatstr,
+            self.key_separator,
+            self.item_separator,
+            self.sort_keys,
+            self.skipkeys,
+            _one_shot,
+        )
         return _iterencode(o, 0)
 
-def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
-        _key_separator, _item_separator, _sort_keys, _skipkeys, _one_shot,
-        ## HACK: hand-optimized bytecode; turn globals into locals
-        ValueError=ValueError,
-        dict=dict,
-        float=float,
-        id=id,
-        int=int,
-        isinstance=isinstance,
-        list=list,
-        str=str,
-        tuple=tuple,
-        _intstr=int.__repr__,
-    ):
 
+def _make_iterencode(
+    markers,
+    _default,
+    _encoder,
+    _indent,
+    _floatstr,
+    _key_separator,
+    _item_separator,
+    _sort_keys,
+    _skipkeys,
+    _one_shot,
+    ## HACK: hand-optimized bytecode; turn globals into locals
+    ValueError=ValueError,
+    dict=dict,
+    float=float,
+    id=id,
+    int=int,
+    isinstance=isinstance,
+    list=list,
+    str=str,
+    tuple=tuple,
+    _intstr=int.__repr__,
+):
     if _indent is not None and not isinstance(_indent, str):
         _indent = ' ' * _indent
 
@@ -82,7 +105,7 @@ def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
         if markers is not None:
             markerid = id(lst)
             if markerid in markers:
-                raise ValueError("Circular reference detected")
+                raise ValueError('Circular reference detected')
             markers[markerid] = lst
         buf = '['
         if _indent is not None:
@@ -138,7 +161,7 @@ def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
         if markers is not None:
             markerid = id(dct)
             if markerid in markers:
-                raise ValueError("Circular reference detected")
+                raise ValueError('Circular reference detected')
             markers[markerid] = dct
         yield '{'
         if _indent is not None:
@@ -174,8 +197,10 @@ def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
             elif _skipkeys:
                 continue
             else:
-                raise TypeError(f'keys must be str, int, float, bool or None, '
-                                f'not {key.__class__.__name__}')
+                raise TypeError(
+                    f'keys must be str, int, float, bool or None, '
+                    f'not {key.__class__.__name__}'
+                )
             if first:
                 first = False
             else:
@@ -234,10 +259,11 @@ def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
             if markers is not None:
                 markerid = id(o)
                 if markerid in markers:
-                    raise ValueError("Circular reference detected")
+                    raise ValueError('Circular reference detected')
                 markers[markerid] = o
             o = _default(o)
             yield from _iterencode(o, _current_indent_level)
             if markers is not None:
                 del markers[markerid]
+
     return _iterencode

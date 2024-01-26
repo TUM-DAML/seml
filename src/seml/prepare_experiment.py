@@ -9,24 +9,47 @@ from seml.start import get_command_from_exp, get_shell_command
 
 States = SETTINGS.STATES
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description="Get the config and executable of the experiment with given ID and "
-                    "check whether it has been cancelled before its start.",
-        formatter_class=argparse.RawTextHelpFormatter)
+        description='Get the config and executable of the experiment with given ID and '
+        'check whether it has been cancelled before its start.',
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
 
-    parser.add_argument("--experiment_id", type=int, help="The experiment ID.")
-    parser.add_argument("--db_collection_name", type=str, help="The collection in the database to use.")
-    parser.add_argument("--verbose", default=False, type=lambda x: (str(x).lower() == 'true'),
-                        help="Display more log messages.")
-    parser.add_argument("--unobserved", default=False, type=lambda x: (str(x).lower() == 'true'),
-                        help="Run the experiments without Sacred observers.")
-    parser.add_argument("--post-mortem", default=False, type=lambda x: (str(x).lower() == 'true'),
-                        help="Activate post-mortem debugging with pdb.")
-    parser.add_argument("--stored-sources-dir", default=None, type=str,
-                        help="Load source files into this directory before starting.")
-    parser.add_argument('--debug-server', default=False, type=lambda x: (str(x).lower() == 'true'),
-                        help="Run the experiment with a debug server.")
+    parser.add_argument('--experiment_id', type=int, help='The experiment ID.')
+    parser.add_argument(
+        '--db_collection_name', type=str, help='The collection in the database to use.'
+    )
+    parser.add_argument(
+        '--verbose',
+        default=False,
+        type=lambda x: (str(x).lower() == 'true'),
+        help='Display more log messages.',
+    )
+    parser.add_argument(
+        '--unobserved',
+        default=False,
+        type=lambda x: (str(x).lower() == 'true'),
+        help='Run the experiments without Sacred observers.',
+    )
+    parser.add_argument(
+        '--post-mortem',
+        default=False,
+        type=lambda x: (str(x).lower() == 'true'),
+        help='Activate post-mortem debugging with pdb.',
+    )
+    parser.add_argument(
+        '--stored-sources-dir',
+        default=None,
+        type=str,
+        help='Load source files into this directory before starting.',
+    )
+    parser.add_argument(
+        '--debug-server',
+        default=False,
+        type=lambda x: (str(x).lower() == 'true'),
+        help='Run the experiment with a debug server.',
+    )
     args = parser.parse_args()
 
     # Set up logging
@@ -48,8 +71,10 @@ if __name__ == "__main__":
     if args.unobserved:
         exp = collection.find_one({'_id': exp_id})
     else:
-        exp = collection.find_one_and_update({'_id': exp_id, "status": {"$in": States.PENDING}},
-                                             {"$set": {"status": States.RUNNING[0]}})
+        exp = collection.find_one_and_update(
+            {'_id': exp_id, 'status': {'$in': States.PENDING}},
+            {'$set': {'status': States.RUNNING[0]}},
+        )
 
     if exp is None:
         # check whether experiment is actually missing from the DB or has the wrong state
@@ -60,24 +85,37 @@ if __name__ == "__main__":
 
     use_stored_sources = args.stored_sources_dir is not None
     if use_stored_sources and not os.listdir(args.stored_sources_dir):
-        assert "source_files" in exp['seml'],\
-               "--stored-sources-dir was supplied but staged experiment does not contain stored source files."
+        assert (
+            'source_files' in exp['seml']
+        ), '--stored-sources-dir was supplied but staged experiment does not contain stored source files.'
         load_sources_from_db(exp, collection, to_directory=args.stored_sources_dir)
 
-    interpreter, exe, config = get_command_from_exp(exp, db_collection_name, verbose=args.verbose,
-                                                    unobserved=args.unobserved, post_mortem=args.post_mortem,
-                                                    debug_server=args.debug_server)
+    interpreter, exe, config = get_command_from_exp(
+        exp,
+        db_collection_name,
+        verbose=args.verbose,
+        unobserved=args.unobserved,
+        post_mortem=args.post_mortem,
+        debug_server=args.debug_server,
+    )
     cmd = get_shell_command(interpreter, exe, config)
-    cmd_unresolved = get_shell_command(*get_command_from_exp(exp, db_collection_name, verbose=args.verbose,
-                                                             unobserved=args.unobserved,
-                                                             post_mortem=args.post_mortem,
-                                                             debug_server=args.debug_server, unresolved=True))
+    cmd_unresolved = get_shell_command(
+        *get_command_from_exp(
+            exp,
+            db_collection_name,
+            verbose=args.verbose,
+            unobserved=args.unobserved,
+            post_mortem=args.post_mortem,
+            debug_server=args.debug_server,
+            unresolved=True,
+        )
+    )
     updates = {'seml.command': cmd, 'seml.command_unresolved': cmd_unresolved}
 
     if use_stored_sources:
         temp_dir = args.stored_sources_dir
         # Store the temp dir for debugging purposes
-        updates["seml.temp_dir"] = temp_dir
+        updates['seml.temp_dir'] = temp_dir
         cmd = get_shell_command(interpreter, os.path.join(temp_dir, exe), config)
 
     if not args.unobserved:

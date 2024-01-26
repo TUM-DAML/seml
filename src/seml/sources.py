@@ -46,7 +46,9 @@ def import_exe(executable, conda_env, working_dir):
     """
     # Check if current environment matches experiment environment
     if conda_env is not None and conda_env != os.environ.get('CONDA_DEFAULT_ENV'):
-        logging.warning(f"Current Anaconda environment does not match the experiment's environment ('{conda_env}').")
+        logging.warning(
+            f"Current Anaconda environment does not match the experiment's environment ('{conda_env}')."
+        )
 
     with working_directory(working_dir):
         # Get experiment as module (which causes Sacred not to start ex.automain)
@@ -54,15 +56,19 @@ def import_exe(executable, conda_env, working_dir):
         sys.path.insert(0, os.path.dirname(exe_path))
         orig_handlers = logging.root.handlers
         orig_loglevel = logging.root.level
-        exe_module = importlib.import_module(os.path.splitext(os.path.basename(executable))[0])
+        exe_module = importlib.import_module(
+            os.path.splitext(os.path.basename(executable))[0]
+        )
 
     if exe_module.__file__ != exe_path:
-        logging.error(f'Imported module path\n"{exe_module.__file__}" does not match executable path\n'
-                      f'"{exe_path}".\nIs the executable file name "{os.path.basename(executable)}" '
-                      f'a package name required by seml, e.g., "numpy.py"? '
-                      f'If yes, this case it not supported; please rename your script.\n'
-                      f'Otherwise, you can also skip source file uploading and configuration sanity checking '
-                      f'py passing "--no-code-checkpoint" and "--no-sanity-check" to seml.')
+        logging.error(
+            f'Imported module path\n"{exe_module.__file__}" does not match executable path\n'
+            f'"{exe_path}".\nIs the executable file name "{os.path.basename(executable)}" '
+            f'a package name required by seml, e.g., "numpy.py"? '
+            f'If yes, this case it not supported; please rename your script.\n'
+            f'Otherwise, you can also skip source file uploading and configuration sanity checking '
+            f'py passing "--no-code-checkpoint" and "--no-sanity-check" to seml.'
+        )
         exit(1)
     logging.root.handlers = orig_handlers
     logging.root.setLevel(orig_loglevel)
@@ -79,7 +85,7 @@ def get_imported_sources(executable, root_dir, conda_env, working_dir):
     for name, mod in sys.modules.items():
         if mod is None:
             continue
-        if not getattr(mod, "__file__", False):
+        if not getattr(mod, '__file__', False):
             continue
         filename = os.path.abspath(mod.__file__)
         if filename not in sources and is_local_file(filename, root_path):
@@ -92,13 +98,18 @@ def upload_sources(seml_config, collection, batch_id):
     with working_directory(seml_config['working_dir']):
         root_dir = str(Path(seml_config['working_dir']).expanduser().resolve())
 
-        sources = get_imported_sources(seml_config['executable'], root_dir=root_dir,
-                                    conda_env=seml_config['conda_environment'], 
-                                    working_dir=seml_config['working_dir'])
+        sources = get_imported_sources(
+            seml_config['executable'],
+            root_dir=root_dir,
+            conda_env=seml_config['conda_environment'],
+            working_dir=seml_config['working_dir'],
+        )
         executable_abs = str(Path(seml_config['executable']).expanduser().resolve())
 
         if executable_abs not in sources:
-            raise ExecutableError(f"Executable {executable_abs} was not found in the source code files to upload.")
+            raise ExecutableError(
+                f'Executable {executable_abs} was not found in the source code files to upload.'
+            )
 
         uploaded_files = []
         for s in sources:
@@ -130,8 +141,9 @@ def get_git_info(filename, working_dir):
     try:
         from git import InvalidGitRepositoryError, Repo
     except ImportError:
-        logging.warning("Cannot import git (pip install GitPython). "
-                        "Not saving git status.")
+        logging.warning(
+            'Cannot import git (pip install GitPython). ' 'Not saving git status.'
+        )
 
     with working_directory(working_dir):
         directory = os.path.dirname(filename)
@@ -143,26 +155,33 @@ def get_git_info(filename, working_dir):
         try:
             path = repo.remote().url
         except ValueError:
-            path = "git:/" + repo.working_dir
+            path = 'git:/' + repo.working_dir
         commit = repo.head.commit.hexsha
     return path, commit, repo.is_dirty()
 
 
 def load_sources_from_db(exp, collection, to_directory):
     import gridfs
+
     db = collection.database
     fs = gridfs.GridFS(db)
     if 'source_files' not in exp['seml']:
-        raise MongoDBError(f'No source files found for experiment with ID {exp["_id"]}.')
+        raise MongoDBError(
+            f'No source files found for experiment with ID {exp["_id"]}.'
+        )
     source_files = exp['seml']['source_files']
     for path, _id in source_files:
-        _dir = f"{to_directory}/{os.path.dirname(path)}"
+        _dir = f'{to_directory}/{os.path.dirname(path)}'
         if not os.path.exists(_dir):
-            os.makedirs(_dir, mode=0o700)  # only current user can read, write, or execute
+            os.makedirs(
+                _dir, mode=0o700
+            )  # only current user can read, write, or execute
         with open(f'{to_directory}/{path}', 'wb') as f:
             file = fs.find_one(_id)
             if file is None:
-                raise MongoDBError(f"Could not find source file with ID '{_id}' for experiment with ID {exp['_id']}.")
+                raise MongoDBError(
+                    f"Could not find source file with ID '{_id}' for experiment with ID {exp['_id']}."
+                )
             f.write(file.read())
 
 
@@ -182,11 +201,15 @@ def delete_orphaned_sources(collection, batch_ids=None):
 
 def delete_batch_sources(collection, batch_id):
     db = collection.database
-    filter_dict = {'metadata.batch_id': batch_id,
-                   'metadata.collection_name': f'{collection.name}'}
+    filter_dict = {
+        'metadata.batch_id': batch_id,
+        'metadata.collection_name': f'{collection.name}',
+    }
     source_files = db['fs.files'].find(filter_dict, {'_id'})
     source_files = [x['_id'] for x in source_files]
     if len(source_files) > 0:
-        logging.info(f"Deleting {len(source_files)} source files corresponding "
-                     f"to batch {batch_id} in collection {collection.name}.")
+        logging.info(
+            f'Deleting {len(source_files)} source files corresponding '
+            f'to batch {batch_id} in collection {collection.name}.'
+        )
         delete_files(db, source_files)
