@@ -301,16 +301,19 @@ def add_config_file(
 
     # Create documents that can be interpolated
     documents = [
-        resolve_interpolations(
-            {
-                'seml': seml_config,
-                'slurm': slurm_config,
-                'git': git_info,
-                'batch_id': batch_id,  # needs to be determined now for source file uploading
-                'config': config,
-                'config_unresolved': config_unresolved,
-            }
-        )
+        {
+            **resolve_interpolations(
+                {
+                    'seml': seml_config,
+                    'slurm': slurm_config,
+                    'git': git_info,
+                    'batch_id': batch_id,  # needs to be determined now for source file uploading
+                    'config': config,
+                    'config_unresolved': config_unresolved,
+                }
+            ),
+            'config_unresolved': config_unresolved,
+        }
         for config, config_unresolved in zip(configs, configs_unresolved)
     ]
 

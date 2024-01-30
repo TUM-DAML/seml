@@ -698,8 +698,15 @@ def reload_sources(
                 ]
 
         documents = [
-            resolve_interpolations({**document, 'config': config})
-            for document, config in zip(documents, configs)
+            resolve_interpolations(
+                {
+                    **{**document, 'config': config},
+                    'config_unresolved': config_unresolved,
+                }
+            )
+            for document, config, config_unresolved in zip(
+                documents, configs, configs_unresolved
+            )
         ]
 
         result = collection.bulk_write(
@@ -709,6 +716,7 @@ def reload_sources(
                     {
                         '$set': {
                             'config': document['config'],
+                            'config_unresolved': document['config_unresolved'],
                             'config_hash': make_hash(
                                 document['config'],
                                 config_get_exclude_keys(

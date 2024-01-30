@@ -617,7 +617,12 @@ def check_config(
         # Check for unused arguments
         for conf in sorted(config_keys_added):
             if not (set(sacred.utils.iter_prefixes(conf)) & captured_args):
-                raise sacred.utils.ConfigAddedError(conf, config=config_keys_added)
+                raise sacred.utils.ConfigAddedError(
+                    conf,
+                    config={
+                        k: v for k, v in config_flat.items() if k in config_keys_added
+                    },
+                )
 
         # Check for missing arguments
         options = empty_run.config.copy()
