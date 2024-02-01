@@ -257,6 +257,14 @@ NoResolveDescriptionAnnotation = Annotated[
 ]
 
 
+def version_callback(value: bool):
+    if value:
+        from seml import __version__
+
+        print(__version__)
+        raise typer.Exit(0)
+
+
 @app.callback()
 def callback(
     ctx: typer.Context,
@@ -274,6 +282,16 @@ def callback(
             '--verbose',
             help='Whether to print debug messages.',
             is_flag=True,
+        ),
+    ] = False,
+    version: Annotated[
+        bool,
+        typer.Option(
+            '-V',
+            '--version',
+            help='Print the version number.',
+            is_flag=True,
+            callback=version_callback,
         ),
     ] = False,
 ):
