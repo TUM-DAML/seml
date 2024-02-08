@@ -2,20 +2,26 @@ import datetime
 import logging
 import resource
 import sys
-from typing import Optional, Sequence, List
+from typing import List, Optional, Sequence
 
-from sacred import Ingredient
-from sacred.utils import PathType
-from sacred.host_info import HostInfoGetter
-from sacred.commandline_options import CLIOption
-from sacred import Experiment as ExperimentBase
 from sacred import SETTINGS as SACRED_SETTINGS
+from sacred import Experiment as ExperimentBase
+from sacred import Ingredient
+from sacred.commandline_options import CLIOption
+from sacred.config.config_summary import ConfigSummary
+from sacred.config.utils import (
+    dogmatize,
+    recursive_fill_in,
+    undogmatize,
+)
+from sacred.host_info import HostInfoGetter
+from sacred.utils import PathType
 
 from seml.database import get_collection
 from seml.observers import create_mongodb_observer
 from seml.settings import SETTINGS
 
-__all__ = ['setup_logger', 'collect_exp_stats']
+__all__ = ['setup_logger', 'collect_exp_stats', 'Experiment']
 
 
 class Experiment(ExperimentBase):
@@ -40,7 +46,7 @@ class Experiment(ExperimentBase):
             save_git_info=save_git_info,
         )
         if add_mongodb_observer:
-            self.setup_mongodb_observer()
+            self.configurations.append(MongoDbObserverConfig(self))
 
     def run(
         self,
@@ -62,21 +68,27 @@ class Experiment(ExperimentBase):
             options=options,
         )
 
-    def setup_mongodb_observer(self):
-        global _experiment
-        _experiment = self
 
-        def mongodb_observer_config():
-            global _experiment
-            overwrite = None
-            db_collection = None
-            if db_collection is not None:
-                _experiment.observers.append(
-                    create_mongodb_observer(db_collection, overwrite=overwrite)
+class MongoDbObserverConfig:
+    def __init__(self, experiment: Experiment):
+        self.experiment = experiment
+
+    def __call__(self, fixed=None, preset=None, fallback=None):
+        result = dogmatize(fixed or {})
+        defaults = dict(overwrite=None, db_collection=None)
+        recursive_fill_in(result, defaults)
+        recursive_fill_in(result, preset or {})
+        added = result.revelation()
+        config_summary = ConfigSummary(added, result.modified, result.typechanges)
+        config_summary.update(undogmatize(result))
+        if config_summary['db_collection'] is not None:
+            self.experiment.observers.append(
+                create_mongodb_observer(
+                    config_summary['db_collection'],
+                    overwrite=config_summary['overwrite'],
                 )
-            del _experiment
-
-        self.config(mongodb_observer_config)
+            )
+        return config_summary
 
 
 def setup_logger(ex, level='INFO'):
