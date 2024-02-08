@@ -123,14 +123,21 @@ SETTINGS = munchify(
             'seml.description',
             'config',
         ],  # in which fields to allow variable interpolation
-        'NAMED_CONFIG_PREFIX': '+',  # prefix for all named configuration parameters
-        'NAMED_CONFIG_KEY_NAME': 'name',  # key that identifies the name of a named config
-        'NAMED_CONFIG_KEY_PRIORITY': 'priority',  # key that identifies the priority of a named config
-        'CONFIRM_CANCEL_THRESHOLD': 10,
-        'CONFIRM_DELETE_THRESHOLD': 10,
-        'CONFIRM_RESET_THRESHOLD': 10,
-        'CONFIRM_DESCRIPTION_DELETE_THRESHOLD': 10,
-        'CONFIRM_DESCRIPTION_UPDATE_THRESHOLD': 10,
+        'NAMED_CONFIG': {
+            'PREFIX': '+',  # prefix for all named configuration parameters
+            'KEY_NAME': 'name',  # key that identifies the name of a named config
+            'KEY_PRIORITY': 'priority',  # key that identifies the priority of a named config
+        },
+        'CONFIRM_THRESHOLD': {
+            'DELETE': 10,
+            'RESET': 10,
+            'CANCEL': 10,
+            'DESCRIPTION_DELETE': 10,
+            'DESCRIPTION_UPDATE': 10,
+        },
+        'EXPERIMENT': {
+            'CAPTURE_OUTPUT': False,  # whether to capture the output of the experiment in the database
+        },
         'CONFIG_RESOLUTION_PROGRESS_BAR_THRESHOLD': 25,
         'AUTOCOMPLETE_CACHE_ALIVE_TIME': 300,
         'SETUP_COMMAND': '',

@@ -187,7 +187,7 @@ def cancel_experiments(
             logging.error(f'No experiment found with ID {sacred_id}.')
 
         logging.info(f'Cancelling {ncancel} experiment{s_if(ncancel)}.')
-        if ncancel >= SETTINGS.CONFIRM_CANCEL_THRESHOLD:
+        if ncancel >= SETTINGS.CONFIRM_THRESHOLD.CANCEL:
             if not yes and not prompt('Are you sure? (y/n)', type=bool):
                 exit(1)
 
@@ -302,7 +302,7 @@ def delete_experiments(
     logging.info(
         f'Deleting {ndelete} configuration{s_if(ndelete)} from database collection.'
     )
-    if ndelete >= SETTINGS.CONFIRM_DELETE_THRESHOLD:
+    if ndelete >= SETTINGS.CONFIRM_THRESHOLD.DELETE:
         if not yes and not prompt('Are you sure? (y/n)', type=bool):
             exit(1)
 
@@ -473,7 +473,7 @@ def reset_experiments(
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
 
     logging.info(f'Resetting the state of {nreset} experiment{s_if(nreset)}.')
-    if nreset >= SETTINGS.CONFIRM_RESET_THRESHOLD:
+    if nreset >= SETTINGS.CONFIRM_THRESHOLD.RESET:
         if not yes and not prompt('Are you sure? (y/n)', type=bool):
             exit(1)
     for exp in exps:

@@ -77,14 +77,14 @@ def get_command_from_exp(
             config = {
                 k: v
                 for k, v in interpolated['config_unresolved'].items()
-                if not k.startswith(SETTINGS.NAMED_CONFIG_PREFIX)
+                if not k.startswith(SETTINGS.NAMED_CONFIG.PREFIX)
             }
             named_configs = interpolated[key_named_configs]
         else:
             config = {
                 k: v
                 for k, v in config_unresolved.items()
-                if not k.startswith(SETTINGS.NAMED_CONFIG_PREFIX)
+                if not k.startswith(SETTINGS.NAMED_CONFIG.PREFIX)
             }
     else:
         assert (
