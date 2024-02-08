@@ -2,10 +2,81 @@ import datetime
 import logging
 import resource
 import sys
+from typing import Optional, Sequence, List
+
+from sacred import Ingredient
+from sacred.utils import PathType
+from sacred.host_info import HostInfoGetter
+from sacred.commandline_options import CLIOption
+from sacred import Experiment as ExperimentBase
+from sacred import SETTINGS as SACRED_SETTINGS
 
 from seml.database import get_collection
+from seml.observers import create_mongodb_observer
+from seml.settings import SETTINGS
 
 __all__ = ['setup_logger', 'collect_exp_stats']
+
+
+class Experiment(ExperimentBase):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        ingredients: Sequence[Ingredient] = (),
+        interactive: bool = False,
+        base_dir: Optional[PathType] = None,
+        additional_host_info: Optional[List[HostInfoGetter]] = None,
+        additional_cli_options: Optional[Sequence[CLIOption]] = None,
+        save_git_info: bool = True,
+        add_mongodb_observer: bool = True,
+    ):
+        super().__init__(
+            name=name,
+            ingredients=ingredients,
+            interactive=interactive,
+            base_dir=base_dir,
+            additional_host_info=additional_host_info,
+            additional_cli_options=additional_cli_options,
+            save_git_info=save_git_info,
+        )
+        if add_mongodb_observer:
+            self.setup_mongodb_observer()
+
+    def run(
+        self,
+        command_name: Optional[str] = None,
+        config_updates: Optional[dict] = None,
+        named_configs: Sequence[str] = (),
+        info: Optional[dict] = None,
+        meta_info: Optional[dict] = None,
+        options: Optional[dict] = None,
+    ):
+        if not SETTINGS.EXPERIMENT.CAPTURE_OUTPUT:
+            SACRED_SETTINGS.CAPTURE_MODE = 'no'
+        super().run(
+            command_name=command_name,
+            config_updates=config_updates,
+            named_configs=named_configs,
+            info=info,
+            meta_info=meta_info,
+            options=options,
+        )
+
+    def setup_mongodb_observer(self):
+        global _experiment
+        _experiment = self
+
+        def mongodb_observer_config():
+            global _experiment
+            overwrite = None
+            db_collection = None
+            if db_collection is not None:
+                _experiment.observers.append(
+                    create_mongodb_observer(db_collection, overwrite=overwrite)
+                )
+            del _experiment
+
+        self.config(mongodb_observer_config)
 
 
 def setup_logger(ex, level='INFO'):
