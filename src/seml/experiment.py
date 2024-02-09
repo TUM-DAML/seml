@@ -35,7 +35,7 @@ class Experiment(ExperimentBase):
         additional_cli_options: Optional[Sequence[CLIOption]] = None,
         save_git_info: bool = True,
         add_mongodb_observer: bool = True,
-        setup_logger: bool = True,
+        setup_default_logger: bool = True,
         capture_output: bool | None = None,
         collect_stats: bool = True,
     ):
@@ -51,10 +51,10 @@ class Experiment(ExperimentBase):
         self.capture_output = capture_output
         if add_mongodb_observer:
             self.configurations.append(MongoDbObserverConfig(self))
-        if setup_logger:
+        if setup_default_logger:
             setup_logger(self)
         if collect_stats:
-            self.post_run_hook(collect_exp_stats)
+            self.post_run_hook(lambda _run: collect_exp_stats(_run))
 
     def run(
         self,

@@ -1223,3 +1223,34 @@ def print_duplicates(
         border_style='red',
     )
     console.print(panel)
+
+
+def print_output(
+    db_collection_name: str,
+    sacred_id: Optional[int] = None,
+    filter_states: Optional[List[str]] = None,
+    batch_id: Optional[int] = None,
+    filter_dict: Optional[Dict] = None,
+):
+    from seml.console import console, Heading
+
+    filter_dict = build_filter_dict(
+        filter_states, batch_id, filter_dict, sacred_id=sacred_id
+    )
+    collection = get_collection(db_collection_name)
+    experiments = collection.find(
+        filter_dict, {'seml.output_file': 1, '_id': 1, 'batch_id': 1, 'captured_out': 1}
+    )
+    for exp in experiments:
+        console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
+        try:
+            with open(exp['seml']['output_file'], 'r') as f:
+                all_lines = f.readlines()
+            console.print(''.join(all_lines))
+        except IOError:
+            logging.info(f"File {exp['seml']['output_file']} could not be read.")
+            if 'captured_out' in exp and exp['captured_out']:
+                logging.info('Captured output from DB:')
+                console.print(exp['captured_out'])
+            else:
+                logging.error('No output available.')
