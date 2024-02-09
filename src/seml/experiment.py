@@ -126,6 +126,8 @@ def setup_logger(
     None
 
     """
+    if logger_option is LoggerOptions.NONE:
+        return
     logger = logging.getLogger()
     logger.handlers = []
     if logger_option is LoggerOptions.RICH:
