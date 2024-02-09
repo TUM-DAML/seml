@@ -65,7 +65,9 @@ class Experiment(ExperimentBase):
         meta_info: Optional[dict] = None,
         options: Optional[dict] = None,
     ):
-        if not SETTINGS.EXPERIMENT.CAPTURE_OUTPUT and not self.capture_output:
+        if (
+            not SETTINGS.EXPERIMENT.CAPTURE_OUTPUT and not self.capture_output
+        ) or self.capture_output is False:
             SACRED_SETTINGS.CAPTURE_MODE = 'no'
         super().run(
             command_name=command_name,
