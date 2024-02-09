@@ -1,4 +1,5 @@
 import datetime
+from enum import Enum
 import logging
 import resource
 import sys
@@ -24,6 +25,12 @@ from seml.settings import SETTINGS
 __all__ = ['setup_logger', 'collect_exp_stats', 'Experiment']
 
 
+class LoggerOptions(Enum):
+    NONE = None
+    DEFAULT = 'default'
+    RICH = 'rich'
+
+
 class Experiment(ExperimentBase):
     def __init__(
         self,
@@ -35,7 +42,7 @@ class Experiment(ExperimentBase):
         additional_cli_options: Optional[Sequence[CLIOption]] = None,
         save_git_info: bool = True,
         add_mongodb_observer: bool = True,
-        setup_default_logger: bool = True,
+        logger: LoggerOptions | str | None = LoggerOptions.RICH,
         capture_output: bool | None = None,
         collect_stats: bool = True,
     ):
@@ -51,8 +58,8 @@ class Experiment(ExperimentBase):
         self.capture_output = capture_output
         if add_mongodb_observer:
             self.configurations.append(MongoDbObserverConfig(self))
-        if setup_default_logger:
-            setup_logger(self)
+        if logger:
+            setup_logger(self, LoggerOptions(logger))
         if collect_stats:
             self.post_run_hook(lambda _run: collect_exp_stats(_run))
 
@@ -101,7 +108,9 @@ class MongoDbObserverConfig:
         return config_summary
 
 
-def setup_logger(ex, level='INFO'):
+def setup_logger(
+    ex: ExperimentBase, logger: LoggerOptions = LoggerOptions.RICH, level='INFO'
+):
     """
     Set up logger for experiment.
 
@@ -119,12 +128,17 @@ def setup_logger(ex, level='INFO'):
     """
     logger = logging.getLogger()
     logger.handlers = []
-    ch = logging.StreamHandler()
-    formatter = logging.Formatter(
-        fmt='%(asctime)s (%(levelname)s): %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    if logger is LoggerOptions.RICH:
+        from rich.logging import RichHandler
+
+        logger.addHandler(RichHandler(level, show_time=True, show_level=True))
+    elif logger is LoggerOptions.DEFAULT:
+        ch = logging.StreamHandler()
+        formatter = logging.Formatter(
+            fmt='%(asctime)s (%(levelname)s): %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
     logger.setLevel(level)
     ex.logger = logger
 
