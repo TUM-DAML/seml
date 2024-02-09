@@ -109,7 +109,7 @@ class MongoDbObserverConfig:
 
 
 def setup_logger(
-    ex: ExperimentBase, logger: LoggerOptions = LoggerOptions.RICH, level='INFO'
+    ex: ExperimentBase, logger_option: LoggerOptions = LoggerOptions.RICH, level='INFO'
 ):
     """
     Set up logger for experiment.
@@ -128,11 +128,11 @@ def setup_logger(
     """
     logger = logging.getLogger()
     logger.handlers = []
-    if logger is LoggerOptions.RICH:
+    if logger_option is LoggerOptions.RICH:
         from rich.logging import RichHandler
 
         logger.addHandler(RichHandler(level, show_time=True, show_level=True))
-    elif logger is LoggerOptions.DEFAULT:
+    elif logger_option is LoggerOptions.DEFAULT:
         ch = logging.StreamHandler()
         formatter = logging.Formatter(
             fmt='%(asctime)s (%(levelname)s): %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
