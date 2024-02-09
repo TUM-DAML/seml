@@ -1232,6 +1232,22 @@ def print_output(
     batch_id: Optional[int] = None,
     filter_dict: Optional[Dict] = None,
 ):
+    """
+    Prints the output of experiments
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to print the output of
+    sacred_id : Optional[int], optional
+        The ID of the experiment to print the output of, by default None
+    filter_states : Optional[List[str]], optional
+        Filter on experiment states, by default None
+    batch_id : Optional[int], optional
+        Filter on the batch ID of experiments, by default None
+    filter_dict : Optional[Dict], optional
+        Additional filters, by default None
+    """
     from seml.console import console, Heading
 
     filter_dict = build_filter_dict(

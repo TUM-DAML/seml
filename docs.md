@@ -35,6 +35,7 @@ $ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 * `list`: Lists all collections in the database.
 * `print-command`: Print the commands that would be executed...
 * `print-fail-trace`: Prints fail traces of all failed experiments.
+* `print-output`: Print the output of experiments.
 * `reload-sources`: Reload stashed source files.
 * `reset`: Reset the state of experiments by setting...
 * `start`: Fetch staged experiments from the database...
@@ -353,6 +354,24 @@ $ seml print-fail-trace [OPTIONS]
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: FAILED, KILLED, INTERRUPTED]
 * `-p, --projection KEY`: List of configuration keys, e.g., `config.model`, to additionally print.
+* `--help`: Show this message and exit.
+
+## `seml print-output`
+
+Print the output of experiments.
+
+**Usage**:
+
+```console
+$ seml print-output [OPTIONS]
+```
+
+**Options**:
+
+* `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
+* `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: RUNNING, FAILED, KILLED, INTERRUPTED, COMPLETED]
+* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `--help`: Show this message and exit.
 
 ## `seml reload-sources`
