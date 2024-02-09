@@ -5,18 +5,11 @@ We wrap all the experiment-specific functionality inside the "ExperimentWrapper"
 are parsed by a specific method. This avoids having one large "main" function which takes all parameters as input.
 """
 
-from sacred import Experiment
 import numpy as np
-import seml
+from seml.experiment import Experiment
 
 
 ex = Experiment()
-seml.setup_logger(ex)
-
-
-@ex.post_run_hook
-def collect_stats(_run):
-    seml.collect_exp_stats(_run)
 
 
 # Named configs can be used to define subconfigurations in a modular way. They can be composed in the experiment's configuration yaml file.
@@ -54,12 +47,6 @@ def no_batchnorm():
 
 @ex.config
 def config():
-    overwrite = None
-    db_collection = None
-    if db_collection is not None:
-        ex.observers.append(
-            seml.create_mongodb_observer(db_collection, overwrite=overwrite)
-        )
     name = "${config.model.model_type}_${config.data.dataset}"
 
 

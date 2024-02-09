@@ -1,15 +1,9 @@
 import logging
 import numpy as np
-import seml
+from seml.experiment import Experiment
 
 
-ex = seml.Experiment()
-seml.setup_logger(ex)
-
-
-@ex.post_run_hook
-def collect_stats(_run):
-    seml.collect_exp_stats(_run)
+ex = Experiment()
 
 
 @ex.automain
