@@ -3,7 +3,7 @@ from enum import Enum
 import logging
 import resource
 import sys
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Union
 
 from sacred import SETTINGS as SACRED_SETTINGS
 from sacred import Experiment as ExperimentBase
@@ -42,8 +42,8 @@ class Experiment(ExperimentBase):
         additional_cli_options: Optional[Sequence[CLIOption]] = None,
         save_git_info: bool = True,
         add_mongodb_observer: bool = True,
-        logger: LoggerOptions | str | None = LoggerOptions.RICH,
-        capture_output: bool | None = None,
+        logger: Optional[Union[LoggerOptions, str]] = LoggerOptions.RICH,
+        capture_output: Optional[bool] = None,
         collect_stats: bool = True,
     ):
         super().__init__(
