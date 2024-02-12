@@ -4,8 +4,15 @@ from seml.evaluation import *  # noqa
 
 
 def setup_logger(ex, level='INFO'):
+    import logging
     from seml.experiment import setup_logger
 
+    logging.warn(
+        'Importing setup_logger directly from seml is deprecated.\n'
+        'Use from seml.experiment import setup_logger instead.\n'
+        'Note that seml.experiment.Experiment already includes the logger setup.\n'
+        'See https://github.com/TUM-DAML/seml/blob/master/examples/example_experiment.py'
+    )
     setup_logger(ex, level=level)
 
 

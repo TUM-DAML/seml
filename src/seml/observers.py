@@ -3,6 +3,7 @@ import os
 
 from seml.database import get_mongo_client, get_mongodb_config
 from seml.settings import SETTINGS
+from seml.utils import warn_multiple_calls
 
 __all__ = [
     'create_mongodb_observer',
@@ -14,6 +15,13 @@ __all__ = [
 ]
 
 
+@warn_multiple_calls(
+    'Created {num_calls} MongoDB observers.\n'
+    'This might not be intended.\n'
+    'seml.experiment.Experiment creates one by default.\n'
+    'Either disable the default observer (seml.experiment.Experiment(add_mongodb_observer=False)) \n'
+    'or remove the explicit call to create_mongodb_observer.'
+)
 def create_mongodb_observer(collection, mongodb_config=None, overwrite=None):
     """Create a MongoDB observer for a Sacred experiment
 

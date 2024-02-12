@@ -59,7 +59,7 @@ class Experiment(ExperimentBase):
         if add_mongodb_observer:
             self.configurations.append(MongoDbObserverConfig(self))
         if logger:
-            _setup_logger(self, LoggerOptions(logger))
+            setup_logger(self, LoggerOptions(logger))
         if collect_stats:
             self.post_run_hook(lambda _run: _collect_exp_stats(_run))
 
@@ -108,7 +108,7 @@ class MongoDbObserverConfig:
         return config_summary
 
 
-def _setup_logger(
+def setup_logger(
     ex: ExperimentBase, logger_option: LoggerOptions = LoggerOptions.RICH, level='INFO'
 ):
     """
@@ -126,6 +126,13 @@ def _setup_logger(
     None
 
     """
+    if hasattr(ex, 'logger') and ex.logger:
+        logging.warn(
+            'Logger already set up for this experiment.\n'
+            'The new seml.experiment.Experiment class already includes the logger setup.\n'
+            'Either remove the explicit call to setup_logger or disable the logger setup in the Experiment constructor.'
+        )
+        return
     if logger_option is LoggerOptions.NONE:
         return
     logger = logging.getLogger()
@@ -214,16 +221,6 @@ def _collect_exp_stats(run):
 
     collection = get_collection(run.config['db_collection'])
     collection.update_one({'_id': exp_id}, {'$set': {'stats': stats}})
-
-
-def setup_logger(ex, level='INFO'):
-    logging.warn(
-        'seml.setup_logger is deprecated.\n'
-        'Use seml.experiment.Experiment instead of sacred.Experiment.\n'
-        'seml.experiment.Experiment already includes the logger setup.\n'
-        'See https://github.com/TUM-DAML/seml/blob/master/examples/example_experiment.py'
-    )
-    _setup_logger(ex, level=level)
 
 
 def collect_exp_stats(run):
