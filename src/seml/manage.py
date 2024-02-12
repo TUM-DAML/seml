@@ -187,7 +187,7 @@ def cancel_experiments(
             logging.error(f'No experiment found with ID {sacred_id}.')
 
         logging.info(f'Cancelling {ncancel} experiment{s_if(ncancel)}.')
-        if ncancel >= SETTINGS.CONFIRM_CANCEL_THRESHOLD:
+        if ncancel >= SETTINGS.CONFIRM_THRESHOLD.CANCEL:
             if not yes and not prompt('Are you sure? (y/n)', type=bool):
                 exit(1)
 
@@ -302,7 +302,7 @@ def delete_experiments(
     logging.info(
         f'Deleting {ndelete} configuration{s_if(ndelete)} from database collection.'
     )
-    if ndelete >= SETTINGS.CONFIRM_DELETE_THRESHOLD:
+    if ndelete >= SETTINGS.CONFIRM_THRESHOLD.DELETE:
         if not yes and not prompt('Are you sure? (y/n)', type=bool):
             exit(1)
 
@@ -473,7 +473,7 @@ def reset_experiments(
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
 
     logging.info(f'Resetting the state of {nreset} experiment{s_if(nreset)}.')
-    if nreset >= SETTINGS.CONFIRM_RESET_THRESHOLD:
+    if nreset >= SETTINGS.CONFIRM_THRESHOLD.RESET:
         if not yes and not prompt('Are you sure? (y/n)', type=bool):
             exit(1)
     for exp in exps:
@@ -1223,3 +1223,50 @@ def print_duplicates(
         border_style='red',
     )
     console.print(panel)
+
+
+def print_output(
+    db_collection_name: str,
+    sacred_id: Optional[int] = None,
+    filter_states: Optional[List[str]] = None,
+    batch_id: Optional[int] = None,
+    filter_dict: Optional[Dict] = None,
+):
+    """
+    Prints the output of experiments
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to print the output of
+    sacred_id : Optional[int], optional
+        The ID of the experiment to print the output of, by default None
+    filter_states : Optional[List[str]], optional
+        Filter on experiment states, by default None
+    batch_id : Optional[int], optional
+        Filter on the batch ID of experiments, by default None
+    filter_dict : Optional[Dict], optional
+        Additional filters, by default None
+    """
+    from seml.console import console, Heading
+
+    filter_dict = build_filter_dict(
+        filter_states, batch_id, filter_dict, sacred_id=sacred_id
+    )
+    collection = get_collection(db_collection_name)
+    experiments = collection.find(
+        filter_dict, {'seml.output_file': 1, '_id': 1, 'batch_id': 1, 'captured_out': 1}
+    )
+    for exp in experiments:
+        console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
+        try:
+            with open(exp['seml']['output_file'], 'r') as f:
+                all_lines = f.readlines()
+            console.print(''.join(all_lines))
+        except IOError:
+            logging.info(f"File {exp['seml']['output_file']} could not be read.")
+            if 'captured_out' in exp and exp['captured_out']:
+                logging.info('Captured output from DB:')
+                console.print(exp['captured_out'])
+            else:
+                logging.error('No output available.')

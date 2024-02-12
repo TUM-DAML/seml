@@ -1,4 +1,5 @@
 import copy
+import functools
 import json
 import logging
 import os
@@ -527,3 +528,34 @@ def to_hashable(x: Any) -> Any:
         return tuple(map(to_hashable, x))
     else:
         raise ValueError(f'{x} of type {type(x)} is not hashable.')
+
+
+T = TypeVar('T', bound=Callable)
+
+
+def warn_multiple_calls(warning: str, warn_after: int = 1):
+    """
+    Decorator to warn if a function is called multiple times.
+
+    Parameters
+    ----------
+    warning: str
+        The warning message.
+    warn_after: int
+        The number of calls after which to warn.
+    """
+
+    def decorator(f: T) -> T:
+        num_calls = 0
+
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            nonlocal num_calls
+            num_calls += 1
+            if num_calls > warn_after:
+                logging.warning(warning.format(num_calls=num_calls))
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

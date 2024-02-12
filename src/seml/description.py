@@ -83,7 +83,7 @@ def collection_set_description(
 
     if (
         not yes
-        and num_to_overwrite >= SETTINGS.CONFIRM_DESCRIPTION_UPDATE_THRESHOLD
+        and num_to_overwrite >= SETTINGS.CONFIRM_THRESHOLD.DESCRIPTION_UPDATE
         and not prompt(
             f'{num_to_overwrite} experiment(s) have a different description. Proceed?',
             type=bool,
@@ -141,7 +141,7 @@ def collection_delete_description(
     ]
     if (
         not yes
-        and len(exps) >= SETTINGS.CONFIRM_DESCRIPTION_DELETE_THRESHOLD
+        and len(exps) >= SETTINGS.CONFIRM_THRESHOLD.DESCRIPTION_DELETE
         and not prompt(
             f'Deleting descriptions of {len(exps)} experiment(s). Proceed?', type=bool
         )

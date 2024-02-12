@@ -30,6 +30,7 @@ from seml.manage import (
     list_database,
     print_duplicates,
     print_fail_trace,
+    print_output,
     print_status,
     reload_sources,
     reset_experiments,
@@ -428,9 +429,8 @@ def cancel_command(
     """
     Cancel the Slurm job/job step corresponding to experiments, filtered by ID or state.
     """
-    wait = (
-        wait
-        or len(
+    wait |= (
+        len(
             [
                 a
                 for a in sys.argv
@@ -760,6 +760,31 @@ def print_command_command(
         worker_environment_vars=worker_env,
         unresolved=unresolved,
         resolve_interpolations=not no_interpolation,
+    )
+
+
+@app.command('print-output')
+@restrict_collection()
+def print_output_command(
+    ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = States.RUNNING
+    + States.FAILED
+    + States.KILLED
+    + States.INTERRUPTED
+    + States.COMPLETED,
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+):
+    """
+    Print the output of experiments.
+    """
+    print_output(
+        ctx.obj['collection'],
+        sacred_id=sacred_id,
+        filter_states=filter_states,
+        batch_id=batch_id,
+        filter_dict=filter_dict,
     )
 
 

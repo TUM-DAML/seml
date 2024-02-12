@@ -337,23 +337,23 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
     # Parse named config names and priorities
     names, priorities = {}, {}
     for k, v in named_config_dict.items():
-        if k.startswith(SETTINGS.NAMED_CONFIG_PREFIX):
+        if k.startswith(SETTINGS.NAMED_CONFIG.PREFIX):
             if isinstance(v, str):
                 v = dict(name=str(v))
             if not isinstance(v, Dict):
                 raise ConfigError(
                     f'Named configs must be given as '
-                    f'{SETTINGS.NAMED_CONFIG_PREFIX}{"{identifier}"}: str | '
+                    f'{SETTINGS.NAMED_CONFIG.PREFIX}{"{identifier}"}: str | '
                     '{"name": str, "priority": int}'
                 )
             for attribute, value in v.items():
-                if attribute == SETTINGS.NAMED_CONFIG_KEY_NAME:
+                if attribute == SETTINGS.NAMED_CONFIG.KEY_NAME:
                     if not isinstance(value, str):
                         raise ConfigError(
                             f'Named config names should be strings, not {value} ({value.__class__})'
                         )
                     names[k] = value
-                elif attribute == SETTINGS.NAMED_CONFIG_KEY_PRIORITY:
+                elif attribute == SETTINGS.NAMED_CONFIG.KEY_PRIORITY:
                     try:
                         value = int(value)
                     except (ValueError, TypeError):
@@ -363,7 +363,7 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
                     priorities[k] = value
                 else:
                     raise ConfigError(
-                        f'Named configs only have the attributes {[SETTINGS.NAMED_CONFIG_KEY_NAME, SETTINGS.NAMED_CONFIG_KEY_PRIORITY]}'
+                        f'Named configs only have the attributes {[SETTINGS.NAMED_CONFIG.KEY_NAME, SETTINGS.NAMED_CONFIG.KEY_PRIORITY]}'
                     )
     for idx in priorities:
         if idx not in names:
@@ -400,7 +400,7 @@ def generate_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[s
             {
                 k: v
                 for k, v in config.items()
-                if not k.startswith(SETTINGS.NAMED_CONFIG_PREFIX)
+                if not k.startswith(SETTINGS.NAMED_CONFIG.PREFIX)
             }
         )
         result_named_configs.append(generate_named_config(config))
@@ -540,12 +540,15 @@ def resolve_configs(
         Resolved configurations
     """
     import sacred
+    from seml.experiment import Experiment
 
     exp_module = import_exe(executable, conda_env, working_dir)
 
     # Extract experiment from module
     exps = [
-        v for k, v in exp_module.__dict__.items() if isinstance(v, sacred.Experiment)
+        v
+        for k, v in exp_module.__dict__.items()
+        if isinstance(v, (sacred.Experiment, Experiment))
     ]
     if len(exps) == 0:
         raise ExecutableError(
@@ -557,6 +560,13 @@ def resolve_configs(
             f"Can't resolve configs."
         )
     exp = exps[0]
+    if not isinstance(exp, Experiment):
+        logging.warn(
+            'The use of sacred.Experiemnt is deprecated. Please use seml.experiment.Experiment instead.\n'
+            'seml.experiment.Experiment already includes typical MongoDB observer and logging setups.\n'
+            'Please familiar yourself with the new API and adjust your code accordingly.\n'
+            'See https://github.com/TUM-DAML/seml/blob/master/examples/example_experiment.py'
+        )
     with working_directory(working_dir):
         return _sacred_create_configs(exp, configs, named_configs)
 
