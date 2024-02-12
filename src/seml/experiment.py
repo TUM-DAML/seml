@@ -59,9 +59,9 @@ class Experiment(ExperimentBase):
         if add_mongodb_observer:
             self.configurations.append(MongoDbObserverConfig(self))
         if logger:
-            setup_logger(self, LoggerOptions(logger))
+            _setup_logger(self, LoggerOptions(logger))
         if collect_stats:
-            self.post_run_hook(lambda _run: collect_exp_stats(_run))
+            self.post_run_hook(lambda _run: _collect_exp_stats(_run))
 
     def run(
         self,
@@ -108,7 +108,7 @@ class MongoDbObserverConfig:
         return config_summary
 
 
-def setup_logger(
+def _setup_logger(
     ex: ExperimentBase, logger_option: LoggerOptions = LoggerOptions.RICH, level='INFO'
 ):
     """
@@ -145,7 +145,7 @@ def setup_logger(
     ex.logger = logger
 
 
-def collect_exp_stats(run):
+def _collect_exp_stats(run):
     """
     Collect information such as CPU user time, maximum memory usage,
     and maximum GPU memory usage and save it in the MongoDB.
@@ -214,3 +214,23 @@ def collect_exp_stats(run):
 
     collection = get_collection(run.config['db_collection'])
     collection.update_one({'_id': exp_id}, {'$set': {'stats': stats}})
+
+
+def setup_logger(ex, level='INFO'):
+    logging.warn(
+        'seml.setup_logger is deprecated.\n'
+        'Use seml.experiment.Experiment instead of sacred.Experiment.\n'
+        'seml.experiment.Experiment already includes the logger setup.\n'
+        'See https://github.com/TUM-DAML/seml/blob/master/examples/example_experiment.py'
+    )
+    _setup_logger(ex, level=level)
+
+
+def collect_exp_stats(run):
+    logging.warn(
+        'seml.collect_exp_stats is deprecated.\n'
+        'Use seml.experiment.Experiment instead of sacred.Experiment.\n'
+        'seml.experiment.Experiment already includes the statistics collection.\n'
+        'See https://github.com/TUM-DAML/seml/blob/master/examples/example_experiment.py'
+    )
+    _collect_exp_stats(run)
