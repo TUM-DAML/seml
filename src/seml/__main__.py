@@ -429,9 +429,8 @@ def cancel_command(
     """
     Cancel the Slurm job/job step corresponding to experiments, filtered by ID or state.
     """
-    wait = (
-        wait
-        or len(
+    wait |= (
+        len(
             [
                 a
                 for a in sys.argv
