@@ -137,6 +137,7 @@ SETTINGS = munchify(
         },
         'EXPERIMENT': {
             'CAPTURE_OUTPUT': False,  # whether to capture the output of the experiment in the database
+            'TERMINAL_WIDTH': 80,  # width of the terminal for rich output
         },
         'CONFIG_RESOLUTION_PROGRESS_BAR_THRESHOLD': 25,
         'AUTOCOMPLETE_CACHE_ALIVE_TIME': 300,

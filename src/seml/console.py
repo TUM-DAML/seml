@@ -1,4 +1,5 @@
 import functools
+import os
 from typing import Sequence
 
 import rich
@@ -8,7 +9,17 @@ from rich.console import Console
 from rich.padding import Padding
 from rich.rule import Rule
 
-console = Console()
+
+try:
+    terminal_width = os.get_terminal_size().columns
+except OSError:
+    from seml.settings import SETTINGS
+
+    terminal_width = SETTINGS.EXPERIMENT.TERMINAL_WIDTH
+
+console = Console(
+    width=terminal_width,
+)
 
 Table = functools.partial(
     rich.table.Table,

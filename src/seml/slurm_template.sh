@@ -8,8 +8,8 @@
 cd {working_dir}
 
 # Print job information
-echo "Starting job ${{SLURM_JOBID}}"
-echo "SLURM assigned me the node(s): $(squeue -j ${{SLURM_JOBID}} -O nodelist:1000 | tail -n +2 | sed -e 's/[[:space:]]*$//')"
+echo "Starting job ${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}"
+echo "SLURM assigned me the node(s): ${{SLURM_NODELIST}}"
 
 # Activate Anaconda environment
 if {use_conda_env}; then

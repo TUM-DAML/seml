@@ -139,8 +139,17 @@ def setup_logger(
     logger.handlers = []
     if logger_option is LoggerOptions.RICH:
         from rich.logging import RichHandler
+        from seml.console import console
 
-        logger.addHandler(RichHandler(level, show_time=True, show_level=True))
+        logger.addHandler(
+            RichHandler(
+                level,
+                console=console,
+                show_time=True,
+                show_level=True,
+                log_time_format='[%X]',
+            )
+        )
     elif logger_option is LoggerOptions.DEFAULT:
         ch = logging.StreamHandler()
         formatter = logging.Formatter(
