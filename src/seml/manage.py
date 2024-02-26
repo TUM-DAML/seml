@@ -952,6 +952,7 @@ def print_status(
         ]
     )
     result = sorted(result, key=lambda x: list(States.keys()).index(x['_id']))
+    show_descriptions = any(len(row['descriptions']) > 0 for row in result)
     # Unpack the (nested) projections
     # We keep prefixes encoded as ${id} to preserve the order of the projection keys
     result_projection = []
@@ -979,6 +980,8 @@ def print_status(
         for experiment_id in dups
     )
 
+    if show_descriptions:
+        columns.insert(0, 'Descriptions')
     table = Table(
         Column('Status', justify='left', footer='Total'),
         Column(
@@ -989,29 +992,31 @@ def print_status(
         Column('Experiment IDs', justify='left'),
         Column('Batch IDs', justify='left'),
         Column('Duplicates', footer=str(len(duplicate_experiment_ids))),
-        # TODO: Column width of "Description(s)" is a weird magic number, but calculating the width does not easily work with custom projections, slices etc...
-        Column('Description(s)', justify='left'),
         *[Column(key, justify='left') for key in columns],
         show_header=True,
         show_footer=len(result) > 1,
     )
     for record, record_projection in zip(result, result_projection):
-        table.add_row(
+        row = [
             record['_id'],
             str(record['count']),
             ', '.join(map(slice_to_str, to_slices(record['ids']))),
             ', '.join(map(slice_to_str, to_slices(record['batch_ids']))),
             str(len(set(record['ids']) & duplicate_experiment_ids)),
-            ', '.join(
-                [f'"{description}"' for description in record['descriptions']]
-                if len(record['descriptions']) > 1
-                else record['descriptions']
-            ),
-            *[
-                ', '.join(map(str, record_projection.get(key, {})))
-                for key in projection_columns
-            ],
-        )
+        ]
+        if show_descriptions:
+            row.append(
+                ', '.join(
+                    [f'"{description}"' for description in record['descriptions']]
+                    if len(record['descriptions']) > 1
+                    else record['descriptions']
+                )
+            )
+        row += [
+            ', '.join(map(str, record_projection.get(key, {})))
+            for key in projection_columns
+        ]
+        table.add_row(*row)
     console.print(Align(table, align='center'))
 
 
@@ -1073,6 +1078,7 @@ def list_database(
     it = track(collection_names, disable=not progress)
 
     inv_states = {v: k for k, states in States.items() for v in states}
+    show_description = False
     for collection_name in it:
         counts_by_status = db[collection_name].aggregate(
             [
@@ -1100,6 +1106,8 @@ def list_database(
         )
         if len(descriptions) > 1:
             descriptions = [f'"{description}"' for description in descriptions]
+        if len(descriptions) > 0:
+            show_description = True
         name_to_descriptions[collection_name] = ', '.join(descriptions)
 
     if len(name_to_counts) == 0:
@@ -1117,27 +1125,28 @@ def list_database(
 
     totals = df.sum(axis=0)
     max_len = max(map(len, collection_names))
-    table = Table(
+    columns = [
         Column('Collection', justify='left', footer='Total', min_width=max_len),
-        *[
-            Column(state.capitalize(), justify='right', footer=str(totals[state]))
-            for state in df.columns
-        ],
-        Column(
-            'Description(s)',
-            justify='left',
-            max_width=console.width - max_len - sum(map(len, df.columns)) + 1,
-            no_wrap=not print_full_description,
-            overflow='ellipsis',
-        ),
-        show_footer=df.shape[0] > 1,
-    )
-    for collection_name, row in df.iterrows():
-        table.add_row(
-            collection_name,
-            *[str(x) for x in row.to_list()],
-            name_to_descriptions[collection_name],
+    ] + [
+        Column(state.capitalize(), justify='right', footer=str(totals[state]))
+        for state in df.columns
+    ]
+    if show_description:
+        columns.append(
+            Column(
+                'Description(s)',
+                justify='left',
+                max_width=console.width - max_len - sum(map(len, df.columns)) + 1,
+                no_wrap=not print_full_description,
+                overflow='ellipsis',
+            )
         )
+    table = Table(*columns, show_footer=df.shape[0] > 1)
+    for collection_name, row in df.iterrows():
+        row = [collection_name, *[str(x) for x in row.to_list()]]
+        if show_description:
+            row.append(name_to_descriptions[collection_name])
+        table.add_row(*row)
     # For some reason the table thinks the terminal is larger than it is
     table = Align(table, align='center', width=console.width - max_len + 1)
     console.print(Align(table, align='center'), soft_wrap=True)
