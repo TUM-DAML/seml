@@ -31,6 +31,7 @@ def get_results(
     states=None,
     filter_dict=None,
     parallel=False,
+    progress: bool = True,
 ):
     """
     Get experiment results from the MongoDB.
@@ -50,6 +51,8 @@ def get_results(
         Custom dictionary for filtering results from the MongoDB.
     parallel: bool, default: False
         If True, unserialize entries in parallel. Use for very large experiment collections.
+    progress: bool, default: False
+        If True, show a progress bar.
 
     Returns
     -------
@@ -67,6 +70,13 @@ def get_results(
     if filter_dict is None:
         filter_dict = {}
 
+    if progress:
+        iterator_fn = track
+    else:
+
+        def iterator_fn(x, total=None):
+            return x
+
     collection = get_collection(
         db_collection_name,
         mongodb_config=mongodb_config,
@@ -81,15 +91,19 @@ def get_results(
         filter_dict['status'] = {'$in': states}
 
     cursor = collection.find(filter_dict, fields)
-    results = [x for x in track(cursor, total=collection.count_documents(filter_dict))]
+    results = [
+        x for x in iterator_fn(cursor, total=collection.count_documents(filter_dict))
+    ]
 
     if parallel:
         from multiprocessing import Pool
 
         with Pool() as p:
-            parsed = list(track(p.imap(parse_jsonpickle, results), total=len(results)))
+            parsed = list(
+                iterator_fn(p.imap(parse_jsonpickle, results), total=len(results))
+            )
     else:
-        parsed = [parse_jsonpickle(entry) for entry in track(results)]
+        parsed = [parse_jsonpickle(entry) for entry in iterator_fn(results)]
     if to_data_frame:
         parsed = pd.json_normalize(parsed, sep='.')
     return parsed
