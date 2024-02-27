@@ -16,7 +16,6 @@ SETTINGS = munchify(
         # With this dict you can change anything that is set here, conveniently from your home directory.
         # Default: $HOME/.config/seml/settings.py
         'USER_SETTINGS_PATH': APP_DIR / 'settings.py',
-        'PROJECT_SETTINGS_PATH': Path('.seml/settings.py'),
         # Directory which is used on the compute nodes to dump scripts and Python code.
         # Only change this if you know what you're doing.
         'TMP_DIRECTORY': '/tmp',
@@ -147,23 +146,10 @@ SETTINGS = munchify(
     },
 )
 
-
-def _merge_settings(settings, user_settings_path: Path):
-    if not user_settings_path.exists():
-        return settings
-    user_settings_source = run_path(str(user_settings_path))
-    return munchify(merge_dicts(settings, user_settings_source['SETTINGS']))
-
-
 # Load user settings
-SETTINGS = _merge_settings(SETTINGS, SETTINGS.USER_SETTINGS_PATH)
-
-# Go up the hierarchy and search for setting files
-current_path = Path().absolute()
-while current_path.parent != current_path:
-    SETTINGS = _merge_settings(SETTINGS, current_path / SETTINGS.PROJECT_SETTINGS_PATH)
-    current_path = current_path.parent
-
+if SETTINGS.USER_SETTINGS_PATH.exists():
+    user_settings_source = run_path(str(SETTINGS.USER_SETTINGS_PATH))
+    SETTINGS = munchify(merge_dicts(SETTINGS, user_settings_source['SETTINGS']))
 
 SETTINGS.SLURM_STATES.ACTIVE = (
     SETTINGS.SLURM_STATES.PENDING
