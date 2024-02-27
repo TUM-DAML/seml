@@ -330,6 +330,8 @@ def add_config_file(
             seml_config['conda_environment'],
             [document['config'] for document in documents],
             seml_config['working_dir'],
+            seml_config.get('experiment_command', None),
+            seml_config.get('options', {})
         )
 
     use_hash = not no_hash

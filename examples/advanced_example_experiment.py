@@ -165,6 +165,14 @@ def get_experiment(init_all=False):
     experiment = ExperimentWrapper(init_all=init_all)
     return experiment
 
+# This command can be invoked from the CLI, i.e. `python advanced_example_experiment.py dry_run with ...`
+# You can also call commands from `seml` using the `seml.experiment_command` field in the configuration yaml file.
+@ex.command(unobserved=True)
+def dry_run(experiment=None):
+    if experiment is None:
+        experiment = ExperimentWrapper()
+    print('dry run')
+
 
 # This function will be called by default. Note that we could in principle manually pass an experiment instance,
 # e.g., obtained by loading a model from the database or by calling this from a Jupyter notebook.

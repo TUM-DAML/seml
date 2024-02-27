@@ -572,7 +572,8 @@ def resolve_configs(
 
 
 def check_config(
-    executable: str, conda_env: str, configs: List[Dict], working_dir: str
+    executable: str, conda_env: str, configs: List[Dict], working_dir: str,
+    command: Optional[str], options: Dict[str, str],
 ):
     """Check if the given configs are consistent with the Sacred experiment in the given executable.
 
@@ -586,6 +587,10 @@ def check_config(
         Contains the parameter configurations.
     working_dir : str
         The current working directory.
+    command : str | None
+        The command to run the experiment. If None, the default command of the experiment is used.
+    options : Dict[str, str]
+        Additional options to pass to the experiment.
     """
     import sacred
 
@@ -605,9 +610,12 @@ def check_config(
             f"Can't check parameter configs. Disable via --no-sanity-check."
         )
     exp = exps[0]
+    
+    if command is None:
+        command = exp.default_command
 
     empty_run = sacred.initialize.create_run(
-        exp, exp.default_command, config_updates=None, named_configs=()
+        exp, command, config_updates=None, named_configs=()
     )
 
     captured_args = {
@@ -704,6 +712,21 @@ YamlUniqueLoader.add_constructor(
 )
 
 
+def parse_seml_options(options: Dict[str, str]) -> Dict[str, str]:
+    """Parse the options dictionary in the seml config block.
+    
+    For options starting not starting with `-`, it prepends `--` to the key.
+
+    Args:
+        options (Dict[str, str]): The options dictionary
+
+    Returns:
+        Dict[str, str]: The parsed options dictionary
+    """
+    return {k if k.startswith('-') else f'--{k}': v for k, v in options.items()}
+    
+
+
 def read_config(config_path):
     with open(config_path, 'r') as conf:
         config_dict = convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
@@ -722,6 +745,9 @@ def read_config(config_path):
         raise ConfigError(
             f'Using {SETTINGS.SEML_CONFIG_VALUE_VERSION} in the `seml` config block is prohibited.'
         )
+        
+    if 'options' in seml_dict:
+        seml_dict['options'] = parse_seml_options(seml_dict['options'])
 
     from importlib.metadata import version
 

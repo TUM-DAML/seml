@@ -107,6 +107,12 @@ def get_command_from_exp(
 
     # TODO (?): Variable interpolation for unresolved CLI calls
 
+    for key, val in exp['seml'].get('options', {}).items():
+        if val:
+            config_strings.append(f'{key}={val}')
+        else:
+            config_strings.append(f'{key}')
+
     if not verbose:
         config_strings.append('--force')
     if unobserved:
@@ -129,24 +135,25 @@ def get_command_from_exp(
     else:
         interpreter = 'python'
 
-    return interpreter, exe, config_strings
+    return interpreter, exe, exp['seml'].get('experiment_command', None), config_strings
 
 
 def get_config_overrides(config):
     return ' '.join(map(shlex.quote, config))
 
 
-def get_shell_command(interpreter, exe, config, env: dict = None):
+def get_shell_command(interpreter, exe, experiment_command: Optional[str], config, env: dict = None):
     config_overrides = get_config_overrides(config)
+    experiment_command = '' if experiment_command is None else f' {experiment_command}'
 
     if env is None or len(env) == 0:
-        return f'{interpreter} {exe} with {config_overrides}'
+        return f'{interpreter} {exe}{experiment_command} with {config_overrides}'
     else:
         env_overrides = ' '.join(
             f'{key}={shlex.quote(val)}' for key, val in env.items()
         )
 
-        return f'{env_overrides} {interpreter} {exe} with {config_overrides}'
+        return f'{env_overrides} {interpreter} {exe}{experiment_command} with {config_overrides}'
 
 
 def get_output_dir_path(config):
@@ -445,7 +452,7 @@ def start_local_job(
 
     use_stored_sources = 'source_files' in exp['seml']
 
-    interpreter, exe, config = get_command_from_exp(
+    interpreter, exe, experiment_command, config = get_command_from_exp(
         exp,
         collection.name,
         verbose=logging.root.level <= logging.VERBOSE,
@@ -453,7 +460,7 @@ def start_local_job(
         post_mortem=post_mortem,
         debug_server=debug_server,
     )
-    cmd = get_shell_command(interpreter, exe, config)
+    cmd = get_shell_command(interpreter, exe, experiment_command, config)
 
     if not use_stored_sources:
         origin = Path().absolute()
@@ -471,7 +478,7 @@ def start_local_job(
             env = {'PYTHONPATH': f'{temp_dir}:$PYTHONPATH'}
             temp_exe = os.path.join(temp_dir, exe)
             # update the command to use the temp dir
-            cmd = get_shell_command(interpreter, temp_exe, config, env=env)
+            cmd = get_shell_command(interpreter, temp_exe, experiment_command, config, env=env)
 
         if output_dir_path:
             exp_name = get_exp_name(exp, collection.name)
@@ -946,7 +953,7 @@ def print_command(
         return
 
     exp = exps_list[0]
-    _, exe, config = get_command_from_exp(
+    _, exe, _, config = get_command_from_exp(
         exp,
         collection.name,
         verbose=logging.root.level <= logging.VERBOSE,
@@ -955,7 +962,7 @@ def print_command(
         unresolved=unresolved,
         resolve_interpolations=resolve_interpolations,
     )
-    _, exe, vscode_config = get_command_from_exp(
+    _, exe, experiment_command, vscode_config = get_command_from_exp(
         exp,
         collection.name,
         verbose=logging.root.level <= logging.VERBOSE,
@@ -969,6 +976,8 @@ def print_command(
 
     console.print(Heading('First experiment'))
     logging.info(f'Executable: {exe}')
+    if experiment_command:
+        logging.info(f'Command: {experiment_command}')
     if env is not None:
         logging.info(f'Anaconda environment: {env}')
 
@@ -978,7 +987,7 @@ def print_command(
     print('with --debug ' + get_config_overrides(config))
 
     console.print(Heading('Command for post-mortem debugging'))
-    interpreter, exe, config = get_command_from_exp(
+    interpreter, exe, experiment_command, config = get_command_from_exp(
         exps_list[0],
         collection.name,
         verbose=logging.root.level <= logging.VERBOSE,
@@ -987,10 +996,10 @@ def print_command(
         unresolved=unresolved,
         resolve_interpolations=resolve_interpolations,
     )
-    print(get_shell_command(interpreter, exe, config, env=env_dict))
+    print(get_shell_command(interpreter, exe, experiment_command, config, env=env_dict))
 
     console.print(Heading('Command for remote debugging'))
-    interpreter, exe, config = get_command_from_exp(
+    interpreter, exe, experiment_command, config = get_command_from_exp(
         exps_list[0],
         collection.name,
         verbose=logging.root.level <= logging.VERBOSE,
@@ -1000,19 +1009,19 @@ def print_command(
         unresolved=unresolved,
         resolve_interpolations=resolve_interpolations,
     )
-    print(get_shell_command(interpreter, exe, config, env=env_dict))
+    print(get_shell_command(interpreter, exe, experiment_command, config, env=env_dict))
 
     console.print(Heading('All raw commands'))
     logging.root.setLevel(orig_level)
     for exp in exps_list:
-        interpreter, exe, config = get_command_from_exp(
+        interpreter, exe, experiment_command, config = get_command_from_exp(
             exp,
             collection.name,
             verbose=logging.root.level <= logging.VERBOSE,
             unresolved=unresolved,
             resolve_interpolations=resolve_interpolations,
         )
-        print(get_shell_command(interpreter, exe, config, env=env_dict))
+        print(get_shell_command(interpreter, exe, experiment_command, config, env=env_dict))
 
 
 def start_experiments(

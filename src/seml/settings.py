@@ -93,6 +93,8 @@ SETTINGS = munchify(
             'conda_environment',
             'project_root_dir',
             'description',
+            'experiment_command',
+            'options',
         ],
         'SEML_CONFIG_VALUE_VERSION': 'version',
         'VALID_SLURM_CONFIG_VALUES': [

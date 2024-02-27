@@ -90,7 +90,7 @@ if __name__ == '__main__':
         ), '--stored-sources-dir was supplied but staged experiment does not contain stored source files.'
         load_sources_from_db(exp, collection, to_directory=args.stored_sources_dir)
 
-    interpreter, exe, config = get_command_from_exp(
+    interpreter, exe, experiment_command, config = get_command_from_exp(
         exp,
         db_collection_name,
         verbose=args.verbose,
@@ -98,7 +98,7 @@ if __name__ == '__main__':
         post_mortem=args.post_mortem,
         debug_server=args.debug_server,
     )
-    cmd = get_shell_command(interpreter, exe, config)
+    cmd = get_shell_command(interpreter, exe, experiment_command, config)
     cmd_unresolved = get_shell_command(
         *get_command_from_exp(
             exp,
@@ -116,7 +116,7 @@ if __name__ == '__main__':
         temp_dir = args.stored_sources_dir
         # Store the temp dir for debugging purposes
         updates['seml.temp_dir'] = temp_dir
-        cmd = get_shell_command(interpreter, os.path.join(temp_dir, exe), config)
+        cmd = get_shell_command(interpreter, os.path.join(temp_dir, exe), experiment_command, config)
 
     if not args.unobserved:
         collection.update_one({'_id': exp_id}, {'$set': updates})
