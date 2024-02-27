@@ -1269,9 +1269,10 @@ def print_output(
     for exp in experiments:
         console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
         try:
-            with open(exp['seml']['output_file'], 'r') as f:
+            with open(exp['seml']['output_file'], 'r', newline='') as f:
                 for line in f:
-                    console.print(line, end='')
+                    console.print(line[:-1], end=line[-1])
+                console.print()  # new line
         except IOError:
             logging.info(f"File {exp['seml']['output_file']} could not be read.")
             if 'captured_out' in exp and exp['captured_out']:
