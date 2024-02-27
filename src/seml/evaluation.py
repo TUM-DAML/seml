@@ -30,7 +30,7 @@ def get_results(
     mongodb_config=None,
     states=None,
     filter_dict=None,
-    parallel=False,
+    parallel: bool = False,
     progress: bool = True,
 ):
     """
@@ -58,6 +58,7 @@ def get_results(
     -------
 
     """
+    import functools
     import pandas as pd
     from rich.progress import track
 
@@ -70,12 +71,7 @@ def get_results(
     if filter_dict is None:
         filter_dict = {}
 
-    if progress:
-        iterator_fn = track
-    else:
-
-        def iterator_fn(x, total=None):
-            return x
+    track = functools.partial(track, disable=not progress)
 
     collection = get_collection(
         db_collection_name,
@@ -91,19 +87,15 @@ def get_results(
         filter_dict['status'] = {'$in': states}
 
     cursor = collection.find(filter_dict, fields)
-    results = [
-        x for x in iterator_fn(cursor, total=collection.count_documents(filter_dict))
-    ]
+    results = [x for x in track(cursor, total=collection.count_documents(filter_dict))]
 
     if parallel:
         from multiprocessing import Pool
 
         with Pool() as p:
-            parsed = list(
-                iterator_fn(p.imap(parse_jsonpickle, results), total=len(results))
-            )
+            parsed = list(track(p.imap(parse_jsonpickle, results), total=len(results)))
     else:
-        parsed = [parse_jsonpickle(entry) for entry in iterator_fn(results)]
+        parsed = [parse_jsonpickle(entry) for entry in track(results)]
     if to_data_frame:
         parsed = pd.json_normalize(parsed, sep='.')
     return parsed
