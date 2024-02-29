@@ -559,3 +559,24 @@ def warn_multiple_calls(warning: str, warn_after: int = 1):
         return wrapper
 
     return decorator
+
+
+def load_text_resource(path: str | Path):
+    """
+    Read a text resource from the package.
+
+    Parameters
+    ----------
+    path: str | Path
+        Path to the resource.
+
+    Returns
+    -------
+    str
+        The resource content.
+    """
+    import importlib.resources
+
+    full_path = importlib.resources.files('seml') / path
+    with open(full_path) as inp:
+        return inp.read()

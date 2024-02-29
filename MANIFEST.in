@@ -4,5 +4,4 @@ include LICENSE
 recursive-exclude test *
 recursive-exclude examples *
 
-include src/seml/slurm_template.sh
-include src/seml/jupyter_template.sh
+recursive-include src/seml/templates/ *

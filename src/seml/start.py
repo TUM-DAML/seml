@@ -17,7 +17,7 @@ from seml.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.network import find_free_port
 from seml.settings import SETTINGS
 from seml.sources import load_sources_from_db
-from seml.utils import s_if
+from seml.utils import s_if, load_text_resource
 from seml.config import generate_named_configs
 from seml.config import resolve_interpolations as resolve_config_interpolations
 
@@ -284,9 +284,7 @@ def start_sbatch_job(
     )
 
     # Construct Slurm script
-    template = importlib.resources.read_binary('seml', 'slurm_template.sh').decode(
-        'utf-8'
-    )
+    template = load_text_resource('templates/slurm/slurm_template.sh')
     prepare_experiment_script = importlib.resources.read_binary(
         'seml', 'prepare_experiment.py'
     ).decode('utf-8')
@@ -1129,8 +1127,6 @@ def start_experiments(
 def start_jupyter_job(
     sbatch_options: dict = None, conda_env: str = None, lab: bool = False
 ):
-    import importlib.resources
-
     sbatch_options = sbatch_options if sbatch_options is not None else {}
     sbatch_options_merged = SETTINGS.SLURM_DEFAULT['sbatch_options']
     sbatch_options_merged.update(SETTINGS.SBATCH_OPTIONS_TEMPLATES.JUPYTER)
@@ -1138,9 +1134,7 @@ def start_jupyter_job(
     # Construct sbatch options string
     sbatch_options_str = create_slurm_options_string(sbatch_options_merged)
 
-    template = importlib.resources.read_binary('seml', 'jupyter_template.sh').decode(
-        'utf-8'
-    )
+    template = load_text_resource('templates/slurm/jupyter_template.sh')
 
     script = template.format(
         sbatch_options=sbatch_options_str,
