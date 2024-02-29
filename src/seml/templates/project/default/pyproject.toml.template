@@ -1,0 +1,37 @@
+[project]
+name = "{project_name}"
+version = "0.0.1"
+authors = [
+    {{ name = "Your Name", email = "your@mail.com" }},
+]
+dependencies = [
+    # General science & ml
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "pandas",
+    "einops",
+
+    # Plotting & visualization
+    "matplotlib",
+
+    # seml
+    "seml",
+
+    # Utilities
+    "tqdm",
+    "rich",
+    "ipython",
+    "ipdb",
+    "jupyterlab",
+    "ipympl",
+    "ipywidgets",
+
+    # Development utilities
+    "pre-commit",
+    "ruff",
+    "pytest",
+]
+
+requires-python = ">= 3.11"
+license = {{ text = "MIT" }}

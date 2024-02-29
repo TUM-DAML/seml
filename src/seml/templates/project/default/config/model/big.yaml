@@ -1,0 +1,3 @@
+model:
+  n_layers: 8
+  hidden_dim: 256

@@ -35,6 +35,7 @@ from seml.manage import (
     reload_sources,
     reset_experiments,
 )
+from seml.project import init_project
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
 from seml.utils import cache_to_disk
@@ -343,6 +344,35 @@ def list_command(
         update_status=update_status,
         print_full_description=full_description,
     )
+
+
+@app.command('init')
+@restrict_collection(False)
+def init_command(
+    ctx: typer.Context,
+    directory: Annotated[
+        str,
+        typer.Argument(
+            help='The directory in which to initialize the project.',
+            exists=False,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = '.',
+    template: Annotated[
+        str,
+        typer.Option(
+            '-t',
+            '--template',
+            help='The name of the template to use for the project.',
+        ),
+    ] = 'default',
+    yes: YesAnnotation = False,
+):
+    """
+    Initialize a new project in the given directory.
+    """
+    init_project(directory, template, yes)
 
 
 @app.command('clean-db')

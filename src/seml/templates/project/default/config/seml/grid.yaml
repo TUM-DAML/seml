@@ -1,0 +1,22 @@
+seml:
+  project_root_dir: ../../
+  executable: main.py
+
+slurm:
+  experiments_per_job: 1
+
+fixed:
+  seed: 42
+
+grid:
+  +dataset:
+    type: choice
+    options:
+      - config/data/small.yaml
+      - config/data/big.yaml
+
+  +model:
+    type: choice
+    options:
+      - config/model/small.yaml
+      - config/model/big.yaml

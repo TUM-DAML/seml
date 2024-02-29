@@ -1,0 +1,8 @@
+line-length = 90
+
+[format]
+quote-style = "single"
+line-ending = "lf"
+
+[lint.per-file-ignores]
+"main.py" = ["F841"] # unused variables are allowed in main.py
