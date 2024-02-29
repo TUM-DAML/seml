@@ -103,6 +103,14 @@ def init_project(
 
 
 def get_available_templates():
+    """
+    Return a list of available templates.
+
+    Returns
+    -------
+    List[str]
+        A list of available templates.
+    """
     import importlib.resources
 
     return [
@@ -114,6 +122,9 @@ def get_available_templates():
 
 
 def print_available_templates():
+    """
+    Print the available templates.
+    """
     result = 'Available templates:'
     for template in get_available_templates():
         result += f'\n  - {template}'
