@@ -31,12 +31,12 @@ $ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 * `detect-duplicates`: Prints duplicate experiment configurations.
 * `detect-killed`: Detect experiments where the corresponding...
 * `drop`: Drop collections from the database.
-* `init`: Initialize a new project in the given...
 * `launch-worker`: Launch a local worker that runs PENDING jobs.
 * `list`: Lists all collections in the database.
 * `print-command`: Print the commands that would be executed...
 * `print-fail-trace`: Prints fail traces of all failed experiments.
 * `print-output`: Print the output of experiments.
+* `project`: Setting up new projects.
 * `reload-sources`: Reload stashed source files.
 * `reset`: Reset the state of experiments by setting...
 * `start`: Fetch staged experiments from the database...
@@ -268,29 +268,6 @@ $ seml drop [OPTIONS] [PATTERN]
 * `-y, --yes`: Automatically confirm all dialogues with yes.
 * `--help`: Show this message and exit.
 
-## `seml init`
-
-Initialize a new project in the given directory.
-
-**Usage**:
-
-```console
-$ seml init [OPTIONS] [DIRECTORY]
-```
-
-**Arguments**:
-
-* `[DIRECTORY]`: The directory in which to initialize the project.  [default: .]
-
-**Options**:
-
-* `-t, --template TEXT`: The name of the template to use for the project.  [default: default]
-* `-n, --name TEXT`: The name of the project. (By default inferred from the directory name.)
-* `-u, --username TEXT`: The author name to use for the project. (By default inferred from $USER)
-* `-m, --usermail TEXT`: The author email to use for the project. (By default empty.)
-* `-y, --yes`: Automatically confirm all dialogues with yes.
-* `--help`: Show this message and exit.
-
 ## `seml launch-worker`
 
 Launch a local worker that runs PENDING jobs.
@@ -396,6 +373,62 @@ $ seml print-output [OPTIONS]
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: RUNNING, FAILED, KILLED, INTERRUPTED, COMPLETED]
 * `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
+* `--help`: Show this message and exit.
+
+## `seml project`
+
+Setting up new projects.
+
+**Usage**:
+
+```console
+$ seml project [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options**:
+
+* `--help`: Show this message and exit.
+
+**Commands**:
+
+* `init`: Initialize a new project in the given...
+* `list-templates`: List available project templates.
+
+### `seml project init`
+
+Initialize a new project in the given directory.
+
+**Usage**:
+
+```console
+$ seml project init [OPTIONS] [DIRECTORY]
+```
+
+**Arguments**:
+
+* `[DIRECTORY]`: The directory in which to initialize the project.  [default: .]
+
+**Options**:
+
+* `-t, --template TEXT`: The template to use for the project. To view available templates use `seml project list-templates`.  [default: default]
+* `-n, --name TEXT`: The name of the project. (By default inferred from the directory name.)
+* `-u, --username TEXT`: The author name to use for the project. (By default inferred from $USER)
+* `-m, --usermail TEXT`: The author email to use for the project. (By default empty.)
+* `-y, --yes`: Automatically confirm all dialogues with yes.
+* `--help`: Show this message and exit.
+
+### `seml project list-templates`
+
+List available project templates.
+
+**Usage**:
+
+```console
+$ seml project list-templates [OPTIONS]
+```
+
+**Options**:
+
 * `--help`: Show this message and exit.
 
 ## `seml reload-sources`

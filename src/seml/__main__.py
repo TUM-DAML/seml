@@ -35,7 +35,7 @@ from seml.manage import (
     reload_sources,
     reset_experiments,
 )
-from seml.project import init_project
+from seml.project import init_project, print_available_templates
 from seml.settings import SETTINGS
 from seml.start import print_command, start_experiments, start_jupyter_job
 from seml.utils import cache_to_disk
@@ -344,59 +344,6 @@ def list_command(
         update_status=update_status,
         print_full_description=full_description,
     )
-
-
-@app.command('init')
-@restrict_collection(False)
-def init_project_command(
-    ctx: typer.Context,
-    directory: Annotated[
-        str,
-        typer.Argument(
-            help='The directory in which to initialize the project.',
-            exists=False,
-            file_okay=False,
-            dir_okay=True,
-        ),
-    ] = '.',
-    template: Annotated[
-        str,
-        typer.Option(
-            '-t',
-            '--template',
-            help='The name of the template to use for the project.',
-        ),
-    ] = 'default',
-    project_name: Annotated[
-        str,
-        typer.Option(
-            '-n',
-            '--name',
-            help='The name of the project. (By default inferred from the directory name.)',
-        ),
-    ] = None,
-    user_name: Annotated[
-        str,
-        typer.Option(
-            '-u',
-            '--username',
-            help='The author name to use for the project. (By default inferred from $USER)',
-        ),
-    ] = None,
-    user_mail: Annotated[
-        str,
-        typer.Option(
-            '-m',
-            '--usermail',
-            help='The author email to use for the project. (By default empty.)',
-        ),
-    ] = None,
-    yes: YesAnnotation = False,
-):
-    """
-    Initialize a new project in the given directory.
-    """
-    init_project(directory, project_name, user_name, user_mail, template, yes)
 
 
 @app.command('clean-db')
@@ -1037,6 +984,75 @@ def description_list_command(
     Lists the descriptions of all experiments.
     """
     collection_list_descriptions(ctx.obj['collection'], update_status=update_status)
+
+
+app_project = typer.Typer(
+    no_args_is_help=True,
+    help='Setting up new projects.',
+)
+app.add_typer(app_project, name='project')
+
+
+@app_project.command('init')
+@restrict_collection(False)
+def init_project_command(
+    ctx: typer.Context,
+    directory: Annotated[
+        str,
+        typer.Argument(
+            help='The directory in which to initialize the project.',
+            exists=False,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ] = '.',
+    template: Annotated[
+        str,
+        typer.Option(
+            '-t',
+            '--template',
+            help='The template to use for the project. To view available templates use `seml project list-templates`.',
+        ),
+    ] = 'default',
+    project_name: Annotated[
+        str,
+        typer.Option(
+            '-n',
+            '--name',
+            help='The name of the project. (By default inferred from the directory name.)',
+        ),
+    ] = None,
+    user_name: Annotated[
+        str,
+        typer.Option(
+            '-u',
+            '--username',
+            help='The author name to use for the project. (By default inferred from $USER)',
+        ),
+    ] = None,
+    user_mail: Annotated[
+        str,
+        typer.Option(
+            '-m',
+            '--usermail',
+            help='The author email to use for the project. (By default empty.)',
+        ),
+    ] = None,
+    yes: YesAnnotation = False,
+):
+    """
+    Initialize a new project in the given directory.
+    """
+    init_project(directory, project_name, user_name, user_mail, template, yes)
+
+
+@app_project.command('list-templates')
+@restrict_collection(False)
+def list_templates_command(ctx: typer.Context):
+    """
+    List available project templates.
+    """
+    print_available_templates()
 
 
 @dataclass

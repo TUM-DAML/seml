@@ -100,3 +100,21 @@ def init_project(
                 # Other files copy directly
                 dst.write_bytes(src.read_bytes())
     logging.info('Project initialized successfully')
+
+
+def get_available_templates():
+    import importlib.resources
+
+    return [
+        template.name
+        for template in (
+            Path(str(importlib.resources.files('seml'))) / 'templates' / 'project'
+        ).iterdir()
+    ]
+
+
+def print_available_templates():
+    result = 'Available templates:'
+    for template in get_available_templates():
+        result += f'\n  - {template}'
+    logging.info(result)

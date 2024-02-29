@@ -1,4 +1,0 @@
-[lint]
-ignore = [
-    "F841", # ignore errors due to unused variables
-]
