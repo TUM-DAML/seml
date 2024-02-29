@@ -2,7 +2,7 @@
 name = "{project_name}"
 version = "0.0.1"
 authors = [
-    {{ name = "Your Name", email = "your@mail.com" }},
+    {{ name = "{user_name}", email = "{user_mail}" }},
 ]
 dependencies = [
     # General science & ml

@@ -30,6 +30,14 @@ We recommend [VS Code](https://code.visualstudio.com) for development. Select th
 `seml` will log your experiments on our local `MongoDB` server after you set it up according to the [installation guide]((https://github.com/TUM-DAML/seml/)). Familiarize yourself with the core functionality of `seml` experiments from the example configurations.
 
 
+**Pytest**
+
+During development you may want to test several functionalities. We recommend using [`pytest`](https://docs.pytest.org/en/8.0.x/) for this. To run your tests simply call
+```sh
+pytest
+```
+
+
 ## Running experiments locally
 
 To start a training locally, call `main.py` with the your settings, for example

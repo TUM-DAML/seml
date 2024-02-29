@@ -348,7 +348,7 @@ def list_command(
 
 @app.command('init')
 @restrict_collection(False)
-def init_command(
+def init_project_command(
     ctx: typer.Context,
     directory: Annotated[
         str,
@@ -367,12 +367,36 @@ def init_command(
             help='The name of the template to use for the project.',
         ),
     ] = 'default',
+    project_name: Annotated[
+        str,
+        typer.Option(
+            '-n',
+            '--name',
+            help='The name of the project. (By default inferred from the directory name.)',
+        ),
+    ] = None,
+    user_name: Annotated[
+        str,
+        typer.Option(
+            '-u',
+            '--username',
+            help='The author name to use for the project. (By default inferred from $USER)',
+        ),
+    ] = None,
+    user_mail: Annotated[
+        str,
+        typer.Option(
+            '-m',
+            '--usermail',
+            help='The author email to use for the project. (By default empty.)',
+        ),
+    ] = None,
     yes: YesAnnotation = False,
 ):
     """
     Initialize a new project in the given directory.
     """
-    init_project(directory, template, yes)
+    init_project(directory, project_name, user_name, user_mail, template, yes)
 
 
 @app.command('clean-db')

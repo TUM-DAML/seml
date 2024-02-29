@@ -1,10 +1,14 @@
 import logging
+import os
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 
 def init_project(
     directory: Union[str, Path] = '.',
+    project_name: Optional[str] = None,
+    user_name: Optional[str] = None,
+    user_mail: Optional[str] = None,
     template: str = 'default',
     yes: bool = False,
 ):
@@ -18,6 +22,7 @@ def init_project(
     """
     import importlib.resources
     from click import prompt
+    from gitignore_parser import parse_gitignore
 
     if directory is None:
         directory = Path()
@@ -36,15 +41,33 @@ def init_project(
     logging.info(f'Initializing project in "{directory}" using template "{template}"')
 
     template_path = (
-        importlib.resources.files('seml') / 'templates' / 'project' / template
+        Path(str(importlib.resources.files('seml')))
+        / 'templates'
+        / 'project'
+        / template
     )
-    template_path = Path(template_path)
-    format_map = dict(project_name=directory.name)
+    if project_name is None:
+        project_name = directory.name
+    if user_name is None:
+        user_name = os.getenv('USER', os.getenv('USERNAME', 'user'))
+    if user_mail is None:
+        user_mail = 'my@mail.com'
+    format_map = dict(
+        project_name=project_name, user_name=user_name, user_mail=user_mail
+    )
+
+    gitignore_path = template_path / '.gitignore'
+    if gitignore_path.exists():
+        ignore_file = parse_gitignore(gitignore_path)
+    else:
+
+        def ignore_file(file_path: str):
+            return False
 
     # Copy files one-by-one
     for src in template_path.glob('**/*'):
         # skip pycache files
-        if '__pycache__' in str(src) or src.name.endswith('.pyc'):
+        if ignore_file(str(src)):
             continue
         # construct destination
         file_name = src.relative_to(template_path)

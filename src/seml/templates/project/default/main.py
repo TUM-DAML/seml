@@ -16,7 +16,7 @@ def main(
     # Define your configuration parameters here
     dataset: str,
     model: dict,
-    seed: int,
+    seed: int,  # seml automatically assigns a random seed
 ):
     # Define your main function here
     pass

@@ -1,6 +1,7 @@
 seml:
   project_root_dir: ../../
   executable: main.py
+  output_dir: ./logs
 
 slurm:
   experiments_per_job: 1
