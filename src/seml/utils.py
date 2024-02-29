@@ -5,7 +5,7 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Hashable, Iterable, List, Tuple, TypeVar
+from typing import Any, Callable, Dict, Hashable, Iterable, List, Tuple, TypeVar, Union
 
 import seml.typer as typer
 
@@ -561,7 +561,7 @@ def warn_multiple_calls(warning: str, warn_after: int = 1):
     return decorator
 
 
-def load_text_resource(path: str | Path):
+def load_text_resource(path: Union[str, Path]):
     """
     Read a text resource from the package.
 
