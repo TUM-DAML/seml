@@ -46,6 +46,10 @@ def init_project(
         / 'project'
         / template
     )
+    if not template_path.exists():
+        logging.error(f'Template "{template}" does not exist')
+        exit(1)
+
     if project_name is None:
         project_name = directory.name
     if user_name is None:
