@@ -1,10 +1,6 @@
+import logging
 from pathlib import Path
 from typing import Union
-
-
-class SafeDict(dict):
-    def __missing__(self, key):
-        return '{' + key + '}'
 
 
 def init_project(
@@ -33,15 +29,17 @@ def init_project(
     # Ensure that its state is okay
     if any(directory.glob('**/*')) and not yes:
         if not prompt(
-            f'Directory "{directory}" is not empty. Are you sure you want to initialize a new project here? (y/n)'
+            f'Directory "{directory}" is not empty. Are you sure you want to initialize a new project here? (y/n)',
+            type=bool,
         ):
             exit(1)
+    logging.info(f'Initializing project in "{directory}" using template "{template}"')
 
     template_path = (
         importlib.resources.files('seml') / 'templates' / 'project' / template
     )
     template_path = Path(template_path)
-    format_map = SafeDict(project_name=directory.name)
+    format_map = dict(project_name=directory.name)
 
     # Copy files one-by-one
     for src in template_path.glob('**/*'):
@@ -54,9 +52,10 @@ def init_project(
                 dst.mkdir()
         elif not dst.exists():
             # For templates fill in variables
-            if src.suffixes[-1] == '.template':
+            if src.suffix.endswith('.template'):
                 dst = dst.with_suffix(src.suffix.removesuffix('.template'))
                 dst.write_text(src.read_text().format_map(format_map))
             else:
                 # Other files copy directly
                 dst.write_bytes(src.read_bytes())
+    logging.info('Project initialized successfully')
