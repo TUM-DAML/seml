@@ -31,6 +31,7 @@ $ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 * `detect-duplicates`: Prints duplicate experiment configurations.
 * `detect-killed`: Detect experiments where the corresponding...
 * `drop`: Drop collections from the database.
+* `init`: Initialize a new project in the given...
 * `launch-worker`: Launch a local worker that runs PENDING jobs.
 * `list`: Lists all collections in the database.
 * `print-command`: Print the commands that would be executed...
@@ -264,6 +265,29 @@ $ seml drop [OPTIONS] [PATTERN]
 
 **Options**:
 
+* `-y, --yes`: Automatically confirm all dialogues with yes.
+* `--help`: Show this message and exit.
+
+## `seml init`
+
+Initialize a new project in the given directory.
+
+**Usage**:
+
+```console
+$ seml init [OPTIONS] [DIRECTORY]
+```
+
+**Arguments**:
+
+* `[DIRECTORY]`: The directory in which to initialize the project.  [default: .]
+
+**Options**:
+
+* `-t, --template TEXT`: The name of the template to use for the project.  [default: default]
+* `-n, --name TEXT`: The name of the project. (By default inferred from the directory name.)
+* `-u, --username TEXT`: The author name to use for the project. (By default inferred from $USER)
+* `-m, --usermail TEXT`: The author email to use for the project. (By default empty.)
 * `-y, --yes`: Automatically confirm all dialogues with yes.
 * `--help`: Show this message and exit.
 
