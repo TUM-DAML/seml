@@ -80,7 +80,7 @@ def init_project(
 
     # Copy files one-by-one
     for src in template_path.glob('**/*'):
-        # skip pycache files
+        # skip files ignored by .gitignore
         if ignore_file(str(src)):
             continue
         # construct destination
