@@ -12,7 +12,7 @@ def init_project(
     Initialize a new project in the given directory.
 
     Args:
-        directory (Optional[Union[str, Path]], optional): The directory to initialize the project in. Defaults to '.'.
+        directory (Union[str, Path], optional): The directory to initialize the project in. Defaults to '.'.
         template (str, optional): The template to use. Defaults to 'default'.
         yes (bool, optional): Whether to skip the confirmation prompt. Defaults to False.
     """
@@ -43,6 +43,10 @@ def init_project(
 
     # Copy files one-by-one
     for src in template_path.glob('**/*'):
+        # skip pycache files
+        if '__pycache__' in str(src) or src.name.endswith('.pyc'):
+            continue
+        # construct destination
         file_name = src.relative_to(template_path)
         target_file_name = Path(str(file_name).format_map(format_map))
         dst = directory / target_file_name
