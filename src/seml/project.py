@@ -15,10 +15,20 @@ def init_project(
     """
     Initialize a new project in the given directory.
 
-    Args:
-        directory (Union[str, Path], optional): The directory to initialize the project in. Defaults to '.'.
-        template (str, optional): The template to use. Defaults to 'default'.
-        yes (bool, optional): Whether to skip the confirmation prompt. Defaults to False.
+    Parameters
+    ----------
+    directory : Union[str, Path]
+        The directory to initialize the project in.
+    project_name : Optional[str]
+        The name of the project. If not given, the name of the directory is used.
+    user_name : Optional[str]
+        The name of the user. If not given, the environment variable USER is used.
+    user_mail : Optional[str]
+        The email of the user. If not given, ''.
+    template : str
+        The template to use for the project.
+    yes : bool
+        If True, no confirmation is asked before initializing the project.
     """
     import importlib.resources
     from click import prompt
