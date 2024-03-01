@@ -105,7 +105,7 @@ def init_project(
             elif not dst.exists():
                 # For templates fill in variables
                 if src.suffix.endswith('.template'):
-                    dst = dst.with_suffix(src.suffix.removesuffix('.template'))
+                    dst = dst.with_suffix(src.suffix.replace('.template', ''))
                     dst.write_text(src.read_text().format_map(format_map))
                 else:
                     # Other files copy directly
@@ -117,6 +117,17 @@ def init_project(
 def checkout_template_repo(
     git_remote: Optional[str] = None, git_commit: Optional[str] = None
 ):
+    """
+    Context manager to clone the template repository. The cloned repository
+    is deleted after the context is left.
+
+    Parameters
+    ----------
+    git_remote : Optional[str]
+        The git remote to use.
+    git_commit : Optional[str]
+        The git commit to use.
+    """
     import tempfile
     from git import Repo
 
