@@ -1,13 +1,10 @@
 import logging
 import os
-import uuid
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Optional, Union
 
 from seml.settings import SETTINGS
-
-if TYPE_CHECKING:
-    from git import Repo
 
 
 def init_project(
@@ -64,76 +61,81 @@ def init_project(
             exit(1)
 
     tmp_dir = checkout_template_repo(git_remote, git_commit)
-    template_path = tmp_dir / 'templates' / template
-    if not template_path.exists():
-        logging.error(f'Template "{template}" does not exist')
-        exit(1)
+    with checkout_template_repo(git_remote, git_commit) as tmp_dir:
+        template_path = tmp_dir / 'templates' / template
+        if not template_path.exists():
+            logging.error(f'Template "{template}" does not exist')
+            exit(1)
 
-    logging.info(
-        f'Initializing project in "{directory}" using template "{template}@{git_remote}"'
-    )
+        logging.info(
+            f'Initializing project in "{directory}" using template "{template}@{git_remote}"'
+        )
 
-    if project_name is None:
-        project_name = directory.name
-    if user_name is None:
-        user_name = os.getenv('USER', os.getenv('USERNAME', 'user'))
-    if user_mail is None:
-        user_mail = 'my@mail.com'
-    format_map = dict(
-        project_name=project_name, user_name=user_name, user_mail=user_mail
-    )
+        if project_name is None:
+            project_name = directory.name
+        if user_name is None:
+            user_name = os.getenv('USER', os.getenv('USERNAME', 'user'))
+        if user_mail is None:
+            user_mail = 'my@mail.com'
+        format_map = dict(
+            project_name=project_name, user_name=user_name, user_mail=user_mail
+        )
 
-    gitignore_path = template_path / '.gitignore'
-    if gitignore_path.exists():
-        ignore_file = parse_gitignore(gitignore_path)
-    else:
+        gitignore_path = template_path / '.gitignore'
+        if gitignore_path.exists():
+            ignore_file = parse_gitignore(gitignore_path)
+        else:
 
-        def ignore_file(file_path: str):
-            return False
+            def ignore_file(file_path: str):
+                return False
 
-    # Copy files one-by-one
-    for src in template_path.glob('**/*'):
-        # skip files ignored by .gitignore
-        if ignore_file(str(src)):
-            continue
-        # construct destination
-        file_name = src.relative_to(template_path)
-        target_file_name = Path(str(file_name).format_map(format_map))
-        dst = directory / target_file_name
-        # Create directories
-        if src.is_dir():
-            if not dst.exists():
-                dst.mkdir()
-        elif not dst.exists():
-            # For templates fill in variables
-            if src.suffix.endswith('.template'):
-                dst = dst.with_suffix(src.suffix.removesuffix('.template'))
-                dst.write_text(src.read_text().format_map(format_map))
-            else:
-                # Other files copy directly
-                dst.write_bytes(src.read_bytes())
+        # Copy files one-by-one
+        for src in template_path.glob('**/*'):
+            # skip files ignored by .gitignore
+            if ignore_file(str(src)):
+                continue
+            # construct destination
+            file_name = src.relative_to(template_path)
+            target_file_name = Path(str(file_name).format_map(format_map))
+            dst = directory / target_file_name
+            # Create directories
+            if src.is_dir():
+                if not dst.exists():
+                    dst.mkdir()
+            elif not dst.exists():
+                # For templates fill in variables
+                if src.suffix.endswith('.template'):
+                    dst = dst.with_suffix(src.suffix.removesuffix('.template'))
+                    dst.write_text(src.read_text().format_map(format_map))
+                else:
+                    # Other files copy directly
+                    dst.write_bytes(src.read_bytes())
     logging.info('Project initialized successfully')
 
 
+@contextmanager
 def checkout_template_repo(
     git_remote: Optional[str] = None, git_commit: Optional[str] = None
-) -> 'Repo':
+):
+    import tempfile
     from git import Repo
 
     if git_remote is None:
         git_remote = SETTINGS.TEMPLATE_REMOTE
 
-    tmp_dir = Path(SETTINGS.TMP_DIRECTORY) / str(uuid.uuid4())
-    try:
-        repo = Repo.clone_from(git_remote, tmp_dir)
-        if git_commit is not None:
-            repo.head.reference = repo.commit(git_commit)
-            repo.head.reset(index=True, working_tree=True)
-        return Path(repo.working_dir)
-    except Exception as e:
-        logging.error(f'Failed to clone git repository "{git_remote}" to "{tmp_dir}"')
-        logging.error(e)
-        exit(1)
+    with tempfile.TemporaryDirectory(dir=SETTINGS.TMP_DIRECTORY) as tmp_dir:
+        try:
+            repo = Repo.clone_from(git_remote, tmp_dir)
+            if git_commit is not None:
+                repo.head.reference = repo.commit(git_commit)
+                repo.head.reset(index=True, working_tree=True)
+            yield Path(repo.working_dir)
+        except Exception as e:
+            logging.error(
+                f'Failed to clone git repository "{git_remote}" to "{tmp_dir}"'
+            )
+            logging.error(e)
+            exit(1)
 
 
 def get_available_templates(
@@ -154,8 +156,8 @@ def get_available_templates(
     List[str]
         A list of available templates.
     """
-    repo = checkout_template_repo(git_remote, git_commit)
-    return [template.name for template in (repo / 'templates').iterdir()]
+    with checkout_template_repo(git_remote, git_commit) as repo:
+        return [template.name for template in (repo / 'templates').iterdir()]
 
 
 def print_available_templates(
