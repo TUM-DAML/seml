@@ -2,7 +2,7 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from seml.settings import SETTINGS
 
@@ -140,7 +140,7 @@ def checkout_template_repo(
 
 def get_available_templates(
     git_remote: Optional[str] = None, git_commit: Optional[str] = None
-) -> list[str]:
+) -> List[str]:
     """
     Return a list of available templates.
 
