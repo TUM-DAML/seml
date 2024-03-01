@@ -68,7 +68,7 @@ def init_project(
             exit(1)
 
         logging.info(
-            f'Initializing project in "{directory}" using template "{template}@{git_remote}"'
+            f'Initializing project in "{directory}" using template "{template}".'
         )
 
         if project_name is None:
