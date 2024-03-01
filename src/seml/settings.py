@@ -19,6 +19,7 @@ SETTINGS = munchify(
         # Directory which is used on the compute nodes to dump scripts and Python code.
         # Only change this if you know what you're doing.
         'TMP_DIRECTORY': '/tmp',
+        'TEMPLATE_REMOTE': 'https://github.com/TUM-DAML/seml-templates.git',
         'DATABASE': {
             # location of the MongoDB config. Default: $HOME/.config/seml/monogdb.config
             'MONGODB_CONFIG_PATH': APP_DIR / 'mongodb.config'

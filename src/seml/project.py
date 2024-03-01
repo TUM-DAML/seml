@@ -1,7 +1,10 @@
 import logging
 import os
+import uuid
 from pathlib import Path
 from typing import Optional, Union
+
+from seml.settings import SETTINGS
 
 
 def init_project(
@@ -10,6 +13,8 @@ def init_project(
     user_name: Optional[str] = None,
     user_mail: Optional[str] = None,
     template: str = 'default',
+    git_repo: Optional[str] = None,
+    git_commit: Optional[str] = None,
     yes: bool = False,
 ):
     """
@@ -27,16 +32,23 @@ def init_project(
         The email of the user. If not given, ''.
     template : str
         The template to use for the project.
+    git_repo : Optional[str]
+        The URL of the git repository to use.
+    git_commit : Optional[str]
+        The commit to use.
+    git_branch : Optional[str]
+        The branch to use.
     yes : bool
         If True, no confirmation is asked before initializing the project.
     """
-    import importlib.resources
     from click import prompt
+    from git import Repo
     from gitignore_parser import parse_gitignore
 
     if directory is None:
         directory = Path()
     directory = Path(directory).absolute()
+
     # Ensure that the directory exists
     if not directory.exists():
         directory.mkdir(parents=True)
@@ -48,17 +60,29 @@ def init_project(
             type=bool,
         ):
             exit(1)
-    logging.info(f'Initializing project in "{directory}" using template "{template}"')
 
-    template_path = (
-        Path(str(importlib.resources.files('seml')))
-        / 'templates'
-        / 'project'
-        / template
-    )
+    if git_repo is None:
+        git_repo = SETTINGS.TEMPLATE_REMOTE
+
+    tmp_dir = Path(SETTINGS.TMP_DIRECTORY) / str(uuid.uuid4())
+    try:
+        repo = Repo.clone_from(git_repo, tmp_dir)
+        if git_commit is not None:
+            repo.head.reference = repo.commit(git_commit)
+            repo.head.reset(index=True, working_tree=True)
+    except Exception as e:
+        logging.error(f'Failed to clone git repository "{git_repo}" to "{tmp_dir}"')
+        logging.error(e)
+        exit(1)
+
+    template_path = tmp_dir / 'templates' / template
     if not template_path.exists():
         logging.error(f'Template "{template}" does not exist')
         exit(1)
+
+    logging.info(
+        f'Initializing project in "{directory}" using template "{template}@{git_repo}"'
+    )
 
     if project_name is None:
         project_name = directory.name
