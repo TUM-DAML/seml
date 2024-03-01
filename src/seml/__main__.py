@@ -1038,21 +1038,64 @@ def init_project_command(
             help='The author email to use for the project. (By default empty.)',
         ),
     ] = None,
+    git_remote: Annotated[
+        str,
+        typer.Option(
+            '-r',
+            '--git-remote',
+            help='The git remote to use for the project. (By default SETTINGS.TEMPLATE_REMOTE.)',
+        ),
+    ] = None,
+    git_commit: Annotated[
+        str,
+        typer.Option(
+            '-c',
+            '--git-commit',
+            help='The exact git commit to use. May also be a tag or branch (By default latest)',
+        ),
+    ] = None,
     yes: YesAnnotation = False,
 ):
     """
     Initialize a new project in the given directory.
     """
-    init_project(directory, project_name, user_name, user_mail, template, yes)
+    init_project(
+        directory,
+        project_name,
+        user_name,
+        user_mail,
+        template,
+        git_remote,
+        git_commit,
+        yes,
+    )
 
 
 @app_project.command('list-templates')
 @restrict_collection(False)
-def list_templates_command(ctx: typer.Context):
+def list_templates_command(
+    ctx: typer.Context,
+    git_remote: Annotated[
+        str,
+        typer.Option(
+            '-r',
+            '--git-remote',
+            help='The git remote to use for the project. (By default SETTINGS.TEMPLATE_REMOTE.)',
+        ),
+    ] = None,
+    git_commit: Annotated[
+        str,
+        typer.Option(
+            '-c',
+            '--git-commit',
+            help='The exact git commit to use. May also be a tag or branch (By default latest)',
+        ),
+    ] = None,
+):
     """
     List available project templates.
     """
-    print_available_templates()
+    print_available_templates(git_remote, git_commit)
 
 
 @dataclass

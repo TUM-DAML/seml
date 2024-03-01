@@ -414,6 +414,8 @@ $ seml project init [OPTIONS] [DIRECTORY]
 * `-n, --name TEXT`: The name of the project. (By default inferred from the directory name.)
 * `-u, --username TEXT`: The author name to use for the project. (By default inferred from $USER)
 * `-m, --usermail TEXT`: The author email to use for the project. (By default empty.)
+* `-r, --git-remote TEXT`: The git remote to use for the project. (By default SETTINGS.TEMPLATE_REMOTE.)
+* `-c, --git-commit TEXT`: The exact git commit to use. May also be a tag or branch (By default latest)
 * `-y, --yes`: Automatically confirm all dialogues with yes.
 * `--help`: Show this message and exit.
 
@@ -429,6 +431,8 @@ $ seml project list-templates [OPTIONS]
 
 **Options**:
 
+* `-r, --git-remote TEXT`: The git remote to use for the project. (By default SETTINGS.TEMPLATE_REMOTE.)
+* `-c, --git-commit TEXT`: The exact git commit to use. May also be a tag or branch (By default latest)
 * `--help`: Show this message and exit.
 
 ## `seml reload-sources`
