@@ -129,13 +129,13 @@ def checkout_template_repo(
             if git_commit is not None:
                 repo.head.reference = repo.commit(git_commit)
                 repo.head.reset(index=True, working_tree=True)
-            yield Path(repo.working_dir)
         except Exception as e:
             logging.error(
                 f'Failed to clone git repository "{git_remote}" to "{tmp_dir}"'
             )
             logging.error(e)
             exit(1)
+        yield Path(repo.working_dir)
 
 
 def get_available_templates(
