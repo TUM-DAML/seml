@@ -4,4 +4,7 @@ include LICENSE
 recursive-exclude test *
 recursive-exclude examples *
 
+global-exclude */__pycache__/*
+global-exclude *.pyc
+
 recursive-include src/seml/templates/ *

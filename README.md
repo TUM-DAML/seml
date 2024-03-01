@@ -33,6 +33,13 @@ Then configure your MongoDB via:
 ```bash
 seml configure  --mongodb # provide your MongoDB credentials
 ```
+For convenience, you may create your first **`SEML`** project via:
+```bash
+# initialize the default template in the 'new_project' folder.
+seml project init -t default new_project
+```
+in an empty directoy. **`SEML`** will automatically create a python package for you.
+
 ### Development
 If you want to develop `seml` please clone the repository and install it via
 ```bash

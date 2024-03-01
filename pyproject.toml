@@ -4,21 +4,19 @@ version = "0.4.2"
 description = "Slurm Experiment Management Library"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 authors = [
-    {name = "Daniel Zügner", email = "zuegnerd@in.tum.de"},
-    {name = "Johannes Gsteiger", email = "johannes.gasteiger@tum.de"},
-    {name = "Nicholas Gao", email = "n.gao@tum.de"},
-    {name = "Dominik Fuchsgruber", email = "d.fuchsgruber@tum.de"},
-    {name = "DAML Group @ TUM"}
+    { name = "Daniel Zügner", email = "zuegnerd@in.tum.de" },
+    { name = "Johannes Gsteiger", email = "johannes.gasteiger@tum.de" },
+    { name = "Nicholas Gao", email = "n.gao@tum.de" },
+    { name = "Dominik Fuchsgruber", email = "d.fuchsgruber@tum.de" },
+    { name = "DAML Group @ TUM" },
 ]
 maintainers = [
-    {name = "Nicholas Gao", email = "n.gao@tum.de"},
-    {name = "Dominik Fuchsgruber", email = "d.fuchsgruber@tum.de"},
+    { name = "Nicholas Gao", email = "n.gao@tum.de" },
+    { name = "Dominik Fuchsgruber", email = "d.fuchsgruber@tum.de" },
 ]
-classifiers = [
-    "Programming Language :: Python"
-]
+classifiers = ["Programming Language :: Python"]
 
 dependencies = [
     "numpy>=1.15",
@@ -34,17 +32,14 @@ dependencies = [
     "typer>=0.9, <1.0",
     "rich>=13.0, <14.0",
     "omegaconf>=2.3.0, <3.0",
+    "gitignore_parser>=0.1.11",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest",
-    "ruff",
-    "pre-commit"
-]
+dev = ["pytest", "ruff", "pre-commit"]
 
 [tool.ruff.format]
-quote-style="single"
+quote-style = "single"
 line-ending = "lf"
 
 [project.urls]
