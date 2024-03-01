@@ -431,6 +431,8 @@ $ seml project list-templates [OPTIONS]
 
 **Options**:
 
+* `-r, --git-remote TEXT`: The git remote to use for the project. (By default SETTINGS.TEMPLATE_REMOTE.)
+* `-c, --git-commit TEXT`: The exact git commit to use. May also be a tag or branch (By default latest)
 * `--help`: Show this message and exit.
 
 ## `seml reload-sources`

@@ -2,9 +2,12 @@ import logging
 import os
 import uuid
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
 
 from seml.settings import SETTINGS
+
+if TYPE_CHECKING:
+    from git import Repo
 
 
 def init_project(
@@ -13,7 +16,7 @@ def init_project(
     user_name: Optional[str] = None,
     user_mail: Optional[str] = None,
     template: str = 'default',
-    git_repo: Optional[str] = None,
+    git_remote: Optional[str] = None,
     git_commit: Optional[str] = None,
     yes: bool = False,
 ):
@@ -42,7 +45,6 @@ def init_project(
         If True, no confirmation is asked before initializing the project.
     """
     from click import prompt
-    from git import Repo
     from gitignore_parser import parse_gitignore
 
     if directory is None:
@@ -61,27 +63,14 @@ def init_project(
         ):
             exit(1)
 
-    if git_repo is None:
-        git_repo = SETTINGS.TEMPLATE_REMOTE
-
-    tmp_dir = Path(SETTINGS.TMP_DIRECTORY) / str(uuid.uuid4())
-    try:
-        repo = Repo.clone_from(git_repo, tmp_dir)
-        if git_commit is not None:
-            repo.head.reference = repo.commit(git_commit)
-            repo.head.reset(index=True, working_tree=True)
-    except Exception as e:
-        logging.error(f'Failed to clone git repository "{git_repo}" to "{tmp_dir}"')
-        logging.error(e)
-        exit(1)
-
+    tmp_dir = checkout_template_repo(git_remote, git_commit)
     template_path = tmp_dir / 'templates' / template
     if not template_path.exists():
         logging.error(f'Template "{template}" does not exist')
         exit(1)
 
     logging.info(
-        f'Initializing project in "{directory}" using template "{template}@{git_repo}"'
+        f'Initializing project in "{directory}" using template "{template}@{git_remote}"'
     )
 
     if project_name is None:
@@ -126,30 +115,63 @@ def init_project(
     logging.info('Project initialized successfully')
 
 
-def get_available_templates():
+def checkout_template_repo(
+    git_remote: Optional[str] = None, git_commit: Optional[str] = None
+) -> 'Repo':
+    from git import Repo
+
+    if git_remote is None:
+        git_remote = SETTINGS.TEMPLATE_REMOTE
+
+    tmp_dir = Path(SETTINGS.TMP_DIRECTORY) / str(uuid.uuid4())
+    try:
+        repo = Repo.clone_from(git_remote, tmp_dir)
+        if git_commit is not None:
+            repo.head.reference = repo.commit(git_commit)
+            repo.head.reset(index=True, working_tree=True)
+        return Path(repo.working_dir)
+    except Exception as e:
+        logging.error(f'Failed to clone git repository "{git_remote}" to "{tmp_dir}"')
+        logging.error(e)
+        exit(1)
+
+
+def get_available_templates(
+    git_remote: Optional[str] = None, git_commit: Optional[str] = None
+) -> list[str]:
     """
     Return a list of available templates.
+
+    Parameters
+    ----------
+    git_remote : Optional[str]
+        The git remote to use.
+    git_commit : Optional[str]
+        The git commit to use.
 
     Returns
     -------
     List[str]
         A list of available templates.
     """
-    import importlib.resources
-
-    return [
-        template.name
-        for template in (
-            Path(str(importlib.resources.files('seml'))) / 'templates' / 'project'
-        ).iterdir()
-    ]
+    repo = checkout_template_repo(git_remote, git_commit)
+    return [template.name for template in (repo / 'templates').iterdir()]
 
 
-def print_available_templates():
+def print_available_templates(
+    git_remote: Optional[str] = None, git_commit: Optional[str] = None
+):
     """
     Print the available templates.
+
+    Parameters
+    ----------
+    git_remote : Optional[str]
+        The git remote to use.
+    git_commit : Optional[str]
+        The git commit to use.
     """
     result = 'Available templates:'
-    for template in get_available_templates():
+    for template in get_available_templates(git_remote, git_commit):
         result += f'\n  - {template}'
     logging.info(result)

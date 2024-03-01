@@ -1073,11 +1073,29 @@ def init_project_command(
 
 @app_project.command('list-templates')
 @restrict_collection(False)
-def list_templates_command(ctx: typer.Context):
+def list_templates_command(
+    ctx: typer.Context,
+    git_remote: Annotated[
+        str,
+        typer.Option(
+            '-r',
+            '--git-remote',
+            help='The git remote to use for the project. (By default SETTINGS.TEMPLATE_REMOTE.)',
+        ),
+    ] = None,
+    git_commit: Annotated[
+        str,
+        typer.Option(
+            '-c',
+            '--git-commit',
+            help='The exact git commit to use. May also be a tag or branch (By default latest)',
+        ),
+    ] = None,
+):
     """
     List available project templates.
     """
-    print_available_templates()
+    print_available_templates(git_remote, git_commit)
 
 
 @dataclass
