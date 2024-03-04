@@ -562,7 +562,7 @@ def resolve_configs(
     exp = exps[0]
     if not isinstance(exp, Experiment):
         logging.warn(
-            'The use of sacred.Experiemnt is deprecated. Please use seml.experiment.Experiment instead.\n'
+            'The use of sacred.Experiment is deprecated. Please use seml.experiment.Experiment instead.\n'
             'seml.experiment.Experiment already includes typical MongoDB observer and logging setups.\n'
             'Please familiar yourself with the new API and adjust your code accordingly.\n'
             'See https://github.com/TUM-DAML/seml/blob/master/examples/example_experiment.py'
