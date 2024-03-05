@@ -1,4 +1,6 @@
 import importlib.metadata
+from typing import TYPE_CHECKING
+
 from seml.observers import *  # noqa
 from seml.evaluation import *  # noqa
 
@@ -20,6 +22,21 @@ def collect_exp_stats(run):
     from seml.experiment import collect_exp_stats
 
     collect_exp_stats(run)
+
+
+if TYPE_CHECKING:
+    from functools import wraps
+    from seml.experiment import Experiment as SemlExperiment
+
+    @wraps(SemlExperiment)
+    def Experiment(*args, **kwargs) -> SemlExperiment:
+        return SemlExperiment(*args, **kwargs)
+else:
+
+    def Experiment(*args, **kwargs) -> 'SemlExperiment':
+        from seml.experiment import Experiment as SemlExperiment
+
+        return SemlExperiment(*args, **kwargs)
 
 
 __version__ = importlib.metadata.version(__package__ or __name__)

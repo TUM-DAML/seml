@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from seml.experiment import Experiment
+from seml import Experiment
 
 
 ex = Experiment()
