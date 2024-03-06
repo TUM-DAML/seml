@@ -82,14 +82,18 @@ def get_imported_sources(executable, root_dir, conda_env, working_dir):
     root_path = str(Path(root_dir).expanduser().resolve())
 
     sources = set()
-    for name, mod in sys.modules.items():
-        if mod is None:
-            continue
-        if not getattr(mod, '__file__', False):
-            continue
-        filename = os.path.abspath(mod.__file__)
-        if filename not in sources and is_local_file(filename, root_path):
-            sources.add(filename)
+    source_added = True
+    while source_added:
+        source_added = False
+        for name, mod in list(sys.modules.items()):
+            if mod is None:
+                continue
+            if not getattr(mod, '__file__', False):
+                continue
+            filename = os.path.abspath(mod.__file__)
+            if filename not in sources and is_local_file(filename, root_path) and not filename in sources:
+                sources.add(filename)
+                source_added = True
 
     return sources
 
