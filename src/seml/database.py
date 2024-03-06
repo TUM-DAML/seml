@@ -298,7 +298,6 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     tq = track(collection_names)
     logging.info('Scanning collections for orphaned artifacts...')
     for collection_name in tq:
-        tq.set_postfix(collection=collection_name)
         collection = db[collection_name]
         experiments = list(
             collection.find(
