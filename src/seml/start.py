@@ -811,7 +811,7 @@ def start_local_worker(
     -------
     None
     """
-    from rich.progress import Progress
+    from seml.console import Progress
 
     check_compute_node()
 

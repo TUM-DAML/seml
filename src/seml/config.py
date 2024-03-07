@@ -444,7 +444,7 @@ def _sacred_create_configs(
         get_scaffolding_and_config_name,
         distribute_presets,
     )
-    from rich.progress import track
+    from seml.console import track
 
     configs_resolved = []
     if named_configs is None:

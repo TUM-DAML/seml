@@ -1049,7 +1049,7 @@ def list_database(
     import pandas as pd
     from rich.align import Align
     from rich.table import Column
-    from rich.progress import track
+    from seml.console import track
 
     from seml.console import console, Table
 

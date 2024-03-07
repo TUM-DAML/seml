@@ -256,7 +256,7 @@ def upload_file(filename, db_collection, batch_id, filetype):
 
 def delete_files(database, file_ids, progress=False):
     import gridfs
-    from rich.progress import track
+    from seml.console import track
 
     fs = gridfs.GridFS(database)
     it = track(file_ids, disable=not progress)
@@ -279,7 +279,7 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     -------
     None
     """
-    from rich.progress import track
+    from seml.console import track
 
     all_collections = not bool(db_collection_name)
     if all_collections:

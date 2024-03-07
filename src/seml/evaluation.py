@@ -60,7 +60,7 @@ def get_results(
     """
     import functools
     import pandas as pd
-    from rich.progress import track
+    from seml.console import track
 
     if fields is None:
         fields = ['config', 'result']

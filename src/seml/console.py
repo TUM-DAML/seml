@@ -4,6 +4,7 @@ from typing import Sequence
 
 import rich
 import rich.box
+import rich.progress
 import rich.table
 from rich.console import Console
 from rich.padding import Padding
@@ -36,7 +37,35 @@ Table = functools.partial(
 )
 
 
+@functools.wraps(rich.progress.track)
+def track(*args, **kwargs):
+    """
+    Wrapper for `rich.progress.track` that uses the global console instance and
+    avoids creating empty ipython widgets in jupyter notebooks.
+
+    Parameters
+    ----------
+    *args : Any
+        Positional arguments to pass to `rich.progress.track`.
+    **kwargs : Any
+        Keyword arguments to pass to `rich.progress.track`.
+    """
+    if kwargs['disable']:
+        return args[0]
+    if console not in kwargs:
+        kwargs['console'] = console
+    return rich.progress.track(*args, **kwargs)
+
+
 def Heading(text: str):
+    """
+    Convenience function to create a seperator in the console.
+
+    Parameters
+    ----------
+    text : str
+        The text to display in the seperator.
+    """
     return Padding(Rule(text, style='red'), pad=(1, 0, 0, 0))
 
 
