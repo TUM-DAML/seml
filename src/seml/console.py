@@ -51,6 +51,8 @@ def track(*args, **kwargs):
         Keyword arguments to pass to `rich.progress.track`.
     """
     if kwargs['disable']:
+        if len(args) == 0:
+            return kwargs['sequence']
         return args[0]
     if console not in kwargs:
         kwargs['console'] = console

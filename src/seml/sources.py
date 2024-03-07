@@ -91,7 +91,7 @@ def get_imported_sources(executable, root_dir, conda_env, working_dir):
             if not getattr(mod, '__file__', False):
                 continue
             filename = os.path.abspath(mod.__file__)
-            if filename not in sources and is_local_file(filename, root_path) and not filename in sources:
+            if filename not in sources and is_local_file(filename, root_path):
                 sources.add(filename)
                 source_added = True
 
