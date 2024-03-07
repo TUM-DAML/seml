@@ -1,4 +1,5 @@
 import copy
+import json
 import logging
 import os
 import shlex
@@ -6,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib
 import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -123,6 +125,10 @@ def get_command_from_exp(
                 f"Starting debug server with IP '{ip_address}' and port '{port}'. "
                 f'Experiment will wait for a debug client to attach.'
             )
+            logging.info(
+                "If you are using VSCode, you can use the 'Debug Launcher' extension to attach: "
+                f'{_generate_debug_attach_url(ip_address, port)}'
+            )
         interpreter = (
             f'python -m debugpy --listen {ip_address}:{port} --wait-for-client'
         )
@@ -130,6 +136,17 @@ def get_command_from_exp(
         interpreter = 'python'
 
     return interpreter, exe, config_strings
+
+
+def _generate_debug_attach_url(ip_address, port):
+    launch_config = {
+        'type': 'debugpy',
+        'request': 'attach',
+        'connect': {'host': ip_address, 'port': port},
+        'pathMappings': [{'localRoot': '${workspaceFolder}', 'remoteRoot': '.'}],
+    }
+    launch_config = urllib.parse.quote(json.dumps(launch_config))
+    return f'vscode://fabiospampinato.vscode-debug-launcher/launch?args={launch_config}'
 
 
 def get_config_overrides(config):
