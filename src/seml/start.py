@@ -125,10 +125,15 @@ def get_command_from_exp(
                 f"Starting debug server with IP '{ip_address}' and port '{port}'. "
                 f'Experiment will wait for a debug client to attach.'
             )
-            logging.info(
-                "If you are using VSCode, you can use the 'Debug Launcher' extension to attach: "
-                f'{_generate_debug_attach_url(ip_address, port)}'
-            )
+            previous_root = logging.root
+            try:
+                logging.basicConfig(force=True, level=logging.INFO)
+                logging.info(
+                    "If you are using VSCode, you can use the 'Debug Launcher' extension to attach: \n"
+                    f'{_generate_debug_attach_url(ip_address, port)}'
+                )
+            finally:
+                logging.root = previous_root
         interpreter = (
             f'python -m debugpy --listen {ip_address}:{port} --wait-for-client'
         )
