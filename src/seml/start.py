@@ -951,7 +951,7 @@ def print_command(
 ):
     import rich
 
-    from seml.console import Heading, console
+    from seml.console import console, Heading
 
     collection = get_collection(db_collection_name)
 
