@@ -21,19 +21,18 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
     return db[collection_name]
 
 
-def get_mongo_client(db_name, host, port, username, password, **kwargs):
-    if 'ssh_config' in kwargs:
+def get_mongo_client(db_name, host, port, username, password, ssh_config=None, **kwargs):
+    if ssh_config is not None:
         try:
             from sshtunnel import SSHTunnelForwarder                 
         except ImportError as e:
             print('Opening ssh tunnel requires https://sshtunnel.readthedocs.io/en/latest/')
             raise e
-        server = SSHTunnelForwarder(**kwargs['ssh_config'])
+        server = SSHTunnelForwarder(**ssh_config)
         server.start()
 
         host = server.local_bind_host
         port = server.local_bind_port
-        kwargs = {k: v for k, v in kwargs.items() if k != 'ssh_config'}
 
     import pymongo
 
@@ -155,7 +154,6 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     if 'ssh_config' not in access_dict:
         return cfg
 
-    print(access_dict['ssh_config'])
     cfg['ssh_config'] = access_dict['ssh_config']
     cfg['ssh_config']['remote_bind_address'] = (db_host, db_port)
     cfg['directConnection'] = True
