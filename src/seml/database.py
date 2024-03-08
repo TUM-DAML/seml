@@ -1,6 +1,8 @@
 import logging
 from typing import List
 
+import yaml
+
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.typer import prompt
@@ -20,6 +22,19 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
 
 
 def get_mongo_client(db_name, host, port, username, password, **kwargs):
+    if 'ssh_config' in kwargs:
+        try:
+            from sshtunnel import SSHTunnelForwarder                 
+        except ImportError as e:
+            print('Opening ssh tunnel requires https://sshtunnel.readthedocs.io/en/latest/')
+            raise e
+        server = SSHTunnelForwarder(**kwargs['ssh_config'])
+        server.start()
+
+        host = server.local_bind_host
+        port = server.local_bind_port
+        kwargs = {k: v for k, v in kwargs.items() if k != 'ssh_config'}
+
     import pymongo
 
     client = pymongo.MongoClient(
@@ -78,6 +93,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
         - username
         - password
         - directConnection
+        - ssh_config (optionally)
 
     Default path is $HOME/.config/seml/mongodb.config.
 
@@ -88,6 +104,11 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     database: <database_name>
     host: <host>
     directConnection: <bool> (Optional)
+    ssh_config: <dict> (Optional)
+      ssh_address_or_host: <the url of the jump host>
+      ssh_pkey: <the ssh host key>
+      ssh_username: <username for jump host>
+      ** further arguments passed to `SSHTunnelForwarder` (see https://github.com/pahaz/sshtunnel)
 
     Returns
     -------
@@ -104,14 +125,8 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
             f"MongoDB credentials could not be read at '{path}'.{config_str}"
         )
 
-    with open(path, 'r') as f:
-        for line in f.readlines():
-            # ignore lines that are empty
-            if len(line.strip()) > 0:
-                split = line.split(':')
-                key = split[0].strip()
-                value = split[1].strip()
-                access_dict[key] = value
+    with open(path, 'r') as conf:
+        access_dict = yaml.safe_load(conf)
 
     required_entries = ['username', 'password', 'port', 'host', 'database']
     for entry in required_entries:
@@ -130,15 +145,22 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
         else False
     )
 
-    return {
-        'password': db_password,
-        'username': db_username,
-        'host': db_host,
-        'db_name': db_name,
-        'port': db_port,
-        'directConnection': db_direct,
-    }
+    cfg = {'password': db_password,
+           'username': db_username,
+           'host': db_host,
+           'db_name': db_name,
+           'port': db_port,
+           'directConnection': db_direct}
 
+    if 'ssh_config' not in access_dict:
+        return cfg
+
+    print(access_dict['ssh_config'])
+    cfg['ssh_config'] = access_dict['ssh_config']
+    cfg['ssh_config']['remote_bind_address'] = (db_host, db_port)
+    cfg['directConnection'] = True
+
+    return cfg
 
 def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
     """
