@@ -14,6 +14,7 @@ from typing import Dict, List, Optional
 
 from seml.config import generate_named_configs
 from seml.config import resolve_interpolations as resolve_config_interpolations
+from seml.console import console
 from seml.database import build_filter_dict, get_collection
 from seml.errors import ArgumentError, ConfigError, MongoDBError
 from seml.json import PythonEncoder
@@ -125,15 +126,13 @@ def get_command_from_exp(
                 f"Starting debug server with IP '{ip_address}' and port '{port}'. "
                 f'Experiment will wait for a debug client to attach.'
             )
-            previous_root = logging.root
-            try:
-                logging.basicConfig(force=True, level=logging.INFO)
-                logging.info(
-                    "If you are using VSCode, you can use the 'Debug Launcher' extension to attach: \n"
-                    f'{_generate_debug_attach_url(ip_address, port)}'
-                )
-            finally:
-                logging.root = previous_root
+            attach_link = _generate_debug_attach_url(ip_address, port)
+
+            logging.info(
+                "If you are using VSCode, you can use the 'Debug Launcher' extension to attach: \n"
+            )
+            console.out(attach_link)
+
         interpreter = (
             f'python -m debugpy --listen {ip_address}:{port} --wait-for-client'
         )
