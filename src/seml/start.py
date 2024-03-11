@@ -8,8 +8,10 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
+from seml.config import generate_named_configs
+from seml.config import resolve_interpolations as resolve_config_interpolations
 from seml.database import build_filter_dict, get_collection
 from seml.errors import ArgumentError, ConfigError, MongoDBError
 from seml.json import PythonEncoder
@@ -17,9 +19,7 @@ from seml.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.network import find_free_port
 from seml.settings import SETTINGS
 from seml.sources import load_sources_from_db
-from seml.utils import s_if, load_text_resource
-from seml.config import generate_named_configs
-from seml.config import resolve_interpolations as resolve_config_interpolations
+from seml.utils import load_text_resource, s_if
 
 States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
@@ -811,7 +811,7 @@ def start_local_worker(
     -------
     None
     """
-    from seml.console import Progress
+    from rich.progress import Progress
 
     check_compute_node()
 
@@ -926,7 +926,7 @@ def print_command(
 ):
     import rich
 
-    from seml.console import console, Heading
+    from seml.console import Heading, console
 
     collection = get_collection(db_collection_name)
 
