@@ -56,7 +56,19 @@ def track(*args, **kwargs):
         return args[0]
     if console not in kwargs:
         kwargs['console'] = console
-    return rich.progress.track(*args, **kwargs)
+
+    def iterator():
+        # This iterator is used to make sure that there is only one live object at a time.
+        prev_live = console._live
+        if prev_live:
+            prev_live.stop()
+        console.clear_live()
+        for result in rich.progress.track(*args, **kwargs):
+            yield result
+        if prev_live:
+            prev_live.start()
+
+    return iterator()
 
 
 def Heading(text: str):

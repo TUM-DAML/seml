@@ -1173,8 +1173,15 @@ def main():
     for args in split_args(sys.argv[1:], command_tree(app))[0]:
         # The app will typically exit after running once.
         # We want to run it multiple times, so we catch the SystemExit exception.
+        from seml.console import console
+
         try:
-            app(args)
+            if len(args) >= 2:
+                cmd = args[1]
+            else:
+                cmd = None
+            with console.status(f'Running command: {cmd}'):
+                app(args)
         except SystemExit as e:
             if e.code == 0:
                 continue
