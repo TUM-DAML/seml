@@ -54,8 +54,10 @@ def track(*args, **kwargs):
     # ipywidgets in jupyter instances.
     if kwargs['disable']:
         if len(args) == 0:
-            return kwargs['sequence']
-        return args[0]
+            yield from kwargs['sequence']
+        else:
+            yield from args[0]
+        return
 
     if console not in kwargs:
         kwargs['console'] = console
