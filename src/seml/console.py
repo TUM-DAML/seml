@@ -50,25 +50,25 @@ def track(*args, **kwargs):
     **kwargs : Any
         Keyword arguments to pass to `rich.progress.track`.
     """
+    # Directly return the sequence if the track is disabled. This avoids empty
+    # ipywidgets in jupyter instances.
     if kwargs['disable']:
         if len(args) == 0:
             return kwargs['sequence']
         return args[0]
+
     if console not in kwargs:
         kwargs['console'] = console
 
-    def iterator():
-        # This iterator is used to make sure that there is only one live object at a time.
-        prev_live = console._live
-        if prev_live:
-            prev_live.stop()
-        console.clear_live()
-        for result in rich.progress.track(*args, **kwargs):
-            yield result
-        if prev_live:
-            prev_live.start()
-
-    return iterator()
+    # Since there can only be one live instance at a time, we first need to stop
+    # the previous one and then restart it after the new one is done.
+    prev_live = console._live
+    if prev_live:
+        prev_live.stop()
+    console.clear_live()
+    yield from rich.progress.track(*args, **kwargs)
+    if prev_live:
+        prev_live.start()
 
 
 def Heading(text: str):
