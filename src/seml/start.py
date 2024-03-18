@@ -440,6 +440,7 @@ def start_local_job(
     True if job was executed successfully; False if it failed; None if job was not started because the database entry
     was not in the PENDING state.
     """
+    from seml.console import pause_live_widget
 
     use_stored_sources = 'source_files' in exp['seml']
 
@@ -509,14 +510,17 @@ def start_local_job(
 
         if output_dir_path:
             if output_to_console:
-                subprocess.run(cmd, shell=True, check=True)
+                # Let's pause the live widget so we can actually see the output.
+                with pause_live_widget():
+                    subprocess.run(cmd, shell=True, check=True)
             else:  # redirect output to logfile
                 with open(output_file, 'w') as log_file:
                     subprocess.run(
                         cmd, shell=True, stderr=log_file, stdout=log_file, check=True
                     )
         else:
-            subprocess.run(cmd, shell=True, check=True)
+            with pause_live_widget():
+                subprocess.run(cmd, shell=True, check=True)
 
     except subprocess.CalledProcessError:
         success = False
