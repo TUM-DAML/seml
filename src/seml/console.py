@@ -1,5 +1,6 @@
 import functools
 import os
+from contextlib import contextmanager
 from typing import Sequence
 
 import rich
@@ -10,6 +11,7 @@ from rich.console import Console
 from rich.padding import Padding
 from rich.rule import Rule
 
+from seml.typer import prompt as typer_prompt
 
 try:
     terminal_width = os.get_terminal_size().columns
@@ -35,6 +37,17 @@ Table = functools.partial(
     ),
     highlight=True,
 )
+
+
+@contextmanager
+def pause_live_widget():
+    prev_live = console._live
+    if prev_live:
+        prev_live.stop()
+    console.clear_live()
+    yield
+    if prev_live:
+        prev_live.start()
 
 
 @functools.wraps(rich.progress.track)
@@ -64,13 +77,14 @@ def track(*args, **kwargs):
 
     # Since there can only be one live instance at a time, we first need to stop
     # the previous one and then restart it after the new one is done.
-    prev_live = console._live
-    if prev_live:
-        prev_live.stop()
-    console.clear_live()
-    yield from rich.progress.track(*args, **kwargs)
-    if prev_live:
-        prev_live.start()
+    with pause_live_widget():
+        yield from rich.progress.track(*args, **kwargs)
+
+
+@functools.wraps(typer_prompt)
+def prompt(*args, **kwargs):
+    with pause_live_widget():
+        return typer_prompt(*args, **kwargs)
 
 
 def Heading(text: str):

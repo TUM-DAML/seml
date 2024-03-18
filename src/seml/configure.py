@@ -1,10 +1,11 @@
 import logging
 
 from seml.settings import SETTINGS
-from seml.typer import prompt
 
 
 def mongodb_configure():
+    from seml.console import prompt
+
     if SETTINGS.DATABASE.MONGODB_CONFIG_PATH.exists() and not prompt(
         f'MongoDB configuration {SETTINGS.DATABASE.MONGODB_CONFIG_PATH} already exists and will be overwritten.\nContinue?',
         type=bool,

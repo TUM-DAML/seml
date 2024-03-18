@@ -5,7 +5,6 @@ from seml.database import build_filter_dict, get_collection
 from seml.errors import MongoDBError
 from seml.manage import detect_killed
 from seml.settings import SETTINGS
-from seml.typer import prompt
 from seml.utils import slice_to_str, to_slices
 
 States = SETTINGS.STATES
@@ -56,6 +55,7 @@ def collection_set_description(
         Whether to use omegaconf to resolve descriptions
     """
     from pymongo import UpdateOne
+    from seml.console import prompt
 
     collection = get_collection(db_collection_name)
 
@@ -129,6 +129,8 @@ def collection_delete_description(
     yes : bool, optional
         Whether to override confirmation prompts, by default False
     """
+    from seml.console import prompt
+
     collection = get_collection(db_collection_name)
     update = {'$unset': {'seml.description': ''}}
     filter_dict = build_filter_dict(
