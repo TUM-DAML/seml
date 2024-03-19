@@ -14,7 +14,6 @@ from typing import Dict, List, Optional
 
 from seml.config import generate_named_configs
 from seml.config import resolve_interpolations as resolve_config_interpolations
-from seml.console import console
 from seml.database import build_filter_dict, get_collection
 from seml.errors import ArgumentError, ConfigError, MongoDBError
 from seml.json import PythonEncoder
@@ -120,6 +119,8 @@ def get_command_from_exp(
         config_strings.append('--debug')
 
     if debug_server:
+        from seml.console import console
+
         ip_address, port = find_free_port()
         if print_info:
             logging.info(
@@ -129,7 +130,7 @@ def get_command_from_exp(
             attach_link = _generate_debug_attach_url(ip_address, port)
 
             logging.info(
-                "If you are using VSCode, you can use the 'Debug Launcher' extension to attach: \n"
+                "If you are using VSCode, you can use the 'Debug Launcher' extension to attach:"
             )
             console.out(attach_link)
 
@@ -951,7 +952,7 @@ def print_command(
 ):
     import rich
 
-    from seml.console import console, Heading
+    from seml.console import Heading, console
 
     collection = get_collection(db_collection_name)
 
