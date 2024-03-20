@@ -49,6 +49,8 @@ def get_command_from_exp(
     unresolved=False,
     resolve_interpolations: bool = True,
 ):
+    from seml.console import console
+
     if 'executable' not in exp['seml']:
         raise MongoDBError(
             f"No executable found for experiment {exp['_id']}. Aborting."
@@ -119,8 +121,6 @@ def get_command_from_exp(
         config_strings.append('--debug')
 
     if debug_server:
-        from seml.console import console
-
         ip_address, port = find_free_port()
         if print_info:
             logging.info(
@@ -402,31 +402,33 @@ def start_srun_job(
     -------
     None
     """
+    from seml.console import pause_live_widget
 
-    # Construct srun options string
-    # srun will run 2 processes in parallel when ntasks is not specified. Probably because of hyperthreading.
-    if 'ntasks' not in srun_options:
-        srun_options['ntasks'] = 1
-    srun_options_str = create_slurm_options_string(srun_options, True)
+    with pause_live_widget():
+        # Construct srun options string
+        # srun will run 2 processes in parallel when ntasks is not specified. Probably because of hyperthreading.
+        if 'ntasks' not in srun_options:
+            srun_options['ntasks'] = 1
+        srun_options_str = create_slurm_options_string(srun_options, True)
 
-    if not unobserved:
-        collection.update_one(
-            {'_id': exp['_id']}, {'$set': {'slurm.sbatch_options': srun_options}}
-        )
+        if not unobserved:
+            collection.update_one(
+                {'_id': exp['_id']}, {'$set': {'slurm.sbatch_options': srun_options}}
+            )
 
-    # Set command args for job inside Slurm
-    cmd_args = f"--local --sacred-id {exp['_id']} "
-    cmd_args += ' '.join(seml_arguments)
+        # Set command args for job inside Slurm
+        cmd_args = f"--local --sacred-id {exp['_id']} "
+        cmd_args += ' '.join(seml_arguments)
 
-    cmd = f'srun{srun_options_str} seml {collection.name} start {cmd_args}'
-    try:
-        subprocess.run(cmd, shell=True, check=True)
-    except subprocess.CalledProcessError as e:
-        logging.error(
-            f"Could not start Slurm job via srun. Here's the sbatch error message:\n"
-            f"{e.stderr.decode('utf-8')}"
-        )
-        exit(1)
+        cmd = f'srun{srun_options_str} seml {collection.name} start {cmd_args}'
+        try:
+            subprocess.run(cmd, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            logging.error(
+                f"Could not start Slurm job via srun. Here's the sbatch error message:\n"
+                f"{e.stderr.decode('utf-8')}"
+            )
+            exit(1)
 
 
 def start_local_job(
@@ -839,6 +841,8 @@ def start_local_worker(
     """
     from rich.progress import Progress
 
+    from seml.console import pause_live_widget
+
     check_compute_node()
 
     if 'SLURM_JOBID' in os.environ:
@@ -876,65 +880,69 @@ def start_local_worker(
 
     exp_query.update(filter_dict)
 
-    with Progress(auto_refresh=False) as progress:
-        task = progress.add_task('Running experiments...', total=None)
-        while collection.count_documents(exp_query) > 0 and jobs_counter < num_exps:
-            if unobserved:
-                exp = collection.find_one(exp_query)
-            else:
-                exp = collection.find_one_and_update(
-                    exp_query, {'$set': {'status': States.RUNNING[0]}}
+    with pause_live_widget():
+        with Progress(auto_refresh=False) as progress:
+            task = progress.add_task('Running experiments...', total=None)
+            while collection.count_documents(exp_query) > 0 and jobs_counter < num_exps:
+                if unobserved:
+                    exp = collection.find_one(exp_query)
+                else:
+                    exp = collection.find_one_and_update(
+                        exp_query, {'$set': {'status': States.RUNNING[0]}}
+                    )
+                if exp is None:
+                    continue
+                if 'array_id' in exp['slurm']:
+                    # Clean up MongoDB entry
+                    slurm_ids = {
+                        'array_id': exp['slurm']['array_id'],
+                        'task_id': exp['slurm']['task_id'],
+                    }
+                    reset_slurm_dict(exp)
+                    collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
+
+                    # Cancel Slurm job; after cleaning up to prevent race conditions
+                    cancel_experiment_by_id(
+                        collection,
+                        exp['_id'],
+                        set_interrupted=False,
+                        slurm_dict=slurm_ids,
+                    )
+
+                progress.console.print(
+                    f"current id : {exp['_id']}, failed={num_exceptions}/{jobs_counter} experiments"
                 )
-            if exp is None:
-                continue
-            if 'array_id' in exp['slurm']:
-                # Clean up MongoDB entry
-                slurm_ids = {
-                    'array_id': exp['slurm']['array_id'],
-                    'task_id': exp['slurm']['task_id'],
-                }
-                reset_slurm_dict(exp)
-                collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
 
-                # Cancel Slurm job; after cleaning up to prevent race conditions
-                cancel_experiment_by_id(
-                    collection, exp['_id'], set_interrupted=False, slurm_dict=slurm_ids
-                )
+                # Add newline if we need to avoid tqdm's output
+                if (
+                    debug_server
+                    or output_to_console
+                    or logging.root.level <= logging.VERBOSE
+                ):
+                    print(file=sys.stderr)
 
-            progress.console.print(
-                f"current id : {exp['_id']}, failed={num_exceptions}/{jobs_counter} experiments"
-            )
-
-            # Add newline if we need to avoid tqdm's output
-            if (
-                debug_server
-                or output_to_console
-                or logging.root.level <= logging.VERBOSE
-            ):
-                print(file=sys.stderr)
-
-            if output_to_file:
-                output_dir_path = get_output_dir_path(exp)
-            else:
-                output_dir_path = None
-            try:
-                success = start_local_job(
-                    collection=collection,
-                    exp=exp,
-                    unobserved=unobserved,
-                    post_mortem=post_mortem,
-                    output_dir_path=output_dir_path,
-                    output_to_console=output_to_console,
-                    debug_server=debug_server,
-                )
-                if success is False:
-                    num_exceptions += 1
-            except KeyboardInterrupt:
-                logging.info('Caught KeyboardInterrupt signal. Aborting.')
-                exit(1)
-            jobs_counter += 1
-            progress.advance(task)
-            # tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
+                if output_to_file:
+                    output_dir_path = get_output_dir_path(exp)
+                else:
+                    output_dir_path = None
+                try:
+                    success = start_local_job(
+                        collection=collection,
+                        exp=exp,
+                        unobserved=unobserved,
+                        post_mortem=post_mortem,
+                        output_dir_path=output_dir_path,
+                        output_to_console=output_to_console,
+                        debug_server=debug_server,
+                    )
+                    if success is False:
+                        num_exceptions += 1
+                except KeyboardInterrupt:
+                    logging.info('Caught KeyboardInterrupt signal. Aborting.')
+                    exit(1)
+                jobs_counter += 1
+                progress.advance(task)
+                # tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
 
 
 def print_command(
