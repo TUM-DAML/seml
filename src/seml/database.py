@@ -1,4 +1,6 @@
+import random
 import logging
+import time
 from typing import List
 
 import yaml
@@ -21,15 +23,42 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
     return db[collection_name]
 
 
+def retried_and_locked_ssh_port_forward(
+        retries_max=6, retries_delay=1, lock_file='~/seml_ssh.lock', lock_timeout=30, **ssh_config):
+    try:
+        from sshtunnel import SSHTunnelForwarder, BaseSSHTunnelForwarderError
+    except ImportError as e:
+        print('Opening ssh tunnel requires `sshtunnel` (e.g. `pip install sshtunnel`)')
+        raise e
+    try:
+        from filelock import Timeout, FileLock
+    except ImportError as e:
+        print('Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)')
+        raise e
+    
+    delay = retries_delay
+    for _ in range(retries_max):
+        try:
+            lock = FileLock(lock_file, timeout=lock_timeout)
+            with lock:
+                server = SSHTunnelForwarder(**ssh_config)
+                server.start()
+                return server
+        except Timeout as e:
+            logging.warn(f'Failed to aquire lock for ssh tunnel {lock_file}')
+        except BaseSSHTunnelForwarderError as e:
+            logging.warn(f'Retry establishing ssh tunnel in {delay} s')
+            # Jittered exponential retry
+            time.sleep(delay)
+            delay *= 2
+            delay += random.uniform(0, 1)
+
+    raise e
+
+
 def get_mongo_client(db_name, host, port, username, password, ssh_config=None, **kwargs):
     if ssh_config is not None:
-        try:
-            from sshtunnel import SSHTunnelForwarder                 
-        except ImportError as e:
-            print('Opening ssh tunnel requires https://sshtunnel.readthedocs.io/en/latest/')
-            raise e
-        server = SSHTunnelForwarder(**ssh_config)
-        server.start()
+        server = retried_and_locked_ssh_port_forward(**ssh_config)
 
         host = server.local_bind_host
         port = server.local_bind_port
@@ -91,8 +120,8 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
         - database name
         - username
         - password
-        - directConnection
-        - ssh_config (optionally)
+        - directConnectiong (Optional)
+        - ssh_config (Optional)
 
     Default path is $HOME/.config/seml/mongodb.config.
 
@@ -107,6 +136,10 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
       ssh_address_or_host: <the url of the jump host>
       ssh_pkey: <the ssh host key>
       ssh_username: <username for jump host>
+      retries_max: <number of retries to establish shh tunnel, default 6> (Optional)
+      retries_delay: <initial wait time for exponential retry, default 1> (Optional)
+      lock_file: <lockfile to avoid establishing ssh tunnel parallely, default `~/seml_ssh.lock`> (Optional)
+      lock_timeout: <timeout for aquiring lock, default 30> (Optional)
       ** further arguments passed to `SSHTunnelForwarder` (see https://github.com/pahaz/sshtunnel)
 
     Returns
