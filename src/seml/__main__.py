@@ -356,27 +356,20 @@ def clean_db_command(ctx: typer.Context, yes: YesAnnotation = False):
 @restrict_collection(False)
 def configure_command(
     ctx: typer.Context,
-    all: Annotated[
+    ssh_forward: Annotated[
         bool,
         typer.Option(
-            '-a',
-            '--all',
-            help='Configure all SEML settings',
+            '-sf',
+            '--ssh-forward',
+            help='Configure SSH forwarding settings for MongoDB.',
             is_flag=True,
         ),
     ] = False,
-    mongodb: Annotated[
-        bool,
-        typer.Option(
-            help='Configure MongoDB settings',
-            is_flag=True,
-        ),
-    ] = True,
 ):
     """
     Configure SEML (database, argument completion, ...).
     """
-    configure(all=all, mongodb=mongodb)
+    configure(all=False, mongodb=True, setup_ssh_forward=ssh_forward)
 
 
 @app.command('start-jupyter')

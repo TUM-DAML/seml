@@ -36,6 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "pre-commit"]
+ssh_forward = ["sshtunnel>=0.4.0", "filelock>=3.13.3"]
 
 [tool.ruff.format]
 quote-style = "single"

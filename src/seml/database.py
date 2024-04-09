@@ -1,5 +1,5 @@
-import random
 import logging
+import random
 import time
 from typing import List
 
@@ -24,39 +24,62 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
 
 
 def retried_and_locked_ssh_port_forward(
-        retries_max=6, retries_delay=1, lock_file='~/seml_ssh.lock', lock_timeout=30, **ssh_config):
+    retries_max=SETTINGS.SSH_FORWARD.RETRIES_MAX,
+    retries_delay=SETTINGS.SSH_FORWARD.RETRIES_DELAY,
+    lock_file=SETTINGS.SSH_FORWARD.LOCK_FILE,
+    lock_timeout=SETTINGS.SSH_FORWARD.LOCK_TIMEOUT,
+    **ssh_config,
+):
     try:
-        from sshtunnel import SSHTunnelForwarder, BaseSSHTunnelForwarderError
-    except ImportError as e:
-        print('Opening ssh tunnel requires `sshtunnel` (e.g. `pip install sshtunnel`)')
-        raise e
+        from sshtunnel import (
+            BaseSSHTunnelForwarderError,
+            SSHTunnelForwarder,
+            create_logger,
+        )
+    except ImportError:
+        logging.error(
+            'Opening ssh tunnel requires `sshtunnel` (e.g. `pip install sshtunnel`)'
+        )
+        exit(1)
     try:
-        from filelock import Timeout, FileLock
-    except ImportError as e:
-        print('Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)')
-        raise e
-    
+        from filelock import FileLock, Timeout
+    except ImportError:
+        logging.error(
+            'Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)'
+        )
+        exit(1)
+
     delay = retries_delay
+    error = None
     for _ in range(retries_max):
         try:
             lock = FileLock(lock_file, timeout=lock_timeout)
             with lock:
-                server = SSHTunnelForwarder(**ssh_config)
+                server = SSHTunnelForwarder(
+                    **ssh_config,
+                    logger=create_logger(logging.getLogger(), loglevel=logging.ERROR),
+                )
                 server.start()
                 return server
         except Timeout as e:
+            error = e
             logging.warn(f'Failed to aquire lock for ssh tunnel {lock_file}')
         except BaseSSHTunnelForwarderError as e:
+            error = e
             logging.warn(f'Retry establishing ssh tunnel in {delay} s')
             # Jittered exponential retry
             time.sleep(delay)
             delay *= 2
             delay += random.uniform(0, 1)
 
-    raise e
+    if error:
+        logging.error(f'Failed to establish ssh tunnel: {error}')
+        exit(1)
 
 
-def get_mongo_client(db_name, host, port, username, password, ssh_config=None, **kwargs):
+def get_mongo_client(
+    db_name, host, port, username, password, ssh_config=None, **kwargs
+):
     if ssh_config is not None:
         server = retried_and_locked_ssh_port_forward(**ssh_config)
 
@@ -120,7 +143,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
         - database name
         - username
         - password
-        - directConnectiong (Optional)
+        - directConnection (Optional)
         - ssh_config (Optional)
 
     Default path is $HOME/.config/seml/mongodb.config.
@@ -177,12 +200,14 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
         else False
     )
 
-    cfg = {'password': db_password,
-           'username': db_username,
-           'host': db_host,
-           'db_name': db_name,
-           'port': db_port,
-           'directConnection': db_direct}
+    cfg = {
+        'password': db_password,
+        'username': db_username,
+        'host': db_host,
+        'db_name': db_name,
+        'port': db_port,
+        'directConnection': db_direct,
+    }
 
     if 'ssh_config' not in access_dict:
         return cfg
@@ -192,6 +217,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     cfg['directConnection'] = True
 
     return cfg
+
 
 def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
     """
@@ -309,6 +335,7 @@ def upload_file(filename, db_collection, batch_id, filetype):
 
 def delete_files(database, file_ids, progress=False):
     import gridfs
+
     from seml.console import track
 
     fs = gridfs.GridFS(database)
