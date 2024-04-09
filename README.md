@@ -7,7 +7,7 @@ Keeping track of computational experiments can be annoying and failure to do so 
 While workload scheduling systems such as [`Slurm`](https://slurm.schedmd.com/overview.html) make it easy to run many experiments in parallel on a cluster, it can be hard to keep track of which parameter configurations are running, failed, or completed.
 [`sacred`](https://github.com/IDSIA/sacred) is a great tool to collect and manage experiments and their results, especially when used with a [`MongoDB`](https://www.mongodb.com/). However, it is lacking integration with workload schedulers.
 
-**`SEML`** enables you to 
+**`SEML`** enables you to
 * very easily define hyperparameter search spaces using YAML files,
 * run these hyperparameter configurations on a compute cluster using `Slurm`,
 * and to track the experimental results using `sacred` and `MongoDB`.
@@ -31,7 +31,7 @@ conda install -c conda-forge seml
 ```
 Then configure your MongoDB via:
 ```bash
-seml configure  --mongodb # provide your MongoDB credentials
+seml configure
 ```
 For convenience, you may create your first **`SEML`** project via:
 ```bash
@@ -39,6 +39,17 @@ For convenience, you may create your first **`SEML`** project via:
 seml project init -t default new_project
 ```
 in an empty directoy. **`SEML`** will automatically create a python package for you.
+
+
+### SSH Port Forwarding
+If your MongoDB is only accessible via an SSH port forward, **`SEML`** allows you to directly configure this as well if you install the `ssh_forward` dependencies via:
+```bash
+pip install seml[ssh_forward]
+```
+It remains to configure the SSH settings:
+```bash
+seml configure --ssh_forward
+```
 
 ### Development
 If you want to develop `seml` please clone the repository and install it via
@@ -48,7 +59,7 @@ pip install -e .[dev]
 and install pre-commit hooks via
 ```bash
 pre-commit install
-``` 
+```
 
 ## Documentation
 Documentation is available in our [docs.md](docs.md) or via the CLI:

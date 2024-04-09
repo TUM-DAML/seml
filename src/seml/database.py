@@ -1,5 +1,9 @@
 import logging
+import random
+import time
 from typing import List
+
+import yaml
 
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
@@ -18,7 +22,69 @@ def get_collection(collection_name, mongodb_config=None, suffix=None):
     return db[collection_name]
 
 
-def get_mongo_client(db_name, host, port, username, password, **kwargs):
+def retried_and_locked_ssh_port_forward(
+    retries_max=SETTINGS.SSH_FORWARD.RETRIES_MAX,
+    retries_delay=SETTINGS.SSH_FORWARD.RETRIES_DELAY,
+    lock_file=SETTINGS.SSH_FORWARD.LOCK_FILE,
+    lock_timeout=SETTINGS.SSH_FORWARD.LOCK_TIMEOUT,
+    **ssh_config,
+):
+    try:
+        from sshtunnel import (
+            BaseSSHTunnelForwarderError,
+            SSHTunnelForwarder,
+            create_logger,
+        )
+    except ImportError:
+        logging.error(
+            'Opening ssh tunnel requires `sshtunnel` (e.g. `pip install sshtunnel`)'
+        )
+        exit(1)
+    try:
+        from filelock import FileLock, Timeout
+    except ImportError:
+        logging.error(
+            'Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)'
+        )
+        exit(1)
+
+    delay = retries_delay
+    error = None
+    for _ in range(retries_max):
+        try:
+            lock = FileLock(lock_file, timeout=lock_timeout)
+            with lock:
+                server = SSHTunnelForwarder(
+                    **ssh_config,
+                    logger=create_logger(logging.getLogger(), loglevel=logging.ERROR),
+                )
+                server.start()
+                return server
+        except Timeout as e:
+            error = e
+            logging.warn(f'Failed to aquire lock for ssh tunnel {lock_file}')
+        except BaseSSHTunnelForwarderError as e:
+            error = e
+            logging.warn(f'Retry establishing ssh tunnel in {delay} s')
+            # Jittered exponential retry
+            time.sleep(delay)
+            delay *= 2
+            delay += random.uniform(0, 1)
+
+    if error:
+        logging.error(f'Failed to establish ssh tunnel: {error}')
+        exit(1)
+
+
+def get_mongo_client(
+    db_name, host, port, username, password, ssh_config=None, **kwargs
+):
+    if ssh_config is not None:
+        server = retried_and_locked_ssh_port_forward(**ssh_config)
+
+        host = server.local_bind_host
+        port = server.local_bind_port
+
     import pymongo
 
     client = pymongo.MongoClient(
@@ -76,7 +142,8 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
         - database name
         - username
         - password
-        - directConnection
+        - directConnection (Optional)
+        - ssh_config (Optional)
 
     Default path is $HOME/.config/seml/mongodb.config.
 
@@ -87,6 +154,15 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     database: <database_name>
     host: <host>
     directConnection: <bool> (Optional)
+    ssh_config: <dict> (Optional)
+      ssh_address_or_host: <the url of the jump host>
+      ssh_pkey: <the ssh host key>
+      ssh_username: <username for jump host>
+      retries_max: <number of retries to establish shh tunnel, default 6> (Optional)
+      retries_delay: <initial wait time for exponential retry, default 1> (Optional)
+      lock_file: <lockfile to avoid establishing ssh tunnel parallely, default `~/seml_ssh.lock`> (Optional)
+      lock_timeout: <timeout for aquiring lock, default 30> (Optional)
+      ** further arguments passed to `SSHTunnelForwarder` (see https://github.com/pahaz/sshtunnel)
 
     Returns
     -------
@@ -103,14 +179,8 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
             f"MongoDB credentials could not be read at '{path}'.{config_str}"
         )
 
-    with open(path, 'r') as f:
-        for line in f.readlines():
-            # ignore lines that are empty
-            if len(line.strip()) > 0:
-                split = line.split(':')
-                key = split[0].strip()
-                value = split[1].strip()
-                access_dict[key] = value
+    with open(path, 'r') as conf:
+        access_dict = yaml.safe_load(conf)
 
     required_entries = ['username', 'password', 'port', 'host', 'database']
     for entry in required_entries:
@@ -129,7 +199,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
         else False
     )
 
-    return {
+    cfg = {
         'password': db_password,
         'username': db_username,
         'host': db_host,
@@ -137,6 +207,15 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
         'port': db_port,
         'directConnection': db_direct,
     }
+
+    if 'ssh_config' not in access_dict:
+        return cfg
+
+    cfg['ssh_config'] = access_dict['ssh_config']
+    cfg['ssh_config']['remote_bind_address'] = (db_host, db_port)
+    cfg['directConnection'] = True
+
+    return cfg
 
 
 def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
@@ -255,6 +334,7 @@ def upload_file(filename, db_collection, batch_id, filetype):
 
 def delete_files(database, file_ids, progress=False):
     import gridfs
+
     from seml.console import track
 
     fs = gridfs.GridFS(database)

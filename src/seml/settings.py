@@ -145,6 +145,12 @@ SETTINGS = munchify(
         'AUTOCOMPLETE_CACHE_ALIVE_TIME': 300,
         'SETUP_COMMAND': '',
         'END_COMMAND': '',
+        'SSH_FORWARD': {
+            'LOCK_FILE': '/tmp/seml_ssh_forward.lock',
+            'RETRIES_MAX': 6,
+            'RETRIES_DELAY': 1,
+            'LOCK_TIMEOUT': 30,
+        },
     },
 )
 
