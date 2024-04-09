@@ -32,6 +32,7 @@ dependencies = [
     "rich>=13.0, <14.0",
     "omegaconf>=2.3.0, <3.0",
     "gitignore_parser>=0.1.11",
+    "setuptools>=69.2.0",
 ]
 
 [project.optional-dependencies]
