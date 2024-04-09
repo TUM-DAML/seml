@@ -24,7 +24,6 @@ from seml.database import (
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
-from seml.typer import prompt
 from seml.utils import (
     chunker,
     flatten,
@@ -166,6 +165,8 @@ def cancel_experiments(
     wait : bool, optional
         Whether to wait for all experiments be cancelled (by checking the slurm queue), by default False
     """
+    from seml.console import prompt
+
     collection = get_collection(db_collection_name)
     # We check whether there are slurm jobs for which after this action no
     # RUNNING experiment remains. These slurm jobs can be killed altogether.
@@ -287,6 +288,8 @@ def delete_experiments(
     yes : bool, optional
         Whether to override confirmation prompts, by default False
     """
+    from seml.console import prompt
+
     collection = get_collection(db_collection_name)
     experiment_files_to_delete = []
 
@@ -347,7 +350,7 @@ def drop_collections(
     yes : bool
         Whether to override confirmation prompts
     """
-    from seml.console import list_items
+    from seml.console import list_items, prompt
 
     # Get the database
     if mongodb_config is None:
@@ -460,6 +463,7 @@ def reset_experiments(
     yes : bool, optional
         Whether to override confirmation prompts, by default False
     """
+    from seml.console import prompt
 
     collection = get_collection(db_collection_name)
     if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
@@ -632,6 +636,7 @@ def reload_sources(
     import gridfs
     from pymongo import UpdateOne
     from importlib.metadata import version
+    from seml.console import prompt
 
     collection = get_collection(db_collection_name)
 

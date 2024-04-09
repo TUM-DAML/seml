@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Set
 
 from seml.database import delete_files, upload_file
 from seml.errors import ExecutableError, MongoDBError
@@ -77,7 +78,19 @@ def import_exe(executable, conda_env, working_dir):
     return exe_module
 
 
-def get_imported_sources(executable, root_dir, conda_env, working_dir):
+def get_imported_sources(executable, root_dir, conda_env, working_dir, stash_all_py_files: bool) -> Set[str]:
+    """Get the sources imported by the given executable.
+
+    Args:
+        executable (_type_): The Python file containing the experiment.
+        root_dir (_type_): The root directory of the experiment.
+        conda_env (_type_): The experiment's Anaconda environment.
+        working_dir (_type_): The working directory of the experiment.
+        stash_all_py_files (_type_): Whether to stash all .py files in the working directory.
+
+    Returns:
+        List[str]: The sources imported by the given executable.
+    """
     import_exe(executable, conda_env, working_dir)
     root_path = str(Path(root_dir).expanduser().resolve())
 
@@ -95,6 +108,10 @@ def get_imported_sources(executable, root_dir, conda_env, working_dir):
                 sources.add(filename)
                 source_added = True
 
+    if stash_all_py_files:
+        for file in Path(working_dir).glob('**/*.py'):
+            sources.add(str(file))
+
     return sources
 
 
@@ -107,6 +124,7 @@ def upload_sources(seml_config, collection, batch_id):
             root_dir=root_dir,
             conda_env=seml_config['conda_environment'],
             working_dir=seml_config['working_dir'],
+            stash_all_py_files=seml_config.get('stash_all_py_files', False),
         )
         executable_abs = str(Path(seml_config['executable']).expanduser().resolve())
 

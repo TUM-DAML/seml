@@ -7,7 +7,6 @@ import yaml
 
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
-from seml.typer import prompt
 from seml.utils import s_if
 
 States = SETTINGS.STATES
@@ -359,7 +358,7 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     -------
     None
     """
-    from seml.console import track
+    from seml.console import prompt, track
 
     all_collections = not bool(db_collection_name)
     if all_collections:

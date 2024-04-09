@@ -41,7 +41,7 @@ def init_project(
     yes : bool
         If True, no confirmation is asked before initializing the project.
     """
-    from click import prompt
+    from seml.console import prompt
     from gitignore_parser import parse_gitignore
 
     if directory is None:

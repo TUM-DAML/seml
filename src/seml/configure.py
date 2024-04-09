@@ -2,7 +2,6 @@ import logging
 import yaml
 
 from seml.settings import SETTINGS
-from seml.typer import prompt
 
 
 def prompt_ssh_forward():
@@ -10,6 +9,8 @@ def prompt_ssh_forward():
     Prompt the user for SSH Forward settings. The output format corresponds
     to the argument of sshtunnel.SSHTunnelForwarder.
     """
+    from seml.console import prompt
+    
     logging.info('Configuring SSH Forward settings.')
     ssh_host = prompt('SSH host')
     port = prompt('Port', default=22, type=int)
@@ -24,6 +25,8 @@ def prompt_ssh_forward():
 
 
 def mongodb_configure(setup_ssh_forward: bool = False):
+    from seml.console import prompt
+
     if SETTINGS.DATABASE.MONGODB_CONFIG_PATH.exists() and not prompt(
         f'MongoDB configuration {SETTINGS.DATABASE.MONGODB_CONFIG_PATH} already exists and will be overwritten.\nContinue?',
         type=bool,

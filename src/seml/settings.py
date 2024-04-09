@@ -94,6 +94,7 @@ SETTINGS = munchify(
             'conda_environment',
             'project_root_dir',
             'description',
+            'stash_all_py_files',
         ],
         'SEML_CONFIG_VALUE_VERSION': 'version',
         'VALID_SLURM_CONFIG_VALUES': [

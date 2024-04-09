@@ -616,13 +616,11 @@ def check_config(
         for n in cf.signature.arguments
     }
 
-    config_keys_empty_run = flatten(empty_run.config).keys()
+    config_keys_empty_run = set(flatten(empty_run.config).keys())
 
     for config in configs:
         config_flat = flatten(config)
-        config_keys_added = {
-            k for k in config_flat.keys() if k not in config_keys_empty_run
-        }
+        config_keys_added = set(config_flat.keys()).difference(config_keys_empty_run)
 
         # Check for unused arguments
         for conf in sorted(config_keys_added):
