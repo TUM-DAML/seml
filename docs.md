@@ -115,8 +115,7 @@ $ seml configure [OPTIONS]
 
 **Options**:
 
-* `-a, --all`: Configure all SEML settings
-* `--mongodb / --no-mongodb`: Configure MongoDB settings  [default: mongodb]
+* `-sf, --ssh-forward`: Configure SSH forwarding settings for MongoDB.
 * `--help`: Show this message and exit.
 
 ## `seml delete`
