@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Set, Tuple, TypeVar
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple, TypeVar
 
 from typing_extensions import Annotated, ParamSpec
 
@@ -52,7 +52,7 @@ def restrict_collection(require: bool = True):
 
     def decorator(fun: Callable[P, R]) -> Callable[P, R]:
         @functools.wraps(fun)
-        def wrapper(ctx: typer.Context, *args, **kwargs):
+        def wrapper(ctx: typer.Context, *args: P.args, **kwargs: P.kwargs):
             if require and not ctx.obj['collection']:
                 raise typer.BadParameter('Please specify a collection name.', ctx=ctx)
             elif not require and ctx.obj['collection']:
@@ -90,7 +90,7 @@ YesAnnotation = Annotated[
     ),
 ]
 SacredIdAnnotation = Annotated[
-    int,
+    Optional[int],
     typer.Option(
         '-id',
         '--sacred-id',
@@ -99,7 +99,7 @@ SacredIdAnnotation = Annotated[
     ),
 ]
 FilterDictAnnotation = Annotated[
-    Dict,
+    Optional[Dict],
     typer.Option(
         '-f',
         '--filter-dict',
@@ -109,26 +109,37 @@ FilterDictAnnotation = Annotated[
         parser=json.loads,
     ),
 ]
+BatchIdAnnotation = Annotated[
+    Optional[int],
+    typer.Option(
+        '-b',
+        '--batch-id',
+        help='Batch ID (batch_id in the database collection) of the experiments. '
+        'Experiments that were staged together have the same batch_id.',
+    ),
+]
+
+
+def parse_optional_str_list(values: Optional[Sequence[str]]) -> List[str]:
+    if values is None:
+        return []
+    return [
+        __x.strip()
+        for _x in values
+        for __x in _x.replace(',', ' ').split()
+        if __x.strip()
+    ]
+
+
 ProjectionAnnotation = Annotated[
     List[str],
     typer.Option(
         '-p',
         '--projection',
         help='List of configuration keys, e.g., `config.model`, to additionally print.',
-        parser=lambda s: s.strip(),
-        callback=lambda values: [
-            __x.strip() for _x in values for __x in _x.replace(',', ' ').split() if __x
-        ],
+        parser=str.strip,
+        callback=parse_optional_str_list,
         metavar='KEY',
-    ),
-]
-BatchIdAnnotation = Annotated[
-    int,
-    typer.Option(
-        '-b',
-        '--batch-id',
-        help='Batch ID (batch_id in the database collection) of the experiments. '
-        'Experiments that were staged together have the same batch_id.',
     ),
 ]
 
@@ -141,16 +152,11 @@ FilterStatesAnnotation = Annotated[
         help='List of states to filter the experiments by. If empty (""), all states are considered.',
         metavar=f'[{"|".join(_STATE_LIST)}]',
         parser=lambda s: s.strip().upper(),
-        callback=lambda values: [
-            __x.strip().upper()
-            for _x in values
-            for __x in _x.replace(',', ' ').split()
-            if __x
-        ],
+        callback=parse_optional_str_list,
     ),
 ]
 SBatchOptionsAnnotation = Annotated[
-    Dict,
+    Optional[Dict],
     typer.Option(
         '-sb',
         '--sbatch-options',
@@ -205,7 +211,7 @@ PostMortemAnnotation = Annotated[
     ),
 ]
 WorkerGPUsAnnotation = Annotated[
-    str,
+    Optional[str],
     typer.Option(
         '-wg',
         '--worker-gpus',
@@ -213,7 +219,7 @@ WorkerGPUsAnnotation = Annotated[
     ),
 ]
 WorkerCPUsAnnotation = Annotated[
-    int,
+    Optional[int],
     typer.Option(
         '-wc',
         '--worker-cpus',
@@ -221,7 +227,7 @@ WorkerCPUsAnnotation = Annotated[
     ),
 ]
 WorkerEnvAnnotation = Annotated[
-    Dict,
+    Optional[Dict],
     typer.Option(
         '-we',
         '--worker-env',
@@ -254,6 +260,27 @@ NoResolveDescriptionAnnotation = Annotated[
     typer.Option(
         '--no-resolve-descriptions',
         help='Whether to prevent using omegaconf to resolve experiment descriptions',
+        is_flag=True,
+    ),
+]
+DebugAnnotation = Annotated[
+    bool,
+    typer.Option(
+        '-d',
+        '--debug',
+        help='Run a single interactive experiment without Sacred observers and with post-mortem debugging. '
+        'Implies `--verbose --num-exps 1 --post-mortem --output-to-console`.',
+        is_flag=True,
+    ),
+]
+
+DebugServerAnnotation = Annotated[
+    bool,
+    typer.Option(
+        '-ds',
+        '--debug-server',
+        help='Run the experiment with a debug server, to which you can remotely connect with e.g. VS Code. '
+        'Implies `--debug`.',
         is_flag=True,
     ),
 ]
@@ -303,7 +330,7 @@ def callback(
     from seml.console import console
 
     if len(logging.root.handlers) == 0:
-        logging_level = logging.VERBOSE if verbose else logging.INFO
+        logging_level = logging.NOTSET if verbose else logging.INFO
         handler = RichHandler(
             logging_level,
             console=console,
@@ -385,7 +412,7 @@ def start_jupyter_command(
         ),
     ] = False,
     conda_env: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             '-c',
             '--conda-env',
@@ -497,7 +524,7 @@ def add_command(
         ),
     ] = False,
     overwrite_params: Annotated[
-        Dict,
+        Optional[Dict],
         typer.Option(
             '-o',
             '--overwrite-params',
@@ -507,7 +534,7 @@ def add_command(
         ),
     ] = None,
     description: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             '-d',
             '--description',
@@ -539,26 +566,8 @@ def start_command(
     sacred_id: SacredIdAnnotation = None,
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
-    debug: Annotated[
-        bool,
-        typer.Option(
-            '-d',
-            '--debug',
-            help='Run a single interactive experiment without Sacred observers and with post-mortem debugging. '
-            'Implies `--verbose --num-exps 1 --post-mortem --output-to-console`.',
-            is_flag=True,
-        ),
-    ] = False,
-    debug_server: Annotated[
-        bool,
-        typer.Option(
-            '-ds',
-            '--debug-server',
-            help='Run the experiment with a debug server, to which you can remotely connect with e.g. VS Code. '
-            'Implies `--debug`.',
-            is_flag=True,
-        ),
-    ] = False,
+    debug: DebugAnnotation = False,
+    debug_server: DebugServerAnnotation = False,
     local: Annotated[
         bool,
         typer.Option(
@@ -618,6 +627,8 @@ def launch_worker_command(
     no_file_output: NoFileOutputAnnotation = False,
     steal_slurm: StealSlurmAnnotation = False,
     post_mortem: PostMortemAnnotation = False,
+    debug: DebugAnnotation = False,
+    debug_server: DebugServerAnnotation = False,
     output_to_console: OutputToConsoleAnnotation = False,
     worker_gpus: WorkerGPUsAnnotation = None,
     worker_cpus: WorkerCPUsAnnotation = None,
@@ -637,6 +648,8 @@ def launch_worker_command(
         filter_dict=filter_dict,
         num_exps=num_exps,
         post_mortem=post_mortem,
+        debug=debug,
+        debug_server=debug_server,
         output_to_console=output_to_console,
         no_file_output=no_file_output,
         steal_slurm=steal_slurm,
@@ -660,7 +673,7 @@ def print_fail_trace_command(
         *States.KILLED,
         *States.INTERRUPTED,
     ],
-    projection: ProjectionAnnotation = None,
+    projection: ProjectionAnnotation = [],
 ):
     """
     Prints fail traces of all failed experiments.
@@ -689,7 +702,7 @@ def reload_sources_command(
         ),
     ] = False,
     batch_ids: Annotated[
-        List[int],
+        Optional[List[int]],
         typer.Option(
             '-b',
             '--batch-ids',
@@ -871,7 +884,7 @@ def detect_killed_command(
 def status_command(
     ctx: typer.Context,
     update_status: UpdateStatusAnnotation = True,
-    projection: ProjectionAnnotation = None,
+    projection: ProjectionAnnotation = [],
 ):
     """
     Report status of experiments in the database collection.
@@ -924,7 +937,7 @@ def description_set_command(
         ),
     ],
     sacred_id: SacredIdAnnotation = None,
-    filter_states: FilterStatesAnnotation = None,
+    filter_states: FilterStatesAnnotation = [],
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     yes: YesAnnotation = False,
@@ -950,7 +963,7 @@ def description_set_command(
 def description_delete_command(
     ctx: typer.Context,
     sacred_id: SacredIdAnnotation = None,
-    filter_states: FilterStatesAnnotation = None,
+    filter_states: FilterStatesAnnotation = [],
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     yes: YesAnnotation = False,
@@ -1008,7 +1021,7 @@ def init_project_command(
         ),
     ] = 'default',
     project_name: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             '-n',
             '--name',
@@ -1016,7 +1029,7 @@ def init_project_command(
         ),
     ] = None,
     user_name: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             '-u',
             '--username',
@@ -1024,7 +1037,7 @@ def init_project_command(
         ),
     ] = None,
     user_mail: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             '-m',
             '--usermail',
@@ -1032,7 +1045,7 @@ def init_project_command(
         ),
     ] = None,
     git_remote: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             '-r',
             '--git-remote',
@@ -1040,7 +1053,7 @@ def init_project_command(
         ),
     ] = None,
     git_commit: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             '-c',
             '--git-commit',
@@ -1069,7 +1082,7 @@ def init_project_command(
 def list_templates_command(
     ctx: typer.Context,
     git_remote: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             '-r',
             '--git-remote',
@@ -1077,7 +1090,7 @@ def list_templates_command(
         ),
     ] = None,
     git_commit: Annotated[
-        str,
+        Optional[str],
         typer.Option(
             '-c',
             '--git-commit',

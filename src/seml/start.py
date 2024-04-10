@@ -949,12 +949,12 @@ def print_command(
     db_collection_name: str,
     sacred_id: Optional[int],
     batch_id: Optional[int],
-    filter_states: List,
-    filter_dict: Dict,
+    filter_states: List[str],
+    filter_dict: Optional[Dict],
     num_exps: int,
     worker_gpus: Optional[str] = None,
     worker_cpus: Optional[int] = None,
-    worker_environment_vars: Dict = None,
+    worker_environment_vars: Optional[Dict] = None,
     unresolved: bool = False,
     resolve_interpolations: bool = True,
 ):
@@ -971,7 +971,7 @@ def print_command(
     )
 
     orig_level = logging.root.level
-    logging.root.setLevel(logging.VERBOSE)
+    logging.root.setLevel(logging.NOTSET)
 
     exps_list = list(collection.find(filter_dict, limit=num_exps))
     if len(exps_list) == 0:
@@ -1159,7 +1159,9 @@ def start_experiments(
 
 
 def start_jupyter_job(
-    sbatch_options: dict = None, conda_env: str = None, lab: bool = False
+    sbatch_options: Optional[dict] = None,
+    conda_env: Optional[str] = None,
+    lab: bool = False,
 ):
     sbatch_options = sbatch_options if sbatch_options is not None else {}
     sbatch_options_merged = SETTINGS.SLURM_DEFAULT['sbatch_options']
