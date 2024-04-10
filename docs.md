@@ -283,6 +283,8 @@ $ seml launch-worker [OPTIONS]
 * `-nf, --no-file-output`: Do not write the experiment's output to a file.
 * `-ss, --steal-slurm`: Local jobs 'steal' from the Slurm queue, i.e. also execute experiments waiting for execution via Slurm.
 * `-pm, --post-mortem`: Activate post-mortem debugging with pdb.
+* `-d, --debug`: Run a single interactive experiment without Sacred observers and with post-mortem debugging. Implies `--verbose --num-exps 1 --post-mortem --output-to-console`.
+* `-ds, --debug-server`: Run the experiment with a debug server, to which you can remotely connect with e.g. VS Code. Implies `--debug`.
 * `-o, --output-to-console`: Write the experiment's output to the console.
 * `-wg, --worker-gpus TEXT`: The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.
 * `-wc, --worker-cpus INTEGER`: The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.
