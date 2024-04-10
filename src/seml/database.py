@@ -30,11 +30,8 @@ def retried_and_locked_ssh_port_forward(
     **ssh_config,
 ):
     try:
-        from sshtunnel import (
-            BaseSSHTunnelForwarderError,
-            SSHTunnelForwarder,
-            create_logger,
-        )
+        from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
+
     except ImportError:
         logging.error(
             'Opening ssh tunnel requires `sshtunnel` (e.g. `pip install sshtunnel`)'
@@ -50,14 +47,13 @@ def retried_and_locked_ssh_port_forward(
 
     delay = retries_delay
     error = None
+    # disable SSH forward messages
+    logging.getLogger('paramiko.transport').disabled = True
     for _ in range(retries_max):
         try:
             lock = FileLock(lock_file, timeout=lock_timeout)
             with lock:
-                server = SSHTunnelForwarder(
-                    **ssh_config,
-                    logger=create_logger(logging.getLogger(), loglevel=logging.ERROR),
-                )
+                server = SSHTunnelForwarder(**ssh_config)
                 server.start()
                 return server
         except Timeout as e:
