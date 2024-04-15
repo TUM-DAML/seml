@@ -52,7 +52,6 @@
 #
 # More specific settings (i.e., further down the hierarchy) always overwrite more general ones.
 
-
 seml:
   executable: examples/example_experiment.py
   name: example_experiment
@@ -63,10 +62,11 @@ seml:
 slurm:
   experiments_per_job: 1
   sbatch_options:
-    gres: gpu:1       # num GPUs
-    mem: 16G          # memory
-    cpus-per-task: 2  # num cores
-    time: 0-08:00     # max time, D-HH:MM
+    gres: gpu:1 # num GPUs
+    mem: 16G # memory
+    cpus-per-task: 2 # num cores
+    time: 0-08:00 # max time, D-HH:MM
+    partition: gpu_all
 
 ###### BEGIN PARAMETER CONFIGURATION ######
 
@@ -92,7 +92,6 @@ random:
     seed: 222
 
 small_datasets:
-
   grid:
     dataset:
       type: choice
@@ -104,19 +103,18 @@ small_datasets:
       type: choice
       options:
         - [16]
-        - [32, 16]  # this will be parsed into a Python list.
+        - [32, 16] # this will be parsed into a Python list.
 
   random:
     samples: 3
     seed: 2223
 
     max_epochs:
-       type: randint
-       min: 200
-       max: 1000
+      type: randint
+      min: 200
+      max: 1000
 
 large_datasets:
-
   fixed:
     max_epochs: 1000
 

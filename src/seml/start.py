@@ -288,6 +288,8 @@ def start_sbatch_job(
         output_file = output_dir_path
     else:
         output_file = f'{output_dir_path}/{name}_%A_%a.out'
+        # Ensure that the output path exists
+        Path(output_file).parent.mkdir(exist_ok=True)
     sbatch_options['output'] = output_file
 
     # Construct sbatch options string
