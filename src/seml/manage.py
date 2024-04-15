@@ -498,7 +498,11 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
     exps = collection.find(
         {
             'status': {'$in': [*States.PENDING, *States.RUNNING]},
-            'host': {'$exists': True},  # only check experiments that have been started
+            # Previously we only checked for started experiments by including the following line:
+            # 'host': {'$exists': True},  # only check experiments that have been started
+            # Though, this does not catch the case where a user cancels pending experiments with scanel.
+            # I (Nicholas) am not 100% sure about the implications of removing the check but it at least
+            # resolves the issue around manually canceled jobs.
         }
     )
     running_jobs = get_slurm_arrays_tasks()
