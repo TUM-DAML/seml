@@ -71,10 +71,35 @@ if __name__ == '__main__':
     if args.unobserved:
         exp = collection.find_one({'_id': exp_id})
     else:
-        exp = collection.find_one_and_update(
-            {'_id': exp_id, 'status': {'$in': States.PENDING}},
-            {'$set': {'status': States.RUNNING[0]}},
-        )
+        slurm_array_id = os.environ.get('SLURM_ARRAY_JOB_ID', None)
+        slurm_task_id = os.environ.get('SLURM_ARRAY_TASK_ID', None)
+        if slurm_array_id is not None:
+            # We're running in SLURM.
+            # Check if the job executing is this one.
+            job_filter = {'slurm.array_id': int(slurm_array_id)}
+            if slurm_task_id is not None:
+                job_filter['slurm.task_id'] = int(slurm_task_id)
+            # Either take the experiment if it is pending or if it is the one being executed.
+            # The latter case is important for multi-node jobs.
+            exp = collection.find_one_and_update(
+                {
+                    '$and': [
+                        {'_id': exp_id},
+                        {
+                            '$or': [
+                                {'status': {'$in': States.PENDING}},
+                                job_filter,
+                            ]
+                        },
+                    ]
+                },
+                {'$set': {'status': States.RUNNING[0]}},
+            )
+        else:
+            exp = collection.find_one_and_update(
+                {'_id': exp_id, 'status': {'$in': States.PENDING}},
+                {'$set': {'status': States.RUNNING[0]}},
+            )
 
     if exp is None:
         # check whether experiment is actually missing from the DB or has the wrong state

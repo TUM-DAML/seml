@@ -1,8 +1,9 @@
 import datetime
-from enum import Enum
 import logging
+import os
 import resource
 import sys
+from enum import Enum
 from typing import List, Optional, Sequence, Union
 
 from sacred import SETTINGS as SACRED_SETTINGS
@@ -25,10 +26,26 @@ from seml.settings import SETTINGS
 __all__ = ['setup_logger', 'collect_exp_stats', 'Experiment']
 
 
+_PROCESS_ID = 'SLURM_PROCID'
+_PROCESS_COUNT = 'SLURM_NTASKS'
+
+
 class LoggerOptions(Enum):
     NONE = None
     DEFAULT = 'default'
     RICH = 'rich'
+
+
+def process_id():
+    return int(os.environ.get(_PROCESS_ID, 0))
+
+
+def process_count():
+    return int(os.environ.get(_PROCESS_COUNT, 1))
+
+
+def is_main_process():
+    return process_id() == 0
 
 
 class Experiment(ExperimentBase):
@@ -58,6 +75,7 @@ class Experiment(ExperimentBase):
         self.capture_output = capture_output
         if add_mongodb_observer:
             self.configurations.append(MongoDbObserverConfig(self))
+        self.configurations.append(ClearObserverForMultiTaskConfig(self))
         if logger:
             setup_logger(self, LoggerOptions(logger))
         if collect_stats:
@@ -98,7 +116,8 @@ class MongoDbObserverConfig:
         added = result.revelation()
         config_summary = ConfigSummary(added, result.modified, result.typechanges)
         config_summary.update(undogmatize(result))
-        if config_summary['db_collection'] is not None:
+
+        if config_summary['db_collection'] is not None and is_main_process():
             self.experiment.observers.append(
                 create_mongodb_observer(
                     config_summary['db_collection'],
@@ -108,8 +127,29 @@ class MongoDbObserverConfig:
         return config_summary
 
 
+class ClearObserverForMultiTaskConfig:
+    def __init__(self, experiment: Experiment):
+        self.experiment = experiment
+
+    def __call__(self, fixed=None, preset=None, fallback=None):
+        result = dogmatize(fixed or {})
+        defaults = dict(overwrite=None, db_collection=None)
+        recursive_fill_in(result, defaults)
+        recursive_fill_in(result, preset or {})
+        added = result.revelation()
+        config_summary = ConfigSummary(added, result.modified, result.typechanges)
+        config_summary.update(undogmatize(result))
+
+        # We only want observers on the main process
+        if not is_main_process():
+            self.experiment.observers.clear()
+        return config_summary
+
+
 def setup_logger(
-    ex: ExperimentBase, logger_option: LoggerOptions = LoggerOptions.RICH, level='INFO'
+    ex: ExperimentBase,
+    logger_option: LoggerOptions = LoggerOptions.RICH,
+    level: str | None | int = None,
 ):
     """
     Set up logger for experiment.
@@ -119,7 +159,7 @@ def setup_logger(
     ex: sacred.Experiment
     Sacred experiment to set the logger of.
     level: str or int
-    Set the threshold for the logger to this level.
+    Set the threshold for the logger to this level. Default is logging.INFO.
 
     Returns
     -------
@@ -137,8 +177,14 @@ def setup_logger(
         return
     logger = logging.getLogger()
     logger.handlers = []
+    if level is None:
+        if is_main_process():
+            level = logging.INFO
+        else:
+            level = logging.ERROR
     if logger_option is LoggerOptions.RICH:
         from rich.logging import RichHandler
+
         from seml.console import console
 
         logger.addHandler(
@@ -220,9 +266,9 @@ def _collect_exp_stats(run):
         else:
             if len(tf.config.experimental.list_physical_devices('GPU')) >= 1:
                 if int(tf.__version__.split('.')[1]) >= 5:
-                    stats['tensorflow'][
-                        'gpu_max_memory_bytes'
-                    ] = tf.config.experimental.get_memory_info('GPU:0')['peak']
+                    stats['tensorflow']['gpu_max_memory_bytes'] = (
+                        tf.config.experimental.get_memory_info('GPU:0')['peak']
+                    )
                 else:
                     logging.info(
                         'SEML stats: There is no way to get actual peak GPU memory usage in TensorFlow 2.0-2.4.'
