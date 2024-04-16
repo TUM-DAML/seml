@@ -149,7 +149,7 @@ class ClearObserverForMultiTaskConfig:
 def setup_logger(
     ex: ExperimentBase,
     logger_option: LoggerOptions = LoggerOptions.RICH,
-    level: str | None | int = None,
+    level: Optional[Union[str, int]] = None,
 ):
     """
     Set up logger for experiment.
