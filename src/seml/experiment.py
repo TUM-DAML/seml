@@ -25,8 +25,6 @@ from seml.database import get_collection
 from seml.observers import create_mongodb_observer
 from seml.settings import SETTINGS
 
-__all__ = ['setup_logger', 'collect_exp_stats', 'Experiment']
-
 
 _LOCAL_ID = 'SLURM_LOCALID'
 _PROCESS_ID = 'SLURM_PROCID'
@@ -311,3 +309,16 @@ def collect_exp_stats(run):
         'See https://github.com/TUM-DAML/seml/blob/master/examples/example_experiment.py'
     )
     _collect_exp_stats(run)
+
+
+__all__ = [
+    'setup_logger',
+    'collect_exp_stats',
+    'Experiment',
+    'process_id',
+    'local_id',
+    'process_count',
+    'is_main_process',
+    'is_local_main_process',
+    'only_on_main',
+]
