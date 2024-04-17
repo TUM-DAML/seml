@@ -103,11 +103,13 @@ if __name__ == '__main__':
             exit(1)
 
     use_stored_sources = args.stored_sources_dir is not None
-    if use_stored_sources and not os.listdir(args.stored_sources_dir):
-        assert (
-            'source_files' in exp['seml']
-        ), '--stored-sources-dir was supplied but staged experiment does not contain stored source files.'
-        load_sources_from_db(exp, collection, to_directory=args.stored_sources_dir)
+    if use_stored_sources:
+        os.makedirs(args.stored_sources_dir, exist_ok=True)
+        if not os.listdir(args.stored_sources_dir):
+            assert (
+                'source_files' in exp['seml']
+            ), '--stored-sources-dir was supplied but staged experiment does not contain stored source files.'
+            load_sources_from_db(exp, collection, to_directory=args.stored_sources_dir)
 
     # The remaining part (updateing MongoDB & printing the python command) is only executed by the main process.
     if not is_main_process():

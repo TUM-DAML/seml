@@ -28,7 +28,6 @@ IFS=";" read -r -a exp_ids <<< "$exp_ids_str"
 # Create directory for the source files in MongoDB
 if {with_sources}; then
     tmpdir="{tmp_directory}/$(uuidgen)"  # unique temp dir based on UUID
-    srun mkdir $tmpdir
     # Prepend the temp dir to $PYTHONPATH so it will be used by python.
     export PYTHONPATH="$tmpdir:$PYTHONPATH"
 fi
