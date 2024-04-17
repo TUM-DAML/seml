@@ -1,10 +1,11 @@
 import datetime
+import functools
 import logging
 import os
 import resource
 import sys
 from enum import Enum
-from typing import List, Optional, Sequence, Union
+from typing import Callable, List, Optional, ParamSpec, Sequence, TypeVar, Union
 
 from sacred import SETTINGS as SACRED_SETTINGS
 from sacred import Experiment as ExperimentBase
@@ -46,6 +47,20 @@ def process_count():
 
 def is_main_process():
     return process_id() == 0
+
+
+P = ParamSpec('P')
+R = TypeVar('R')
+
+
+def only_on_main(func: Callable[P, R]) -> Callable[P, Optional[R]]:
+    @functools.wraps(func)
+    def wrapper(*args: P.args, **kwargs: P.kwargs):
+        if is_main_process():
+            return func(*args, **kwargs)
+        return None
+
+    return wrapper
 
 
 class Experiment(ExperimentBase):
