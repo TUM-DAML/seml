@@ -2,7 +2,7 @@ import argparse
 import os
 
 from seml.database import get_collection
-from seml.experiment import is_main_process
+from seml.experiment import is_local_main_process, is_main_process
 from seml.settings import SETTINGS
 from seml.sources import load_sources_from_db
 from seml.start import get_command_from_exp, get_shell_command
@@ -12,7 +12,7 @@ States = SETTINGS.STATES
 if __name__ == '__main__':
     # This process should only be executed once per node, so if we are not the main
     # process per node, we directly exit.
-    if int(os.environ.get('SLURM_LOCALID', 0)) != 0:
+    if not is_local_main_process():
         exit(0)
 
     parser = argparse.ArgumentParser(
