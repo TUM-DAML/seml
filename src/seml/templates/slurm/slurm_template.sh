@@ -28,7 +28,7 @@ IFS=";" read -r -a exp_ids <<< "$exp_ids_str"
 # Create directory for the source files in MongoDB
 if {with_sources}; then
     tmpdir="{tmp_directory}/$(uuidgen)"  # unique temp dir based on UUID
-    mkdir $tmpdir
+    srun mkdir $tmpdir
     # Prepend the temp dir to $PYTHONPATH so it will be used by python.
     export PYTHONPATH="$tmpdir:$PYTHONPATH"
 fi
@@ -36,7 +36,7 @@ fi
 # Start experiments in separate processes
 process_ids=()
 for exp_id in "${{exp_ids[@]}}"; do
-    cmd=$(python -c '{prepare_experiment_script}' --experiment_id ${{exp_id}} --db_collection_name {db_collection_name} {sources_argument} --verbose {verbose} --unobserved {unobserved} --debug-server {debug_server})
+    cmd=$(srun python -c '{prepare_experiment_script}' --experiment_id ${{exp_id}} --db_collection_name {db_collection_name} {sources_argument} --verbose {verbose} --unobserved {unobserved} --debug-server {debug_server})
 
     ret=$?
     if [ $ret -eq 0 ]; then
@@ -62,7 +62,7 @@ wait
 
 # Delete temporary source files
 if {with_sources}; then
-    rm -rf $tmpdir
+    srun rm -rf $tmpdir
 fi
 
 

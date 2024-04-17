@@ -1,8 +1,8 @@
 import argparse
-import logging
 import os
 
 from seml.database import get_collection
+from seml.experiment import is_main_process
 from seml.settings import SETTINGS
 from seml.sources import load_sources_from_db
 from seml.start import get_command_from_exp, get_shell_command
@@ -10,6 +10,11 @@ from seml.start import get_command_from_exp, get_shell_command
 States = SETTINGS.STATES
 
 if __name__ == '__main__':
+    # This process should only be executed once per node, so if we are not the main
+    # process per node, we directly exit.
+    if int(os.environ.get('SLURM_LOCALID', 0)) != 0:
+        exit(0)
+
     parser = argparse.ArgumentParser(
         description='Get the config and executable of the experiment with given ID and '
         'check whether it has been cancelled before its start.',
@@ -52,18 +57,8 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    # Set up logging
-    logger = logging.getLogger()
-    logger.handlers = []
-    ch = logging.StreamHandler()
-    formatter = logging.Formatter(fmt='%(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-    logger.setLevel('INFO')
-
     exp_id = args.experiment_id
     db_collection_name = args.db_collection_name
-
     collection = get_collection(db_collection_name)
 
     # This returns the document as it was BEFORE the update. So we first have to check whether its state was
@@ -73,15 +68,16 @@ if __name__ == '__main__':
     else:
         slurm_array_id = os.environ.get('SLURM_ARRAY_JOB_ID', None)
         slurm_task_id = os.environ.get('SLURM_ARRAY_TASK_ID', None)
-        if slurm_array_id is not None:
+        if slurm_array_id is not None and slurm_task_id is not None:
             # We're running in SLURM.
             # Check if the job executing is this one.
-            job_filter = {'slurm.array_id': int(slurm_array_id)}
-            if slurm_task_id is not None:
-                job_filter['slurm.task_id'] = int(slurm_task_id)
+            job_filter = {
+                'slurm.array_id': int(slurm_array_id),
+                'slurm.task_id': int(slurm_task_id),
+            }
             # Either take the experiment if it is pending or if it is the one being executed.
             # The latter case is important for multi-node jobs.
-            exp = collection.find_one_and_update(
+            exp = collection.find_one(
                 {
                     '$and': [
                         {'_id': exp_id},
@@ -92,13 +88,11 @@ if __name__ == '__main__':
                             ]
                         },
                     ]
-                },
-                {'$set': {'status': States.RUNNING[0]}},
+                }
             )
         else:
-            exp = collection.find_one_and_update(
-                {'_id': exp_id, 'status': {'$in': States.PENDING}},
-                {'$set': {'status': States.RUNNING[0]}},
+            exp = collection.find_one(
+                {'_id': exp_id, 'status': {'$in': States.PENDING}}
             )
 
     if exp is None:
@@ -114,6 +108,10 @@ if __name__ == '__main__':
             'source_files' in exp['seml']
         ), '--stored-sources-dir was supplied but staged experiment does not contain stored source files.'
         load_sources_from_db(exp, collection, to_directory=args.stored_sources_dir)
+
+    # The remaining part (updateing MongoDB & printing the python command) is only executed by the main process.
+    if not is_main_process():
+        exit(0)
 
     interpreter, exe, config = get_command_from_exp(
         exp,
@@ -135,7 +133,11 @@ if __name__ == '__main__':
             unresolved=True,
         )
     )
-    updates = {'seml.command': cmd, 'seml.command_unresolved': cmd_unresolved}
+    updates = {
+        'seml.command': cmd,
+        'seml.command_unresolved': cmd_unresolved,
+        'status': States.RUNNING[0],
+    }
 
     if use_stored_sources:
         temp_dir = args.stored_sources_dir
