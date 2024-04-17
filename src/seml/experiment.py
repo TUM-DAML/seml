@@ -5,7 +5,8 @@ import os
 import resource
 import sys
 from enum import Enum
-from typing import Callable, List, Optional, ParamSpec, Sequence, TypeVar, Union
+from typing import Callable, List, Optional, Sequence, TypeVar, Union
+from typing_extensions import ParamSpec
 
 from sacred import SETTINGS as SACRED_SETTINGS
 from sacred import Experiment as ExperimentBase
