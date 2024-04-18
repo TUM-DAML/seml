@@ -81,7 +81,7 @@ def retried_and_locked_ssh_port_forward(
         exit(1)
 
 
-def _ssh_forward_process(pipe, ssh_config: dict[str, Any]):
+def _ssh_forward_process(pipe, ssh_config: Dict[str, Any]):
     """
     Establish an SSH tunnel in a separate process.
 
