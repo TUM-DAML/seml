@@ -149,10 +149,6 @@ def get_forwarded_mongo_client(
         'Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)',
     )
 
-    class ForwardedMongoClient(pymongo.MongoClient):
-        def __del__(self):
-            try_close()
-
     main_pipe, forward_pipe = Pipe(True)
     proc = Process(target=_ssh_forward_process, args=(forward_pipe, ssh_config))
     proc.start()
@@ -164,6 +160,10 @@ def get_forwarded_mongo_client(
                 main_pipe.close()
         finally:
             pass
+
+    class ForwardedMongoClient(pymongo.MongoClient):
+        def __del__(self):
+            try_close()
 
     # Send stop if we exit the program
     atexit.register(try_close)
