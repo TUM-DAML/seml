@@ -1,7 +1,8 @@
+import atexit
 import logging
 import random
 import time
-from typing import List
+from typing import Any, List
 
 import yaml
 
@@ -72,16 +73,53 @@ def retried_and_locked_ssh_port_forward(
         exit(1)
 
 
+def _ssh_forward_process(pipe, ssh_config: dict[str, Any]):
+    server = retried_and_locked_ssh_port_forward(**ssh_config)
+    pipe.send((server.local_bind_host, server.local_bind_port))
+    while True:
+        # check if we should end the process
+        if pipe.poll(SETTINGS.SSH_FORWARD.HEALTH_CHECK_INTERVAL):
+            if pipe.recv() == 'stop':
+                server.stop()
+                break
+
+        # Check for tunnel health
+        server.check_tunnels()
+        if not server.tunnel_is_up[server.local_bind_address]:
+            logging.warning('SSH tunnel was closed unexpectedly. Restarting.')
+            server.restart()
+
+
+def start_ssh_forward_process(ssh_config: dict[str, Any]):
+    from multiprocessing import Pipe, Process
+
+    main_pipe, forward_pipe = Pipe(True)
+    proc = Process(target=_ssh_forward_process, args=(forward_pipe, ssh_config))
+    proc.start()
+    # Send stop if we exit the program
+    atexit.register(lambda: main_pipe.send('stop'))
+
+    # Compute the maximum time we should wait
+    retries_max = ssh_config.get('retries_max', SETTINGS.SSH_FORWARD.RETRIES_MAX)
+    retries_delay = ssh_config.get('retries_delay', SETTINGS.SSH_FORWARD.RETRIES_DELAY)
+    max_delay = 2 ** (retries_max + 1) * retries_delay
+
+    # check if the forward process has been established correctly
+    if main_pipe.poll(max_delay):
+        host, port = main_pipe.recv()
+        return host, port
+    else:
+        logging.error('Failed to establish SSH tunnel.')
+        exit(1)
+
+
 def get_mongo_client(
     db_name, host, port, username, password, ssh_config=None, **kwargs
 ):
-    if ssh_config is not None:
-        server = retried_and_locked_ssh_port_forward(**ssh_config)
-
-        host = server.local_bind_host
-        port = server.local_bind_port
-
     import pymongo
+
+    if ssh_config is not None:
+        host, port = start_ssh_forward_process(ssh_config)
 
     client = pymongo.MongoClient(
         host,

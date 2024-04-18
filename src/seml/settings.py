@@ -150,6 +150,7 @@ SETTINGS = munchify(
             'RETRIES_MAX': 6,
             'RETRIES_DELAY': 1,
             'LOCK_TIMEOUT': 30,
+            'HEALTH_CHECK_INTERVAL': 10,
         },
     },
 )
