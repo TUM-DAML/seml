@@ -2,13 +2,13 @@ import atexit
 import logging
 import random
 import time
-from typing import Any, List
+from typing import Any, Dict, List
 
 import yaml
 
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
-from seml.utils import s_if
+from seml.utils import assert_package_installed, s_if
 
 States = SETTINGS.STATES
 
@@ -30,21 +30,29 @@ def retried_and_locked_ssh_port_forward(
     lock_timeout=SETTINGS.SSH_FORWARD.LOCK_TIMEOUT,
     **ssh_config,
 ):
-    try:
-        from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
+    """
+    Attempt to establish an SSH tunnel with retries and a lock file to avoid parallel tunnel establishment.
 
-    except ImportError:
-        logging.error(
-            'Opening ssh tunnel requires `sshtunnel` (e.g. `pip install sshtunnel`)'
-        )
-        exit(1)
-    try:
-        from filelock import FileLock, Timeout
-    except ImportError:
-        logging.error(
-            'Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)'
-        )
-        exit(1)
+    Parameters
+    ----------
+    retries_max: int
+        Maximum number of retries to establish the tunnel.
+    retries_delay: float
+        Initial delay for exponential backoff.
+    lock_file: str
+        Path to the lock file.
+    lock_timeout: int
+        Timeout for acquiring the lock.
+    ssh_config: dict
+        Configuration for the SSH tunnel.
+
+    Returns
+    -------
+    server: SSHTunnelForwarder
+        The SSH tunnel server.
+    """
+    from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
+    from filelock import FileLock, Timeout
 
     delay = retries_delay
     error = None
@@ -74,6 +82,16 @@ def retried_and_locked_ssh_port_forward(
 
 
 def _ssh_forward_process(pipe, ssh_config: dict[str, Any]):
+    """
+    Establish an SSH tunnel in a separate process.
+
+    Parameters
+    ----------
+    pipe: multiprocessing.communication.Connection
+        Pipe to communicate with the main process.
+    ssh_config: dict
+        Configuration for the SSH tunnel.
+    """
     server = retried_and_locked_ssh_port_forward(**ssh_config)
     pipe.send((server.local_bind_host, server.local_bind_port))
     while True:
@@ -90,8 +108,32 @@ def _ssh_forward_process(pipe, ssh_config: dict[str, Any]):
             server.restart()
 
 
-def start_ssh_forward_process(ssh_config: dict[str, Any]):
+def start_ssh_forward_process(ssh_config: Dict[str, Any]):
+    """
+    Start a separate process to establish an SSH tunnel.
+
+    Parameters
+    ----------
+    ssh_config: dict
+        Configuration for the SSH tunnel.
+
+    Returns
+    -------
+    host: str
+        Local host of the SSH tunnel.
+    port: int
+        Local port of the SSH tunnel.
+    """
     from multiprocessing import Pipe, Process
+
+    assert_package_installed(
+        'sshtunnel',
+        'Opening ssh tunnel requires `sshtunnel` (e.g. `pip install sshtunnel`)',
+    )
+    assert_package_installed(
+        'filelock',
+        'Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)',
+    )
 
     main_pipe, forward_pipe = Pipe(True)
     proc = Process(target=_ssh_forward_process, args=(forward_pipe, ssh_config))

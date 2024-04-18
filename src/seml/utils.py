@@ -580,3 +580,21 @@ def load_text_resource(path: Union[str, Path]):
     full_path = importlib.resources.files('seml') / path
     with open(full_path) as inp:
         return inp.read()
+
+
+def assert_package_installed(package: str, error: str):
+    """
+    Assert that a package is installed.
+
+    Parameters
+    ----------
+    package: str
+        The package name.
+    """
+    import importlib
+
+    try:
+        importlib.import_module(package)
+    except ImportError:
+        logging.error(error)
+        exit(1)
