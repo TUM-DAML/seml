@@ -5,7 +5,7 @@ import os
 import resource
 import sys
 from enum import Enum
-from typing import Callable, List, Optional, Sequence, TypeVar, Union
+from typing import Callable, List, Optional, Sequence, TypeVar, Union, overload
 from typing_extensions import ParamSpec
 
 from sacred import SETTINGS as SACRED_SETTINGS
@@ -57,18 +57,52 @@ def is_local_main_process():
     return local_id() == 0
 
 
+class ChildProcessSkip(Exception): ...
+
+
+class MainProcessExecuteContext:
+    def __enter__(self):
+        if not is_main_process():
+            sys.settrace(lambda *args, **keys: None)
+            frame = sys._getframe(1)
+            frame.f_trace = self.trace
+
+    def trace(self, frame, event, arg):
+        raise ChildProcessSkip()
+
+    def __exit__(self, type, value, traceback):
+        if type is None:
+            return  # No exception
+        if issubclass(type, ChildProcessSkip):
+            return True  # Suppress special SkipWithBlock exception
+
+
 P = ParamSpec('P')
 R = TypeVar('R')
 
 
-def only_on_main(func: Callable[P, R]) -> Callable[P, Optional[R]]:
-    @functools.wraps(func)
-    def wrapper(*args: P.args, **kwargs: P.kwargs):
-        if is_main_process():
-            return func(*args, **kwargs)
-        return None
+@overload
+def only_on_main_process(func: Callable[P, R]) -> Callable[P, Optional[R]]: ...
 
-    return wrapper
+
+@overload
+def only_on_main_process(func: None = None) -> MainProcessExecuteContext: ...
+
+
+def only_on_main_process(
+    func: Optional[Callable[P, R]] = None,
+) -> Union[Callable[P, Optional[R]], MainProcessExecuteContext]:
+    if callable(func):
+
+        @functools.wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs):
+            if is_main_process():
+                return func(*args, **kwargs)
+            return None
+
+        return wrapper
+    else:
+        return MainProcessExecuteContext()
 
 
 class Experiment(ExperimentBase):
@@ -320,5 +354,5 @@ __all__ = [
     'process_count',
     'is_main_process',
     'is_local_main_process',
-    'only_on_main',
+    'only_on_main_process',
 ]
