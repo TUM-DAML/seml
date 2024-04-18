@@ -83,7 +83,8 @@ def retried_and_locked_ssh_port_forward(
 
 def _ssh_forward_process(pipe, ssh_config: Dict[str, Any]):
     """
-    Establish an SSH tunnel in a separate process.
+    Establish an SSH tunnel in a separate process. The process periodically checks if the tunnel is still up and
+    restarts it if it is not.
 
     Parameters
     ----------
@@ -93,11 +94,13 @@ def _ssh_forward_process(pipe, ssh_config: Dict[str, Any]):
         Configuration for the SSH tunnel.
     """
     server = retried_and_locked_ssh_port_forward(**ssh_config)
+    # We need to bind to the same local addresses
+    server._local_binds = server.local_bind_addresses
     pipe.send((server.local_bind_host, server.local_bind_port))
     while True:
         # check if we should end the process
         if pipe.poll(SETTINGS.SSH_FORWARD.HEALTH_CHECK_INTERVAL):
-            if pipe.recv() == 'stop':
+            if pipe.closed or pipe.recv() == 'stop':
                 server.stop()
                 break
 
@@ -106,25 +109,36 @@ def _ssh_forward_process(pipe, ssh_config: Dict[str, Any]):
         if not server.tunnel_is_up[server.local_bind_address]:
             logging.warning('SSH tunnel was closed unexpectedly. Restarting.')
             server.restart()
+    pipe.close()
 
 
-def start_ssh_forward_process(ssh_config: Dict[str, Any]):
+def get_forwarded_mongo_client(
+    db_name, username, password, ssh_config: Dict[str, Any], **kwargs
+):
     """
-    Start a separate process to establish an SSH tunnel.
+    Establish an SSH tunnel and return a forwarded MongoDB client.
+    The SSH tunnel is established in a separate process to enable continuously checking for its health.
 
     Parameters
     ----------
+    db_name: str
+        Name of the database.
+    username: str
+        Username for the database.
+    password: str
+        Password for the database.
     ssh_config: dict
         Configuration for the SSH tunnel.
+    kwargs: dict
+        Additional arguments for the MongoDB client.
 
     Returns
     -------
-    host: str
-        Local host of the SSH tunnel.
-    port: int
-        Local port of the SSH tunnel.
+    client: pymongo.MongoClient
+        Forwarded MongoDB client.
     """
     from multiprocessing import Pipe, Process
+    import pymongo
 
     assert_package_installed(
         'sshtunnel',
@@ -135,11 +149,24 @@ def start_ssh_forward_process(ssh_config: Dict[str, Any]):
         'Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)',
     )
 
+    class ForwardedMongoClient(pymongo.MongoClient):
+        def __del__(self):
+            try_close()
+
     main_pipe, forward_pipe = Pipe(True)
     proc = Process(target=_ssh_forward_process, args=(forward_pipe, ssh_config))
     proc.start()
+
+    def try_close():
+        try:
+            if not main_pipe.closed:
+                main_pipe.send('stop')
+                main_pipe.close()
+        finally:
+            pass
+
     # Send stop if we exit the program
-    atexit.register(lambda: main_pipe.send('stop'))
+    atexit.register(try_close)
 
     # Compute the maximum time we should wait
     retries_max = ssh_config.get('retries_max', SETTINGS.SSH_FORWARD.RETRIES_MAX)
@@ -149,7 +176,16 @@ def start_ssh_forward_process(ssh_config: Dict[str, Any]):
     # check if the forward process has been established correctly
     if main_pipe.poll(max_delay):
         host, port = main_pipe.recv()
-        return host, port
+
+        client = ForwardedMongoClient(
+            host,
+            int(port),
+            username=username,
+            password=password,
+            authSource=db_name,
+            **kwargs,
+        )
+        return client
     else:
         logging.error('Failed to establish SSH tunnel.')
         exit(1)
@@ -161,16 +197,18 @@ def get_mongo_client(
     import pymongo
 
     if ssh_config is not None:
-        host, port = start_ssh_forward_process(ssh_config)
-
-    client = pymongo.MongoClient(
-        host,
-        int(port),
-        username=username,
-        password=password,
-        authSource=db_name,
-        **kwargs,
-    )
+        client = get_forwarded_mongo_client(
+            db_name, username, password, ssh_config, **kwargs
+        )
+    else:
+        client = pymongo.MongoClient(
+            host,
+            int(port),
+            username=username,
+            password=password,
+            authSource=db_name,
+            **kwargs,
+        )
     return client
 
 
