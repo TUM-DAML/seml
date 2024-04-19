@@ -1277,7 +1277,9 @@ def print_output(
     experiments = collection.find(
         filter_dict, {'seml.output_file': 1, '_id': 1, 'batch_id': 1, 'captured_out': 1}
     )
+    count = 0
     for exp in experiments:
+        count += 1
         console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
         with pause_live_widget():
             try:
@@ -1300,3 +1302,6 @@ def print_output(
                 )
                 with open(exp['seml']['output_file'], 'rb') as f:
                     sys.stdout.buffer.write(f.read())
+
+    if count == 0:
+        logging.info('No experiments found.')

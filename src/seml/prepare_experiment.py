@@ -120,6 +120,13 @@ if __name__ == '__main__':
     if not is_main_process():
         exit(0)
 
+    # If we run in a multi task environment, we want to make sure that the seed is fixed once and
+    # all tasks start with the same seed. Otherwise, one could not reproduce the experiment as the
+    # seed would change on the child nodes. It is up to the user to distribute seeds if needed.
+    if is_running_in_multi_process():
+        if SETTINGS.CONFIG_KEY_SEED not in exp['config']:
+            exp['config'][SETTINGS.CONFIG_KEY_SEED] = get_seed()
+
     interpreter, exe, config = get_command_from_exp(
         exp,
         db_collection_name,
@@ -145,13 +152,6 @@ if __name__ == '__main__':
         'seml.command_unresolved': cmd_unresolved,
         'status': States.RUNNING[0],
     }
-
-    # If we run in a multi task environment, we want to make sure that the seed is fixed once and
-    # all tasks start with the same seed. Otherwise, one could not reproduce the experiment as the
-    # seed would change on the child nodes. It is up to the user to distribute seeds if needed.
-    if is_running_in_multi_process():
-        if SETTINGS.CONFIG_KEY_SEED not in config:
-            config[SETTINGS.CONFIG_KEY_SEED] = get_seed()
 
     if use_stored_sources:
         temp_dir = args.stored_sources_dir

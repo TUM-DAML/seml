@@ -137,7 +137,7 @@ def get_forwarded_mongo_client(
     client: pymongo.MongoClient
         Forwarded MongoDB client.
     """
-    from multiprocessing import Pipe, Process
+    import multiprocessing as mp
     import pymongo
 
     assert_package_installed(
@@ -149,8 +149,9 @@ def get_forwarded_mongo_client(
         'Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)',
     )
 
-    main_pipe, forward_pipe = Pipe(True)
-    proc = Process(target=_ssh_forward_process, args=(forward_pipe, ssh_config))
+    ctx = mp.get_context('forkserver')
+    main_pipe, forward_pipe = ctx.Pipe(True)
+    proc = ctx.Process(target=_ssh_forward_process, args=(forward_pipe, ssh_config))
     proc.start()
 
     def try_close():
