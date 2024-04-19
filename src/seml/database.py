@@ -112,6 +112,10 @@ def _ssh_forward_process(pipe, ssh_config: Dict[str, Any]):
     pipe.close()
 
 
+# We want to reuse the same multiprocessing context for all SSH tunnels
+_mp_context = None
+
+
 def get_forwarded_mongo_client(
     db_name, username, password, ssh_config: Dict[str, Any], **kwargs
 ):
@@ -140,6 +144,8 @@ def get_forwarded_mongo_client(
     import multiprocessing as mp
     import pymongo
 
+    global _mp_context
+
     assert_package_installed(
         'sshtunnel',
         'Opening ssh tunnel requires `sshtunnel` (e.g. `pip install sshtunnel`)',
@@ -149,9 +155,12 @@ def get_forwarded_mongo_client(
         'Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)',
     )
 
-    ctx = mp.get_context('forkserver')
-    main_pipe, forward_pipe = ctx.Pipe(True)
-    proc = ctx.Process(target=_ssh_forward_process, args=(forward_pipe, ssh_config))
+    if _mp_context is None:
+        _mp_context = mp.get_context('forkserver')
+    main_pipe, forward_pipe = _mp_context.Pipe(True)
+    proc = _mp_context.Process(
+        target=_ssh_forward_process, args=(forward_pipe, ssh_config)
+    )
     proc.start()
 
     def try_close():
