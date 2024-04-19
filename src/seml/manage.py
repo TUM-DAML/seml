@@ -4,6 +4,7 @@ import itertools
 import logging
 import re
 import subprocess
+import sys
 import time
 from collections import defaultdict
 from typing import Dict, List, Optional, Set
@@ -15,6 +16,7 @@ from seml.config import (
     config_get_exclude_keys,
     resolve_interpolations,
 )
+from seml.console import pause_live_widget
 from seml.database import (
     build_filter_dict,
     get_collection,
@@ -1277,15 +1279,24 @@ def print_output(
     )
     for exp in experiments:
         console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
-        try:
-            with open(exp['seml']['output_file'], 'r', newline='') as f:
-                for line in f:
-                    console.print(line[:-1], end=line[-1])
-                console.print()  # new line
-        except IOError:
-            logging.info(f"File {exp['seml']['output_file']} could not be read.")
-            if 'captured_out' in exp and exp['captured_out']:
-                logging.info('Captured output from DB:')
-                console.print(exp['captured_out'])
-            else:
-                logging.error('No output available.')
+        with pause_live_widget():
+            try:
+                with open(exp['seml']['output_file'], 'r', newline='') as f:
+                    for line in f:
+                        console.print(line[:-1], end=line[-1])
+                    console.print()  # new line
+            except IOError:
+                logging.info(f"File {exp['seml']['output_file']} could not be read.")
+                if 'captured_out' in exp and exp['captured_out']:
+                    logging.info('Captured output from DB:')
+                    console.print(exp['captured_out'])
+                else:
+                    logging.error('No output available.')
+            except UnicodeDecodeError:
+                logging.error(
+                    f"File {exp['seml']['output_file']} could not be decoded to UTF-8. "
+                    "It may contain binary data. "
+                    "We directly forward the content to the console instead."
+                )
+                with open(exp['seml']['output_file'], 'rb') as f:
+                    sys.stdout.buffer.write(f.read())

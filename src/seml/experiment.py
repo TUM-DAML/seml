@@ -57,6 +57,10 @@ def is_local_main_process():
     return local_id() == 0
 
 
+def is_running_in_multi_process():
+    return process_count() > 1
+
+
 class ChildProcessSkip(Exception): ...
 
 
@@ -354,5 +358,6 @@ __all__ = [
     'process_count',
     'is_main_process',
     'is_local_main_process',
+    'is_running_in_multi_process',
     'only_on_main_process',
 ]

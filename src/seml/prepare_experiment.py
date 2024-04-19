@@ -1,8 +1,13 @@
 import argparse
 import os
+from sacred.randomness import get_seed
 
 from seml.database import get_collection
-from seml.experiment import is_local_main_process, is_main_process
+from seml.experiment import (
+    is_local_main_process,
+    is_main_process,
+    is_running_in_multi_process,
+)
 from seml.settings import SETTINGS
 from seml.sources import load_sources_from_db
 from seml.start import get_command_from_exp, get_shell_command
@@ -140,6 +145,13 @@ if __name__ == '__main__':
         'seml.command_unresolved': cmd_unresolved,
         'status': States.RUNNING[0],
     }
+
+    # If we run in a multi task environment, we want to make sure that the seed is fixed once and
+    # all tasks start with the same seed. Otherwise, one could not reproduce the experiment as the
+    # seed would change on the child nodes. It is up to the user to distribute seeds if needed.
+    if is_running_in_multi_process():
+        if SETTINGS.CONFIG_KEY_SEED not in config:
+            config[SETTINGS.CONFIG_KEY_SEED] = get_seed()
 
     if use_stored_sources:
         temp_dir = args.stored_sources_dir
