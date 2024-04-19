@@ -60,7 +60,7 @@ def retried_and_locked_ssh_port_forward(
     logging.getLogger('paramiko.transport').disabled = True
     for _ in range(retries_max):
         try:
-            lock = FileLock(lock_file, timeout=lock_timeout)
+            lock = FileLock(lock_file, mode=444, timeout=lock_timeout)
             with lock:
                 server = SSHTunnelForwarder(**ssh_config)
                 server.start()
