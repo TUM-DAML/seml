@@ -100,7 +100,11 @@ def _ssh_forward_process(pipe, ssh_config: Dict[str, Any]):
     while True:
         # check if we should end the process
         if pipe.poll(SETTINGS.SSH_FORWARD.HEALTH_CHECK_INTERVAL):
-            if pipe.closed or pipe.recv() == 'stop':
+            try:
+                if pipe.closed or pipe.recv() == 'stop':
+                    server.stop()
+                    break
+            except EOFError:
                 server.stop()
                 break
 
