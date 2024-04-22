@@ -639,7 +639,7 @@ def assert_package_installed(package: str, error: str):
 
 def remove_dir_from_path(original_path: Union[Path, str], to_remove: str):
     """
-    Removes the "src" directory from the path, handling any position.
+    Removes the "to_remove" directory from the path, handling any position.
 
     Parameters:
     ----------
@@ -647,7 +647,7 @@ def remove_dir_from_path(original_path: Union[Path, str], to_remove: str):
         The original path.
 
     Returns:
-        A new path object with "src" removed.
+        A new path object with "to_remove" removed.
     """
     current_path = Path(original_path)
     result = Path(current_path.name)

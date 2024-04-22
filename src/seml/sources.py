@@ -206,8 +206,8 @@ def load_sources_from_db(
     target_directory = Path(to_directory)
     for path, _id in source_files:
         path = cast(str, path)
-        # We remove the 'src' directory from the path, to ensure that the package is loaded instaed of the
-        # via pip installed version.
+        # For the imports to prefer our loaded seml version, we need to convert the src-layout to the flat-layout.
+        # https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
         if remove_src_directory:
             path = remove_dir_from_path(path, 'src')
         out_path = target_directory / path
