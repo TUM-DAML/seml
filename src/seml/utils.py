@@ -5,7 +5,18 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Hashable, Iterable, List, Tuple, TypeVar, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    Hashable,
+    Iterable,
+    List,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 import seml.typer as typer
 
@@ -406,10 +417,61 @@ def working_directory(path: Path):
         os.chdir(origin)
 
 
-F = TypeVar('F', bound=Callable[[], Any])
+R = TypeVar('R')
 
 
-def cache_to_disk(name: str, time_to_live: float) -> Callable[[F], F]:
+class DiskCachedFunction(Generic[R]):
+    def __init__(
+        self,
+        fun: Callable[[], R],
+        name: str,
+        time_to_live: float,
+    ):
+        self.cache_path = Path(typer.get_app_dir('seml')) / f'{name}.json'
+        self.time_to_live = time_to_live
+        self.fun = fun
+
+    def __call__(self) -> R:
+        import time
+
+        # Load from cache
+        # if it fails or is expired we will compute it again
+        if self.cache_path.exists():
+            try:
+                with open(self.cache_path) as f:
+                    cache = json.load(f)
+                if cache['expire'] > time.time():
+                    return cache['result']
+            except IOError:
+                pass
+        # Compute and save to cache
+        result = self.fun()
+        cache = {'result': result, 'expire': time.time() + self.time_to_live}
+        try:
+            with open(self.cache_path, 'w') as f:
+                json.dump(cache, f)
+        except IOError:
+            # If the writing fails for any reason we can just continue.
+            pass
+        return result
+
+    def clear_cache(self):
+        if self.cache_path.exists():
+            try:
+                os.remove(self.cache_path)
+                return True
+            except IOError:
+                return False
+        return False
+
+    def recompute_cache(self):
+        if self.clear_cache():
+            self()
+            return True
+        return False
+
+
+def cache_to_disk(name: str, time_to_live: float):
     """
     Cache the result of a function to disk.
 
@@ -422,38 +484,13 @@ def cache_to_disk(name: str, time_to_live: float) -> Callable[[F], F]:
 
     Returns
     -------
-    The decorated function.
+    A function decorator.
     """
 
-    def cache_fun(fun: F) -> F:
-        def wrapper() -> Any:
-            import time
+    def wrapper(fun: Callable[[], R]):
+        return DiskCachedFunction(fun, name, time_to_live)
 
-            cache_path = Path(typer.get_app_dir('seml')) / f'{name}.json'
-            # Load from cache
-            # if it fails or is expired we will compute it again
-            if cache_path.exists():
-                try:
-                    with open(cache_path) as f:
-                        cache = json.load(f)
-                    if cache['expire'] > time.time():
-                        return cache['result']
-                except IOError:
-                    pass
-            # Compute and save to cache
-            result = fun()
-            cache = {'result': result, 'expire': time.time() + time_to_live}
-            try:
-                with open(cache_path, 'w') as f:
-                    json.dump(cache, f)
-            except IOError:
-                # If the writing fails for any reason we can just continue.
-                pass
-            return result
-
-        return wrapper
-
-    return cache_fun
+    return wrapper
 
 
 def to_slices(items: List[int]) -> List[Tuple[int, int]]:

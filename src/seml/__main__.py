@@ -301,7 +301,7 @@ def callback(
         str,
         typer.Argument(
             help='The name of the database collection to use.',
-            autocompletion=db_collection_completer,
+            autocompletion=db_collection_completer.__call__,
         ),
     ],
     verbose: Annotated[
@@ -557,6 +557,7 @@ def add_command(
         description=description,
         resolve_descriptions=not no_resolve_descriptions,
     )
+    db_collection_completer.recompute_cache()
 
 
 @app.command('start')
@@ -849,6 +850,7 @@ def delete_command(
         filter_dict=filter_dict,
         yes=yes,
     )
+    db_collection_completer.recompute_cache()
 
 
 @app.command('drop')
@@ -866,6 +868,7 @@ def drop_command(
     Note: This is a dangerous operation and should only be used if you know what you are doing.
     """
     drop_collections(pattern=pattern, yes=yes)
+    db_collection_completer.recompute_cache()
 
 
 @app.command('detect-killed')
