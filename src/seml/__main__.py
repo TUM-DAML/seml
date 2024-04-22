@@ -37,6 +37,7 @@ from seml.manage import (
 )
 from seml.project import init_project, print_available_templates
 from seml.settings import SETTINGS
+from seml.sources import restore_sources
 from seml.start import print_command, start_experiments, start_jupyter_job
 from seml.utils import cache_to_disk
 
@@ -894,6 +895,37 @@ def status_command(
     """
     print_status(
         ctx.obj['collection'], update_status=update_status, projection=projection
+    )
+
+
+@app.command('restore-sources')
+@restrict_collection()
+def restore_sources_command(
+    ctx: typer.Context,
+    target_directory: Annotated[
+        str,
+        typer.Argument(
+            help='The directory where the source files should be restored.',
+            exists=False,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ],
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = [],
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+):
+    """
+    Restore source files from the database to the provided path.
+    """
+    restore_sources(
+        target_directory,
+        ctx.obj['collection'],
+        sacred_id=sacred_id,
+        filter_states=filter_states,
+        filter_dict=filter_dict,
+        batch_id=batch_id,
     )
 
 
