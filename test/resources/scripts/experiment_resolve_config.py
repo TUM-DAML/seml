@@ -22,5 +22,4 @@ def py_named_2():
 
 
 @ex.automain
-def main(foo, bar, py, json, yaml):
-    ...
+def main(foo, bar, py, json, yaml): ...

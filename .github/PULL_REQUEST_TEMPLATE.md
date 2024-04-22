@@ -1,4 +1,4 @@
-<!-- 
+<!--
 Thank you for contributing a pull request!
 Please name and describe your PR as you would write a
 commit message.

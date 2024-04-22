@@ -5,7 +5,7 @@ To modify the default Slurm `SBATCH`
 options, see `seml/settings.py`. The easiest way of changing these is via a file in `$HOME/.config/seml/settings.py`.
 This file must contain a `SETTINGS` dictionary, structured in the same way as the one in `seml/settings.py`.
 
-After the Jupyter instance has successfully started, `seml` will provide useful information such as the hostname and 
+After the Jupyter instance has successfully started, `seml` will provide useful information such as the hostname and
 port of the instance, e.g.:
 ```
 Started Jupyter job in Slurm job with ID 12345.
@@ -25,13 +25,13 @@ Before starting, please make sure you have your MongoDB credentials stored in `$
 
 ## Experiment configuration
 
-In `example_config.yaml` we define the parameter configurations that will be run. 
-For a more advanced example with modular structure using 
-[Sacred prefixes](https://sacred.readthedocs.io/en/stable/configuration.html#prefix), 
-see the [advanced example configuration](advanced_example_config.yaml) and the corresponding 
+In `example_config.yaml` we define the parameter configurations that will be run.
+For a more advanced example with modular structure using
+[Sacred prefixes](https://sacred.readthedocs.io/en/stable/configuration.html#prefix),
+see the [advanced example configuration](advanced_example_config.yaml) and the corresponding
 [experiment](advanced_example_experiment.py).
 <details><summary><b>Example config file</b></summary>
-  
+
 ```yaml
 seml:
   executable: examples/example_experiment.py
@@ -129,7 +129,7 @@ The `seml` block is required for every experiment. It has to contain the followi
 Optionally, it can contain
    - `name`: Prefix for output file and Slurm job name. Default: Collection name
    - `output_dir`: Directory to store log files in. Default: Current directory
-   - `conda_environment`: Specifies which Anaconda virtual environment will be activated before the experiment is executed. 
+   - `conda_environment`: Specifies which Anaconda virtual environment will be activated before the experiment is executed.
                           Default: The environment used when queuing.
    - `project_root_dir`: (Relative or absolute) path to the root of the project. seml will then upload all the source
                          files imported by the experiment to the MongoDB. Moreover, the uploaded source files will be
@@ -143,7 +143,7 @@ The special 'slurm' block contains the slurm parameters. This block and all valu
      under `SBATCH_OPTIONS_TEMPLATES`, e.g. for long-running jobs, CPU-only jobs, etc.
    - `sbatch_options`: dictionary that contains custom values that will be passed to `sbatch`, specifying e.g. the
                        memory and the number of GPUs to be allocated. See [here](https://slurm.schedmd.com/sbatch.html)
-                       for possible parameters of `sbatch` (prepended dashes are not required). Values provided here 
+                       for possible parameters of `sbatch` (prepended dashes are not required). Values provided here
                        overwrite any values defined in a `SBATCH` options template.
 
 ### Sub-configurations
@@ -152,7 +152,7 @@ They will be combined with the parameters in `grid` in the root of the document.
 
 If a specific configuration (e.g. `large_datasets`) defines the same parameters as a higher-level configuration (e.g., the "root" configuration),
  they will override the ones defined before, e.g. the learning rate in the example above.
-This means that for all configurations in the `large_datasets` the learning rate will be `0.001` and not `0.01` or 
+This means that for all configurations in the `large_datasets` the learning rate will be `0.001` and not `0.01` or
 `0.05` as defined in the root of the document.
 This can be nested arbitrarily deeply (be aware of combinatorial explosion of the parameter space, though).
 
@@ -240,7 +240,7 @@ seml seml_example launch-worker --worker-gpus="1" --worker-cpus=8
 In this example, the worker will use the GPU with ID 1 (i.e., set `CUDA_VISIBLE_DEVICES="1"`) and can use 8 CPU cores.
 
 The `--steal-slurm` option allows local workers to pop experiments from the Slurm queue. Since SEML checks the
-database state of each experiment before actually executing it via Slurm, there is no risk of running duplicate 
+database state of each experiment before actually executing it via Slurm, there is no risk of running duplicate
 experiments.
 
 ## Debugging experiments
@@ -279,8 +279,8 @@ To attach to the debug server you need to add the printed IP address and port nu
     ]
 }
 ```
-The IP address and port number of the debug server might change at every start, so make sure to update the `host` and `port` launch config. 
-Note: The "restart" operation of the VS Code Debugger is not supported. 
+The IP address and port number of the debug server might change at every start, so make sure to update the `host` and `port` launch config.
+Note: The "restart" operation of the VS Code Debugger is not supported.
 
 ## Running multiple experiments per Slurm job
 Often a single experiment does not fully utilize the GPU and requires much less GPU RAM than available. Thus, we can often
@@ -330,8 +330,8 @@ seml seml_example detect-killed
 (Detection is run automatically when executing the `status`, `delete`, `reset`, and `cancel` commands and therefore rarely necessary to do manually.)
 
 ### Batches
-`seml` assigns each experiment a batch ID, where all experiments that were staged together get the same batch ID. 
-You can use this to cancel all the experiments from the last configuration that you've started, e.g. if you find a bug. 
+`seml` assigns each experiment a batch ID, where all experiments that were staged together get the same batch ID.
+You can use this to cancel all the experiments from the last configuration that you've started, e.g. if you find a bug.
 Use
 ```bash
 seml seml_example cancel --batch-id i
@@ -351,7 +351,7 @@ See the [example notebook](notebooks/experiment_results.ipynb) for an example of
 ```bash
 seml seml_example add advanced_example_config.yaml start
 ```
-to add a config file and start it immediately after or 
+to add a config file and start it immediately after or
 ```
 seml seml_example cancel -y reset -y reload-sources start
 ```

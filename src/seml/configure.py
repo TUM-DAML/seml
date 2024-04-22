@@ -10,7 +10,7 @@ def prompt_ssh_forward():
     to the argument of sshtunnel.SSHTunnelForwarder.
     """
     from seml.console import prompt
-    
+
     logging.info('Configuring SSH Forward settings.')
     ssh_host = prompt('SSH host')
     port = prompt('Port', default=22, type=int)
