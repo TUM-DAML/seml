@@ -20,6 +20,7 @@ SETTINGS = munchify(
         # Only change this if you know what you're doing.
         'TMP_DIRECTORY': '/tmp',
         'TEMPLATE_REMOTE': 'https://github.com/TUM-DAML/seml-templates.git',
+        'CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY': True,
         'DATABASE': {
             # location of the MongoDB config. Default: $HOME/.config/seml/monogdb.config
             'MONGODB_CONFIG_PATH': APP_DIR / 'mongodb.config'

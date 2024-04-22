@@ -3,13 +3,16 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union, cast
 
 from seml.console import prompt
 from seml.database import build_filter_dict, delete_files, get_collection, upload_file
 from seml.errors import ExecutableError, MongoDBError
 from seml.settings import SETTINGS
-from seml.utils import working_directory
+from seml.utils import remove_dir_from_path, working_directory
+
+if TYPE_CHECKING:
+    import pymongo
 
 States = SETTINGS.STATES
 
@@ -185,29 +188,38 @@ def get_git_info(filename, working_dir):
     return path, commit, repo.is_dirty()
 
 
-def load_sources_from_db(exp, collection, to_directory):
+def load_sources_from_db(
+    experiment: Dict,
+    collection: 'pymongo.Collection',
+    to_directory: Union[str, Path],
+    remove_src_directory: bool = SETTINGS.CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY,
+):
     import gridfs
 
     db = collection.database
     fs = gridfs.GridFS(db)
-    if 'source_files' not in exp['seml']:
+    if 'source_files' not in experiment['seml']:
         raise MongoDBError(
-            f'No source files found for experiment with ID {exp["_id"]}.'
+            f'No source files found for experiment with ID {experiment["_id"]}.'
         )
-    source_files = exp['seml']['source_files']
+    source_files = experiment['seml']['source_files']
+    target_directory = Path(to_directory)
     for path, _id in source_files:
-        _dir = f'{to_directory}/{os.path.dirname(path)}'
-        if not os.path.exists(_dir):
-            os.makedirs(
-                _dir, mode=0o700
-            )  # only current user can read, write, or execute
-        with open(f'{to_directory}/{path}', 'wb') as f:
-            file = fs.find_one(_id)
-            if file is None:
-                raise MongoDBError(
-                    f"Could not find source file with ID '{_id}' for experiment with ID {exp['_id']}."
-                )
-            f.write(file.read())
+        path = cast(str, path)
+        # We remove the 'src' directory from the path, to ensure that the package is loaded instaed of the
+        # via pip installed version.
+        if remove_src_directory:
+            path = remove_dir_from_path(path, 'src')
+        out_path = target_directory / path
+        # only current user can read, write, or execute
+        out_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        db_file = fs.find_one(_id)
+        if db_file is None:
+            raise MongoDBError(
+                f"Could not find source file with ID '{_id}' for experiment with ID {experiment['_id']}."
+            )
+        with open(out_path, 'wb') as f:
+            f.write(db_file.read())
 
 
 def restore_sources(

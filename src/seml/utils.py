@@ -635,3 +635,25 @@ def assert_package_installed(package: str, error: str):
     except ImportError:
         logging.error(error)
         exit(1)
+
+
+def remove_dir_from_path(original_path: Union[Path, str], to_remove: str):
+    """
+    Removes the "src" directory from the path, handling any position.
+
+    Parameters:
+    ----------
+    original_path: Path | str
+        The original path.
+
+    Returns:
+        A new path object with "src" removed.
+    """
+    current_path = Path(original_path)
+    result = Path(current_path.name)
+    current_path = current_path.parent
+    while current_path.parent != current_path:
+        if current_path.name != to_remove:
+            result = current_path.name / result
+        current_path = current_path.parent
+    return result
