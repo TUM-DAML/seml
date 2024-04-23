@@ -651,20 +651,7 @@ def src_layout_to_flat_layout(original_path: Union[Path, str]):
     Returns:
         A new path object with "src" removed.
     """
-    current_path = Path(original_path)
-    # Split the path into each directory name
-    names = [current_path.name]
-    while current_path.parent != current_path:
-        current_path = current_path.parent
-        # Since we're going leaf -> root, we need to prepend
-        names.insert(0, current_path.name)
-
-    # Remove the first "src" directory
-    for i in range(len(names)):
-        if names[i] == 'src':
-            del names[i]
-            # After removing one "src" we stop.
-            break
-
-    result = Path(*names)
-    return result
+    path = Path(original_path)
+    if path.parts[0] == 'src':
+        return Path(*path.parts[1:])
+    return path
