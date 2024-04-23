@@ -9,7 +9,7 @@ from seml.console import prompt
 from seml.database import build_filter_dict, delete_files, get_collection, upload_file
 from seml.errors import ExecutableError, MongoDBError
 from seml.settings import SETTINGS
-from seml.utils import remove_dir_from_path, working_directory
+from seml.utils import src_layout_to_flat_layout, working_directory
 
 if TYPE_CHECKING:
     import pymongo
@@ -209,7 +209,7 @@ def load_sources_from_db(
         # For the imports to prefer our loaded seml version, we need to convert the src-layout to the flat-layout.
         # https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
         if remove_src_directory:
-            path = remove_dir_from_path(path, 'src')
+            path = src_layout_to_flat_layout(path)
         out_path = target_directory / path
         # only current user can read, write, or execute
         out_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)

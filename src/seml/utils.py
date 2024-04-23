@@ -637,9 +637,11 @@ def assert_package_installed(package: str, error: str):
         exit(1)
 
 
-def remove_dir_from_path(original_path: Union[Path, str], to_remove: str):
+def src_layout_to_flat_layout(original_path: Union[Path, str]):
     """
-    Removes the "to_remove" directory from the path, handling any position.
+    Removes the first "src" directory from the path, handling any position.
+    For the imports to prefer our loaded seml version, we need to convert the src-layout to the flat-layout.
+    https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
 
     Parameters:
     ----------
@@ -647,13 +649,22 @@ def remove_dir_from_path(original_path: Union[Path, str], to_remove: str):
         The original path.
 
     Returns:
-        A new path object with "to_remove" removed.
+        A new path object with "src" removed.
     """
     current_path = Path(original_path)
-    result = Path(current_path.name)
-    current_path = current_path.parent
+    # Split the path into each directory name
+    names = [current_path.name]
     while current_path.parent != current_path:
-        if current_path.name != to_remove:
-            result = current_path.name / result
         current_path = current_path.parent
+        # Since we're going leaf -> root, we need to prepend
+        names.insert(0, current_path.name)
+
+    # Remove the first "src" directory
+    for i in range(len(names)):
+        if names[i] == 'src':
+            del names[i]
+            # After removing one "src" we stop.
+            break
+
+    result = Path(*names)
     return result
