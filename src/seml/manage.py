@@ -4,7 +4,6 @@ import itertools
 import logging
 import re
 import subprocess
-import sys
 import time
 from collections import defaultdict
 from typing import Dict, List, Optional, Set
@@ -532,7 +531,7 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                     {'_id': exp['_id']}, {'$set': {'status': States.KILLED[0]}}
                 )
                 try:
-                    with open(exp['seml']['output_file'], 'r') as f:
+                    with open(exp['seml']['output_file'], 'r', errors='replace') as f:
                         all_lines = f.readlines()
                     collection.update_one(
                         {'_id': exp['_id']}, {'$set': {'fail_trace': all_lines[-4:]}}
@@ -1283,7 +1282,9 @@ def print_output(
         console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
         with pause_live_widget():
             try:
-                with open(exp['seml']['output_file'], 'r', newline='') as f:
+                with open(
+                    exp['seml']['output_file'], mode='r', newline='', errors='replace'
+                ) as f:
                     for line in f:
                         console.print(line[:-1], end=line[-1])
                     console.print()  # new line
@@ -1294,14 +1295,6 @@ def print_output(
                     console.print(exp['captured_out'])
                 else:
                     logging.error('No output available.')
-            except UnicodeDecodeError:
-                logging.error(
-                    f"File {exp['seml']['output_file']} could not be decoded to UTF-8. "
-                    "It may contain binary data. "
-                    "We directly forward the content to the console instead."
-                )
-                with open(exp['seml']['output_file'], 'rb') as f:
-                    sys.stdout.buffer.write(f.read())
 
     if count == 0:
         logging.info('No experiments found.')
