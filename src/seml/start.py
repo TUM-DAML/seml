@@ -21,7 +21,7 @@ from seml.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.network import find_free_port
 from seml.settings import SETTINGS
 from seml.sources import load_sources_from_db
-from seml.utils import load_text_resource, s_if
+from seml.utils import assert_package_installed, load_text_resource, s_if
 
 States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
@@ -1165,6 +1165,17 @@ def start_jupyter_job(
     conda_env: Optional[str] = None,
     lab: bool = False,
 ):
+    if lab:
+        assert_package_installed(
+            'jupyterlab',
+            '`start-jupyter --lab` requires `jupyterlab` (e.g. `pip install jupyterlab`)',
+        )
+    else:
+        assert_package_installed(
+            'notebook',
+            '`start-jupyter` requires `notebook` (e.g. `pip install notebook`)',
+        )
+
     sbatch_options = sbatch_options if sbatch_options is not None else {}
     sbatch_options_merged = SETTINGS.SLURM_DEFAULT['sbatch_options']
     sbatch_options_merged.update(SETTINGS.SBATCH_OPTIONS_TEMPLATES.JUPYTER)
