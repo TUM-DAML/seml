@@ -64,7 +64,6 @@ def retried_and_locked_ssh_port_forward(
             with lock:
                 server = SSHTunnelForwarder(**ssh_config)
                 server.start()
-                server.check_tunnels()
                 if not server.tunnel_is_up[server.local_bind_address]:
                     raise BaseSSHTunnelForwarderError()
                 return server
