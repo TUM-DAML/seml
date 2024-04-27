@@ -143,7 +143,7 @@ SETTINGS = munchify(
             'TERMINAL_WIDTH': 80,  # width of the terminal for rich output
         },
         'CONFIG_RESOLUTION_PROGRESS_BAR_THRESHOLD': 25,
-        'AUTOCOMPLETE_CACHE_ALIVE_TIME': 300,
+        'AUTOCOMPLETE_CACHE_ALIVE_TIME': 3600,
         'SETUP_COMMAND': '',
         'END_COMMAND': '',
         'SSH_FORWARD': {
