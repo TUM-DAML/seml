@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union, cast
 
-from seml.console import prompt
 from seml.database import build_filter_dict, delete_files, get_collection, upload_file
 from seml.errors import ExecutableError, MongoDBError
 from seml.settings import SETTINGS
@@ -248,6 +247,8 @@ def restore_sources(
     filter_dict: Dict
         Additional filter dictionary.
     """
+    from seml.console import prompt
+
     filter_dict = build_filter_dict(
         filter_states, batch_id, filter_dict, sacred_id=sacred_id
     )

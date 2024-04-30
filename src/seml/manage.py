@@ -15,7 +15,6 @@ from seml.config import (
     config_get_exclude_keys,
     resolve_interpolations,
 )
-from seml.console import pause_live_widget
 from seml.database import (
     build_filter_dict,
     get_collection,
@@ -1284,7 +1283,7 @@ def print_output(
     filter_dict : Optional[Dict], optional
         Additional filters, by default None
     """
-    from seml.console import console, Heading
+    from seml.console import console, Heading, pause_live_widget
 
     filter_dict = build_filter_dict(
         filter_states, batch_id, filter_dict, sacred_id=sacred_id

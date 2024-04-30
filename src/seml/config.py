@@ -6,7 +6,7 @@ import numbers
 import os
 from itertools import combinations
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -22,11 +22,11 @@ from seml.sources import import_exe
 from seml.utils import (
     Hashabledict,
     flatten,
+    list_is_prefix,
     merge_dicts,
+    remove_keys_from_nested,
     unflatten,
     working_directory,
-    remove_keys_from_nested,
-    list_is_prefix,
 )
 
 if TYPE_CHECKING:
@@ -429,21 +429,22 @@ def _sacred_create_configs(
     Dict
         The updated configurations containing all values derived from the experiment.
     """
-    from sacred.utils import (
-        convert_to_nested_dict,
-        recursive_update,
-        iterate_flattened,
-        join_paths,
-        set_by_dotted_path,
-    )
     from sacred.initialize import (
         create_scaffolding,
-        gather_ingredients_topological,
         distribute_config_updates,
+        distribute_presets,
+        gather_ingredients_topological,
         get_configuration,
         get_scaffolding_and_config_name,
-        distribute_presets,
     )
+    from sacred.utils import (
+        convert_to_nested_dict,
+        iterate_flattened,
+        join_paths,
+        recursive_update,
+        set_by_dotted_path,
+    )
+
     from seml.console import track
 
     configs_resolved = []
@@ -540,6 +541,7 @@ def resolve_configs(
         Resolved configurations
     """
     import sacred
+
     from seml.experiment import Experiment
 
     exp_module = import_exe(executable, conda_env, working_dir)
