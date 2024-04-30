@@ -146,6 +146,7 @@ def cancel_experiments(
     filter_dict: Optional[Dict] = None,
     yes: bool = False,
     wait: bool = False,
+    confirm_threshold: int = SETTINGS.CONFIRM_THRESHOLD.CANCEL,
 ):
     """Cancels experiment(s)
 
@@ -165,6 +166,8 @@ def cancel_experiments(
         Whether to override confirmation prompts, by default False
     wait : bool, optional
         Whether to wait for all experiments be cancelled (by checking the slurm queue), by default False
+    confirm_threshold : int, optional
+        The threshold for the number of experiments to cancel before asking for confirmation, by default SETTINGS.CONFIRM_THRESHOLD.CANCEL
     """
     from seml.console import prompt
 
@@ -189,7 +192,7 @@ def cancel_experiments(
             logging.error(f'No experiment found with ID {sacred_id}.')
 
         logging.info(f'Cancelling {ncancel} experiment{s_if(ncancel)}.')
-        if ncancel >= SETTINGS.CONFIRM_THRESHOLD.CANCEL:
+        if ncancel >= confirm_threshold:
             if not yes and not prompt('Are you sure? (y/n)', type=bool):
                 exit(1)
 
@@ -271,6 +274,7 @@ def delete_experiments(
     batch_id: Optional[int] = None,
     filter_dict: Optional[Dict] = None,
     yes: bool = False,
+    cancel: bool = True,
 ):
     """Deletes experiment(s).
 
@@ -290,6 +294,19 @@ def delete_experiments(
         Whether to override confirmation prompts, by default False
     """
     from seml.console import prompt
+
+    # Before deleting, we should first cancel the experiments that are still running.
+    if not cancel:
+        cancel_experiments(
+            db_collection_name,
+            sacred_id,
+            filter_states,
+            batch_id,
+            filter_dict,
+            yes=False,
+            confirm_threshold=1,
+            wait=True,
+        )
 
     collection = get_collection(db_collection_name)
     experiment_files_to_delete = []
@@ -1307,6 +1324,22 @@ def hold_or_release_experiments(
     batch_id: Optional[int] = None,
     filter_dict: Optional[Dict] = None,
 ):
+    """
+    Holds or releases experiments that are currently in the SLURM queue.
+
+    Parameters
+    ----------
+    hold : bool
+        Whether to hold or release the experiments
+    db_collection_name : str
+        The collection to hold or release experiments from
+    sacred_id : Optional[int], optional
+        The ID of the experiment to hold or release, by default None
+    batch_id : Optional[int], optional
+        Filter on the batch ID of experiments, by default None
+    filter_dict : Optional[Dict], optional
+        Additional filters, by default None
+    """
     import shlex
 
     detect_killed(db_collection_name, False)

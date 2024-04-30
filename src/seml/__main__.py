@@ -839,10 +839,19 @@ def delete_command(
     ],
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
+    no_cancel: Annotated[
+        bool,
+        typer.Option(
+            '-nc',
+            '--no-cancel',
+            help='Do not cancel the experiments before deleting them.',
+            is_flag=True,
+        ),
+    ] = False,
     yes: YesAnnotation = False,
 ):
     """
-    Delete experiments by ID or state (does not cancel Slurm jobs).
+    Delete experiments by ID or state (cancels Slurm jobs first if not --no-cancel).
     """
     delete_experiments(
         ctx.obj['collection'],
@@ -851,6 +860,7 @@ def delete_command(
         batch_id=batch_id,
         filter_dict=filter_dict,
         yes=yes,
+        cancel=not no_cancel,
     )
     db_collection_completer.recompute_cache()
 
