@@ -26,19 +26,22 @@ $ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 * `cancel`: Cancel the Slurm job/job step...
 * `clean-db`: Remove orphaned artifacts in the DB from...
 * `configure`: Configure SEML (database, argument...
-* `delete`: Delete experiments by ID or state (does...
+* `delete`: Delete experiments by ID or state (cancels...
 * `description`: Manage descriptions of the experiments in...
 * `detect-duplicates`: Prints duplicate experiment configurations.
 * `detect-killed`: Detect experiments where the corresponding...
 * `drop`: Drop collections from the database.
+* `hold`: Hold queued experiments via SLURM.
 * `launch-worker`: Launch a local worker that runs PENDING jobs.
 * `list`: Lists all collections in the database.
 * `print-command`: Print the commands that would be executed...
 * `print-fail-trace`: Prints fail traces of all failed experiments.
 * `print-output`: Print the output of experiments.
 * `project`: Setting up new projects.
+* `release`: Release holded experiments via SLURM.
 * `reload-sources`: Reload stashed source files.
 * `reset`: Reset the state of experiments by setting...
+* `restore-sources`: Restore source files from the database to...
 * `start`: Fetch staged experiments from the database...
 * `start-jupyter`: Start a Jupyter slurm job.
 * `status`: Report status of experiments in the...
@@ -120,7 +123,7 @@ $ seml configure [OPTIONS]
 
 ## `seml delete`
 
-Delete experiments by ID or state (does not cancel Slurm jobs).
+Delete experiments by ID or state (cancels Slurm jobs first if not --no-cancel).
 
 **Usage**:
 
@@ -134,6 +137,7 @@ $ seml delete [OPTIONS]
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: STAGED, QUEUED, FAILED, KILLED, INTERRUPTED]
 * `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
+* `-nc, --no-cancel`: Do not cancel the experiments before deleting them.
 * `-y, --yes`: Automatically confirm all dialogues with yes.
 * `--help`: Show this message and exit.
 
@@ -265,6 +269,23 @@ $ seml drop [OPTIONS] [PATTERN]
 **Options**:
 
 * `-y, --yes`: Automatically confirm all dialogues with yes.
+* `--help`: Show this message and exit.
+
+## `seml hold`
+
+Hold queued experiments via SLURM.
+
+**Usage**:
+
+```console
+$ seml hold [OPTIONS]
+```
+
+**Options**:
+
+* `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
+* `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
+* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `--help`: Show this message and exit.
 
 ## `seml launch-worker`
@@ -436,6 +457,23 @@ $ seml project list-templates [OPTIONS]
 * `-c, --git-commit TEXT`: The exact git commit to use. May also be a tag or branch (By default latest)
 * `--help`: Show this message and exit.
 
+## `seml release`
+
+Release holded experiments via SLURM.
+
+**Usage**:
+
+```console
+$ seml release [OPTIONS]
+```
+
+**Options**:
+
+* `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
+* `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
+* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `--help`: Show this message and exit.
+
 ## `seml reload-sources`
 
 Reload stashed source files.
@@ -471,6 +509,28 @@ $ seml reset [OPTIONS]
 * `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-y, --yes`: Automatically confirm all dialogues with yes.
+* `--help`: Show this message and exit.
+
+## `seml restore-sources`
+
+Restore source files from the database to the provided path.
+
+**Usage**:
+
+```console
+$ seml restore-sources [OPTIONS] TARGET_DIRECTORY
+```
+
+**Arguments**:
+
+* `TARGET_DIRECTORY`: The directory where the source files should be restored.  [required]
+
+**Options**:
+
+* `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
+* `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.
+* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `--help`: Show this message and exit.
 
 ## `seml start`

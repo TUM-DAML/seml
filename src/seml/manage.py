@@ -295,7 +295,7 @@ def delete_experiments(
     from seml.console import prompt
 
     # Before deleting, we should first cancel the experiments that are still running.
-    if not cancel:
+    if cancel:
         cancel_experiments(
             db_collection_name,
             sacred_id,
