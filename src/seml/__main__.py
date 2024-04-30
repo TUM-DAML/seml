@@ -27,6 +27,7 @@ from seml.manage import (
     delete_experiments,
     detect_killed,
     drop_collections,
+    hold_or_release_experiments,
     list_database,
     print_duplicates,
     print_fail_trace,
@@ -926,6 +927,46 @@ def restore_sources_command(
         filter_states=filter_states,
         filter_dict=filter_dict,
         batch_id=batch_id,
+    )
+
+
+@app.command('hold')
+@restrict_collection()
+def hold_command(
+    ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    filter_dict: FilterDictAnnotation = None,
+):
+    """
+    Hold queued experiments via SLURM.
+    """
+    hold_or_release_experiments(
+        True,
+        ctx.obj['collection'],
+        sacred_id=sacred_id,
+        batch_id=batch_id,
+        filter_dict=filter_dict,
+    )
+
+
+@app.command('release')
+@restrict_collection()
+def release_command(
+    ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    filter_dict: FilterDictAnnotation = None,
+):
+    """
+    Release holded experiments via SLURM.
+    """
+    hold_or_release_experiments(
+        False,
+        ctx.obj['collection'],
+        sacred_id=sacred_id,
+        batch_id=batch_id,
+        filter_dict=filter_dict,
     )
 
 
