@@ -1400,7 +1400,7 @@ def parse_scontrol_job_info(job_info: str):
     return job_info_dict
 
 
-def generate_queue_table(job_ids: List[str], filter_by_user: bool = True):
+def generate_queue_table(db, job_ids: List[str], filter_by_user: bool = True):
     """
     Generates a table of the SEML collections of Slurm jobs.
 
@@ -1444,8 +1444,6 @@ def generate_queue_table(job_ids: List[str], filter_by_user: bool = True):
     job_infos = list(map(parse_scontrol_job_info, job_info_strs))
 
     # Find the collections
-    mongodb_config = get_mongodb_config()
-    db = get_database(**mongodb_config)
     all_collections = set(db.list_collection_names())
 
     collection_to_jobs = defaultdict(list)
@@ -1512,13 +1510,16 @@ def print_queue(
     from seml.console import console, pause_live_widget
     from rich.live import Live
 
-    table = generate_queue_table(job_ids, filter_by_user)
+    mongodb_config = get_mongodb_config()
+    db = get_database(**mongodb_config)
+
+    table = generate_queue_table(db, job_ids, filter_by_user)
     if watch:
         console.clear()
         with pause_live_widget():
             with Live(table, refresh_per_second=2) as live:
                 while True:
                     time.sleep(2)
-                    live.update(generate_queue_table(job_ids, filter_by_user))
+                    live.update(generate_queue_table(db, job_ids, filter_by_user))
     else:
         console.print(table)
