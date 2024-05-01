@@ -209,7 +209,7 @@ def set_slurm_job_name(
         )
     job_name = f"{name}_{exp['batch_id']}"
     sbatch_options['job-name'] = job_name
-    if 'comment' in sbatch_options:
+    if sbatch_options.get('comment', db_collection_name) != db_collection_name:
         raise ConfigError(
             "Can't set sbatch `comment` parameter explicitly. "
             'SEML will do that for you and set it to the collection name.'
