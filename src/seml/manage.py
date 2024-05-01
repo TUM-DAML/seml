@@ -1475,7 +1475,10 @@ def generate_queue_table(job_ids: List[str], filter_by_user: bool = True):
         if job_info is None:
             return ''
         nodelist = job_info['NodeList']
-        job_id = f"{job_info['JobId']}_{job_info['ArrayTaskId']}"
+        job_id = job_info['JobId']
+        task_id = job_info.get('ArrayTaskId', None)
+        if task_id:
+            job_id = f'{job_id}_{task_id}'
         if nodelist:
             return f"{job_id} ({job_info['RunTime']}, {nodelist})"
         else:
