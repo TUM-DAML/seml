@@ -64,16 +64,32 @@ def restrict_collection(require: bool = True):
                 )
             return fun(ctx, *args, **kwargs)
 
+        wrapper._requires_collection = require
         return wrapper
 
     return decorator
 
 
+def collection_free_commands(app: typer.Typer) -> List[str]:
+    """Get the commands that do not require a collection."""
+    return [
+        cmd.name
+        for cmd in app.registered_commands
+        if not getattr(cmd.callback, '_requires_collection', True)
+    ]
+
+
 @cache_to_disk('db_config', SETTINGS.AUTOCOMPLETE_CACHE_ALIVE_TIME)
-def db_collection_completer():
+def get_db_collections():
     """CLI completion for db collections."""
     config = get_mongodb_config()
     return list(get_collections_from_mongo_shell_or_pymongo(**config))
+
+
+def first_argument_completer():
+    """CLI completition for the first argumentin SEML."""
+    # We also add the commands that do not require a collection for autocompletion.
+    return get_db_collections() + collection_free_commands(app)
 
 
 app = typer.Typer(
@@ -304,7 +320,7 @@ def callback(
         str,
         typer.Argument(
             help='The name of the database collection to use.',
-            autocompletion=db_collection_completer.__call__,
+            autocompletion=first_argument_completer,
         ),
     ],
     verbose: Annotated[
@@ -560,7 +576,7 @@ def add_command(
         description=description,
         resolve_descriptions=not no_resolve_descriptions,
     )
-    db_collection_completer.recompute_cache()
+    first_argument_completer.recompute_cache()
 
 
 @app.command('start')
@@ -863,7 +879,7 @@ def delete_command(
         yes=yes,
         cancel=not no_cancel,
     )
-    db_collection_completer.recompute_cache()
+    first_argument_completer.recompute_cache()
 
 
 @app.command('drop')
@@ -881,7 +897,7 @@ def drop_command(
     Note: This is a dangerous operation and should only be used if you know what you are doing.
     """
     drop_collections(pattern=pattern, yes=yes)
-    db_collection_completer.recompute_cache()
+    first_argument_completer.recompute_cache()
 
 
 @app.command('detect-killed')
