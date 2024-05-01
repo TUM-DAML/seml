@@ -296,16 +296,21 @@ def delete_experiments(
 
     # Before deleting, we should first cancel the experiments that are still running.
     if cancel:
-        cancel_experiments(
-            db_collection_name,
-            sacred_id,
-            filter_states,
-            batch_id,
-            filter_dict,
-            yes=False,
-            confirm_threshold=1,
-            wait=True,
-        )
+        cancel_states = set(States.PENDING + States.RUNNING)
+        if filter_states is not None and len(filter_states) > 0:
+            cancel_states = cancel_states.intersection(filter_states)
+
+        if len(cancel_states) > 0:
+            cancel_experiments(
+                db_collection_name,
+                sacred_id,
+                list(cancel_states),
+                batch_id,
+                filter_dict,
+                yes=False,
+                confirm_threshold=1,
+                wait=True,
+            )
 
     collection = get_collection(db_collection_name)
     experiment_files_to_delete = []
