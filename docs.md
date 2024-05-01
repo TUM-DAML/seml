@@ -34,6 +34,7 @@ $ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 * `hold`: Hold queued experiments via SLURM.
 * `launch-worker`: Launch a local worker that runs PENDING jobs.
 * `list`: Lists all collections in the database.
+* `print-collection`: Prints the collections of the given job IDs.
 * `print-command`: Print the commands that would be executed...
 * `print-fail-trace`: Prints fail traces of all failed experiments.
 * `print-output`: Print the output of experiments.
@@ -334,6 +335,25 @@ $ seml list [OPTIONS] [PATTERN]
 * `-p, --progress`: Whether to print a progress bar for iterating over collections.
 * `-u, --update-status`: Whether to update the status of experiments in the database. This can take a while for large collections. Use only if necessary.
 * `-fd, --full-descriptions`: Whether to print full descriptions (possibly with line breaks).
+* `--help`: Show this message and exit.
+
+## `seml print-collection`
+
+Prints the collections of the given job IDs. If none is specified, all jobs are considered.
+
+**Usage**:
+
+```console
+$ seml print-collection [OPTIONS] [JOB_IDS]...
+```
+
+**Arguments**:
+
+* `[JOB_IDS]...`: The job IDs of the experiments to get the collection for.
+
+**Options**:
+
+* `-a, --all`: Whether to attempt finding the collection of the jobs of all users.
 * `--help`: Show this message and exit.
 
 ## `seml print-command`

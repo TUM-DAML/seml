@@ -2,11 +2,12 @@ import copy
 import datetime
 import itertools
 import logging
+import os
 import re
 import subprocess
 import time
 from collections import defaultdict
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Sequence, Set
 
 from seml.config import (
     check_config,
@@ -1375,3 +1376,98 @@ def hold_or_release_experiments(
     # User feedback
     op_name = 'Held' if hold else 'Released'
     logging.info(f'{op_name} {n_experiments} experiment{s_if(len(arrays))}.')
+
+
+def parse_scontrol_job_info(job_info: str):
+    """
+    Converts the return value of `scontrol show job <jobid>` into a python dictionary.
+
+    Parameters
+    ----------
+    job_info : str
+        The output of `scontrol show job <jobid>`
+
+    Returns
+    -------
+    dict
+        The job information as a dictionary
+    """
+    job_info_dict = {}
+    for line in job_info.split():
+        if line:
+            key, value = line.split('=', 1)
+            job_info_dict[key] = value
+    return job_info_dict
+
+
+def print_collections_of_jobs(
+    job_ids: Optional[Sequence[str]] = None,
+    filter_by_user: bool = True,
+):
+    """
+    Prints the SEML collections of Slurm jobs.
+
+    Parameters
+    ----------
+    job_ids : Optional[Sequence[str]], optional
+        The job IDs to check, by default None (None meaning all jobs)
+    filter_by_user : bool, optional
+        Whether to only check jobs by the current user, by default True
+    """
+    from seml.console import console, Table
+    from rich.align import Align
+
+    # Run scontrol
+    if job_ids is None or len(job_ids) == 0:
+        job_info_str = subprocess.run(
+            'scontrol show job',
+            shell=True,
+            check=True,
+            capture_output=True,
+        ).stdout.decode('utf-8')
+        job_info_strs = job_info_str.split('\n\n')
+    else:
+        job_info_strs = []
+        for job_id in job_ids:
+            job_info_str = subprocess.run(
+                f'scontrol show job {job_id}',
+                shell=True,
+                check=True,
+                capture_output=True,
+            ).stdout.decode('utf-8')
+            job_info_strs.append(job_info_str)
+
+    # Convert to dictionary
+    job_info_strs = list(filter(None, job_info_strs))
+    job_infos = {
+        info['JobId']: info for info in map(parse_scontrol_job_info, job_info_strs)
+    }
+
+    # Find the collections
+    mongodb_config = get_mongodb_config()
+    db = get_database(**mongodb_config)
+    collections = set(db.list_collection_names())
+
+    collection_to_jobs = defaultdict(list)
+    for array_id, job in job_infos.items():
+        user_id = job.get('UserId', '').split('(')[0]
+        if filter_by_user and user_id != os.environ['USER']:
+            continue
+        collection = job.get('Comment', None)
+        if not (collection and collection in collections):
+            collection = 'No collection found'
+        collection_to_jobs[collection].append(array_id)
+
+    # Print the collections
+    table = Table(
+        'Collection',
+        'Job IDs',
+        show_header=True,
+    )
+
+    sorted_keys = sorted(collection_to_jobs.keys())
+    for collection in sorted_keys:
+        job_ids = sorted(collection_to_jobs[collection])
+        table.add_row(collection, ', '.join(job_ids))
+
+    console.print(Align(table, align='center'))

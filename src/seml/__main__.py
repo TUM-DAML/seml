@@ -29,6 +29,7 @@ from seml.manage import (
     drop_collections,
     hold_or_release_experiments,
     list_database,
+    print_collections_of_jobs,
     print_duplicates,
     print_fail_trace,
     print_output,
@@ -978,6 +979,30 @@ def release_command(
         batch_id=batch_id,
         filter_dict=filter_dict,
     )
+
+
+@app.command('print-collection')
+@restrict_collection(False)
+def print_collection_command(
+    ctx: typer.Context,
+    job_ids: List[str] = typer.Argument(
+        help='The job IDs of the experiments to get the collection for.',
+        default=None,
+    ),
+    check_all: Annotated[
+        bool,
+        typer.Option(
+            '-a',
+            '--all',
+            help='Whether to attempt finding the collection of the jobs of all users.',
+            is_flag=True,
+        ),
+    ] = False,
+):
+    """
+    Prints the collections of the given job IDs. If none is specified, all jobs are considered.
+    """
+    print_collections_of_jobs(job_ids, filter_by_user=not check_all)
 
 
 app_description = typer.Typer(

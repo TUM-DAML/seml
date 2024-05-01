@@ -10,7 +10,7 @@ import time
 import urllib
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from seml.config import generate_named_configs
 from seml.config import resolve_interpolations as resolve_config_interpolations
@@ -196,7 +196,12 @@ def get_exp_name(exp_config, db_collection_name):
     return name
 
 
-def set_slurm_job_name(sbatch_options, name, exp):
+def set_slurm_job_name(
+    sbatch_options: Dict[str, Any],
+    name: str,
+    exp: Dict,
+    db_collection_name: str,
+):
     if 'job-name' in sbatch_options:
         raise ConfigError(
             "Can't set sbatch `job-name` parameter explicitly. "
@@ -204,6 +209,12 @@ def set_slurm_job_name(sbatch_options, name, exp):
         )
     job_name = f"{name}_{exp['batch_id']}"
     sbatch_options['job-name'] = job_name
+    if 'comment' in sbatch_options:
+        raise ConfigError(
+            "Can't set sbatch `comment` parameter explicitly. "
+            'SEML will do that for you and set it to the collection name.'
+        )
+    sbatch_options['comment'] = db_collection_name
 
 
 def create_slurm_options_string(slurm_options: dict, srun: bool = False):
@@ -744,7 +755,7 @@ def add_to_slurm_queue(
     for exp_array in exp_arrays:
         sbatch_options = exp_array[0][0]['slurm']['sbatch_options']
         job_name = get_exp_name(exp_array[0][0], collection.name)
-        set_slurm_job_name(sbatch_options, job_name, exp_array[0][0])
+        set_slurm_job_name(sbatch_options, job_name, exp_array[0][0], collection.name)
         if srun:
             assert len(exp_array) == 1
             assert len(exp_array[0]) == 1
