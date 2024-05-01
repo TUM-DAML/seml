@@ -576,7 +576,7 @@ def add_command(
         description=description,
         resolve_descriptions=not no_resolve_descriptions,
     )
-    first_argument_completer.recompute_cache()
+    get_db_collections.recompute_cache()
 
 
 @app.command('start')
@@ -879,7 +879,7 @@ def delete_command(
         yes=yes,
         cancel=not no_cancel,
     )
-    first_argument_completer.recompute_cache()
+    get_db_collections.recompute_cache()
 
 
 @app.command('drop')
@@ -897,7 +897,7 @@ def drop_command(
     Note: This is a dangerous operation and should only be used if you know what you are doing.
     """
     drop_collections(pattern=pattern, yes=yes)
-    first_argument_completer.recompute_cache()
+    get_db_collections.recompute_cache()
 
 
 @app.command('detect-killed')

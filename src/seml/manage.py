@@ -7,7 +7,6 @@ import re
 import subprocess
 import time
 from collections import defaultdict
-from itertools import zip_longest
 from typing import Dict, List, Optional, Sequence, Set
 
 from seml.config import (
@@ -1476,17 +1475,18 @@ def generate_queue_table(job_ids: List[str], filter_by_user: bool = True):
         if job_info is None:
             return ''
         nodelist = job_info['NodeList']
+        job_id = f"{job_info['JobId']}_{job_info['ArrayTaskId']}"
         if nodelist:
-            return f"{job_info['JobId']} ({job_info['RunTime']}, {nodelist})"
+            return f"{job_id} ({job_info['RunTime']}, {nodelist})"
         else:
-            return f"{job_info['JobId']} ({job_info.get('Reason', '')})"
+            return f"{job_id} ({job_info.get('Reason', '')})"
 
     for col in collections:
         row = [col]
-        jobs_per_state = [collection_to_jobs[(col, state)] for state in states]
-        for jobs in zip_longest(*jobs_per_state, fillvalue=None):
-            table.add_row(*row, *map(format_job, jobs))
-            row = ['']
+        for state in states:
+            jobs = collection_to_jobs[(col, state)]
+            row.append('\n'.join(map(format_job, jobs)))
+        table.add_row(*row)
 
     return Align(table, align='center')
 
