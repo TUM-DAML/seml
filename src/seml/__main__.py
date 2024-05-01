@@ -29,7 +29,7 @@ from seml.manage import (
     drop_collections,
     hold_or_release_experiments,
     list_database,
-    print_collections_of_jobs,
+    print_queue,
     print_duplicates,
     print_fail_trace,
     print_output,
@@ -997,9 +997,9 @@ def release_command(
     )
 
 
-@app.command('print-collection')
+@app.command('queue')
 @restrict_collection(False)
-def print_collection_command(
+def queue_command(
     ctx: typer.Context,
     job_ids: List[str] = typer.Argument(
         help='The job IDs of the experiments to get the collection for.',
@@ -1014,11 +1014,20 @@ def print_collection_command(
             is_flag=True,
         ),
     ] = False,
+    watch: Annotated[
+        bool,
+        typer.Option(
+            '-w',
+            '--watch',
+            help='Whether to watch the queue.',
+            is_flag=True,
+        ),
+    ] = False,
 ):
     """
     Prints the collections of the given job IDs. If none is specified, all jobs are considered.
     """
-    print_collections_of_jobs(job_ids, filter_by_user=not check_all)
+    print_queue(job_ids, filter_by_user=not check_all, watch=watch)
 
 
 app_description = typer.Typer(

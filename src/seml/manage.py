@@ -7,6 +7,7 @@ import re
 import subprocess
 import time
 from collections import defaultdict
+from itertools import zip_longest
 from typing import Dict, List, Optional, Sequence, Set
 
 from seml.config import (
@@ -1400,21 +1401,23 @@ def parse_scontrol_job_info(job_info: str):
     return job_info_dict
 
 
-def print_collections_of_jobs(
-    job_ids: Optional[Sequence[str]] = None,
-    filter_by_user: bool = True,
-):
+def generate_queue_table(job_ids: List[str], filter_by_user: bool = True):
     """
-    Prints the SEML collections of Slurm jobs.
+    Generates a table of the SEML collections of Slurm jobs.
 
     Parameters
     ----------
-    job_ids : Optional[Sequence[str]], optional
-        The job IDs to check, by default None (None meaning all jobs)
+    job_ids : List[str]
+        The job IDs to check
     filter_by_user : bool, optional
-        Whether to only check jobs by the current user, by default True
+        Whether to only check jobs by the current user, by default True.
+
+    Returns
+    -------
+    Align
+        The table of the SEML collections of Slurm jobs.
     """
-    from seml.console import console, Table
+    from seml.console import Table
     from rich.align import Align
 
     # Run scontrol
@@ -1439,35 +1442,80 @@ def print_collections_of_jobs(
 
     # Convert to dictionary
     job_info_strs = list(filter(None, job_info_strs))
-    job_infos = {
-        info['JobId']: info for info in map(parse_scontrol_job_info, job_info_strs)
-    }
+    job_infos = list(map(parse_scontrol_job_info, job_info_strs))
 
     # Find the collections
     mongodb_config = get_mongodb_config()
     db = get_database(**mongodb_config)
-    collections = set(db.list_collection_names())
+    all_collections = set(db.list_collection_names())
 
     collection_to_jobs = defaultdict(list)
-    for array_id, job in job_infos.items():
+    states = set()
+    collections = set()
+    for job in job_infos:
         user_id = job.get('UserId', '').split('(')[0]
         if filter_by_user and user_id != os.environ['USER']:
             continue
         collection = job.get('Comment', None)
-        if not (collection and collection in collections):
+        if not (collection and collection in all_collections):
             collection = 'No collection found'
-        collection_to_jobs[collection].append(array_id)
+        collection_to_jobs[(collection, job['JobState'])].append(job)
+        states.add(job['JobState'])
+        collections.add(collection)
 
     # Print the collections
+    states = sorted(states)
+    collections = sorted(collections)
     table = Table(
         'Collection',
-        'Job IDs',
+        *states,
         show_header=True,
     )
 
-    sorted_keys = sorted(collection_to_jobs.keys())
-    for collection in sorted_keys:
-        job_ids = sorted(collection_to_jobs[collection])
-        table.add_row(collection, ', '.join(job_ids))
+    def format_job(job_info):
+        if job_info is None:
+            return ''
+        nodelist = job_info['NodeList']
+        if nodelist:
+            return f"{job_info['JobId']} ({job_info['RunTime']}, {nodelist})"
+        else:
+            return f"{job_info['JobId']} ({job_info.get('Reason', '')})"
 
-    console.print(Align(table, align='center'))
+    for col in collections:
+        row = [col]
+        jobs_per_state = [collection_to_jobs[(col, state)] for state in states]
+        for jobs in zip_longest(*jobs_per_state, fillvalue=None):
+            table.add_row(*row, *map(format_job, jobs))
+            row = ['']
+
+    return Align(table, align='center')
+
+
+def print_queue(
+    job_ids: Optional[Sequence[str]] = None,
+    filter_by_user: bool = True,
+    watch: bool = False,
+):
+    """
+    Prints the SEML collections of Slurm jobs.
+
+    Parameters
+    ----------
+    job_ids : Optional[Sequence[str]], optional
+        The job IDs to check, by default None (None meaning all jobs)
+    filter_by_user : bool, optional
+        Whether to only check jobs by the current user, by default True
+    """
+    from seml.console import console, pause_live_widget
+    from rich.live import Live
+
+    table = generate_queue_table(job_ids, filter_by_user)
+    if watch:
+        console.clear()
+        with pause_live_widget():
+            with Live(table, refresh_per_second=2) as live:
+                while True:
+                    time.sleep(2)
+                    live.update(generate_queue_table(job_ids, filter_by_user))
+    else:
+        console.print(table)
