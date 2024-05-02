@@ -564,6 +564,10 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                     logging.verbose(
                         f"File {exp['seml']['output_file']} could not be read."
                     )
+                except KeyError:
+                    logging.verbose(
+                        f"Output file not found in experiment {exp['_id']}."
+                    )
     if print_detected:
         logging.info(f'Detected {nkilled} externally killed experiment{s_if(nkilled)}.')
 
@@ -1318,6 +1322,8 @@ def print_output(
                     console.print(exp['captured_out'])
                 else:
                     logging.error('No output available.')
+            except KeyError:
+                logging.error(f"Output file not found in experiment {exp['_id']}.")
 
     if count == 0:
         logging.info('No experiments found.')
@@ -1401,7 +1407,12 @@ def parse_scontrol_job_info(job_info: str):
     return job_info_dict
 
 
-def generate_queue_table(db, job_ids: List[str], filter_by_user: bool = True):
+def generate_queue_table(
+    db,
+    job_ids: List[str],
+    filter_states: Optional[List[str]],
+    filter_by_user: bool = True,
+):
     """
     Generates a table of the SEML collections of Slurm jobs.
 
@@ -1451,9 +1462,14 @@ def generate_queue_table(db, job_ids: List[str], filter_by_user: bool = True):
     states = set()
     collections = set()
     for job in job_infos:
+        state = job['JobState']
+        if filter_states is not None and state not in filter_states:
+            continue
+
         user_id = job.get('UserId', '').split('(')[0]
         if filter_by_user and user_id != os.environ['USER']:
             continue
+
         collection = job.get('Comment', None)
         if not (collection and collection in all_collections):
             collection = 'No collection found'
@@ -1462,7 +1478,8 @@ def generate_queue_table(db, job_ids: List[str], filter_by_user: bool = True):
                 url, known_host = find_jupyter_host(job['StdOut'], False)
                 if known_host is not None:
                     collection = f'Jupyter ({url})'
-        collection_to_jobs[(collection, job['JobState'])].append(job)
+
+        collection_to_jobs[(collection, state)].append(job)
         states.add(job['JobState'])
         collections.add(collection)
 
@@ -1499,9 +1516,10 @@ def generate_queue_table(db, job_ids: List[str], filter_by_user: bool = True):
 
 
 def print_queue(
-    job_ids: Optional[Sequence[str]] = None,
-    filter_by_user: bool = True,
-    watch: bool = False,
+    job_ids: Optional[Sequence[str]],
+    filter_states: Optional[Sequence[str]],
+    filter_by_user: bool,
+    watch: bool,
 ):
     """
     Prints the SEML collections of Slurm jobs.
@@ -1519,13 +1537,16 @@ def print_queue(
     mongodb_config = get_mongodb_config()
     db = get_database(**mongodb_config)
 
-    table = generate_queue_table(db, job_ids, filter_by_user)
+    def generate_table_fn():
+        return generate_queue_table(db, job_ids, filter_states, filter_by_user)
+
+    table = generate_table_fn()
     if watch:
         console.clear()
         with pause_live_widget():
-            with Live(table, refresh_per_second=2) as live:
+            with Live(table, refresh_per_second=0.5) as live:
                 while True:
                     time.sleep(2)
-                    live.update(generate_queue_table(db, job_ids, filter_by_user))
+                    live.update(generate_table_fn())
     else:
         console.print(table)

@@ -1005,6 +1005,7 @@ def queue_command(
         help='The job IDs of the experiments to get the collection for.',
         default=None,
     ),
+    filter_states: FilterStatesAnnotation = [*States.PENDING, *States.RUNNING],
     check_all: Annotated[
         bool,
         typer.Option(
@@ -1027,7 +1028,12 @@ def queue_command(
     """
     Prints the collections of the given job IDs. If none is specified, all jobs are considered.
     """
-    print_queue(job_ids, filter_by_user=not check_all, watch=watch)
+    print_queue(
+        job_ids,
+        filter_by_user=not check_all,
+        filter_states=filter_states,
+        watch=watch,
+    )
 
 
 app_description = typer.Typer(
