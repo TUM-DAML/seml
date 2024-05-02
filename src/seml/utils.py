@@ -5,6 +5,8 @@ import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
+import subprocess
+import time
 from typing import (
     Any,
     Callable,
@@ -13,6 +15,7 @@ from typing import (
     Hashable,
     Iterable,
     List,
+    Optional,
     Tuple,
     TypeVar,
     Union,
@@ -655,3 +658,76 @@ def src_layout_to_flat_layout(original_path: Union[Path, str]):
     if path.parts[0] == 'src':
         return Path(*path.parts[1:])
     return path
+
+
+def find_jupyter_host(
+    log_file: Union[str, Path], wait: bool
+) -> Tuple[Optional[str], Optional[bool]]:
+    """
+    Extracts the hostname from the jupyter log file and returns the URL.
+
+    Parameters
+    ----------
+    log_file: str | Path
+        The path to the log file.
+    wait: bool
+        Whether to wait until the jupyter server is running.
+
+    Returns
+    -------
+    Optional[str]
+        The URL of the jupyter server.
+    Optional[bool]
+        Whether the hostname is known. If None is returned, an error occured.
+    """
+    hosts_str = subprocess.run(
+        'sinfo -h -o "%N|%o"', shell=True, check=True, capture_output=True
+    ).stdout.decode('utf-8')
+    hosts = {
+        h.split('|')[0]: h.split('|')[1] for h in hosts_str.split('\n') if len(h) > 1
+    }
+    # Wait until jupyter is running
+    if wait:
+        log_file_contents = ''
+        while ' is running at' not in log_file_contents:
+            if os.path.exists(log_file):
+                with open(log_file, 'r') as f:
+                    log_file_contents = f.read()
+            time.sleep(0.5)
+    else:
+        if not os.path.exists(log_file):
+            return None, None
+        with open(log_file, 'r') as f:
+            log_file_contents = f.read()
+        if ' is running at' not in log_file_contents:
+            return None, None
+    # Determine hostname
+    JUPYTER_LOG_HOSTNAME_PREFIX = 'SLURM assigned me the node(s): '
+    hostname = (
+        [x for x in log_file_contents.split('\n') if JUPYTER_LOG_HOSTNAME_PREFIX in x][
+            0
+        ]
+        .split(':')[1]
+        .strip()
+    )
+    if hostname in hosts:
+        hostname = hosts[hostname]
+        known_host = True
+    else:
+        known_host = False
+    # Obtain general URL
+    log_file_split = log_file_contents.split('\n')
+    url_lines = [x for x in log_file_split if 'http' in x]
+    url = url_lines[0].split(' ')
+    url_str = None
+    for s in url:
+        if s.startswith('http://') or s.startswith('https://'):
+            url_str = s
+            break
+    if url_str is None:
+        return log_file_contents, None
+    url_str = hostname + ':' + url_str.split(':')[-1]
+    url_str = url_str.rstrip('/')
+    if url_str.endswith('/lab'):
+        url_str = url_str[:-4]
+    return url_str, known_host

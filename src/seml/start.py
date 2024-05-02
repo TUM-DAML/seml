@@ -21,7 +21,12 @@ from seml.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.network import find_free_port
 from seml.settings import SETTINGS
 from seml.sources import load_sources_from_db
-from seml.utils import assert_package_installed, load_text_resource, s_if
+from seml.utils import (
+    assert_package_installed,
+    find_jupyter_host,
+    load_text_resource,
+    s_if,
+)
 
 States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
@@ -1260,53 +1265,16 @@ def start_jupyter_job(
         exit(1)
 
     logging.info('Slurm job is running. Jupyter instance is starting up...')
-    log_file_contents = ''
+
     # Obtain list of hostnames to addresses
-    hosts = subprocess.run(
-        'sinfo -h -o "%N|%o"', shell=True, check=True, capture_output=True
-    ).stdout
-    hosts = {
-        h.split('|')[0]: h.split('|')[1]
-        for h in hosts.decode('utf-8').split('\n')
-        if len(h) > 1
-    }
-    # Wait until jupyter is running
-    while ' is running at' not in log_file_contents:
-        if os.path.exists(log_file):
-            with open(log_file, 'r') as f:
-                log_file_contents = f.read()
-        time.sleep(0.5)
-    # Determine hostname
-    JUPYTER_LOG_HOSTNAME_PREFIX = 'SLURM assigned me the node(s): '
-    hostname = (
-        [x for x in log_file_contents.split('\n') if JUPYTER_LOG_HOSTNAME_PREFIX in x][
-            0
-        ]
-        .split(':')[1]
-        .strip()
-    )
-    if hostname in hosts:
-        hostname = hosts[hostname]
-    else:
-        logging.warning(f"Host '{hostname}' unknown to SLURM.")
-    # Obtain general URL
-    log_file_split = log_file_contents.split('\n')
-    url_lines = [x for x in log_file_split if 'http' in x]
-    url = url_lines[0].split(' ')
-    url_str = None
-    for s in url:
-        if s.startswith('http://') or s.startswith('https://'):
-            url_str = s
-            break
-    if url_str is None:
+    url_str, known_host = find_jupyter_host(log_file, True)
+    if known_host is None:
         logging.error(
             f"Could not fetch the host and port of the Jupyter instance. Here's the raw output: \n"
-            f'{log_file_contents}'
+            f'{url_str}'
         )
         exit(1)
-    url_str = hostname + ':' + url_str.split(':')[-1]
-    url_str = url_str.rstrip('/')
-    if url_str.endswith('/lab'):
-        url_str = url_str[:-4]
+    if not known_host:
+        logging.warning('Host unknown to SLURM.')
     logging.info(f"Start-up completed. The Jupyter instance is running at '{url_str}'.")
     logging.info(f"To stop the job, run 'scancel {slurm_array_job_id}'.")

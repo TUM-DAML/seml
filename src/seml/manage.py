@@ -27,6 +27,7 @@ from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.utils import (
     chunker,
+    find_jupyter_host,
     flatten,
     get_from_nested,
     make_hash,
@@ -1456,6 +1457,11 @@ def generate_queue_table(db, job_ids: List[str], filter_by_user: bool = True):
         collection = job.get('Comment', None)
         if not (collection and collection in all_collections):
             collection = 'No collection found'
+            if job['JobName'] == 'jupyter':
+                collection = 'Jupyter'
+                url, known_host = find_jupyter_host(job['StdOut'], False)
+                if known_host is not None:
+                    collection = f'Jupyter ({url})'
         collection_to_jobs[(collection, job['JobState'])].append(job)
         states.add(job['JobState'])
         collections.add(collection)
