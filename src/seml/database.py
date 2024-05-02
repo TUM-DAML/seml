@@ -101,22 +101,22 @@ def _ssh_forward_process(pipe, ssh_config: Dict[str, Any]):
     pipe.send((server.local_bind_host, server.local_bind_port))
     while True:
         # check if we should end the process
-        if pipe.poll(SETTINGS.SSH_FORWARD.HEALTH_CHECK_INTERVAL):
-            try:
+        try:
+            if pipe.poll(SETTINGS.SSH_FORWARD.HEALTH_CHECK_INTERVAL):
                 if pipe.closed or pipe.recv() == 'stop':
                     server.stop()
                     break
-            except EOFError:
-                server.stop()
-                break
 
-        # Check for tunnel health
-        try:
+            # Check for tunnel health
             server.check_tunnels()
             if not server.tunnel_is_up[server.local_bind_address]:
                 logging.warning('SSH tunnel was closed unexpectedly. Restarting.')
                 server.restart()
         except KeyboardInterrupt:
+            server.stop()
+            break
+        except EOFError:
+            server.stop()
             break
         except Exception as e:
             logging.error(f'Error in SSH tunnel health check:\n{e}')
