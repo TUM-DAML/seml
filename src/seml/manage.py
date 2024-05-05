@@ -1496,7 +1496,7 @@ def generate_queue_table(
         if job_info is None:
             return ''
         nodelist = job_info['NodeList']
-        job_id = job_info['JobId']
+        job_id = job_info.get('ArrayJobId', job_info['JobId'])
         task_id = job_info.get('ArrayTaskId', None)
         if task_id:
             job_id = f'{job_id}_{task_id}'
