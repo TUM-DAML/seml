@@ -1399,11 +1399,23 @@ def parse_scontrol_job_info(job_info: str):
     dict
         The job information as a dictionary
     """
-    job_info_dict = {}
-    for line in job_info.split():
+    job_info_dict: Dict[str, str] = {}
+    # we may split to many times, e.g., if a value contains a space
+    unfiltered_lines = job_info.split()
+    filtered_lines = []
+    for line in unfiltered_lines:
         if line:
-            key, value = line.split('=', 1)
-            job_info_dict[key] = value
+            if '=' in line:
+                # new variable
+                filtered_lines.append(line)
+            else:
+                # just append to the previous variable
+                filtered_lines[-1] += ' ' + line
+
+    # Now every line must contain a '=' sign and we can simply split here
+    for line in filtered_lines:
+        key, value = line.split('=', 1)
+        job_info_dict[key] = value
     return job_info_dict
 
 
