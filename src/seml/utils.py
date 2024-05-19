@@ -447,6 +447,8 @@ class DiskCachedFunction(Generic[R]):
                     return cache['result']
             except IOError:
                 pass
+            except json.JSONDecodeError:
+                pass
         # Compute and save to cache
         result = self.fun()
         cache = {'result': result, 'expire': time.time() + self.time_to_live}

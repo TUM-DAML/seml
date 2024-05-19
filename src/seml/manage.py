@@ -1086,9 +1086,7 @@ def list_database(
     import pandas as pd
     from rich.align import Align
     from rich.table import Column
-    from seml.console import track
-
-    from seml.console import console, Table
+    from seml.console import console, Table, track
 
     # Get the database
     if mongodb_config is None:
