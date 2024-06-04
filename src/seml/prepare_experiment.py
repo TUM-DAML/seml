@@ -82,7 +82,7 @@ if __name__ == '__main__':
             }
             # Either take the experiment if it is pending or if it is the one being executed.
             # The latter case is important for multi-node jobs.
-            exp = collection.find_one(
+            exp = collection.find_one_update(
                 {
                     '$and': [
                         {'_id': exp_id},
@@ -93,11 +93,14 @@ if __name__ == '__main__':
                             ]
                         },
                     ]
-                }
+                },
+                {'$set': {'status': States.RUNNING[0]}}
             )
         else:
-            exp = collection.find_one(
-                {'_id': exp_id, 'status': {'$in': States.PENDING}}
+            exp = collection.find_one_and_update(
+                {'_id': exp_id, 'status': {'$in': States.PENDING}},
+                {'$set': {'status': States.RUNNING[0]},
+                 '$unset': {'slurm.array_id' : '', 'slurm.task_id' : ''}}
             )
 
     if exp is None:
@@ -150,7 +153,6 @@ if __name__ == '__main__':
     updates = {
         'seml.command': cmd,
         'seml.command_unresolved': cmd_unresolved,
-        'status': States.RUNNING[0],
     }
 
     if use_stored_sources:
