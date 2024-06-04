@@ -39,7 +39,7 @@ from seml.manage import (
 from seml.module_hider import AUTOCOMPLETING
 from seml.project import init_project, print_available_templates
 from seml.settings import SETTINGS
-from seml.sources import restore_sources
+from seml.sources import download_sources
 from seml.start import print_command, start_experiments, start_jupyter_job
 from seml.utils import cache_to_disk
 
@@ -58,6 +58,13 @@ JsonOption = functools.partial(
     metavar='JSON',
     parser=json.loads if not AUTOCOMPLETING else lambda s: None,
 )
+
+
+_COMMANDS = '🪖 Commands'
+_EXPERIMENTS = '🚀 Experiments'
+_DATABASE = '📊 Database'
+_INFORMATION = '💭 Information'
+_SLURM = '🏃 Slurm'
 
 
 def restrict_collection(require: bool = True):
@@ -368,7 +375,7 @@ def callback(
     ctx.obj = dict(collection=collection, verbose=verbose)
 
 
-@app.command('list')
+@app.command('list', rich_help_panel=_INFORMATION)
 @restrict_collection(False)
 def list_command(
     ctx: typer.Context,
@@ -396,7 +403,7 @@ def list_command(
     )
 
 
-@app.command('clean-db')
+@app.command('clean-db', rich_help_panel=_DATABASE)
 def clean_db_command(ctx: typer.Context, yes: YesAnnotation = False):
     """Remove orphaned artifacts in the DB from runs which have been deleted.."""
     clean_unreferenced_artifacts(ctx.obj['collection'], yes=yes)
@@ -422,7 +429,7 @@ def configure_command(
     configure(all=False, mongodb=True, setup_ssh_forward=ssh_forward)
 
 
-@app.command('start-jupyter')
+@app.command('start-jupyter', rich_help_panel=_SLURM)
 @restrict_collection(False)
 def start_jupyter_command(
     ctx: typer.Context,
@@ -451,7 +458,7 @@ def start_jupyter_command(
     start_jupyter_job(lab=lab, conda_env=conda_env, sbatch_options=sbatch_options)
 
 
-@app.command('cancel')
+@app.command('cancel', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def cancel_command(
     ctx: typer.Context,
@@ -494,7 +501,7 @@ def cancel_command(
     )
 
 
-@app.command('add')
+@app.command('add', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def add_command(
     ctx: typer.Context,
@@ -581,7 +588,7 @@ def add_command(
     get_db_collections.recompute_cache()
 
 
-@app.command('start')
+@app.command('start', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def start_command(
     ctx: typer.Context,
@@ -641,7 +648,7 @@ def start_command(
     )
 
 
-@app.command('launch-worker')
+@app.command('launch-worker', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def launch_worker_command(
     ctx: typer.Context,
@@ -683,7 +690,7 @@ def launch_worker_command(
     )
 
 
-@app.command('print-fail-trace')
+@app.command('print-fail-trace', rich_help_panel=_INFORMATION)
 @restrict_collection()
 def print_fail_trace_command(
     ctx: typer.Context,
@@ -710,7 +717,7 @@ def print_fail_trace_command(
     )
 
 
-@app.command('reload-sources')
+@app.command('reload-sources', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def reload_sources_command(
     ctx: typer.Context,
@@ -745,7 +752,7 @@ def reload_sources_command(
     )
 
 
-@app.command('print-command')
+@app.command('print-command', rich_help_panel=_INFORMATION)
 @restrict_collection()
 def print_command_command(
     ctx: typer.Context,
@@ -792,7 +799,7 @@ def print_command_command(
     )
 
 
-@app.command('print-output')
+@app.command('print-output', rich_help_panel=_INFORMATION)
 @restrict_collection()
 def print_output_command(
     ctx: typer.Context,
@@ -817,7 +824,7 @@ def print_output_command(
     )
 
 
-@app.command('reset')
+@app.command('reset', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def reset_command(
     ctx: typer.Context,
@@ -845,7 +852,7 @@ def reset_command(
     )
 
 
-@app.command('delete')
+@app.command('delete', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def delete_command(
     ctx: typer.Context,
@@ -884,7 +891,7 @@ def delete_command(
     get_db_collections.recompute_cache()
 
 
-@app.command('drop')
+@app.command('drop', rich_help_panel=_DATABASE)
 @restrict_collection(False)
 def drop_command(
     ctx: typer.Context,
@@ -902,7 +909,7 @@ def drop_command(
     get_db_collections.recompute_cache()
 
 
-@app.command('detect-killed')
+@app.command('detect-killed', rich_help_panel=_DATABASE)
 @restrict_collection()
 def detect_killed_command(
     ctx: typer.Context,
@@ -913,7 +920,7 @@ def detect_killed_command(
     detect_killed(ctx.obj['collection'])
 
 
-@app.command('status')
+@app.command('status', rich_help_panel=_INFORMATION)
 @restrict_collection()
 def status_command(
     ctx: typer.Context,
@@ -928,9 +935,9 @@ def status_command(
     )
 
 
-@app.command('restore-sources')
+@app.command('download-sources', rich_help_panel=_INFORMATION)
 @restrict_collection()
-def restore_sources_command(
+def download_sources_command(
     ctx: typer.Context,
     target_directory: Annotated[
         str,
@@ -947,9 +954,9 @@ def restore_sources_command(
     batch_id: BatchIdAnnotation = None,
 ):
     """
-    Restore source files from the database to the provided path.
+    Download source files from the database to the provided path.
     """
-    restore_sources(
+    download_sources(
         target_directory,
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -959,7 +966,7 @@ def restore_sources_command(
     )
 
 
-@app.command('hold')
+@app.command('hold', rich_help_panel=_SLURM)
 @restrict_collection()
 def hold_command(
     ctx: typer.Context,
@@ -979,7 +986,7 @@ def hold_command(
     )
 
 
-@app.command('release')
+@app.command('release', rich_help_panel=_SLURM)
 @restrict_collection()
 def release_command(
     ctx: typer.Context,
@@ -999,7 +1006,7 @@ def release_command(
     )
 
 
-@app.command('queue')
+@app.command('queue', rich_help_panel=_INFORMATION)
 @restrict_collection(False)
 def queue_command(
     ctx: typer.Context,
@@ -1043,10 +1050,10 @@ app_description = typer.Typer(
     help='Manage descriptions of the experiments in a collection.',
     # chain=_AUTOCOMPLETE
 )
-app.add_typer(app_description, name='description')
+app.add_typer(app_description, name='description', rich_help_panel=_EXPERIMENTS)
 
 
-@app.command('detect-duplicates')
+@app.command('detect-duplicates', rich_help_panel=_DATABASE)
 @restrict_collection()
 def detect_duplicates_command(
     ctx: typer.Context,

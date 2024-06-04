@@ -221,7 +221,7 @@ def load_sources_from_db(
             f.write(db_file.read())
 
 
-def restore_sources(
+def download_sources(
     target_directory: str,
     collection_name: str,
     sacred_id: Optional[int] = None,
