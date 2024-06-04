@@ -324,7 +324,7 @@ def delete_experiments(
     if sacred_id is not None and ndelete == 0:
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
     batch_ids = collection.find(filter_dict, {'batch_id'})
-    batch_ids_in_del = set([x['batch_id'] for x in batch_ids])
+    batch_ids_in_del = set([x.get('batch_id', -1) for x in batch_ids])
 
     logging.info(
         f'Deleting {ndelete} configuration{s_if(ndelete)} from database collection.'
