@@ -56,7 +56,7 @@ if not AUTOCOMPLETING:
 JsonOption = functools.partial(
     typer.Option,
     metavar='JSON',
-    parser=json.loads if not AUTOCOMPLETING else None,
+    parser=json.loads if not AUTOCOMPLETING else lambda s: None,
 )
 
 
