@@ -41,9 +41,9 @@ for exp_id in "${{exp_ids[@]}}"; do
     if [ $ret -eq 0 ]; then
         srun bash -c "$cmd" &
         process_ids+=($!)
-    elif [ $ret -eq 1 ]; then
+    elif [ $ret -eq 3 ]; then
         echo "WARNING: Experiment with ID ${{exp_id}} does not have status PENDING and will not be run."
-    elif [ $ret -eq 2 ]; then
+    elif [ $ret -eq 4 ]; then
         (>&2 echo "ERROR: Experiment with id ${{exp_id}} not found in the database.")
     fi
 done

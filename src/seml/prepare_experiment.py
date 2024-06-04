@@ -106,9 +106,9 @@ if __name__ == '__main__':
     if exp is None:
         # check whether experiment is actually missing from the DB or has the wrong state
         if collection.count_documents({'_id': exp_id}) == 0:
-            exit(2)
+            exit(4)
         else:
-            exit(1)
+            exit(3)
 
     use_stored_sources = args.stored_sources_dir is not None
     if use_stored_sources:
