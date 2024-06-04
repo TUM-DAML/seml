@@ -94,13 +94,15 @@ if __name__ == '__main__':
                         },
                     ]
                 },
-                {'$set': {'status': States.RUNNING[0]}}
+                {'$set': {'status': States.RUNNING[0]}},
             )
         else:
             exp = collection.find_one_and_update(
                 {'_id': exp_id, 'status': {'$in': States.PENDING}},
-                {'$set': {'status': States.RUNNING[0]},
-                 '$unset': {'slurm.array_id' : '', 'slurm.task_id' : ''}}
+                {
+                    '$set': {'status': States.RUNNING[0]},
+                    '$unset': {'slurm.array_id': '', 'slurm.task_id': ''},
+                },
             )
 
     if exp is None:
