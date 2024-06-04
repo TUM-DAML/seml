@@ -620,9 +620,9 @@ def load_text_resource(path: Union[str, Path]):
     str
         The resource content.
     """
-    import importlib.resources
+    import importlib_resources
 
-    full_path = importlib.resources.files('seml') / path
+    full_path = importlib_resources.files('seml') / path
     with open(full_path) as inp:
         return inp.read()
 

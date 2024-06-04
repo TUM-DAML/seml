@@ -82,7 +82,7 @@ if __name__ == '__main__':
             }
             # Either take the experiment if it is pending or if it is the one being executed.
             # The latter case is important for multi-node jobs.
-            exp = collection.find_one_update(
+            exp = collection.find_one_and_update(
                 {
                     '$and': [
                         {'_id': exp_id},

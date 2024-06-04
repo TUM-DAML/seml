@@ -290,7 +290,7 @@ def start_sbatch_job(
     -------
     None
     """
-    import importlib.resources
+    import importlib_resources
 
     # Set Slurm job array options
     sbatch_options['array'] = f'0-{len(exp_array) - 1}'
@@ -327,7 +327,7 @@ def start_sbatch_job(
 
     # Construct Slurm script
     template = load_text_resource('templates/slurm/slurm_template.sh')
-    prepare_experiment_script = importlib.resources.read_binary(
+    prepare_experiment_script = importlib_resources.read_binary(
         'seml', 'prepare_experiment.py'
     ).decode('utf-8')
     prepare_experiment_script = prepare_experiment_script.replace("'", "'\\''")
