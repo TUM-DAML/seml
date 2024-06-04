@@ -1,5 +1,4 @@
 import copy
-import json
 import logging
 import os
 import shlex
@@ -16,7 +15,6 @@ from seml.config import generate_named_configs
 from seml.config import resolve_interpolations as resolve_config_interpolations
 from seml.database import build_filter_dict, get_collection
 from seml.errors import ArgumentError, ConfigError, MongoDBError
-from seml.json import PythonEncoder
 from seml.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.network import find_free_port
 from seml.settings import SETTINGS
@@ -33,6 +31,8 @@ SlurmStates = SETTINGS.SLURM_STATES
 
 
 def value_to_string(value, use_json=False):
+    from seml.json import PythonEncoder
+
     # We need the json encoding for vscode due to https://github.com/microsoft/vscode/issues/91578
     # Once this bug has been fixed we should only rely on `repr` and remove this code.
     if use_json:
@@ -149,6 +149,8 @@ def get_command_from_exp(
 
 
 def _generate_debug_attach_url(ip_address, port):
+    import json
+
     launch_config = {
         'type': 'debugpy',
         'request': 'attach',

@@ -1,6 +1,5 @@
 import copy
 import functools
-import json
 import logging
 import os
 from contextlib import contextmanager
@@ -336,6 +335,7 @@ def make_hash(
     hash (hex encoded) of the input dictionary.
     """
     import hashlib
+    import json
 
     return hashlib.md5(
         json.dumps(remove_keys_from_nested(d, exclude_keys), sort_keys=True).encode(
@@ -399,6 +399,8 @@ class LoggingFormatter(logging.Formatter):
 
 class Hashabledict(dict):
     def __hash__(self):
+        import json
+
         return hash(json.dumps(self, sort_keys=True))
 
 
@@ -435,6 +437,7 @@ class DiskCachedFunction(Generic[R]):
         self.fun = fun
 
     def __call__(self) -> R:
+        import json
         import time
 
         # Load from cache

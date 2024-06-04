@@ -5,8 +5,14 @@ import seml.typer as typer
 from seml.utils import merge_dicts
 from seml.module_hider import ModuleHider
 
-# The YAML import is rather slow
-with ModuleHider('yaml'):
+# The YAML, json import is rather slow
+with ModuleHider(
+    'yaml',
+    'json',
+    'simplejson',
+    'importlib_metadata',
+    'importlib.metadata',
+):
     from munch import munchify
 
 __all__ = ('SETTINGS',)

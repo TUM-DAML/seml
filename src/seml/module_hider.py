@@ -1,9 +1,12 @@
+import os
 import sys
 from importlib.abc import MetaPathFinder
 
+AUTOCOMPLETING = bool(os.environ.get('_SEML_COMPLETE', False))
+
 
 class ModuleHider(MetaPathFinder):
-    def __init__(self, *hidden_modules: str, hide: bool = True) -> None:
+    def __init__(self, *hidden_modules: str, hide: bool = AUTOCOMPLETING) -> None:
         super().__init__()
         self.hidden_modules = set(hidden_modules)
         self.hide = hide

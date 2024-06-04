@@ -1,4 +1,4 @@
-import importlib.metadata
+import os
 from typing import TYPE_CHECKING
 
 from seml.observers import *  # noqa
@@ -39,4 +39,9 @@ else:
         return SemlExperiment(*args, **kwargs)
 
 
-__version__ = importlib.metadata.version(__package__ or __name__)
+if not bool(os.environ.get('_SEML_COMPLETE', False)):
+    import importlib.metadata
+
+    __version__ = importlib.metadata.version(__package__ or __name__)
+else:
+    __version__ = '0.0.0'

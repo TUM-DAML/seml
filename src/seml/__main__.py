@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import functools
-import json
 import logging
 import os
 import sys
@@ -37,6 +36,7 @@ from seml.manage import (
     reload_sources,
     reset_experiments,
 )
+from seml.module_hider import AUTOCOMPLETING
 from seml.project import init_project, print_available_templates
 from seml.settings import SETTINGS
 from seml.sources import restore_sources
@@ -48,6 +48,16 @@ States = SETTINGS.STATES
 
 P = ParamSpec('P')
 R = TypeVar('R')
+
+# Let's not import json if we are only autocompleting
+if not AUTOCOMPLETING:
+    import json
+
+JsonOption = functools.partial(
+    typer.Option,
+    metavar='JSON',
+    parser=json.loads if not AUTOCOMPLETING else None,
+)
 
 
 def restrict_collection(require: bool = True):
@@ -97,7 +107,7 @@ app = typer.Typer(
     # Note that this is not 100% the correct chaining autocompletition
     # but it is significantly better than nothing. Compared to the default
     # click chaining we greedly split the arguments by any command.
-    chain=bool(os.environ.get('_SEML_COMPLETE')),
+    chain=AUTOCOMPLETING,
 )
 YesAnnotation = Annotated[
     bool,
@@ -119,13 +129,11 @@ SacredIdAnnotation = Annotated[
 ]
 FilterDictAnnotation = Annotated[
     Optional[Dict],
-    typer.Option(
+    JsonOption(
         '-f',
         '--filter-dict',
         help='Dictionary (passed as a string, e.g. \'{"config.dataset": "cora_ml"}\') to filter '
         'the experiments by.',
-        metavar='JSON',
-        parser=json.loads,
     ),
 ]
 BatchIdAnnotation = Annotated[
@@ -176,12 +184,10 @@ FilterStatesAnnotation = Annotated[
 ]
 SBatchOptionsAnnotation = Annotated[
     Optional[Dict],
-    typer.Option(
+    JsonOption(
         '-sb',
         '--sbatch-options',
         help='Dictionary (passed as a string, e.g. \'{"gres": "gpu:2"}\') to request two GPUs.',
-        metavar='JSON',
-        parser=json.loads,
     ),
 ]
 NumExperimentsAnnotation = Annotated[
@@ -247,12 +253,10 @@ WorkerCPUsAnnotation = Annotated[
 ]
 WorkerEnvAnnotation = Annotated[
     Optional[Dict],
-    typer.Option(
+    JsonOption(
         '-we',
         '--worker-env',
         help='Further environment variables to be set for the local worker.',
-        metavar='JSON',
-        parser=json.loads,
     ),
 ]
 PrintFullDescriptionAnnotation = Annotated[
@@ -544,12 +548,10 @@ def add_command(
     ] = False,
     overwrite_params: Annotated[
         Optional[Dict],
-        typer.Option(
+        JsonOption(
             '-o',
             '--overwrite-params',
             help='Dictionary (passed as a string, e.g. \'{"epochs": 100}\') to overwrite parameters in the config.',
-            metavar='JSON',
-            parser=json.loads,
         ),
     ] = None,
     description: Annotated[
@@ -1039,7 +1041,7 @@ def queue_command(
 app_description = typer.Typer(
     no_args_is_help=True,
     help='Manage descriptions of the experiments in a collection.',
-    # chain=os.environ.get('_SEML_COMPLETE')
+    # chain=_AUTOCOMPLETE
 )
 app.add_typer(app_description, name='description')
 
@@ -1343,7 +1345,7 @@ if __name__ == '__main__':
 
 # If we are in autcompletion we must apply our parameter splitting
 # to get correct autocompletion suggestions.
-if os.environ.get('_SEML_COMPLETE') and os.environ.get('COMP_WORDS'):
+if AUTOCOMPLETING and os.environ.get('COMP_WORDS'):
     commands, stack = split_args(
         os.environ['COMP_WORDS'].split('\n'), command_tree(app)
     )

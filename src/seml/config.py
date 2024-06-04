@@ -1,6 +1,5 @@
 import ast
 import copy
-import json
 import logging
 import numbers
 import os
@@ -644,6 +643,7 @@ def restore(flat):
     Restore more complex data that Python's json can't handle (e.g. Numpy arrays).
     Copied from sacred.serializer for performance reasons.
     """
+    import json
     import jsonpickle
 
     return jsonpickle.decode(json.dumps(flat), keys=True)
