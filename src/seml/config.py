@@ -8,8 +8,6 @@ from itertools import combinations
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
-import yaml
-
 from seml.errors import ConfigError, ExecutableError
 from seml.parameters import (
     cartesian_product_zipped_dict,
@@ -676,35 +674,35 @@ def convert_values(val):
     return val
 
 
-class YamlUniqueLoader(yaml.FullLoader):
-    """
-    Custom YAML loader that disallows duplicate keys
-
-    From https://github.com/encukou/naucse_render/commit/658197ed142fec2fe31574f1ff24d1ff6d268797
-    Workaround for PyYAML issue: https://github.com/yaml/pyyaml/issues/165
-    This disables some uses of YAML merge (`<<`)
-    """
-
-
-def construct_mapping(loader, node, deep=False):
-    """Construct a YAML mapping node, avoiding duplicates"""
-    loader.flatten_mapping(node)
-    result = {}
-    for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
-        if key in result:
-            raise ConfigError(f"Found duplicate keys: '{key}'")
-        result[key] = loader.construct_object(value_node, deep=deep)
-    return result
-
-
-YamlUniqueLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-    construct_mapping,
-)
-
-
 def read_config(config_path):
+    # We define this privately to avoid importing yaml
+    import yaml
+
+    class YamlUniqueLoader(yaml.FullLoader):
+        """
+        Custom YAML loader that disallows duplicate keys
+
+        From https://github.com/encukou/naucse_render/commit/658197ed142fec2fe31574f1ff24d1ff6d268797
+        Workaround for PyYAML issue: https://github.com/yaml/pyyaml/issues/165
+        This disables some uses of YAML merge (`<<`)
+        """
+
+    def construct_mapping(loader, node, deep=False):
+        """Construct a YAML mapping node, avoiding duplicates"""
+        loader.flatten_mapping(node)
+        result = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            if key in result:
+                raise ConfigError(f"Found duplicate keys: '{key}'")
+            result[key] = loader.construct_object(value_node, deep=deep)
+        return result
+
+    YamlUniqueLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+        construct_mapping,
+    )
+
     with open(config_path, 'r') as conf:
         config_dict = convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
 

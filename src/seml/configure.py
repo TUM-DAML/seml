@@ -1,5 +1,4 @@
 import logging
-import yaml
 
 from seml.settings import SETTINGS
 
@@ -25,6 +24,7 @@ def prompt_ssh_forward():
 
 
 def mongodb_configure(setup_ssh_forward: bool = False):
+    import yaml
     from seml.console import prompt
 
     if SETTINGS.DATABASE.MONGODB_CONFIG_PATH.exists() and not prompt(

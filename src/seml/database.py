@@ -4,8 +4,6 @@ import random
 import time
 from typing import Any, Dict, List
 
-import yaml
-
 from seml.errors import MongoDBError
 from seml.settings import SETTINGS
 from seml.utils import assert_package_installed, s_if
@@ -306,6 +304,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
         Contains the MongoDB config as detailed above.
 
     """
+    import yaml
 
     access_dict = {}
     config_str = '\nPlease run `seml configure` to provide your credentials.'

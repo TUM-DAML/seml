@@ -1,10 +1,13 @@
 from pathlib import Path
 from runpy import run_path
 
-from munch import munchify
-
 import seml.typer as typer
 from seml.utils import merge_dicts
+from seml.module_hider import ModuleHider
+
+# The YAML import is rather slow
+with ModuleHider('yaml'):
+    from munch import munchify
 
 __all__ = ('SETTINGS',)
 
