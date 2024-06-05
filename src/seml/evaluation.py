@@ -1,4 +1,3 @@
-import json
 import logging
 from copy import deepcopy
 
@@ -11,6 +10,7 @@ __all__ = ['get_results']
 
 
 def parse_jsonpickle(db_entry):
+    import json
     import jsonpickle
     import jsonpickle.ext.numpy as jsonpickle_numpy
 

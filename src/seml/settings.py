@@ -1,10 +1,19 @@
 from pathlib import Path
 from runpy import run_path
 
-from munch import munchify
-
 import seml.typer as typer
 from seml.utils import merge_dicts
+from seml.module_hider import ModuleHider
+
+# The YAML, json import is rather slow
+with ModuleHider(
+    'yaml',
+    'json',
+    'simplejson',
+    'importlib_metadata',
+    'importlib.metadata',
+):
+    from munch import munchify
 
 __all__ = ('SETTINGS',)
 
@@ -20,6 +29,7 @@ SETTINGS = munchify(
         # Only change this if you know what you're doing.
         'TMP_DIRECTORY': '/tmp',
         'TEMPLATE_REMOTE': 'https://github.com/TUM-DAML/seml-templates.git',
+        'CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY': True,
         'DATABASE': {
             # location of the MongoDB config. Default: $HOME/.config/seml/monogdb.config
             'MONGODB_CONFIG_PATH': APP_DIR / 'mongodb.config'
@@ -142,7 +152,7 @@ SETTINGS = munchify(
             'TERMINAL_WIDTH': 80,  # width of the terminal for rich output
         },
         'CONFIG_RESOLUTION_PROGRESS_BAR_THRESHOLD': 25,
-        'AUTOCOMPLETE_CACHE_ALIVE_TIME': 300,
+        'AUTOCOMPLETE_CACHE_ALIVE_TIME': 3600,
         'SETUP_COMMAND': '',
         'END_COMMAND': '',
         'SSH_FORWARD': {
@@ -150,6 +160,7 @@ SETTINGS = munchify(
             'RETRIES_MAX': 6,
             'RETRIES_DELAY': 1,
             'LOCK_TIMEOUT': 30,
+            'HEALTH_CHECK_INTERVAL': 10,
         },
     },
 )

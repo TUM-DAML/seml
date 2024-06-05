@@ -28,7 +28,6 @@ IFS=";" read -r -a exp_ids <<< "$exp_ids_str"
 # Create directory for the source files in MongoDB
 if {with_sources}; then
     tmpdir="{tmp_directory}/$(uuidgen)"  # unique temp dir based on UUID
-    mkdir $tmpdir
     # Prepend the temp dir to $PYTHONPATH so it will be used by python.
     export PYTHONPATH="$tmpdir:$PYTHONPATH"
 fi
@@ -36,15 +35,15 @@ fi
 # Start experiments in separate processes
 process_ids=()
 for exp_id in "${{exp_ids[@]}}"; do
-    cmd=$(python -c '{prepare_experiment_script}' --experiment_id ${{exp_id}} --db_collection_name {db_collection_name} {sources_argument} --verbose {verbose} --unobserved {unobserved} --debug-server {debug_server})
+    cmd=$(srun seml {db_collection_name} prepare-experiment -id ${{exp_id}} {prepare_args})
 
     ret=$?
     if [ $ret -eq 0 ]; then
-        eval $cmd &
+        srun bash -c "$cmd" &
         process_ids+=($!)
-    elif [ $ret -eq 1 ]; then
+    elif [ $ret -eq 3 ]; then
         echo "WARNING: Experiment with ID ${{exp_id}} does not have status PENDING and will not be run."
-    elif [ $ret -eq 2 ]; then
+    elif [ $ret -eq 4 ]; then
         (>&2 echo "ERROR: Experiment with id ${{exp_id}} not found in the database.")
     fi
 done
@@ -62,7 +61,7 @@ wait
 
 # Delete temporary source files
 if {with_sources}; then
-    rm -rf $tmpdir
+    srun rm -rf $tmpdir
 fi
 
 

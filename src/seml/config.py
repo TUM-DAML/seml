@@ -1,14 +1,11 @@
 import ast
 import copy
-import json
 import logging
 import numbers
 import os
 from itertools import combinations
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
-
-import yaml
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from seml.errors import ConfigError, ExecutableError
 from seml.parameters import (
@@ -22,11 +19,11 @@ from seml.sources import import_exe
 from seml.utils import (
     Hashabledict,
     flatten,
+    list_is_prefix,
     merge_dicts,
+    remove_keys_from_nested,
     unflatten,
     working_directory,
-    remove_keys_from_nested,
-    list_is_prefix,
 )
 
 if TYPE_CHECKING:
@@ -429,21 +426,22 @@ def _sacred_create_configs(
     Dict
         The updated configurations containing all values derived from the experiment.
     """
-    from sacred.utils import (
-        convert_to_nested_dict,
-        recursive_update,
-        iterate_flattened,
-        join_paths,
-        set_by_dotted_path,
-    )
     from sacred.initialize import (
         create_scaffolding,
-        gather_ingredients_topological,
         distribute_config_updates,
+        distribute_presets,
+        gather_ingredients_topological,
         get_configuration,
         get_scaffolding_and_config_name,
-        distribute_presets,
     )
+    from sacred.utils import (
+        convert_to_nested_dict,
+        iterate_flattened,
+        join_paths,
+        recursive_update,
+        set_by_dotted_path,
+    )
+
     from seml.console import track
 
     configs_resolved = []
@@ -540,6 +538,7 @@ def resolve_configs(
         Resolved configurations
     """
     import sacred
+
     from seml.experiment import Experiment
 
     exp_module = import_exe(executable, conda_env, working_dir)
@@ -644,6 +643,7 @@ def restore(flat):
     Restore more complex data that Python's json can't handle (e.g. Numpy arrays).
     Copied from sacred.serializer for performance reasons.
     """
+    import json
     import jsonpickle
 
     return jsonpickle.decode(json.dumps(flat), keys=True)
@@ -674,35 +674,35 @@ def convert_values(val):
     return val
 
 
-class YamlUniqueLoader(yaml.FullLoader):
-    """
-    Custom YAML loader that disallows duplicate keys
-
-    From https://github.com/encukou/naucse_render/commit/658197ed142fec2fe31574f1ff24d1ff6d268797
-    Workaround for PyYAML issue: https://github.com/yaml/pyyaml/issues/165
-    This disables some uses of YAML merge (`<<`)
-    """
-
-
-def construct_mapping(loader, node, deep=False):
-    """Construct a YAML mapping node, avoiding duplicates"""
-    loader.flatten_mapping(node)
-    result = {}
-    for key_node, value_node in node.value:
-        key = loader.construct_object(key_node, deep=deep)
-        if key in result:
-            raise ConfigError(f"Found duplicate keys: '{key}'")
-        result[key] = loader.construct_object(value_node, deep=deep)
-    return result
-
-
-YamlUniqueLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-    construct_mapping,
-)
-
-
 def read_config(config_path):
+    # We define this privately to avoid importing yaml
+    import yaml
+
+    class YamlUniqueLoader(yaml.FullLoader):
+        """
+        Custom YAML loader that disallows duplicate keys
+
+        From https://github.com/encukou/naucse_render/commit/658197ed142fec2fe31574f1ff24d1ff6d268797
+        Workaround for PyYAML issue: https://github.com/yaml/pyyaml/issues/165
+        This disables some uses of YAML merge (`<<`)
+        """
+
+    def construct_mapping(loader, node, deep=False):
+        """Construct a YAML mapping node, avoiding duplicates"""
+        loader.flatten_mapping(node)
+        result = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            if key in result:
+                raise ConfigError(f"Found duplicate keys: '{key}'")
+            result[key] = loader.construct_object(value_node, deep=deep)
+        return result
+
+    YamlUniqueLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+        construct_mapping,
+    )
+
     with open(config_path, 'r') as conf:
         config_dict = convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import functools
-import json
 import logging
 import os
 import sys
@@ -27,7 +26,9 @@ from seml.manage import (
     delete_experiments,
     detect_killed,
     drop_collections,
+    hold_or_release_experiments,
     list_database,
+    print_queue,
     print_duplicates,
     print_fail_trace,
     print_output,
@@ -35,9 +36,16 @@ from seml.manage import (
     reload_sources,
     reset_experiments,
 )
+from seml.module_hider import AUTOCOMPLETING
 from seml.project import init_project, print_available_templates
 from seml.settings import SETTINGS
-from seml.start import print_command, start_experiments, start_jupyter_job
+from seml.sources import download_sources
+from seml.start import (
+    prepare_experiment,
+    print_command,
+    start_experiments,
+    start_jupyter_job,
+)
 from seml.utils import cache_to_disk
 
 States = SETTINGS.STATES
@@ -45,6 +53,22 @@ States = SETTINGS.STATES
 
 P = ParamSpec('P')
 R = TypeVar('R')
+
+# Let's not import json if we are only autocompleting
+if not AUTOCOMPLETING:
+    import json
+
+JsonOption = functools.partial(
+    typer.Option,
+    metavar='JSON',
+    parser=json.loads if not AUTOCOMPLETING else lambda s: None,  # type: ignore
+)
+
+
+_EXPERIMENTS = '🚀 Experiments'
+_DATABASE = '📊 Database'
+_INFORMATION = '💭 Information'
+_SLURM = '🏃 Slurm'
 
 
 def restrict_collection(require: bool = True):
@@ -59,18 +83,34 @@ def restrict_collection(require: bool = True):
                 raise typer.BadParameter(
                     'Please do not specify a collection name.', ctx=ctx
                 )
-            return fun(ctx, *args, **kwargs)
+            return fun(ctx, *args, **kwargs)  # type: ignore
 
-        return wrapper
+        wrapper._requires_collection = require  # type: ignore
+        return wrapper  # type: ignore
 
     return decorator
 
 
+def collection_free_commands(app: typer.Typer) -> List[str]:
+    """Get the commands that do not require a collection."""
+    return [
+        cmd.name if cmd.name else cmd.callback.__name__  # type: ignore
+        for cmd in app.registered_commands
+        if not getattr(cmd.callback, '_requires_collection', True)
+    ]
+
+
 @cache_to_disk('db_config', SETTINGS.AUTOCOMPLETE_CACHE_ALIVE_TIME)
-def db_collection_completer():
+def get_db_collections():
     """CLI completion for db collections."""
     config = get_mongodb_config()
     return list(get_collections_from_mongo_shell_or_pymongo(**config))
+
+
+def first_argument_completer():
+    """CLI completition for the first argumentin SEML."""
+    # We also add the commands that do not require a collection for autocompletion.
+    return get_db_collections() + collection_free_commands(app)
 
 
 app = typer.Typer(
@@ -78,7 +118,7 @@ app = typer.Typer(
     # Note that this is not 100% the correct chaining autocompletition
     # but it is significantly better than nothing. Compared to the default
     # click chaining we greedly split the arguments by any command.
-    chain=bool(os.environ.get('_SEML_COMPLETE')),
+    chain=AUTOCOMPLETING,
 )
 YesAnnotation = Annotated[
     bool,
@@ -100,13 +140,11 @@ SacredIdAnnotation = Annotated[
 ]
 FilterDictAnnotation = Annotated[
     Optional[Dict],
-    typer.Option(
+    JsonOption(
         '-f',
         '--filter-dict',
         help='Dictionary (passed as a string, e.g. \'{"config.dataset": "cora_ml"}\') to filter '
         'the experiments by.',
-        metavar='JSON',
-        parser=json.loads,
     ),
 ]
 BatchIdAnnotation = Annotated[
@@ -157,12 +195,10 @@ FilterStatesAnnotation = Annotated[
 ]
 SBatchOptionsAnnotation = Annotated[
     Optional[Dict],
-    typer.Option(
+    JsonOption(
         '-sb',
         '--sbatch-options',
         help='Dictionary (passed as a string, e.g. \'{"gres": "gpu:2"}\') to request two GPUs.',
-        metavar='JSON',
-        parser=json.loads,
     ),
 ]
 NumExperimentsAnnotation = Annotated[
@@ -228,12 +264,10 @@ WorkerCPUsAnnotation = Annotated[
 ]
 WorkerEnvAnnotation = Annotated[
     Optional[Dict],
-    typer.Option(
+    JsonOption(
         '-we',
         '--worker-env',
         help='Further environment variables to be set for the local worker.',
-        metavar='JSON',
-        parser=json.loads,
     ),
 ]
 PrintFullDescriptionAnnotation = Annotated[
@@ -301,7 +335,7 @@ def callback(
         str,
         typer.Argument(
             help='The name of the database collection to use.',
-            autocompletion=db_collection_completer,
+            autocompletion=first_argument_completer,
         ),
     ],
     verbose: Annotated[
@@ -345,7 +379,7 @@ def callback(
     ctx.obj = dict(collection=collection, verbose=verbose)
 
 
-@app.command('list')
+@app.command('list', rich_help_panel=_INFORMATION)
 @restrict_collection(False)
 def list_command(
     ctx: typer.Context,
@@ -373,7 +407,7 @@ def list_command(
     )
 
 
-@app.command('clean-db')
+@app.command('clean-db', rich_help_panel=_DATABASE)
 def clean_db_command(ctx: typer.Context, yes: YesAnnotation = False):
     """Remove orphaned artifacts in the DB from runs which have been deleted.."""
     clean_unreferenced_artifacts(ctx.obj['collection'], yes=yes)
@@ -399,7 +433,7 @@ def configure_command(
     configure(all=False, mongodb=True, setup_ssh_forward=ssh_forward)
 
 
-@app.command('start-jupyter')
+@app.command('start-jupyter', rich_help_panel=_SLURM)
 @restrict_collection(False)
 def start_jupyter_command(
     ctx: typer.Context,
@@ -428,7 +462,7 @@ def start_jupyter_command(
     start_jupyter_job(lab=lab, conda_env=conda_env, sbatch_options=sbatch_options)
 
 
-@app.command('cancel')
+@app.command('cancel', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def cancel_command(
     ctx: typer.Context,
@@ -471,7 +505,7 @@ def cancel_command(
     )
 
 
-@app.command('add')
+@app.command('add', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def add_command(
     ctx: typer.Context,
@@ -525,12 +559,10 @@ def add_command(
     ] = False,
     overwrite_params: Annotated[
         Optional[Dict],
-        typer.Option(
+        JsonOption(
             '-o',
             '--overwrite-params',
             help='Dictionary (passed as a string, e.g. \'{"epochs": 100}\') to overwrite parameters in the config.',
-            metavar='JSON',
-            parser=json.loads,
         ),
     ] = None,
     description: Annotated[
@@ -557,9 +589,10 @@ def add_command(
         description=description,
         resolve_descriptions=not no_resolve_descriptions,
     )
+    get_db_collections.recompute_cache()
 
 
-@app.command('start')
+@app.command('start', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def start_command(
     ctx: typer.Context,
@@ -619,7 +652,63 @@ def start_command(
     )
 
 
-@app.command('launch-worker')
+@app.command('prepare-experiment', rich_help_panel=_EXPERIMENTS, hidden=True)
+@restrict_collection()
+def prepare_experiment_command(
+    ctx: typer.Context,
+    sacred_id: Annotated[
+        int,
+        typer.Option(
+            '-id',
+            '--sacred-id',
+            help='Sacred ID (_id in the database collection) of the experiment. '
+            'Takes precedence over other filters.',
+        ),
+    ],
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            '-v',
+            '--verbose',
+            help='Whether to print debug messages.',
+            is_flag=True,
+        ),
+    ] = False,
+    unobserved: Annotated[
+        bool,
+        typer.Option(
+            '-u',
+            '--unobserved',
+            help='Run the experiments without Sacred observers.',
+            is_flag=True,
+        ),
+    ] = False,
+    post_mortem: PostMortemAnnotation = False,
+    stored_sources_dir: Annotated[
+        Optional[str],
+        typer.Option(
+            '-ssd',
+            '--stored-sources-dir',
+            help='Load source files into this directory before starting.',
+        ),
+    ] = None,
+    debug_server: DebugServerAnnotation = False,
+):
+    """
+    Fetch experiment from database, prepare it and print the command to execute it.
+    """
+    prepare_experiment(
+        ctx.obj['collection'],
+        sacred_id,
+        verbose,
+        unobserved,
+        post_mortem,
+        stored_sources_dir,
+        debug_server,
+    )
+
+
+@app.command('launch-worker', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def launch_worker_command(
     ctx: typer.Context,
@@ -661,7 +750,7 @@ def launch_worker_command(
     )
 
 
-@app.command('print-fail-trace')
+@app.command('print-fail-trace', rich_help_panel=_INFORMATION)
 @restrict_collection()
 def print_fail_trace_command(
     ctx: typer.Context,
@@ -688,7 +777,7 @@ def print_fail_trace_command(
     )
 
 
-@app.command('reload-sources')
+@app.command('reload-sources', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def reload_sources_command(
     ctx: typer.Context,
@@ -723,7 +812,7 @@ def reload_sources_command(
     )
 
 
-@app.command('print-command')
+@app.command('print-command', rich_help_panel=_INFORMATION)
 @restrict_collection()
 def print_command_command(
     ctx: typer.Context,
@@ -770,7 +859,7 @@ def print_command_command(
     )
 
 
-@app.command('print-output')
+@app.command('print-output', rich_help_panel=_INFORMATION)
 @restrict_collection()
 def print_output_command(
     ctx: typer.Context,
@@ -795,7 +884,7 @@ def print_output_command(
     )
 
 
-@app.command('reset')
+@app.command('reset', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def reset_command(
     ctx: typer.Context,
@@ -823,7 +912,7 @@ def reset_command(
     )
 
 
-@app.command('delete')
+@app.command('delete', rich_help_panel=_EXPERIMENTS)
 @restrict_collection()
 def delete_command(
     ctx: typer.Context,
@@ -836,10 +925,19 @@ def delete_command(
     ],
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
+    no_cancel: Annotated[
+        bool,
+        typer.Option(
+            '-nc',
+            '--no-cancel',
+            help='Do not cancel the experiments before deleting them.',
+            is_flag=True,
+        ),
+    ] = False,
     yes: YesAnnotation = False,
 ):
     """
-    Delete experiments by ID or state (does not cancel Slurm jobs).
+    Delete experiments by ID or state (cancels Slurm jobs first if not --no-cancel).
     """
     delete_experiments(
         ctx.obj['collection'],
@@ -848,10 +946,12 @@ def delete_command(
         batch_id=batch_id,
         filter_dict=filter_dict,
         yes=yes,
+        cancel=not no_cancel,
     )
+    get_db_collections.recompute_cache()
 
 
-@app.command('drop')
+@app.command('drop', rich_help_panel=_DATABASE)
 @restrict_collection(False)
 def drop_command(
     ctx: typer.Context,
@@ -866,9 +966,10 @@ def drop_command(
     Note: This is a dangerous operation and should only be used if you know what you are doing.
     """
     drop_collections(pattern=pattern, yes=yes)
+    get_db_collections.recompute_cache()
 
 
-@app.command('detect-killed')
+@app.command('detect-killed', rich_help_panel=_DATABASE)
 @restrict_collection()
 def detect_killed_command(
     ctx: typer.Context,
@@ -879,7 +980,7 @@ def detect_killed_command(
     detect_killed(ctx.obj['collection'])
 
 
-@app.command('status')
+@app.command('status', rich_help_panel=_INFORMATION)
 @restrict_collection()
 def status_command(
     ctx: typer.Context,
@@ -894,15 +995,125 @@ def status_command(
     )
 
 
+@app.command('download-sources', rich_help_panel=_INFORMATION)
+@restrict_collection()
+def download_sources_command(
+    ctx: typer.Context,
+    target_directory: Annotated[
+        str,
+        typer.Argument(
+            help='The directory where the source files should be restored.',
+            exists=False,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ],
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = [],
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+):
+    """
+    Download source files from the database to the provided path.
+    """
+    download_sources(
+        target_directory,
+        ctx.obj['collection'],
+        sacred_id=sacred_id,
+        filter_states=filter_states,
+        filter_dict=filter_dict,
+        batch_id=batch_id,
+    )
+
+
+@app.command('hold', rich_help_panel=_SLURM)
+@restrict_collection()
+def hold_command(
+    ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    filter_dict: FilterDictAnnotation = None,
+):
+    """
+    Hold queued experiments via SLURM.
+    """
+    hold_or_release_experiments(
+        True,
+        ctx.obj['collection'],
+        sacred_id=sacred_id,
+        batch_id=batch_id,
+        filter_dict=filter_dict,
+    )
+
+
+@app.command('release', rich_help_panel=_SLURM)
+@restrict_collection()
+def release_command(
+    ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    filter_dict: FilterDictAnnotation = None,
+):
+    """
+    Release holded experiments via SLURM.
+    """
+    hold_or_release_experiments(
+        False,
+        ctx.obj['collection'],
+        sacred_id=sacred_id,
+        batch_id=batch_id,
+        filter_dict=filter_dict,
+    )
+
+
+@app.command('queue', rich_help_panel=_INFORMATION)
+@restrict_collection(False)
+def queue_command(
+    ctx: typer.Context,
+    job_ids: List[str] = typer.Argument(
+        help='The job IDs of the experiments to get the collection for.',
+        default=None,
+    ),
+    filter_states: FilterStatesAnnotation = [*States.PENDING, *States.RUNNING],
+    check_all: Annotated[
+        bool,
+        typer.Option(
+            '-a',
+            '--all',
+            help='Whether to attempt finding the collection of the jobs of all users.',
+            is_flag=True,
+        ),
+    ] = False,
+    watch: Annotated[
+        bool,
+        typer.Option(
+            '-w',
+            '--watch',
+            help='Whether to watch the queue.',
+            is_flag=True,
+        ),
+    ] = False,
+):
+    """
+    Prints the collections of the given job IDs. If none is specified, all jobs are considered.
+    """
+    print_queue(
+        job_ids,
+        filter_by_user=not check_all,
+        filter_states=filter_states,
+        watch=watch,
+    )
+
+
 app_description = typer.Typer(
     no_args_is_help=True,
     help='Manage descriptions of the experiments in a collection.',
-    # chain=os.environ.get('_SEML_COMPLETE')
+    # chain=_AUTOCOMPLETE
 )
-app.add_typer(app_description, name='description')
+app.add_typer(app_description, name='description', rich_help_panel=_EXPERIMENTS)
 
 
-@app.command('detect-duplicates')
+@app.command('detect-duplicates', rich_help_panel=_DATABASE)
 @restrict_collection()
 def detect_duplicates_command(
     ctx: typer.Context,
@@ -1116,11 +1327,11 @@ class CommandTreeNode:
 def command_tree(app: typer.Typer) -> CommandTreeNode:
     return CommandTreeNode(
         commands={
-            cmd.name if cmd.name else cmd.callback.__name__
+            cmd.name if cmd.name else cmd.callback.__name__  # type: ignore
             for cmd in app.registered_commands
         },
         groups={
-            (group.name if group.name else group.callback.__name__): command_tree(
+            (group.name if group.name else group.callback.__name__): command_tree(  # type: ignore
                 group.typer_instance
             )
             for group in app.registered_groups
@@ -1130,8 +1341,8 @@ def command_tree(app: typer.Typer) -> CommandTreeNode:
 
 def split_args(
     args: List[str], command_tree: CommandTreeNode, combine: bool = True
-) -> Tuple[List[List[str]], List[str]]:
-    split_cmd_args = [[]]
+) -> Tuple[List[List[str]], List[CommandTreeNode]]:
+    split_cmd_args: List[List[str]] = [[]]
     cmd_stack = [command_tree]
 
     # Chaining is only allowed in the first level of the group hierarchy, so we only
@@ -1201,7 +1412,7 @@ if __name__ == '__main__':
 
 # If we are in autcompletion we must apply our parameter splitting
 # to get correct autocompletion suggestions.
-if os.environ.get('_SEML_COMPLETE') and os.environ.get('COMP_WORDS'):
+if AUTOCOMPLETING and os.environ.get('COMP_WORDS'):
     commands, stack = split_args(
         os.environ['COMP_WORDS'].split('\n'), command_tree(app)
     )

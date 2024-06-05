@@ -24,10 +24,10 @@ Traceback (most recent call last):
 ### Specifications
 
 <details><summary>Details</summary>
-  
+
   - Version:
   - Python version:
   - Platform:
   - Anaconda environment (`conda list`):
-  
+
 </details>

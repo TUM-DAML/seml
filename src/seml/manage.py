@@ -2,11 +2,12 @@ import copy
 import datetime
 import itertools
 import logging
+import os
 import re
 import subprocess
 import time
 from collections import defaultdict
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Sequence, Set
 
 from seml.config import (
     check_config,
@@ -26,6 +27,7 @@ from seml.settings import SETTINGS
 from seml.sources import delete_files, delete_orphaned_sources, upload_sources
 from seml.utils import (
     chunker,
+    find_jupyter_host,
     flatten,
     get_from_nested,
     make_hash,
@@ -145,6 +147,7 @@ def cancel_experiments(
     filter_dict: Optional[Dict] = None,
     yes: bool = False,
     wait: bool = False,
+    confirm_threshold: int = SETTINGS.CONFIRM_THRESHOLD.CANCEL,
 ):
     """Cancels experiment(s)
 
@@ -164,6 +167,8 @@ def cancel_experiments(
         Whether to override confirmation prompts, by default False
     wait : bool, optional
         Whether to wait for all experiments be cancelled (by checking the slurm queue), by default False
+    confirm_threshold : int, optional
+        The threshold for the number of experiments to cancel before asking for confirmation, by default SETTINGS.CONFIRM_THRESHOLD.CANCEL
     """
     from seml.console import prompt
 
@@ -188,7 +193,7 @@ def cancel_experiments(
             logging.error(f'No experiment found with ID {sacred_id}.')
 
         logging.info(f'Cancelling {ncancel} experiment{s_if(ncancel)}.')
-        if ncancel >= SETTINGS.CONFIRM_THRESHOLD.CANCEL:
+        if ncancel >= confirm_threshold:
             if not yes and not prompt('Are you sure? (y/n)', type=bool):
                 exit(1)
 
@@ -270,6 +275,7 @@ def delete_experiments(
     batch_id: Optional[int] = None,
     filter_dict: Optional[Dict] = None,
     yes: bool = False,
+    cancel: bool = True,
 ):
     """Deletes experiment(s).
 
@@ -290,6 +296,24 @@ def delete_experiments(
     """
     from seml.console import prompt
 
+    # Before deleting, we should first cancel the experiments that are still running.
+    if cancel:
+        cancel_states = set(States.PENDING + States.RUNNING)
+        if filter_states is not None and len(filter_states) > 0:
+            cancel_states = cancel_states.intersection(filter_states)
+
+        if len(cancel_states) > 0:
+            cancel_experiments(
+                db_collection_name,
+                sacred_id,
+                list(cancel_states),
+                batch_id,
+                filter_dict,
+                yes=False,
+                confirm_threshold=1,
+                wait=True,
+            )
+
     collection = get_collection(db_collection_name)
     experiment_files_to_delete = []
 
@@ -300,7 +324,7 @@ def delete_experiments(
     if sacred_id is not None and ndelete == 0:
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
     batch_ids = collection.find(filter_dict, {'batch_id'})
-    batch_ids_in_del = set([x['batch_id'] for x in batch_ids])
+    batch_ids_in_del = set([x.get('batch_id', -1) for x in batch_ids])
 
     logging.info(
         f'Deleting {ndelete} configuration{s_if(ndelete)} from database collection.'
@@ -530,7 +554,7 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                     {'_id': exp['_id']}, {'$set': {'status': States.KILLED[0]}}
                 )
                 try:
-                    with open(exp['seml']['output_file'], 'r') as f:
+                    with open(exp['seml']['output_file'], 'r', errors='replace') as f:
                         all_lines = f.readlines()
                     collection.update_one(
                         {'_id': exp['_id']}, {'$set': {'fail_trace': all_lines[-4:]}}
@@ -539,6 +563,10 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                     # If the experiment is cancelled before starting (e.g. when still queued), there is not output file.
                     logging.verbose(
                         f"File {exp['seml']['output_file']} could not be read."
+                    )
+                except KeyError:
+                    logging.verbose(
+                        f"Output file not found in experiment {exp['_id']}."
                     )
     if print_detected:
         logging.info(f'Detected {nkilled} externally killed experiment{s_if(nkilled)}.')
@@ -1058,9 +1086,7 @@ def list_database(
     import pandas as pd
     from rich.align import Align
     from rich.table import Column
-    from seml.console import track
-
-    from seml.console import console, Table
+    from seml.console import console, Table, track
 
     # Get the database
     if mongodb_config is None:
@@ -1266,7 +1292,7 @@ def print_output(
     filter_dict : Optional[Dict], optional
         Additional filters, by default None
     """
-    from seml.console import console, Heading
+    from seml.console import console, Heading, pause_live_widget
 
     filter_dict = build_filter_dict(
         filter_states, batch_id, filter_dict, sacred_id=sacred_id
@@ -1275,17 +1301,264 @@ def print_output(
     experiments = collection.find(
         filter_dict, {'seml.output_file': 1, '_id': 1, 'batch_id': 1, 'captured_out': 1}
     )
+    count = 0
     for exp in experiments:
+        count += 1
         console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
-        try:
-            with open(exp['seml']['output_file'], 'r', newline='') as f:
-                for line in f:
-                    console.print(line[:-1], end=line[-1])
-                console.print()  # new line
-        except IOError:
-            logging.info(f"File {exp['seml']['output_file']} could not be read.")
-            if 'captured_out' in exp and exp['captured_out']:
-                logging.info('Captured output from DB:')
-                console.print(exp['captured_out'])
+        with pause_live_widget():
+            try:
+                with open(
+                    exp['seml']['output_file'], mode='r', newline='', errors='replace'
+                ) as f:
+                    for line in f:
+                        console.print(line[:-1], end=line[-1])
+                    console.print()  # new line
+            except IOError:
+                logging.info(f"File {exp['seml']['output_file']} could not be read.")
+                if 'captured_out' in exp and exp['captured_out']:
+                    logging.info('Captured output from DB:')
+                    console.print(exp['captured_out'])
+                else:
+                    logging.error('No output available.')
+            except KeyError:
+                logging.error(f"Output file not found in experiment {exp['_id']}.")
+
+    if count == 0:
+        logging.info('No experiments found.')
+
+
+def hold_or_release_experiments(
+    hold: bool,
+    db_collection_name: str,
+    sacred_id: Optional[int] = None,
+    batch_id: Optional[int] = None,
+    filter_dict: Optional[Dict] = None,
+):
+    """
+    Holds or releases experiments that are currently in the SLURM queue.
+
+    Parameters
+    ----------
+    hold : bool
+        Whether to hold or release the experiments
+    db_collection_name : str
+        The collection to hold or release experiments from
+    sacred_id : Optional[int], optional
+        The ID of the experiment to hold or release, by default None
+    batch_id : Optional[int], optional
+        Filter on the batch ID of experiments, by default None
+    filter_dict : Optional[Dict], optional
+        Additional filters, by default None
+    """
+    import shlex
+
+    detect_killed(db_collection_name, False)
+
+    filter_dict = build_filter_dict(
+        [*SETTINGS.STATES.PENDING], batch_id, filter_dict, sacred_id
+    )
+    collection = get_collection(db_collection_name)
+    experiments = list(
+        collection.find(filter_dict, {'slurm.array_id': 1, 'slurm.task_id': 1})
+    )
+
+    arrays = defaultdict(list)
+    n_experiments = len(experiments)
+    for exp in experiments:
+        arrays[exp['slurm']['array_id']].append(exp['slurm']['task_id'])
+
+    slurm_ids = [
+        f"{array_id}_[{','.join(map(str, task_ids))}]"
+        for array_id, task_ids in arrays.items()
+    ]
+    opteration = 'hold' if hold else 'release'
+    subprocess.run(
+        f'scontrol {opteration} {shlex.quote(" ".join(slurm_ids))}',
+        shell=True,
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    # User feedback
+    op_name = 'Held' if hold else 'Released'
+    logging.info(f'{op_name} {n_experiments} experiment{s_if(len(arrays))}.')
+
+
+def parse_scontrol_job_info(job_info: str):
+    """
+    Converts the return value of `scontrol show job <jobid>` into a python dictionary.
+
+    Parameters
+    ----------
+    job_info : str
+        The output of `scontrol show job <jobid>`
+
+    Returns
+    -------
+    dict
+        The job information as a dictionary
+    """
+    job_info_dict: Dict[str, str] = {}
+    # we may split to many times, e.g., if a value contains a space
+    unfiltered_lines = job_info.split()
+    filtered_lines = []
+    for line in unfiltered_lines:
+        if line:
+            if '=' in line:
+                # new variable
+                filtered_lines.append(line)
             else:
-                logging.error('No output available.')
+                # just append to the previous variable
+                filtered_lines[-1] += ' ' + line
+
+    # Now every line must contain a '=' sign and we can simply split here
+    for line in filtered_lines:
+        key, value = line.split('=', 1)
+        job_info_dict[key] = value
+    return job_info_dict
+
+
+def generate_queue_table(
+    db,
+    job_ids: List[str],
+    filter_states: Optional[List[str]],
+    filter_by_user: bool = True,
+):
+    """
+    Generates a table of the SEML collections of Slurm jobs.
+
+    Parameters
+    ----------
+    job_ids : List[str]
+        The job IDs to check
+    filter_by_user : bool, optional
+        Whether to only check jobs by the current user, by default True.
+
+    Returns
+    -------
+    Align
+        The table of the SEML collections of Slurm jobs.
+    """
+    from seml.console import Table
+    from rich.align import Align
+
+    # Run scontrol
+    if job_ids is None or len(job_ids) == 0:
+        job_info_str = subprocess.run(
+            'scontrol show job',
+            shell=True,
+            check=True,
+            capture_output=True,
+        ).stdout.decode('utf-8')
+        job_info_strs = job_info_str.split('\n\n')
+    else:
+        job_info_strs = []
+        for job_id in job_ids:
+            job_info_str = subprocess.run(
+                f'scontrol show job {job_id}',
+                shell=True,
+                check=True,
+                capture_output=True,
+            ).stdout.decode('utf-8')
+            job_info_strs.append(job_info_str)
+
+    # Convert to dictionary
+    job_info_strs = list(filter(None, job_info_strs))
+    job_infos = list(map(parse_scontrol_job_info, job_info_strs))
+
+    # Find the collections
+    all_collections = set(db.list_collection_names())
+
+    collection_to_jobs = defaultdict(list)
+    states = set()
+    collections = set()
+    for job in job_infos:
+        state = job['JobState']
+        if filter_states is not None and state not in filter_states:
+            continue
+
+        user_id = job.get('UserId', '').split('(')[0]
+        if filter_by_user and user_id != os.environ['USER']:
+            continue
+
+        collection = job.get('Comment', None)
+        if not (collection and collection in all_collections):
+            collection = 'No collection found'
+            if job['JobName'] == 'jupyter':
+                collection = 'Jupyter'
+                url, known_host = find_jupyter_host(job['StdOut'], False)
+                if known_host is not None:
+                    collection = f'Jupyter ({url})'
+
+        collection_to_jobs[(collection, state)].append(job)
+        states.add(job['JobState'])
+        collections.add(collection)
+
+    # Print the collections
+    states = sorted(states)
+    collections = sorted(collections)
+    table = Table(
+        'Collection',
+        *states,
+        show_header=True,
+    )
+
+    def format_job(job_info):
+        if job_info is None:
+            return ''
+        nodelist = job_info['NodeList']
+        job_id = job_info.get('ArrayJobId', job_info['JobId'])
+        task_id = job_info.get('ArrayTaskId', None)
+        if task_id:
+            if any(x in task_id for x in ',-'):
+                task_id = f'[{task_id}]'
+            job_id = f'{job_id}_{task_id}'
+        if nodelist:
+            return f"{job_id} ({job_info['RunTime']}, {nodelist})"
+        else:
+            return f"{job_id} ({job_info.get('Reason', '')})"
+
+    for col in collections:
+        row = [col]
+        for state in states:
+            jobs = collection_to_jobs[(col, state)]
+            row.append('\n'.join(map(format_job, jobs)))
+        table.add_row(*row)
+
+    return Align(table, align='center')
+
+
+def print_queue(
+    job_ids: Optional[Sequence[str]],
+    filter_states: Optional[Sequence[str]],
+    filter_by_user: bool,
+    watch: bool,
+):
+    """
+    Prints the SEML collections of Slurm jobs.
+
+    Parameters
+    ----------
+    job_ids : Optional[Sequence[str]], optional
+        The job IDs to check, by default None (None meaning all jobs)
+    filter_by_user : bool, optional
+        Whether to only check jobs by the current user, by default True
+    """
+    from seml.console import console, pause_live_widget
+    from rich.live import Live
+
+    mongodb_config = get_mongodb_config()
+    db = get_database(**mongodb_config)
+
+    def generate_table_fn():
+        return generate_queue_table(db, job_ids, filter_states, filter_by_user)
+
+    table = generate_table_fn()
+    if watch:
+        console.clear()
+        with pause_live_widget():
+            with Live(table, refresh_per_second=0.5) as live:
+                while True:
+                    time.sleep(2)
+                    live.update(generate_table_fn())
+    else:
+        console.print(table)

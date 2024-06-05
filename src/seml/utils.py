@@ -1,11 +1,24 @@
 import copy
 import functools
-import json
 import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Hashable, Iterable, List, Tuple, TypeVar, Union
+import subprocess
+import time
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    Hashable,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 import seml.typer as typer
 
@@ -322,6 +335,7 @@ def make_hash(
     hash (hex encoded) of the input dictionary.
     """
     import hashlib
+    import json
 
     return hashlib.md5(
         json.dumps(remove_keys_from_nested(d, exclude_keys), sort_keys=True).encode(
@@ -385,6 +399,8 @@ class LoggingFormatter(logging.Formatter):
 
 class Hashabledict(dict):
     def __hash__(self):
+        import json
+
         return hash(json.dumps(self, sort_keys=True))
 
 
@@ -406,10 +422,64 @@ def working_directory(path: Path):
         os.chdir(origin)
 
 
-F = TypeVar('F', bound=Callable[[], Any])
+R = TypeVar('R')
 
 
-def cache_to_disk(name: str, time_to_live: float) -> Callable[[F], F]:
+class DiskCachedFunction(Generic[R]):
+    def __init__(
+        self,
+        fun: Callable[[], R],
+        name: str,
+        time_to_live: float,
+    ):
+        self.cache_path = Path(typer.get_app_dir('seml')) / f'{name}.json'
+        self.time_to_live = time_to_live
+        self.fun = fun
+
+    def __call__(self) -> R:
+        import json
+        import time
+
+        # Load from cache
+        # if it fails or is expired we will compute it again
+        if self.cache_path.exists():
+            try:
+                with open(self.cache_path) as f:
+                    cache = json.load(f)
+                if cache['expire'] > time.time():
+                    return cache['result']
+            except IOError:
+                pass
+            except json.JSONDecodeError:
+                pass
+        # Compute and save to cache
+        result = self.fun()
+        cache = {'result': result, 'expire': time.time() + self.time_to_live}
+        try:
+            with open(self.cache_path, 'w') as f:
+                json.dump(cache, f)
+        except IOError:
+            # If the writing fails for any reason we can just continue.
+            pass
+        return result
+
+    def clear_cache(self):
+        if self.cache_path.exists():
+            try:
+                os.remove(self.cache_path)
+                return True
+            except IOError:
+                return False
+        return False
+
+    def recompute_cache(self):
+        if self.clear_cache():
+            self()
+            return True
+        return False
+
+
+def cache_to_disk(name: str, time_to_live: float):
     """
     Cache the result of a function to disk.
 
@@ -422,38 +492,13 @@ def cache_to_disk(name: str, time_to_live: float) -> Callable[[F], F]:
 
     Returns
     -------
-    The decorated function.
+    A function decorator.
     """
 
-    def cache_fun(fun: F) -> F:
-        def wrapper() -> Any:
-            import time
+    def wrapper(fun: Callable[[], R]):
+        return DiskCachedFunction(fun, name, time_to_live)
 
-            cache_path = Path(typer.get_app_dir('seml')) / f'{name}.json'
-            # Load from cache
-            # if it fails or is expired we will compute it again
-            if cache_path.exists():
-                try:
-                    with open(cache_path) as f:
-                        cache = json.load(f)
-                    if cache['expire'] > time.time():
-                        return cache['result']
-                except IOError:
-                    pass
-            # Compute and save to cache
-            result = fun()
-            cache = {'result': result, 'expire': time.time() + time_to_live}
-            try:
-                with open(cache_path, 'w') as f:
-                    json.dump(cache, f)
-            except IOError:
-                # If the writing fails for any reason we can just continue.
-                pass
-            return result
-
-        return wrapper
-
-    return cache_fun
+    return wrapper
 
 
 def to_slices(items: List[int]) -> List[Tuple[int, int]]:
@@ -575,8 +620,126 @@ def load_text_resource(path: Union[str, Path]):
     str
         The resource content.
     """
-    import importlib.resources
+    try:
+        import importlib.resources
 
-    full_path = importlib.resources.files('seml') / path
+        full_path = importlib.resources.files('seml') / path
+    except (AttributeError, ImportError):
+        # Python 3.8
+        import importlib_resources
+
+        full_path = importlib_resources.files('seml') / path
+
     with open(full_path) as inp:
         return inp.read()
+
+
+def assert_package_installed(package: str, error: str):
+    """
+    Assert that a package is installed.
+
+    Parameters
+    ----------
+    package: str
+        The package name.
+    """
+    import importlib
+
+    try:
+        importlib.import_module(package)
+    except ImportError:
+        logging.error(error)
+        exit(1)
+
+
+def src_layout_to_flat_layout(original_path: Union[Path, str]):
+    """
+    Removes the first "src" directory from the path, handling any position.
+    For the imports to prefer our loaded seml version, we need to convert the src-layout to the flat-layout.
+    https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
+
+    Parameters:
+    ----------
+    original_path: Path | str
+        The original path.
+
+    Returns:
+        A new path object with "src" removed.
+    """
+    path = Path(original_path)
+    if path.parts[0] == 'src':
+        return Path(*path.parts[1:])
+    return path
+
+
+def find_jupyter_host(
+    log_file: Union[str, Path], wait: bool
+) -> Tuple[Optional[str], Optional[bool]]:
+    """
+    Extracts the hostname from the jupyter log file and returns the URL.
+
+    Parameters
+    ----------
+    log_file: str | Path
+        The path to the log file.
+    wait: bool
+        Whether to wait until the jupyter server is running.
+
+    Returns
+    -------
+    Optional[str]
+        The URL of the jupyter server.
+    Optional[bool]
+        Whether the hostname is known. If None is returned, an error occured.
+    """
+    hosts_str = subprocess.run(
+        'sinfo -h -o "%N|%o"', shell=True, check=True, capture_output=True
+    ).stdout.decode('utf-8')
+    hosts = {
+        h.split('|')[0]: h.split('|')[1] for h in hosts_str.split('\n') if len(h) > 1
+    }
+    # Wait until jupyter is running
+    if wait:
+        log_file_contents = ''
+        while ' is running at' not in log_file_contents:
+            if os.path.exists(log_file):
+                with open(log_file, 'r') as f:
+                    log_file_contents = f.read()
+            time.sleep(0.5)
+    else:
+        if not os.path.exists(log_file):
+            return None, None
+        with open(log_file, 'r') as f:
+            log_file_contents = f.read()
+        if ' is running at' not in log_file_contents:
+            return None, None
+    # Determine hostname
+    JUPYTER_LOG_HOSTNAME_PREFIX = 'SLURM assigned me the node(s): '
+    hostname = (
+        [x for x in log_file_contents.split('\n') if JUPYTER_LOG_HOSTNAME_PREFIX in x][
+            0
+        ]
+        .split(':')[1]
+        .strip()
+    )
+    if hostname in hosts:
+        hostname = hosts[hostname]
+        known_host = True
+    else:
+        known_host = False
+    # Obtain general URL
+    log_file_split = log_file_contents.split('\n')
+    url_lines = [x for x in log_file_split if 'http' in x]
+    url = url_lines[0].split(' ')
+    url_str = None
+    for s in url:
+        if s.startswith('http://') or s.startswith('https://'):
+            url_str = s
+            break
+    if url_str is None:
+        return log_file_contents, None
+    url_str = hostname + ':' + url_str.split(':')[-1]
+    url_str = url_str.rstrip('/')
+    if url_str.endswith('/lab'):
+        url_str = url_str[:-4]
+    return url_str, known_host

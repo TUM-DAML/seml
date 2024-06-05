@@ -3,12 +3,15 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union, cast
 
-from seml.database import delete_files, upload_file
+from seml.database import build_filter_dict, delete_files, get_collection, upload_file
 from seml.errors import ExecutableError, MongoDBError
 from seml.settings import SETTINGS
-from seml.utils import working_directory
+from seml.utils import src_layout_to_flat_layout, working_directory
+
+if TYPE_CHECKING:
+    import pymongo
 
 States = SETTINGS.STATES
 
@@ -78,7 +81,9 @@ def import_exe(executable, conda_env, working_dir):
     return exe_module
 
 
-def get_imported_sources(executable, root_dir, conda_env, working_dir, stash_all_py_files: bool) -> Set[str]:
+def get_imported_sources(
+    executable, root_dir, conda_env, working_dir, stash_all_py_files: bool
+) -> Set[str]:
     """Get the sources imported by the given executable.
 
     Args:
@@ -182,29 +187,96 @@ def get_git_info(filename, working_dir):
     return path, commit, repo.is_dirty()
 
 
-def load_sources_from_db(exp, collection, to_directory):
+def load_sources_from_db(
+    experiment: Dict,
+    collection: 'pymongo.Collection',
+    to_directory: Union[str, Path],
+    remove_src_directory: bool = SETTINGS.CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY,
+):
     import gridfs
 
     db = collection.database
     fs = gridfs.GridFS(db)
-    if 'source_files' not in exp['seml']:
+    if 'source_files' not in experiment['seml']:
         raise MongoDBError(
-            f'No source files found for experiment with ID {exp["_id"]}.'
+            f'No source files found for experiment with ID {experiment["_id"]}.'
         )
-    source_files = exp['seml']['source_files']
+    source_files = experiment['seml']['source_files']
+    target_directory = Path(to_directory)
     for path, _id in source_files:
-        _dir = f'{to_directory}/{os.path.dirname(path)}'
-        if not os.path.exists(_dir):
-            os.makedirs(
-                _dir, mode=0o700
-            )  # only current user can read, write, or execute
-        with open(f'{to_directory}/{path}', 'wb') as f:
-            file = fs.find_one(_id)
-            if file is None:
-                raise MongoDBError(
-                    f"Could not find source file with ID '{_id}' for experiment with ID {exp['_id']}."
-                )
-            f.write(file.read())
+        path = cast(str, path)
+        # For the imports to prefer our loaded seml version, we need to convert the src-layout to the flat-layout.
+        # https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
+        if remove_src_directory:
+            path = src_layout_to_flat_layout(path)
+        out_path = target_directory / path
+        # only current user can read, write, or execute
+        out_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        db_file = fs.find_one(_id)
+        if db_file is None:
+            raise MongoDBError(
+                f"Could not find source file with ID '{_id}' for experiment with ID {experiment['_id']}."
+            )
+        with open(out_path, 'wb') as f:
+            f.write(db_file.read())
+
+
+def download_sources(
+    target_directory: str,
+    collection_name: str,
+    sacred_id: Optional[int] = None,
+    filter_states: Optional[List[str]] = None,
+    batch_id: Optional[int] = None,
+    filter_dict: Optional[Dict] = None,
+):
+    """
+    Restore source files from the database to the provided path. This is a helper function for the CLI.
+
+    Parameters
+    ----------
+    target_directory: str
+        The directory where the source files should be restored.
+    collection_name: str
+        The name of the MongoDB collection.
+    sacred_id: int
+        The ID of the Sacred experiment.
+    filter_states: List[str]
+        The states of the experiments to filter.
+    batch_id: int
+        The ID of the batch.
+    filter_dict: Dict
+        Additional filter dictionary.
+    """
+    from seml.console import prompt
+
+    filter_dict = build_filter_dict(
+        filter_states, batch_id, filter_dict, sacred_id=sacred_id
+    )
+    collection = get_collection(collection_name)
+    experiments = list(collection.find(filter_dict))
+    batch_ids = {exp['batch_id'] for exp in experiments}
+
+    if len(batch_ids) > 1:
+        logging.error(
+            f'Multiple source code versions found for batch IDs: {batch_ids}.'
+        )
+        logging.error('Please specify the target experiment more concretely.')
+        exit(1)
+
+    exp = experiments[0]
+    target_directory = os.path.expandvars(os.path.expanduser(target_directory))
+    if not os.path.exists(target_directory):
+        os.mkdir(target_directory)
+    if os.listdir(target_directory):
+        logging.warning(
+            f'Target directory "{target_directory}" is not empty. '
+            f'Files may be overwritten.'
+        )
+        if not prompt('Are you sure you want to continue? (y/n)', type=bool):
+            exit(0)
+
+    load_sources_from_db(exp, collection, target_directory)
+    logging.info(f'Source files restored to "{target_directory}".')
 
 
 def delete_orphaned_sources(collection, batch_ids=None):
