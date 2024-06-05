@@ -40,7 +40,12 @@ from seml.module_hider import AUTOCOMPLETING
 from seml.project import init_project, print_available_templates
 from seml.settings import SETTINGS
 from seml.sources import download_sources
-from seml.start import print_command, start_experiments, start_jupyter_job
+from seml.start import (
+    prepare_experiment,
+    print_command,
+    start_experiments,
+    start_jupyter_job,
+)
 from seml.utils import cache_to_disk
 
 States = SETTINGS.STATES
@@ -645,6 +650,62 @@ def start_command(
         worker_gpus=worker_gpus,
         worker_cpus=worker_cpus,
         worker_environment_vars=worker_env,
+    )
+
+
+@app.command('prepare-experiment', rich_help_panel=_EXPERIMENTS, hidden=True)
+@restrict_collection()
+def prepare_experiment_command(
+    ctx: typer.Context,
+    sacred_id: Annotated[
+        int,
+        typer.Option(
+            '-id',
+            '--sacred-id',
+            help='Sacred ID (_id in the database collection) of the experiment. '
+            'Takes precedence over other filters.',
+        ),
+    ],
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            '-v',
+            '--verbose',
+            help='Whether to print debug messages.',
+            is_flag=True,
+        ),
+    ] = False,
+    unobserved: Annotated[
+        bool,
+        typer.Option(
+            '-u',
+            '--unobserved',
+            help='Run the experiments without Sacred observers.',
+            is_flag=True,
+        ),
+    ] = False,
+    post_mortem: PostMortemAnnotation = False,
+    stored_sources_dir: Annotated[
+        Optional[str],
+        typer.Option(
+            '-ssd',
+            '--stored-sources-dir',
+            help='Load source files into this directory before starting.',
+        ),
+    ] = None,
+    debug_server: DebugServerAnnotation = False,
+):
+    """
+    Fetch experiment from database, prepare it and print the command to execute it.
+    """
+    prepare_experiment(
+        ctx.obj['collection'],
+        sacred_id,
+        verbose,
+        unobserved,
+        post_mortem,
+        stored_sources_dir,
+        debug_server,
     )
 
 

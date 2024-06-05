@@ -35,7 +35,7 @@ fi
 # Start experiments in separate processes
 process_ids=()
 for exp_id in "${{exp_ids[@]}}"; do
-    cmd=$(srun python -c '{prepare_experiment_script}' --experiment_id ${{exp_id}} --db_collection_name {db_collection_name} {sources_argument} --verbose {verbose} --unobserved {unobserved} --debug-server {debug_server})
+    cmd=$(srun seml {db_collection_name} prepare-experiment -id ${{exp_id}} {prepare_args})
 
     ret=$?
     if [ $ret -eq 0 ]; then

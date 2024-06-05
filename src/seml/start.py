@@ -9,7 +9,7 @@ import time
 import urllib
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from seml.config import generate_named_configs
 from seml.config import resolve_interpolations as resolve_config_interpolations
@@ -25,6 +25,9 @@ from seml.utils import (
     load_text_resource,
     s_if,
 )
+
+if TYPE_CHECKING:
+    import pymongo
 
 States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
@@ -290,8 +293,6 @@ def start_sbatch_job(
     -------
     None
     """
-    import importlib_resources
-
     # Set Slurm job array options
     sbatch_options['array'] = f'0-{len(exp_array) - 1}'
     if max_simultaneous_jobs is not None:
@@ -327,14 +328,21 @@ def start_sbatch_job(
 
     # Construct Slurm script
     template = load_text_resource('templates/slurm/slurm_template.sh')
-    prepare_experiment_script = importlib_resources.read_binary(
-        'seml', 'prepare_experiment.py'
-    ).decode('utf-8')
-    prepare_experiment_script = prepare_experiment_script.replace("'", "'\\''")
     if 'working_dir' in exp_array[0][0]['seml']:
         working_dir = exp_array[0][0]['seml']['working_dir']
     else:
         working_dir = '${{SLURM_SUBMIT_DIR}}'
+
+    # Build arguments for the prepare_experiment script
+    prepare_args = ''
+    if with_sources:
+        prepare_args += ' -ssd $tmpdir'
+    if logging.root.level <= logging.VERBOSE:
+        prepare_args += ' -v'
+    if unobserved:
+        prepare_args += ' -u'
+    if debug_server:
+        prepare_args += ' -ds'
 
     variables = {
         'sbatch_options': sbatch_options_str,
@@ -345,12 +353,8 @@ def start_sbatch_job(
         else '',
         'exp_ids': ' '.join(expid_strings),
         'with_sources': str(with_sources).lower(),
-        'prepare_experiment_script': prepare_experiment_script,
         'db_collection_name': collection.name,
-        'sources_argument': '--stored-sources-dir $tmpdir' if with_sources else '',
-        'verbose': logging.root.level <= logging.VERBOSE,
-        'unobserved': unobserved,
-        'debug_server': debug_server,
+        'prepare_args': prepare_args,
         'tmp_directory': SETTINGS.TMP_DIRECTORY,
     }
     setup_command = SETTINGS.SETUP_COMMAND.format(**variables)
@@ -1280,3 +1284,180 @@ def start_jupyter_job(
         logging.warning('Host unknown to SLURM.')
     logging.info(f"Start-up completed. The Jupyter instance is running at '{url_str}'.")
     logging.info(f"To stop the job, run 'scancel {slurm_array_job_id}'.")
+
+
+def get_experiment_and_set_running(
+    collection: 'pymongo.Collection',
+    exp_id: int,
+    unobserved: bool,
+):
+    """
+    Retrieves the experiment the pending experiment with the given ID from the database and sets its state to RUNNING.
+
+    Parameters
+    ----------
+    collection: pymongo.collection.Collection
+        The MongoDB collection containing the experiments.
+    exp_id: int
+        The ID of the experiment to retrieve.
+    unobserved: bool
+        Whether to suppress observation by Sacred observers.
+
+    Returns
+    -------
+    The experiment document if it was found and set to RUNNING, None otherwise.
+    """
+    if unobserved:
+        # If the experiment has no observer, we just pull the configuration but never update the database.
+        return collection.find_one({'_id': exp_id})
+    # This returns the document as it was BEFORE the update. So we first have to check whether its state was
+    # PENDING. This is to avoid race conditions, since find_one_and_update is an atomic operation.
+    slurm_array_id = os.environ.get('SLURM_ARRAY_JOB_ID', None)
+    slurm_task_id = os.environ.get('SLURM_ARRAY_TASK_ID', None)
+    if slurm_array_id is not None and slurm_task_id is not None:
+        # We're running in SLURM.
+        # Check if the job executing is this one.
+        job_filter = {
+            'slurm.array_id': int(slurm_array_id),
+            'slurm.task_id': int(slurm_task_id),
+        }
+        # Either take the experiment if it is pending or if it is the one being executed.
+        # The latter case is important for multi-node jobs.
+        return collection.find_one_and_update(
+            {
+                '$and': [
+                    {'_id': exp_id},
+                    {'$or': [{'status': {'$in': States.PENDING}}, job_filter]},
+                ]
+            },
+            {'$set': {'status': States.RUNNING[0]}},
+        )
+    # Stel slurm case
+    return collection.find_one_and_update(
+        {'_id': exp_id, 'status': {'$in': States.PENDING}},
+        {
+            '$set': {'status': States.RUNNING[0]},
+            '$unset': {'slurm.array_id': '', 'slurm.task_id': ''},
+        },
+    )
+
+
+def prepare_experiment(
+    db_collection_name: str,
+    exp_id: int,
+    verbose: bool,
+    unobserved: bool,
+    post_mortem: bool,
+    stored_sources_dir: Optional[str],
+    debug_server: bool,
+):
+    """
+    Prepare an experiment for execution by printing the command that should be executed.
+    If stored_sources_dir is set, the source files are loaded from the database and stored in the directory.
+
+    Parameters
+    ----------
+    db_collection_name: str
+        The name of the MongoDB collection containing the experiments.
+    exp_id: int
+        The ID of the experiment to prepare.
+    verbose: bool
+        Whether to print the command verbosely.
+    unobserved: bool
+        Whether to suppress observation by Sacred observers.
+    post_mortem: bool
+        Activate post-mortem debugging.
+    stored_sources_dir: str
+        The directory where the source files are stored.
+    debug_server: bool
+        Run job with a debug server.
+
+    Exit Codes
+    ----------
+    0: Preparation successful
+    3: Experiment is not in the database
+    4: Experiment is in the database but not in the PENDING state
+
+    Returns
+    -------
+    None
+    """
+    from seml.experiment import (
+        is_local_main_process,
+        is_main_process,
+        is_running_in_multi_process,
+    )
+    from sacred.randomness import get_seed
+
+    # This process should only be executed once per node, so if we are not the main
+    # process per node, we directly exit.
+    if not is_local_main_process():
+        exit(0)
+
+    collection = get_collection(db_collection_name)
+    exp = get_experiment_and_set_running(collection, exp_id, unobserved)
+
+    if exp is None:
+        # These exit codes will be handled in the bash script
+        if collection.count_documents({'_id': exp_id}) == 0:
+            exit(4)
+        else:
+            exit(3)
+
+    if stored_sources_dir:
+        os.makedirs(stored_sources_dir, exist_ok=True)
+        if not os.listdir(stored_sources_dir):
+            assert (
+                'source_files' in exp['seml']
+            ), '--stored-sources-dir is set but no source files are stored in the database.'
+            load_sources_from_db(exp, collection, to_directory=stored_sources_dir)
+
+    # The remaining part (updateing MongoDB & printing the python command) is only executed by the main process.
+    if not is_main_process():
+        exit(0)
+
+    # If we run in a multi task environment, we want to make sure that the seed is fixed once and
+    # all tasks start with the same seed. Otherwise, one could not reproduce the experiment as the
+    # seed would change on the child nodes. It is up to the user to distribute seeds if needed.
+    if is_running_in_multi_process():
+        if SETTINGS.CONFIG_KEY_SEED not in exp['config']:
+            exp['config'][SETTINGS.CONFIG_KEY_SEED] = get_seed()
+
+    interpreter, exe, config = get_command_from_exp(
+        exp,
+        db_collection_name,
+        verbose=verbose,
+        unobserved=unobserved,
+        post_mortem=post_mortem,
+        debug_server=debug_server,
+    )
+    cmd = get_shell_command(interpreter, exe, config)
+    cmd_unresolved = get_shell_command(
+        *get_command_from_exp(
+            exp,
+            db_collection_name,
+            verbose=verbose,
+            unobserved=unobserved,
+            post_mortem=post_mortem,
+            debug_server=debug_server,
+            unresolved=True,
+        )
+    )
+    updates = {
+        'seml.command': cmd,
+        'seml.command_unresolved': cmd_unresolved,
+    }
+
+    if stored_sources_dir:
+        temp_dir = stored_sources_dir
+        # Store the temp dir for debugging purposes
+        updates['seml.temp_dir'] = temp_dir
+        cmd = get_shell_command(interpreter, os.path.join(temp_dir, exe), config)
+
+    if not unobserved:
+        collection.update_one({'_id': exp_id}, {'$set': updates})
+
+    # Print the command to be ran.
+    print(cmd)
+    # We exit with 0 to signal that the preparation was successful.
+    exit(0)
