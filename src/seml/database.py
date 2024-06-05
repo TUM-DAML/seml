@@ -1,6 +1,5 @@
 import atexit
 import logging
-import random
 import time
 from typing import Any, Dict, List
 
@@ -49,6 +48,7 @@ def retried_and_locked_ssh_port_forward(
     server: SSHTunnelForwarder
         The SSH tunnel server.
     """
+    import random
     from sshtunnel import BaseSSHTunnelForwarderError, SSHTunnelForwarder
     from filelock import FileLock, Timeout
 
