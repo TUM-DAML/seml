@@ -336,13 +336,13 @@ def start_sbatch_job(
     # Build arguments for the prepare_experiment script
     prepare_args = ''
     if with_sources:
-        prepare_args += ' -ssd $tmpdir'
+        prepare_args += ' --stored-sources-dir $tmpdir'
     if logging.root.level <= logging.VERBOSE:
-        prepare_args += ' -v'
+        prepare_args += ' --verbose'
     if unobserved:
-        prepare_args += ' -u'
+        prepare_args += ' --unobserved'
     if debug_server:
-        prepare_args += ' -ds'
+        prepare_args += ' --debug-server'
 
     variables = {
         'sbatch_options': sbatch_options_str,
