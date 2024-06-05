@@ -61,11 +61,10 @@ if not AUTOCOMPLETING:
 JsonOption = functools.partial(
     typer.Option,
     metavar='JSON',
-    parser=json.loads if not AUTOCOMPLETING else lambda s: None,
+    parser=json.loads if not AUTOCOMPLETING else lambda s: None,  # type: ignore
 )
 
 
-_COMMANDS = '🪖 Commands'
 _EXPERIMENTS = '🚀 Experiments'
 _DATABASE = '📊 Database'
 _INFORMATION = '💭 Information'
@@ -84,10 +83,10 @@ def restrict_collection(require: bool = True):
                 raise typer.BadParameter(
                     'Please do not specify a collection name.', ctx=ctx
                 )
-            return fun(ctx, *args, **kwargs)
+            return fun(ctx, *args, **kwargs)  # type: ignore
 
-        wrapper._requires_collection = require
-        return wrapper
+        wrapper._requires_collection = require  # type: ignore
+        return wrapper  # type: ignore
 
     return decorator
 
@@ -95,7 +94,7 @@ def restrict_collection(require: bool = True):
 def collection_free_commands(app: typer.Typer) -> List[str]:
     """Get the commands that do not require a collection."""
     return [
-        cmd.name
+        cmd.name if cmd.name else cmd.callback.__name__  # type: ignore
         for cmd in app.registered_commands
         if not getattr(cmd.callback, '_requires_collection', True)
     ]
@@ -1328,11 +1327,11 @@ class CommandTreeNode:
 def command_tree(app: typer.Typer) -> CommandTreeNode:
     return CommandTreeNode(
         commands={
-            cmd.name if cmd.name else cmd.callback.__name__
+            cmd.name if cmd.name else cmd.callback.__name__  # type: ignore
             for cmd in app.registered_commands
         },
         groups={
-            (group.name if group.name else group.callback.__name__): command_tree(
+            (group.name if group.name else group.callback.__name__): command_tree(  # type: ignore
                 group.typer_instance
             )
             for group in app.registered_groups
@@ -1342,8 +1341,8 @@ def command_tree(app: typer.Typer) -> CommandTreeNode:
 
 def split_args(
     args: List[str], command_tree: CommandTreeNode, combine: bool = True
-) -> Tuple[List[List[str]], List[str]]:
-    split_cmd_args = [[]]
+) -> Tuple[List[List[str]], List[CommandTreeNode]]:
+    split_cmd_args: List[List[str]] = [[]]
     cmd_stack = [command_tree]
 
     # Chaining is only allowed in the first level of the group hierarchy, so we only
