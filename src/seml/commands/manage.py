@@ -1,3 +1,4 @@
+import copy
 import datetime
 import itertools
 import logging
@@ -28,7 +29,12 @@ from seml.utils import (
     s_if,
 )
 from seml.utils.errors import MongoDBError
-from seml.utils.slurm import get_cluster_name, get_slurm_arrays_tasks
+from seml.utils.slurm import (
+    are_slurm_jobs_running,
+    cancel_slurm_jobs,
+    get_cluster_name,
+    get_slurm_arrays_tasks,
+)
 
 States = SETTINGS.STATES
 
@@ -208,17 +214,36 @@ def cancel_experiments(
             if not yes and not prompt('Are you sure? (y/n)', type=bool):
                 exit(1)
 
-        db_filter_dict.update({'slurm.array_id': {'$exists': True}})
-        exps = list(
+        running_job_filter = copy.deepcopy(db_filter_dict)
+        running_job_filter |= {
+            'execution.cluster': get_cluster_name(),
+            'execution.array_id': {'$exists': True},
+        }
+        running_exps = list(
             collection.find(
-                db_filter_dict,
-                {'_id': 1, 'status': 1, 'slurm.array_id': 1, 'slurm.task_id': 1},
+                running_job_filter,
+                {'_id': 1, 'status': 1, 'execution': 1},
             )
         )
+        # update database status and write the stop_time
+        # this should be done early so that the experiments are not picked up by other processes
+        cancel_update = {
+            '$set': {
+                'status': States.INTERRUPTED[0],
+                'stop_time': datetime.datetime.now(datetime.UTC),
+            }
+        }
+        collection.update_many(db_filter_dict, cancel_update)
+
         # set of slurm IDs in the database
-        slurm_ids = set([(e['slurm']['array_id'], e['slurm']['task_id']) for e in exps])
+        slurm_ids = set(
+            [
+                (e['execution']['array_id'], e['execution']['task_id'])
+                for e in running_exps
+            ]
+        )
         # set of experiment IDs to be cancelled.
-        exp_ids = set([e['_id'] for e in exps])
+        exp_ids = set([e['_id'] for e in running_exps])
         to_cancel = set()
 
         # iterate over slurm IDs to check which slurm jobs can be cancelled altogether
@@ -226,10 +251,10 @@ def cancel_experiments(
             # find experiments RUNNING under the slurm job
             jobs_running = [
                 e
-                for e in exps
+                for e in running_exps
                 if (
-                    e['slurm']['array_id'] == a_id
-                    and e['slurm']['task_id'] == t_id
+                    e['execution']['array_id'] == a_id
+                    and e['execution']['task_id'] == t_id
                     and e['status'] in States.RUNNING
                 )
             ]
@@ -242,36 +267,15 @@ def cancel_experiments(
         if len(to_cancel) > 0:
             chunk_size = 100
             chunks = list(chunker(list(to_cancel), chunk_size))
-            [
-                subprocess.run(f"scancel {' '.join(chunk)}", shell=True, check=True)
-                for chunk in chunks
-            ]
+            [cancel_slurm_jobs(chunk) for chunk in chunks]
             # Wait until all jobs are actually stopped.
             if wait:
                 for chunk in chunks:
-                    while (
-                        len(
-                            subprocess.run(
-                                f"squeue -h -o '%A' --jobs={','.join(chunk)}",
-                                shell=True,
-                                check=True,
-                                capture_output=True,
-                            ).stdout
-                        )
-                        > 0
-                    ):
+                    while are_slurm_jobs_running(chunk):
                         time.sleep(0.5)
 
-        # update database status and write the stop_time
-        collection.update_many(
-            db_filter_dict,
-            {
-                '$set': {
-                    'status': States.INTERRUPTED[0],
-                    'stop_time': datetime.datetime.now(datetime.UTC),
-                }
-            },
-        )
+        # Let's repeat this in case a job cleaned itself up and overwrote the status.
+        collection.update_many(db_filter_dict, cancel_update)
     except subprocess.CalledProcessError:
         logging.warning(
             'One or multiple Slurm jobs were no longer running when I tried to cancel them.'

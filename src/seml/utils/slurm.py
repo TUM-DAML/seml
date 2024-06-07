@@ -152,5 +152,44 @@ def get_current_slurm_array_id():
     return slurm_array_id, slurm_task_id
 
 
-def get_current_job_id():
+def get_current_slurm_job_id():
     return os.environ.get('SLURM_JOB_ID', None)
+
+
+def cancel_slurm_jobs(job_ids: Sequence[str]):
+    """
+    Cancels the Slurm jobs with the given job IDs.
+
+    Parameters
+    ----------
+    job_ids : Sequence[str]
+        The job IDs of the jobs to cancel
+    """
+    subprocess.run(f"scancel {' '.join(job_ids)}", shell=True, check=True)
+
+
+def are_slurm_jobs_running(job_ids: Sequence[str]):
+    """
+    Checks the Slurm queue to see if the jobs with the given job IDs are still running.
+
+    Parameters
+    ----------
+    job_ids : Sequence[str]
+        The job IDs of the jobs to check
+
+    Returns
+    -------
+    bool
+        True if the jobs are still running, False otherwise
+    """
+    return (
+        len(
+            subprocess.run(
+                f"squeue -h -o '%A' --jobs={','.join(job_ids)}",
+                shell=True,
+                check=True,
+                capture_output=True,
+            ).stdout
+        )
+        > 0
+    )

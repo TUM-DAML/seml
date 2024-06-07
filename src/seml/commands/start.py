@@ -28,7 +28,7 @@ from seml.utils import (
 from seml.utils.errors import ArgumentError, ConfigError
 from seml.utils.slurm import (
     get_cluster_name,
-    get_current_job_id,
+    get_current_slurm_job_id,
     get_current_slurm_array_id,
     get_slurm_jobs,
 )
@@ -1168,7 +1168,7 @@ def prepare_experiment(
     # Let's generate a output file
     output_dir = get_output_dir_path(exp)
     try:
-        job_info = get_slurm_jobs([get_current_job_id()])[0]
+        job_info = get_slurm_jobs([get_current_slurm_job_id()])[0]
         name = job_info['JobName']
         array_id, task_id = get_current_slurm_array_id()
         name = f'{name}_{array_id}_{task_id}'
