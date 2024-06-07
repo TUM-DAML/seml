@@ -8,45 +8,47 @@ from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple, TypeVar
 
 from typing_extensions import Annotated, ParamSpec
 
-import seml.typer as typer
-from seml.add import add_config_files
-from seml.configure import configure
+import seml.utils.typer as typer
+from seml.commands.add import add_config_files
+from seml.commands.configure import configure
+from seml.commands.description import (
+    collection_delete_description,
+    collection_list_descriptions,
+    collection_set_description,
+)
+from seml.commands.manage import (
+    cancel_experiments,
+    delete_experiments,
+    detect_killed,
+    drop_collections,
+    reload_sources,
+    reset_experiments,
+)
+from seml.commands.print import (
+    print_collections,
+    print_command,
+    print_duplicates,
+    print_fail_trace,
+    print_output,
+    print_queue,
+    print_status,
+)
+from seml.commands.project import init_project, print_available_templates
+from seml.commands.slurm import hold_or_release_experiments
+from seml.commands.sources import download_sources
+from seml.commands.start import (
+    prepare_experiment,
+    start_experiments,
+    start_jupyter_job,
+)
 from seml.database import (
     clean_unreferenced_artifacts,
     get_collections_from_mongo_shell_or_pymongo,
     get_mongodb_config,
 )
-from seml.description import (
-    collection_delete_description,
-    collection_list_descriptions,
-    collection_set_description,
-)
-from seml.manage import (
-    cancel_experiments,
-    delete_experiments,
-    detect_killed,
-    drop_collections,
-    hold_or_release_experiments,
-    list_database,
-    print_queue,
-    print_duplicates,
-    print_fail_trace,
-    print_output,
-    print_status,
-    reload_sources,
-    reset_experiments,
-)
-from seml.module_hider import AUTOCOMPLETING
-from seml.project import init_project, print_available_templates
 from seml.settings import SETTINGS
-from seml.sources import download_sources
-from seml.start import (
-    prepare_experiment,
-    print_command,
-    start_experiments,
-    start_jupyter_job,
-)
 from seml.utils import cache_to_disk
+from seml.utils.module_hider import AUTOCOMPLETING
 
 States = SETTINGS.STATES
 
@@ -399,7 +401,7 @@ def list_command(
     full_description: PrintFullDescriptionAnnotation = False,
 ):
     """Lists all collections in the database."""
-    list_database(
+    print_collections(
         pattern,
         progress=progress,
         update_status=update_status,

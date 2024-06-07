@@ -3,8 +3,8 @@ import random
 import uuid
 from typing import DefaultDict
 
-from seml.errors import ConfigError
 from seml.utils import unflatten
+from seml.utils.errors import ConfigError
 
 
 def sample_random_configs(random_config, samples=1, seed=None):

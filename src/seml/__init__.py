@@ -1,13 +1,14 @@
 import os
 from typing import TYPE_CHECKING
 
-from seml.observers import *  # noqa
 from seml.evaluation import *  # noqa
+from seml.experiment.observers import *  # noqa
 
 
 def setup_logger(ex, level='INFO'):
     import logging
-    from seml.experiment import setup_logger
+
+    from seml.experiment.experiment import setup_logger
 
     logging.warn(
         'Importing setup_logger directly from seml is deprecated.\n'
@@ -19,14 +20,15 @@ def setup_logger(ex, level='INFO'):
 
 
 def collect_exp_stats(run):
-    from seml.experiment import collect_exp_stats
+    from seml.experiment.experiment import collect_exp_stats
 
     collect_exp_stats(run)
 
 
 if TYPE_CHECKING:
     from functools import wraps
-    from seml.experiment import Experiment as SemlExperiment
+
+    from seml.experiment.experiment import Experiment as SemlExperiment
 
     @wraps(SemlExperiment)
     def Experiment(*args, **kwargs) -> SemlExperiment:
@@ -34,7 +36,7 @@ if TYPE_CHECKING:
 else:
 
     def Experiment(*args, **kwargs) -> 'SemlExperiment':
-        from seml.experiment import Experiment as SemlExperiment
+        from seml.experiment.experiment import Experiment as SemlExperiment
 
         return SemlExperiment(*args, **kwargs)
 

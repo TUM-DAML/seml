@@ -5,17 +5,16 @@ import numbers
 import os
 from itertools import combinations
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
-from seml.errors import ConfigError, ExecutableError
-from seml.parameters import (
+from seml.experiment.parameters import (
     cartesian_product_zipped_dict,
     generate_grid,
     sample_random_configs,
     zipped_dict,
 )
+from seml.experiment.sources import import_exe
 from seml.settings import SETTINGS
-from seml.sources import import_exe
 from seml.utils import (
     Hashabledict,
     flatten,
@@ -25,6 +24,7 @@ from seml.utils import (
     unflatten,
     working_directory,
 )
+from seml.utils.errors import ConfigError, ExecutableError
 
 if TYPE_CHECKING:
     import sacred
@@ -539,7 +539,7 @@ def resolve_configs(
     """
     import sacred
 
-    from seml.experiment import Experiment
+    from seml.experiment.experiment import Experiment
 
     exp_module = import_exe(executable, conda_env, working_dir)
 
@@ -644,6 +644,7 @@ def restore(flat):
     Copied from sacred.serializer for performance reasons.
     """
     import json
+
     import jsonpickle
 
     return jsonpickle.decode(json.dumps(flat), keys=True)
@@ -674,34 +675,11 @@ def convert_values(val):
     return val
 
 
-def read_config(config_path):
-    # We define this privately to avoid importing yaml
+def read_config(config_path: Union[str, Path]):
     import yaml
 
-    class YamlUniqueLoader(yaml.FullLoader):
-        """
-        Custom YAML loader that disallows duplicate keys
-
-        From https://github.com/encukou/naucse_render/commit/658197ed142fec2fe31574f1ff24d1ff6d268797
-        Workaround for PyYAML issue: https://github.com/yaml/pyyaml/issues/165
-        This disables some uses of YAML merge (`<<`)
-        """
-
-    def construct_mapping(loader, node, deep=False):
-        """Construct a YAML mapping node, avoiding duplicates"""
-        loader.flatten_mapping(node)
-        result = {}
-        for key_node, value_node in node.value:
-            key = loader.construct_object(key_node, deep=deep)
-            if key in result:
-                raise ConfigError(f"Found duplicate keys: '{key}'")
-            result[key] = loader.construct_object(value_node, deep=deep)
-        return result
-
-    YamlUniqueLoader.add_constructor(
-        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-        construct_mapping,
-    )
+    from seml import __version__
+    from seml.utils.yaml import YamlUniqueLoader
 
     with open(config_path, 'r') as conf:
         config_dict = convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
@@ -721,9 +699,7 @@ def read_config(config_path):
             f'Using {SETTINGS.SEML_CONFIG_VALUE_VERSION} in the `seml` config block is prohibited.'
         )
 
-    from importlib.metadata import version
-
-    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = version('seml')
+    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = __version__
 
     determine_executable_and_working_dir(config_path, seml_dict)
 

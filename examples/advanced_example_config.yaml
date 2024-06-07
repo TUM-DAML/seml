@@ -53,22 +53,28 @@
 #
 # More specific settings (i.e., further down the hierarchy) always overwrite more general ones.
 
-
 seml:
   executable: advanced_example_experiment.py
   name: advanced_example_experiment
   output_dir: logs
   project_root_dir: .
-  description: 'An advanced example configuration. We can also use variable interpolation here: ${config.model.model_type}'
+  description: "An advanced example configuration. We can also use variable interpolation here: ${config.model.model_type}"
 
 slurm:
   experiments_per_job: 1
-  max_simultaneous_jobs: 4  # Restrict number of simultaneously running jobs per job array
+  max_simultaneous_jobs: 4 # Restrict number of simultaneously running jobs per job array
   sbatch_options:
-    gres: gpu:1       # num GPUs
-    mem: 16G          # memory
-    cpus-per-task: 2  # num cores
-    time: 0-08:00     # max time, D-HH:MM
+    gres: gpu:1 # num GPUs
+    mem: 16G # memory
+    cpus-per-task: 2 # num cores
+    time: 0-08:00 # max time, D-HH:MM
+    partition: gpu_gtx1080 # use the 1080ti partition
+  overrides:
+    # We can also increase the number of jobs if we run on A100s
+    - experiments_per_job: 4
+      sbatch_options:
+        partition: gpu_a100
+        cpus-per-task: 8
 
 ###### BEGIN PARAMETER CONFIGURATION ######
 
@@ -87,8 +93,7 @@ grid:
     options:
       - variant_1
       - variant_2
-    zip_id: model_dataset  # The model_type jointly changes with all other parameters of the mode_dataset group
-
+    zip_id: model_dataset # The model_type jointly changes with all other parameters of the mode_dataset group
 
   # The `+` prefix indicates that a named config should be used. The `name` attribute selects which named config is run
   # Here, setting `batchnorm.name` to `batchnorm`, will run the named config `batchnorm` (see `advanced_example_experiment.py`)
@@ -141,7 +146,6 @@ large_datasets:
       options:
         - [64]
         - [64, 32]
-
 
 small_datasets:
   grid:

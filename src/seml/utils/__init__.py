@@ -2,10 +2,10 @@ import copy
 import functools
 import logging
 import os
-from contextlib import contextmanager
-from pathlib import Path
 import subprocess
 import time
+from contextlib import contextmanager
+from pathlib import Path
 from typing import (
     Any,
     Callable,
@@ -19,8 +19,6 @@ from typing import (
     TypeVar,
     Union,
 )
-
-import seml.typer as typer
 
 
 def s_if(n: int) -> str:
@@ -432,6 +430,8 @@ class DiskCachedFunction(Generic[R]):
         name: str,
         time_to_live: float,
     ):
+        import seml.utils.typer as typer
+
         self.cache_path = Path(typer.get_app_dir('seml')) / f'{name}.json'
         self.time_to_live = time_to_live
         self.fun = fun
@@ -743,3 +743,20 @@ def find_jupyter_host(
     if url_str.endswith('/lab'):
         url_str = url_str[:-4]
     return url_str, known_host
+
+
+def is_local_file(filename, root_dir):
+    """
+    See https://github.com/IDSIA/sacred/blob/master/sacred/dependencies.py
+    Parameters
+    ----------
+    filename
+    root_dir
+
+    Returns
+    -------
+
+    """
+    file_path = Path(filename).expanduser().resolve()
+    root_path = Path(root_dir).expanduser().resolve()
+    return root_path in file_path.parents

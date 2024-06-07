@@ -1,9 +1,9 @@
 from pathlib import Path
 from runpy import run_path
 
-import seml.typer as typer
+import seml.utils.typer as typer
 from seml.utils import merge_dicts
-from seml.module_hider import ModuleHider
+from seml.utils.module_hider import ModuleHider
 
 # The YAML, json import is rather slow
 with ModuleHider(
@@ -52,6 +52,7 @@ SETTINGS = munchify(
                 'qos': 'interactive',
                 'job-name': 'jupyter',
                 'output': 'jupyter-%j.out',
+                'partition': 'gpu_gtx1080',
             },
             # Extend this with your custom templates.
             'GPU': {

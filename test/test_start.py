@@ -1,5 +1,5 @@
 import unittest
-from seml import start
+from seml.commands import start
 
 
 class TestValueToString(unittest.TestCase):

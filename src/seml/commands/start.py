@@ -1,184 +1,36 @@
 import copy
 import logging
 import os
-import shlex
 import shutil
 import subprocess
 import sys
 import time
-import urllib
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from seml.config import generate_named_configs
-from seml.config import resolve_interpolations as resolve_config_interpolations
+from seml.commands.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.database import build_filter_dict, get_collection
-from seml.errors import ArgumentError, ConfigError, MongoDBError
-from seml.manage import cancel_experiment_by_id, reset_slurm_dict
-from seml.network import find_free_port
+from seml.experiment.command import (
+    get_command_from_exp,
+    get_environment_variables,
+    get_shell_command,
+)
+from seml.experiment.sources import load_sources_from_db
 from seml.settings import SETTINGS
-from seml.sources import load_sources_from_db
 from seml.utils import (
     assert_package_installed,
     find_jupyter_host,
     load_text_resource,
     s_if,
 )
+from seml.utils.errors import ArgumentError, ConfigError
 
 if TYPE_CHECKING:
     import pymongo
 
 States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
-
-
-def value_to_string(value, use_json=False):
-    from seml.json import PythonEncoder
-
-    # We need the json encoding for vscode due to https://github.com/microsoft/vscode/issues/91578
-    # Once this bug has been fixed we should only rely on `repr` and remove this code.
-    if use_json:
-        return PythonEncoder().encode(value)
-    else:
-        return repr(value)
-
-
-def get_command_from_exp(
-    exp,
-    db_collection_name,
-    verbose=False,
-    unobserved=False,
-    post_mortem=False,
-    debug=False,
-    debug_server=False,
-    print_info=True,
-    use_json=False,
-    unresolved=False,
-    resolve_interpolations: bool = True,
-):
-    from seml.console import console
-
-    if 'executable' not in exp['seml']:
-        raise MongoDBError(
-            f"No executable found for experiment {exp['_id']}. Aborting."
-        )
-    exe = exp['seml']['executable']
-
-    if unresolved:
-        config_unresolved = exp.get('config_unresolved', exp['config'])
-        config, named_configs = tuple(
-            zip(*generate_named_configs([config_unresolved]))
-        )[0]
-        # Variable interpolation in unresolved and named configs
-
-        if resolve_interpolations:
-            import uuid
-
-            key_named_configs = str(uuid.uuid4())
-            interpolated = resolve_config_interpolations(
-                {
-                    **exp,
-                    'config_unresolved': config_unresolved,
-                    key_named_configs: named_configs,
-                },
-                allow_interpolations_in=list(SETTINGS.ALLOW_INTERPOLATION_IN)
-                + ['config_unresolved', key_named_configs],
-            )
-
-            config = {
-                k: v
-                for k, v in interpolated['config_unresolved'].items()
-                if not k.startswith(SETTINGS.NAMED_CONFIG.PREFIX)
-            }
-            named_configs = interpolated[key_named_configs]
-        else:
-            config = {
-                k: v
-                for k, v in config_unresolved.items()
-                if not k.startswith(SETTINGS.NAMED_CONFIG.PREFIX)
-            }
-    else:
-        assert (
-            resolve_interpolations
-        ), 'In resolved configs, interpolations are automatically resolved'
-        config = exp['config']
-        named_configs = []
-
-    config['db_collection'] = db_collection_name
-    if not unobserved:
-        config['overwrite'] = exp['_id']
-
-    # We encode values with `repr` such that we can decode them with `eval`. While `shlex.quote`
-    # may cause messy commands with lots of single quotes JSON doesn't match Python 1:1, e.g.,
-    # boolean values are lower case in JSON (true, false) but start with capital letters in Python.
-    config_strings = [
-        f'{key}={value_to_string(val, use_json)}' for key, val in config.items()
-    ]
-    config_strings += named_configs
-
-    # TODO (?): Variable interpolation for unresolved CLI calls
-
-    if not verbose:
-        config_strings.append('--force')
-    if unobserved:
-        config_strings.append('--unobserved')
-    if post_mortem:
-        config_strings.append('--pdb')
-    if debug:
-        config_strings.append('--debug')
-
-    if debug_server:
-        ip_address, port = find_free_port()
-        if print_info:
-            logging.info(
-                f"Starting debug server with IP '{ip_address}' and port '{port}'. "
-                f'Experiment will wait for a debug client to attach.'
-            )
-            attach_link = _generate_debug_attach_url(ip_address, port)
-
-            logging.info(
-                "If you are using VSCode, you can use the 'Debug Launcher' extension to attach:"
-            )
-            console.out(attach_link)
-
-        interpreter = (
-            f'python -m debugpy --listen {ip_address}:{port} --wait-for-client'
-        )
-    else:
-        interpreter = 'python'
-
-    return interpreter, exe, config_strings
-
-
-def _generate_debug_attach_url(ip_address, port):
-    import json
-
-    launch_config = {
-        'type': 'debugpy',
-        'request': 'attach',
-        'connect': {'host': ip_address, 'port': port},
-        'pathMappings': [{'localRoot': '${workspaceFolder}', 'remoteRoot': '.'}],
-    }
-    launch_config = urllib.parse.quote(json.dumps(launch_config))
-    return f'vscode://fabiospampinato.vscode-debug-launcher/launch?args={launch_config}'
-
-
-def get_config_overrides(config):
-    return ' '.join(map(shlex.quote, config))
-
-
-def get_shell_command(interpreter, exe, config, env: dict = None):
-    config_overrides = get_config_overrides(config)
-
-    if env is None or len(env) == 0:
-        return f'{interpreter} {exe} with {config_overrides}'
-    else:
-        env_overrides = ' '.join(
-            f'{key}={shlex.quote(val)}' for key, val in env.items()
-        )
-
-        return f'{env_overrides} {interpreter} {exe} with {config_overrides}'
 
 
 def get_output_dir_path(config):
@@ -697,23 +549,6 @@ def prepare_staged_experiments(
     return experiments
 
 
-def get_environment_variables(gpus=None, cpus=None, environment_variables=None):
-    if environment_variables is None:
-        environment_variables = {}
-
-    if gpus is not None:
-        if isinstance(gpus, list):
-            raise ArgumentError(
-                'Received an input of type list to set CUDA_VISIBLE_DEVICES. '
-                'Please pass a string for input "gpus", '
-                'e.g. "1,2" if you want to use GPUs with IDs 1 and 2.'
-            )
-        environment_variables['CUDA_VISIBLE_DEVICES'] = str(gpus)
-    if cpus is not None:
-        environment_variables['OMP_NUM_THREADS'] = str(cpus)
-    return environment_variables
-
-
 def add_to_slurm_queue(
     collection,
     exps_list,
@@ -967,108 +802,6 @@ def start_local_worker(
                 jobs_counter += 1
                 progress.advance(task)
                 # tq.set_postfix(current_id=exp['_id'], failed=f"{num_exceptions}/{jobs_counter} experiments")
-
-
-def print_command(
-    db_collection_name: str,
-    sacred_id: Optional[int],
-    batch_id: Optional[int],
-    filter_states: List[str],
-    filter_dict: Optional[Dict],
-    num_exps: int,
-    worker_gpus: Optional[str] = None,
-    worker_cpus: Optional[int] = None,
-    worker_environment_vars: Optional[Dict] = None,
-    unresolved: bool = False,
-    resolve_interpolations: bool = True,
-):
-    import rich
-
-    from seml.console import Heading, console
-
-    collection = get_collection(db_collection_name)
-
-    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id)
-
-    env_dict = get_environment_variables(
-        worker_gpus, worker_cpus, worker_environment_vars
-    )
-
-    orig_level = logging.root.level
-    logging.root.setLevel(logging.NOTSET)
-
-    exps_list = list(collection.find(filter_dict, limit=num_exps))
-    if len(exps_list) == 0:
-        return
-
-    exp = exps_list[0]
-    _, exe, config = get_command_from_exp(
-        exp,
-        collection.name,
-        verbose=logging.root.level <= logging.VERBOSE,
-        unobserved=True,
-        post_mortem=False,
-        unresolved=unresolved,
-        resolve_interpolations=resolve_interpolations,
-    )
-    _, exe, vscode_config = get_command_from_exp(
-        exp,
-        collection.name,
-        verbose=logging.root.level <= logging.VERBOSE,
-        unobserved=True,
-        post_mortem=False,
-        use_json=True,
-        unresolved=unresolved,
-        resolve_interpolations=resolve_interpolations,
-    )
-    env = exp['seml'].get('conda_environment')
-
-    console.print(Heading('First experiment'))
-    logging.info(f'Executable: {exe}')
-    if env is not None:
-        logging.info(f'Anaconda environment: {env}')
-
-    console.print(Heading('Arguments for VS Code debugger'))
-    rich.print_json(data=['with', '--debug'] + vscode_config)
-    console.print(Heading('Arguments for PyCharm debugger'))
-    print('with --debug ' + get_config_overrides(config))
-
-    console.print(Heading('Command for post-mortem debugging'))
-    interpreter, exe, config = get_command_from_exp(
-        exps_list[0],
-        collection.name,
-        verbose=logging.root.level <= logging.VERBOSE,
-        unobserved=True,
-        post_mortem=True,
-        unresolved=unresolved,
-        resolve_interpolations=resolve_interpolations,
-    )
-    print(get_shell_command(interpreter, exe, config, env=env_dict))
-
-    console.print(Heading('Command for remote debugging'))
-    interpreter, exe, config = get_command_from_exp(
-        exps_list[0],
-        collection.name,
-        verbose=logging.root.level <= logging.VERBOSE,
-        unobserved=True,
-        debug_server=True,
-        print_info=False,
-        unresolved=unresolved,
-        resolve_interpolations=resolve_interpolations,
-    )
-    print(get_shell_command(interpreter, exe, config, env=env_dict))
-
-    console.print(Heading('All raw commands'))
-    logging.root.setLevel(orig_level)
-    for exp in exps_list:
-        interpreter, exe, config = get_command_from_exp(
-            exp,
-            collection.name,
-            verbose=logging.root.level <= logging.VERBOSE,
-            unresolved=unresolved,
-            resolve_interpolations=resolve_interpolations,
-        )
-        print(get_shell_command(interpreter, exe, config, env=env_dict))
 
 
 def start_experiments(
@@ -1382,12 +1115,13 @@ def prepare_experiment(
     -------
     None
     """
-    from seml.experiment import (
+    from sacred.randomness import get_seed
+
+    from seml.utils.multi_process import (
         is_local_main_process,
         is_main_process,
         is_running_in_multi_process,
     )
-    from sacred.randomness import get_seed
 
     # This process should only be executed once per node, so if we are not the main
     # process per node, we directly exit.

@@ -3,10 +3,12 @@ import unittest
 
 import yaml
 
-from seml import config, utils, add
-from seml.add import assemble_slurm_config_dict
-from seml.config import read_config
-from seml.errors import ConfigError
+from seml import utils
+from seml.commands.add import assemble_slurm_config_dict
+from seml.experiment.config import read_config
+from seml.commands import add
+from seml.experiment import config
+from seml.utils.errors import ConfigError
 from seml.settings import SETTINGS
 from seml.utils import flatten, merge_dicts
 

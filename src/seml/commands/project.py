@@ -41,8 +41,9 @@ def init_project(
     yes : bool
         If True, no confirmation is asked before initializing the project.
     """
-    from seml.console import prompt
     from gitignore_parser import parse_gitignore
+
+    from seml.console import prompt
 
     if directory is None:
         directory = Path()
@@ -129,6 +130,7 @@ def checkout_template_repo(
         The git commit to use.
     """
     import tempfile
+
     from git import Repo
 
     if git_remote is None:

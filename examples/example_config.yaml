@@ -66,7 +66,7 @@ slurm:
     mem: 16G # memory
     cpus-per-task: 2 # num cores
     time: 0-08:00 # max time, D-HH:MM
-    partition: gpu_all
+    partition: gpu_gtx1080
 
 ###### BEGIN PARAMETER CONFIGURATION ######
 

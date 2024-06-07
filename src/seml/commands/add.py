@@ -2,23 +2,22 @@ import copy
 import datetime
 import logging
 import os
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional
 
-from seml.config import (
+from seml.database import get_collection, get_max_in_collection
+from seml.experiment.config import (
     check_config,
+    config_get_exclude_keys,
     generate_configs,
     generate_named_configs,
     read_config,
     remove_prepended_dashes,
     resolve_configs,
-    config_get_exclude_keys,
     resolve_interpolations,
 )
-from seml.database import get_collection, get_max_in_collection
-from seml.description import resolve_description
-from seml.errors import ConfigError
+from seml.experiment.description import resolve_description
+from seml.experiment.sources import get_git_info, upload_sources
 from seml.settings import SETTINGS
-from seml.sources import get_git_info, upload_sources
 from seml.utils import (
     Hashabledict,
     flatten,
@@ -28,6 +27,7 @@ from seml.utils import (
     s_if,
     unflatten,
 )
+from seml.utils.errors import ConfigError
 
 if TYPE_CHECKING:
     import pymongo
