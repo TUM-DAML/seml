@@ -229,6 +229,23 @@ def assemble_slurm_config_dict(experiment_slurm_config: dict):
     return slurm_config
 
 
+def resolve_overrides(slurm_config: Dict):
+    """
+    Resolve the overrides in the slurm configuration
+
+    Parameters
+    ----------
+    slurm_config: The slurm experiment configuration as returned by the function read_config
+    """
+    overrides = slurm_config.get('overrides', [])
+    # Add empty override to ensure that the base config is included
+    overrides.insert(0, {})
+    base_config = copy.deepcopy(slurm_config)
+    if 'overrides' in base_config:
+        del base_config['overrides']
+    return [merge_dicts(base_config, override) for override in overrides]
+
+
 def add_config_file(
     db_collection_name: str,
     config_file: str,
@@ -285,7 +302,10 @@ def add_config_file(
         batch_id = batch_id + 1
 
     # Assemble the Slurm config:
-    slurm_config = assemble_slurm_config_dict(slurm_config)
+    slurm_configs = resolve_overrides(slurm_config)
+    slurm_configs = list(map(assemble_slurm_config_dict, slurm_configs))
+    if len(slurm_configs) == 0:
+        raise ConfigError('No slurm configuration found.')
 
     configs_unresolved = generate_configs(
         experiment_config, overwrite_params=overwrite_params
@@ -305,7 +325,7 @@ def add_config_file(
             **resolve_interpolations(
                 {
                     'seml': seml_config,
-                    'slurm': slurm_config,
+                    'slurm': slurm_configs,
                     'git': git_info,
                     'batch_id': batch_id,  # needs to be determined now for source file uploading
                     'config': config,

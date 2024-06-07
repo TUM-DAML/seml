@@ -18,27 +18,43 @@ if {use_conda_env}; then
     conda activate {conda_env}
 fi
 
-# Chunked list with all experiment IDs
+# List with all experiment IDs
 all_exp_ids=({exp_ids})
+# Number of experiments
+num_exp={experiments_per_job}
 
-# Get experiment IDs for this Slurm task
-exp_ids_str="${{all_exp_ids[$SLURM_ARRAY_TASK_ID]}}"
-IFS=";" read -r -a exp_ids <<< "$exp_ids_str"
-
-# Create directory for the source files in MongoDB
-if {with_sources}; then
-    tmpdir="{tmp_directory}/$(uuidgen)"  # unique temp dir based on UUID
-    # Prepend the temp dir to $PYTHONPATH so it will be used by python.
-    export PYTHONPATH="$tmpdir:$PYTHONPATH"
-fi
+# This ensures that we don't mess with seml
+default_python_path=$PYTHONPATH
 
 # Start experiments in separate processes
 process_ids=()
-for exp_id in "${{exp_ids[@]}}"; do
-    cmd=$(srun seml {db_collection_name} prepare-experiment -id ${{exp_id}} {prepare_args})
+exp_ids=()
+tmp_dirs=()
+for i in $(seq 1 $num_exp); do
+    # Claim an experiment
+    exp_id=$(PYTHONPATH=$default_python_path seml {db_collection_name} claim-experiment ${{all_exp_ids[@]}})
+    ret=$?
+    if [ $ret -eq 3 ]; then
+        echo "WARNING: No more experiments to run."
+        break
+    fi
+    exp_ids+=($exp_id)
+
+    # Create directory for the source files in MongoDB
+    if {with_sources}; then
+        tmpdir="{tmp_directory}/$(uuidgen)"  # unique temp dir based on UUID
+        # Prepend the temp dir to $PYTHONPATH so it will be used by python.
+        export PYTHONPATH="$tmpdir:$default_python_path"
+        tmp_dirs+=($tmpdir)
+    fi
+
+    # Prepare the epxeriment
+    cmd=$(PYTHONPATH=$default_python_path srun seml {db_collection_name} prepare-experiment -id ${{exp_id}} {prepare_args})
+    echo $cmd
 
     ret=$?
     if [ $ret -eq 0 ]; then
+        # This experiment works and will be started.
         srun bash -c "$cmd" &
         process_ids+=($!)
     elif [ $ret -eq 3 ]; then
@@ -61,7 +77,9 @@ wait
 
 # Delete temporary source files
 if {with_sources}; then
-    srun rm -rf $tmpdir
+    for tmpdir in ${{tmp_dirs[@]}}; do
+        srun rm -rf $tmpdir
+    done
 fi
 
 

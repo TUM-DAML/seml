@@ -28,6 +28,7 @@ from seml.utils import (
     s_if,
 )
 from seml.utils.errors import MongoDBError
+from seml.utils.slurm import get_cluster_name, get_slurm_arrays_tasks
 
 States = SETTINGS.STATES
 
@@ -419,15 +420,16 @@ def reset_slurm_dict(exp: Dict):
     """
     keep_slurm = set()
     keep_slurm.update(SETTINGS.VALID_SLURM_CONFIG_VALUES)
-    slurm_keys = set(exp['slurm'].keys())
-    for key in slurm_keys - keep_slurm:
-        del exp['slurm'][key]
+    for sub_conf in exp['slurm']:
+        slurm_keys = set(sub_conf.keys())
+        for key in slurm_keys - keep_slurm:
+            del sub_conf[key]
 
-    # Clean up sbatch_options dictionary
-    remove_sbatch = {'job-name', 'output', 'array'}
-    sbatch_keys = set(exp['slurm']['sbatch_options'].keys())
-    for key in remove_sbatch & sbatch_keys:
-        del exp['slurm']['sbatch_options'][key]
+        # Clean up sbatch_options dictionary
+        remove_sbatch = {'job-name', 'output', 'array', 'comment'}
+        sbatch_keys = set(sub_conf['sbatch_options'].keys())
+        for key in remove_sbatch & sbatch_keys:
+            del sub_conf['sbatch_options'][key]
 
 
 def reset_single_experiment(collection: 'Collection', exp: Dict):
@@ -528,12 +530,14 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
         Whether to print how many killed experiments have been detected, by default True
     """
     collection = get_collection(db_collection_name)
+    cluster = get_cluster_name()
     exps = collection.find(
         {
             'status': {'$in': [*States.PENDING, *States.RUNNING]},
+            'execution.cluster': cluster,  # only check experiments that are running on the current cluster
             # Previously we only checked for started experiments by including the following line:
             # 'host': {'$exists': True},  # only check experiments that have been started
-            # Though, this does not catch the case where a user cancels pending experiments with scanel.
+            # Though, this does not catch the case where a user cancels pending experiments with scancel.
             # I (Nicholas) am not 100% sure about the implications of removing the check but it at least
             # resolves the issue around manually canceled jobs.
         }
@@ -541,23 +545,28 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
     running_jobs = get_slurm_arrays_tasks()
     nkilled = 0
     for exp in exps:
-        exp_running = (
-            'array_id' in exp['slurm']
-            and exp['slurm']['array_id'] in running_jobs
-            and (
-                any(
-                    exp['slurm']['task_id'] in r
-                    for r in running_jobs[exp['slurm']['array_id']][0]
-                )
-                or exp['slurm']['task_id'] in running_jobs[exp['slurm']['array_id']][1]
+        # detect whether the experiment is running in slurm
+        exp_running = exp['execution'].get('array_id', -1) in running_jobs and (
+            any(
+                exp['execution']['task_id'] in r
+                for r in running_jobs[exp['execution']['array_id']][0]
             )
+            or exp['execution']['task_id']
+            in running_jobs[exp['execution']['array_id']][1]
         )
-        if not exp_running:
+        # detect whether any job that could execute it is pending
+        array_ids = [conf['array_id'] for conf in exp['slurm']]
+        # Any of these jobs may still pull the experiment and run it
+        exp_pending = any(array_id in running_jobs for array_id in array_ids)
+
+        if not exp_running and not exp_pending:
             if 'stop_time' in exp:
+                # the experiment is already over but failed to report properly
                 collection.update_one(
                     {'_id': exp['_id']}, {'$set': {'status': States.INTERRUPTED[0]}}
                 )
             else:
+                # the experiment was externally killed
                 nkilled += 1
                 collection.update_one(
                     {'_id': exp['_id']}, {'$set': {'status': States.KILLED[0]}}
@@ -579,55 +588,6 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                     )
     if print_detected:
         logging.info(f'Detected {nkilled} externally killed experiment{s_if(nkilled)}.')
-
-
-def get_slurm_arrays_tasks(filter_by_user: bool = False):
-    """Get a dictionary of running/pending Slurm job arrays (as keys) and tasks (as values)
-
-    Parameters:
-    -----------
-    filter_by_user : bool
-        Whether to only check jobs by the current user, by default False
-    """
-    try:
-        squeue_cmd = f"SLURM_BITSTR_LEN=1024 squeue -a -t {','.join(SETTINGS.SLURM_STATES.ACTIVE)} -h -o %i"
-        if filter_by_user:
-            squeue_cmd += ' -u `whoami`'
-        squeue_out = subprocess.run(
-            squeue_cmd, shell=True, check=True, capture_output=True
-        ).stdout
-        jobs = [job_str for job_str in squeue_out.splitlines() if b'_' in job_str]
-        if len(jobs) > 0:
-            array_ids_str, task_ids = zip(*[job_str.split(b'_') for job_str in jobs])
-            # `job_dict`: This dictionary has the job array IDs as keys and the values are
-            # a list of 1) the pending job task range and 2) a list of running job task IDs.
-            job_dict = {}
-            for i, task_range_str in enumerate(task_ids):
-                array_id = int(array_ids_str[i])
-                if array_id not in job_dict:
-                    job_dict[array_id] = [[range(0)], []]
-
-                if b'[' in task_range_str:
-                    # Remove brackets and maximum number of simultaneous jobs
-                    task_range_str = task_range_str[1:-1].split(b'%')[0]
-                    # The overall pending tasks array can be split into multiple arrays by cancelling jobs
-                    job_id_ranges = task_range_str.split(b',')
-                    for r in job_id_ranges:
-                        if b'-' in r:
-                            lower, upper = r.split(b'-')
-                        else:
-                            lower = upper = r
-                        job_dict[array_id][0].append(range(int(lower), int(upper) + 1))
-                else:
-                    # Single task IDs belong to running jobs
-                    task_id = int(task_range_str)
-                    job_dict[array_id][1].append(task_id)
-
-            return job_dict
-        else:
-            return {}
-    except subprocess.CalledProcessError:
-        return {}
 
 
 def get_experiment_files(experiment: Dict) -> List[str]:

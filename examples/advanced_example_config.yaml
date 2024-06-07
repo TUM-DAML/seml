@@ -69,6 +69,12 @@ slurm:
     cpus-per-task: 2 # num cores
     time: 0-08:00 # max time, D-HH:MM
     partition: gpu_gtx1080 # use the 1080ti partition
+  overrides:
+    # We can also increase the number of jobs if we run on A100s
+    - experiments_per_job: 4
+      sbatch_options:
+        partition: gpu_a100
+        cpus-per-task: 8
 
 ###### BEGIN PARAMETER CONFIGURATION ######
 

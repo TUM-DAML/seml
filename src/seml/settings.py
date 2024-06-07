@@ -113,6 +113,7 @@ SETTINGS = munchify(
             'max_simultaneous_jobs',
             'sbatch_options_template',
             'sbatch_options',
+            'overrides',
         ],
         'LOGIN_NODE_NAMES': ['fs'],
         'OBSERVERS': {

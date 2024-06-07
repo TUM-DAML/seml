@@ -60,7 +60,7 @@ seml:
   description: An example configuration.
 
 slurm:
-  experiments_per_job: 1
+  experiments_per_job: 16
   sbatch_options:
     gres: gpu:1 # num GPUs
     mem: 16G # memory

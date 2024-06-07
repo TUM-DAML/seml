@@ -37,6 +37,7 @@ from seml.commands.project import init_project, print_available_templates
 from seml.commands.slurm import hold_or_release_experiments
 from seml.commands.sources import download_sources
 from seml.commands.start import (
+    claim_experiment,
     prepare_experiment,
     start_experiments,
     start_jupyter_job,
@@ -55,6 +56,10 @@ States = SETTINGS.STATES
 
 P = ParamSpec('P')
 R = TypeVar('R')
+
+
+# numexpr will log unnecessary info we don't want in our CLI
+logging.getLogger('numexpr').setLevel(logging.ERROR)
 
 # Let's not import json if we are only autocompleting
 if not AUTOCOMPLETING:
@@ -376,6 +381,9 @@ def callback(
         )
         logging.basicConfig(
             level=logging_level, format='%(message)s', handlers=[handler]
+        )
+        logging.basicConfig(
+            level=logging.ERROR, format='%(message)s', handlers=[handler]
         )
 
     ctx.obj = dict(collection=collection, verbose=verbose)
@@ -708,6 +716,23 @@ def prepare_experiment_command(
         stored_sources_dir,
         debug_server,
     )
+
+
+@app.command('claim-experiment', rich_help_panel=_EXPERIMENTS, hidden=True)
+@restrict_collection()
+def claim_experiment_command(
+    ctx: typer.Context,
+    sacred_ids: Annotated[
+        List[int],
+        typer.Argument(
+            help='Sacred IDs (_id in the database collection) of the experiments to claim.',
+        ),
+    ],
+):
+    """
+    Claim an experiment from the database.
+    """
+    claim_experiment(ctx.obj['collection'], sacred_ids)
 
 
 @app.command('launch-worker', rich_help_panel=_EXPERIMENTS)

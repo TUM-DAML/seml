@@ -1,7 +1,6 @@
 import logging
 import os
 import re
-import subprocess
 import time
 from collections import defaultdict
 from typing import Dict, List, Optional, Sequence
@@ -29,6 +28,7 @@ from seml.utils import (
     to_hashable,
     to_slices,
 )
+from seml.utils.slurm import get_slurm_jobs
 
 States = SETTINGS.STATES
 
@@ -492,40 +492,6 @@ def print_output(
         logging.info('No experiments found.')
 
 
-def parse_scontrol_job_info(job_info: str):
-    """
-    Converts the return value of `scontrol show job <jobid>` into a python dictionary.
-
-    Parameters
-    ----------
-    job_info : str
-        The output of `scontrol show job <jobid>`
-
-    Returns
-    -------
-    dict
-        The job information as a dictionary
-    """
-    job_info_dict: Dict[str, str] = {}
-    # we may split to many times, e.g., if a value contains a space
-    unfiltered_lines = job_info.split()
-    filtered_lines = []
-    for line in unfiltered_lines:
-        if line:
-            if '=' in line:
-                # new variable
-                filtered_lines.append(line)
-            else:
-                # just append to the previous variable
-                filtered_lines[-1] += ' ' + line
-
-    # Now every line must contain a '=' sign and we can simply split here
-    for line in filtered_lines:
-        key, value = line.split('=', 1)
-        job_info_dict[key] = value
-    return job_info_dict
-
-
 def generate_queue_table(
     db,
     job_ids: List[str],
@@ -551,29 +517,7 @@ def generate_queue_table(
 
     from seml.console import Table
 
-    # Run scontrol
-    if job_ids is None or len(job_ids) == 0:
-        job_info_str = subprocess.run(
-            'scontrol show job',
-            shell=True,
-            check=True,
-            capture_output=True,
-        ).stdout.decode('utf-8')
-        job_info_strs = job_info_str.split('\n\n')
-    else:
-        job_info_strs = []
-        for job_id in job_ids:
-            job_info_str = subprocess.run(
-                f'scontrol show job {job_id}',
-                shell=True,
-                check=True,
-                capture_output=True,
-            ).stdout.decode('utf-8')
-            job_info_strs.append(job_info_str)
-
-    # Convert to dictionary
-    job_info_strs = list(filter(None, job_info_strs))
-    job_infos = list(map(parse_scontrol_job_info, job_info_strs))
+    job_infos = get_slurm_jobs(job_ids)
 
     # Find the collections
     all_collections = set(db.list_collection_names())
