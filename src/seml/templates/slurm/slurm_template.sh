@@ -20,21 +20,16 @@ fi
 
 # List with all experiment IDs
 all_exp_ids=({exp_ids})
-# Number of experiments
-num_exp={experiments_per_job}
 
-# This ensures that we don't mess with seml
-default_python_path=$PYTHONPATH
-
+process_ids=() # list of all process ids
+exp_ids=() # list of all sacred ids
+tmp_dirs=() # list of temporary directories
 # Start experiments in separate processes
-process_ids=()
-exp_ids=()
-tmp_dirs=()
-for i in $(seq 1 $num_exp); do
-    # Claim an experiment
-    exp_id=$(PYTHONPATH=$default_python_path seml {db_collection_name} claim-experiment ${{all_exp_ids[@]}})
-    ret=$?
-    if [ $ret -eq 3 ]; then
+for i in $(seq 1 {experiments_per_job}); do
+    # Claim an experiment, this is separate from the experiment preparation
+    # to avoid race conditions and handle multi-process experiments well.
+    exp_id=$(seml {db_collection_name} claim-experiment ${{all_exp_ids[@]}})
+    if [ $? -eq 3 ]; then
         echo "WARNING: No more experiments to run."
         break
     fi
@@ -44,21 +39,21 @@ for i in $(seq 1 $num_exp); do
     if {with_sources}; then
         tmpdir="{tmp_directory}/$(uuidgen)"  # unique temp dir based on UUID
         # Prepend the temp dir to $PYTHONPATH so it will be used by python.
-        export PYTHONPATH="$tmpdir:$default_python_path"
+        exp_pypath="$tmpdir:$PYTHONPATH"
         tmp_dirs+=($tmpdir)
     fi
 
     # Prepare the epxeriment
-    cmd=$(PYTHONPATH=$default_python_path srun seml {db_collection_name} prepare-experiment -id ${{exp_id}} {prepare_args})
-    echo $cmd
+    cmd=$(srun seml {db_collection_name} prepare-experiment -id ${{exp_id}}{prepare_args})
 
+    # Check if the preparation was successful
     ret=$?
     if [ $ret -eq 0 ]; then
         # This experiment works and will be started.
-        srun bash -c "$cmd" &
+        PYTHONPATH=$exp_pypath srun bash -c "$cmd" &
         process_ids+=($!)
     elif [ $ret -eq 3 ]; then
-        echo "WARNING: Experiment with ID ${{exp_id}} does not have status PENDING and will not be run."
+        echo "ERROR: Experiment with id ${{exp_id}} got claimed by this job but is not associated correctly."
     elif [ $ret -eq 4 ]; then
         (>&2 echo "ERROR: Experiment with id ${{exp_id}} not found in the database.")
     fi

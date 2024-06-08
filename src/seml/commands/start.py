@@ -993,7 +993,7 @@ def start_jupyter_job(
     logging.info(f"To stop the job, run 'scancel {slurm_array_job_id}'.")
 
 
-def get_experiment_and_set_running(
+def get_experiment_to_prepare(
     collection: 'Collection',
     exp_id: int,
     unobserved: bool,
@@ -1137,7 +1137,7 @@ def prepare_experiment(
         exit(0)
 
     collection = get_collection(db_collection_name)
-    exp = get_experiment_and_set_running(collection, exp_id, unobserved)
+    exp = get_experiment_to_prepare(collection, exp_id, unobserved)
 
     if exp is None:
         # These exit codes will be handled in the bash script

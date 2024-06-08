@@ -1,5 +1,6 @@
 import copy
 import functools
+import hashlib
 import logging
 import os
 import subprocess
@@ -430,9 +431,12 @@ class DiskCachedFunction(Generic[R]):
         name: str,
         time_to_live: float,
     ):
-        import seml.utils.typer as typer
+        from seml.settings import SETTINGS
 
-        self.cache_path = Path(typer.get_app_dir('seml')) / f'{name}.json'
+        user = os.environ.get('USER', 'unknown')
+        install_hash = hashlib.md5(name.encode('utf-8')).hexdigest()
+        file_name = f'seml_{user}_{name}_{install_hash}.json'
+        self.cache_path = Path(SETTINGS.TMP_DIRECTORY) / file_name
         self.time_to_live = time_to_live
         self.fun = fun
 
