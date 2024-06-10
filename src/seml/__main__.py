@@ -17,6 +17,7 @@ from seml.commands.description import (
     collection_set_description,
 )
 from seml.commands.manage import (
+    cancel_empty_pending_jobs,
     cancel_experiments,
     delete_experiments,
     detect_killed,
@@ -382,9 +383,6 @@ def callback(
         logging.basicConfig(
             level=logging_level, format='%(message)s', handlers=[handler]
         )
-        logging.basicConfig(
-            level=logging.ERROR, format='%(message)s', handlers=[handler]
-        )
 
     ctx.obj = dict(collection=collection, verbose=verbose)
 
@@ -662,6 +660,23 @@ def start_command(
     )
 
 
+@app.command('clean-jobs', rich_help_panel=_EXPERIMENTS, hidden=True)
+@restrict_collection()
+def clean_jobs_command(
+    ctx: typer.Context,
+    sacred_ids: Annotated[
+        List[int],
+        typer.Argument(
+            help='Sacred IDs (_id in the database collection) of the experiments to claim.',
+        ),
+    ],
+):
+    """
+    Cancel empty pending jobs.
+    """
+    cancel_empty_pending_jobs(ctx.obj['collection'], *sacred_ids)
+
+
 @app.command('prepare-experiment', rich_help_panel=_EXPERIMENTS, hidden=True)
 @restrict_collection()
 def prepare_experiment_command(
@@ -898,6 +913,15 @@ def print_output_command(
     + States.COMPLETED,
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
+    slurm: Annotated[
+        bool,
+        typer.Option(
+            '-sl',
+            '--slurm',
+            help='Whether to print the Slurm output instead of the experiment output.',
+            is_flag=True,
+        ),
+    ] = False,
 ):
     """
     Print the output of experiments.
@@ -908,6 +932,7 @@ def print_output_command(
         filter_states=filter_states,
         batch_id=batch_id,
         filter_dict=filter_dict,
+        slurm=slurm,
     )
 
 

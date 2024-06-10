@@ -241,9 +241,7 @@ def start_sbatch_job(
         return
 
     slurm_array_job_id = int(output.split(b' ')[-1])
-    task_ids = list(range(num_tasks))
     output_file = output_file.replace('%A', str(slurm_array_job_id))
-    output_files = [output_file.replace('%a', str(i)) for i in task_ids]
     cluster_name = get_cluster_name()
     collection.update_many(
         {'_id': {'$in': [exp['_id'] for exp in exp_array]}},
@@ -251,13 +249,14 @@ def start_sbatch_job(
             '$set': {
                 'status': States.PENDING[0],
                 f'slurm.{slurm_options_id}.array_id': slurm_array_job_id,
-                f'slurm.{slurm_options_id}.task_ids': task_ids,
-                f'slurm.{slurm_options_id}.output_files': output_files,
+                f'slurm.{slurm_options_id}.num_tasks': num_tasks,
+                f'slurm.{slurm_options_id}.output_files_template': output_file,
                 f'slurm.{slurm_options_id}.sbatch_options': sbatch_options,
                 'execution.cluster': cluster_name,
             }
         },
     )
+    return slurm_array_job_id
 
 
 def start_srun_job(collection, exp, srun_options=None, seml_arguments=None):
@@ -547,12 +546,8 @@ def add_to_slurm_queue(
 
     nexps = len(exps_list)
     exp_arrays = chunk_list(exps_list)
-    narrays = len(exp_arrays)
-
-    logging.info(
-        f'Starting {nexps} experiment{s_if(nexps)} in '
-        f'{narrays} Slurm job array{s_if(narrays)}.'
-    )
+    narrays = 0
+    array_ids = []
 
     for exp_array in exp_arrays:
         slurm_options = exp_array[0]['slurm']
@@ -583,6 +578,7 @@ def add_to_slurm_queue(
                 srun_options=default_sbatch_options,
                 seml_arguments=seml_arguments,
             )
+            narrays += 1
         else:
             if output_to_file:
                 output_dir_path = get_output_dir_path(exp_array[0])
@@ -596,7 +592,7 @@ def add_to_slurm_queue(
                     exp_array[0],
                     collection.name,
                 )
-                start_sbatch_job(
+                array_id = start_sbatch_job(
                     collection,
                     exp_array,
                     slurm_options_id,
@@ -608,6 +604,12 @@ def add_to_slurm_queue(
                     experiments_per_job=slurm_option.get('experiments_per_job', 1),
                     debug_server=debug_server,
                 )
+                array_ids.append(array_id)
+                narrays += 1
+    logging.info(
+        f'Started {nexps} experiment{s_if(nexps)} in '
+        f'{narrays} Slurm job array{s_if(narrays)}: {", ".join(map(str, array_ids))}'
+    )
 
 
 def check_compute_node():
@@ -1058,24 +1060,36 @@ def claim_experiment(db_collection_name: str, exp_ids: Sequence[int]):
     The ID of the claimed experiment.
     """
     collection = get_collection(db_collection_name)
-    slurm_array_id, slurm_task_id = get_current_slurm_array_id()
-    if slurm_array_id is not None and slurm_task_id is not None:
+    array_id, task_id = get_current_slurm_array_id()
+    if array_id is not None and task_id is not None:
         # We are running in slurm
+        array_id, task_id = int(array_id), int(task_id)
         cluster_name = get_cluster_name()
-        job_filter = {
-            'execution.array_id': int(slurm_array_id),
-            'execution.task_id': int(slurm_task_id),
+        update = {
+            'execution.array_id': array_id,
+            'execution.task_id': task_id,
             'execution.cluster': cluster_name,
         }
         exp = collection.find_one_and_update(
             {'_id': {'$in': list(exp_ids)}, 'status': {'$in': States.PENDING}},
-            {'$set': {'status': States.RUNNING[0], **job_filter}},
+            {'$set': {'status': States.RUNNING[0], **update}},
+            {'_id': 1, 'slurm': 1},
         )
+        # Set slurm output file
+        for s_conf in exp['slurm']:
+            if s_conf['array_id'] == array_id:
+                output_file = s_conf['output_files_template']
+                output_file = output_file.replace('%a', str(task_id))
+                collection.update_one(
+                    {'_id': exp['_id']},
+                    {'$set': {'execution.slurm_output_file': output_file}},
+                )
     else:
         # Steal slurm
         exp = collection.find_one_and_update(
             {'_id': {'$in': list(exp_ids)}, 'status': {'$in': States.PENDING}},
             {'$set': {'status': States.RUNNING[0], 'execution.cluster': 'local'}},
+            {'_id': 1},
         )
     if exp is None:
         exit(3)
@@ -1168,7 +1182,7 @@ def prepare_experiment(
     # Let's generate a output file
     output_dir = get_output_dir_path(exp)
     try:
-        job_info = get_slurm_jobs([get_current_slurm_job_id()])[0]
+        job_info = get_slurm_jobs(get_current_slurm_job_id())[0]
         name = job_info['JobName']
         array_id, task_id = get_current_slurm_array_id()
         name = f'{name}_{array_id}_{task_id}'

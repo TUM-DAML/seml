@@ -1,6 +1,6 @@
 import os
 import subprocess
-from typing import Dict, Optional, Sequence
+from typing import Dict, Optional
 
 from seml.settings import SETTINGS
 
@@ -14,18 +14,21 @@ def get_cluster_name():
     str
         The name of the cluster
     """
-    return (
-        subprocess.run(
-            "scontrol show config | grep ClusterName | awk '{print $3}'",
-            shell=True,
-            capture_output=True,
+    try:
+        return (
+            subprocess.run(
+                "scontrol show config | grep ClusterName | awk '{print $3}'",
+                shell=True,
+                capture_output=True,
+            )
+            .stdout.decode()
+            .strip()
         )
-        .stdout.decode()
-        .strip()
-    )
+    except subprocess.SubprocessError:
+        return 'unknown'
 
 
-def get_slurm_jobs(job_ids: Optional[Sequence[str]] = None):
+def get_slurm_jobs(*job_ids: str):
     """
     Returns a list of dictionaries containing information about the Slurm jobs with the given job IDs.
     If no job IDs are provided, information about all jobs is returned.
@@ -40,7 +43,7 @@ def get_slurm_jobs(job_ids: Optional[Sequence[str]] = None):
     List[Dict[str, str]]
         A list of dictionaries containing information about the jobs
     """
-    if job_ids is None or len(job_ids) == 0:
+    if len(job_ids) == 0:
         job_info_str = subprocess.run(
             'scontrol show job',
             shell=True,
@@ -156,7 +159,7 @@ def get_current_slurm_job_id():
     return os.environ.get('SLURM_JOB_ID', None)
 
 
-def cancel_slurm_jobs(job_ids: Sequence[str]):
+def cancel_slurm_jobs(*job_ids: str, state: Optional[str] = None):
     """
     Cancels the Slurm jobs with the given job IDs.
 
@@ -165,10 +168,14 @@ def cancel_slurm_jobs(job_ids: Sequence[str]):
     job_ids : Sequence[str]
         The job IDs of the jobs to cancel
     """
-    subprocess.run(f"scancel {' '.join(job_ids)}", shell=True, check=True)
+    job_str = ' '.join(map(str, job_ids))
+    if state is not None:
+        subprocess.run(f'scancel -t {state} {job_str}', shell=True, check=False)
+    else:
+        subprocess.run(f'scancel {job_str}', shell=True, check=False)
 
 
-def are_slurm_jobs_running(job_ids: Sequence[str]):
+def are_slurm_jobs_running(*job_ids: str):
     """
     Checks the Slurm queue to see if the jobs with the given job IDs are still running.
 

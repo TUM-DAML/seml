@@ -34,6 +34,7 @@ from seml.utils.slurm import (
     cancel_slurm_jobs,
     get_cluster_name,
     get_slurm_arrays_tasks,
+    get_slurm_jobs,
 )
 
 States = SETTINGS.STATES
@@ -60,6 +61,75 @@ def should_check_killed(filter_states: Optional[List[str]]) -> bool:
         and len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states))
         > 0
     )
+
+
+def cancel_empty_pending_jobs(db_collection_name: str, *sacred_ids: int):
+    """Cancels pending jobs that are not associated with any experiment
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to check for pending jobs
+    sacred_ids : int
+        The IDs of the experiments to check
+    """
+    if len(sacred_ids) == 0:
+        raise ValueError('At least one sacred ID must be provided.')
+    collection = get_collection(db_collection_name)
+    num_pending = collection.count_documents(
+        {'status': {'$in': [*States.PENDING]}, '_id': {'$in': sacred_ids}}
+    )
+    if num_pending > 0:
+        # There are still pending experiments, we don't want to cancel the jobs.
+        return
+    pending_exps = list(collection.find({'_id': {'$in': sacred_ids}}, {'slurm'}))
+    array_ids = set(
+        conf['array_id']
+        for exp in pending_exps
+        for conf in exp['slurm']
+        if 'array_id' in conf
+    )
+    # Only cancel the pending jobs
+    cancel_slurm_jobs(*array_ids, state='PENDING')
+
+
+def cancel_jobs_without_experiments(*slurm_array_ids: str):
+    """
+    Cancels Slurm jobs that are not associated with any experiment that is still pending/running.
+
+    Parameters
+    ----------
+    slurm_array_ids : str
+        The array IDs of the Slurm jobs to check.
+    """
+    if len(slurm_array_ids) == 0:
+        return []
+
+    canceled_ids = []
+    for array_id in slurm_array_ids:
+        try:
+            job_info = get_slurm_jobs(str(array_id))[0]
+        except subprocess.CalledProcessError:
+            # Job is not running, so we can skip this.
+            continue
+        col_name = job_info.get('Comment', None)
+        if col_name is None:
+            continue
+        collection = get_collection(col_name)
+        is_needed = (
+            collection.count_documents(
+                {
+                    'slurm': {'$elemMatch': {'array_id': array_id}},
+                    'status': {'$in': [*States.RUNNING, *States.PENDING]},
+                },
+                limit=1,
+            )
+            > 0
+        )
+        if not is_needed:
+            cancel_slurm_jobs(str(array_id))
+            canceled_ids.append(array_id)
+    return canceled_ids
 
 
 def cancel_experiment_by_id(
@@ -91,32 +161,46 @@ def cancel_experiment_by_id(
         return
 
     if slurm_dict:
-        exp['slurm'].update(slurm_dict)
+        for s_conf in exp['slurm']:
+            s_conf.update(slurm_dict)
 
-    if 'array_id' in exp['slurm']:
-        job_str = f"{exp['slurm']['array_id']}_{exp['slurm']['task_id']}"
-        filter_dict = {
-            'slurm.array_id': exp['slurm']['array_id'],
-            'slurm.task_id': exp['slurm']['task_id'],
-        }
-    else:
+    # check if the job has been scheduled at all
+    array_ids = [conf.get('array_id', None) for conf in exp['slurm']]
+    if any(array_id is None for array_id in array_ids):
         logging.error(f'Experiment with ID {exp_id} has not been started using Slurm.')
         return
 
-    try:
-        # Check if job exists
-        subprocess.run(
-            f'scontrol show jobid -dd {job_str}',
-            shell=True,
-            check=True,
-            stdout=subprocess.DEVNULL,
-        )
-        if set_interrupted:
-            # Set the database state to INTERRUPTED
-            collection.update_one(
-                {'_id': exp_id}, {'$set': {'status': States.INTERRUPTED[0]}}
-            )
+    # check if the job has been claimed and associated with a concrete job
+    is_running = 'array_id' in exp['execution']
+    if is_running:
+        job_str = f"{exp['execution']['array_id']}_{exp['execution']['task_id']}"
+        job_strings = [job_str]
+        filter_dict = {
+            'execution.array_id': exp['execution']['array_id'],
+            'execution.task_id': exp['execution']['task_id'],
+        }
+    else:
+        job_strings = list(map(str, array_ids))
 
+    # Check if slurm job exists
+    if not are_slurm_jobs_running(*job_strings):
+        logging.error(
+            f'Slurm job {job_strings} of experiment '
+            f'with ID {exp_id} is not pending/running in Slurm.'
+        )
+        return
+
+    cancel_update = {
+        '$set': {
+            'status': States.INTERRUPTED[0],
+            'stop_time': datetime.datetime.now(datetime.UTC),
+        }
+    }
+    if set_interrupted:
+        # Set the database state to INTERRUPTED
+        collection.update_one({'_id': exp_id}, cancel_update)
+
+    if is_running:
         # Check if other experiments are running in the same job
         other_exps_filter = filter_dict.copy()
         other_exps_filter['_id'] = {'$ne': exp_id}
@@ -125,38 +209,16 @@ def cancel_experiment_by_id(
 
         # Cancel if no other experiments are running in the same job
         if not other_exp_running:
-            subprocess.run(f'scancel {job_str}', shell=True, check=True)
+            cancel_slurm_jobs(job_str)
             # Wait until the job is actually gone
-            if wait:
-                while (
-                    len(
-                        subprocess.run(
-                            f"squeue -h -o '%A' -j{job_str}",
-                            shell=True,
-                            check=True,
-                            capture_output=True,
-                        ).stdout
-                    )
-                    > 0
-                ):
-                    time.sleep(0.5)
+            while wait and are_slurm_jobs_running(job_str):
+                time.sleep(0.1)
             if set_interrupted:
                 # set state to interrupted again (might have been overwritten by Sacred in the meantime).
-                collection.update_many(
-                    filter_dict,
-                    {
-                        '$set': {
-                            'status': States.INTERRUPTED[0],
-                            'stop_time': datetime.datetime.utcnow(),
-                        }
-                    },
-                )
+                collection.update_many(filter_dict, cancel_update)
 
-    except subprocess.CalledProcessError:
-        logging.error(
-            f'Slurm job {job_str} of experiment '
-            f'with ID {exp_id} is not pending/running in Slurm.'
-        )
+    # Cancel jobs that will not execute anything
+    cancel_jobs_without_experiments(*array_ids)
 
 
 def cancel_experiments(
@@ -205,7 +267,8 @@ def cancel_experiments(
             filter_states, batch_id, filter_dict, sacred_id=sacred_id
         )
 
-        ncancel = collection.count_documents(db_filter_dict)
+        to_cancel_arr_ids = list(collection.find(db_filter_dict, {'slurm': 1}))
+        ncancel = len(to_cancel_arr_ids)
         if sacred_id is not None and ncancel == 0:
             logging.error(f'No experiment found with ID {sacred_id}.')
 
@@ -214,14 +277,14 @@ def cancel_experiments(
             if not yes and not prompt('Are you sure? (y/n)', type=bool):
                 exit(1)
 
-        running_job_filter = copy.deepcopy(db_filter_dict)
-        running_job_filter |= {
+        running_filter = copy.deepcopy(db_filter_dict)
+        running_filter |= {
             'execution.cluster': get_cluster_name(),
             'execution.array_id': {'$exists': True},
         }
         running_exps = list(
             collection.find(
-                running_job_filter,
+                running_filter,
                 {'_id': 1, 'status': 1, 'execution': 1},
             )
         )
@@ -234,6 +297,15 @@ def cancel_experiments(
             }
         }
         collection.update_many(db_filter_dict, cancel_update)
+
+        # Cancel pending jobs that will not execute anything
+        array_ids = set(
+            conf['array_id']
+            for exp in to_cancel_arr_ids
+            for conf in exp['slurm']
+            if 'array_id' in conf
+        )
+        canceled = cancel_jobs_without_experiments(*array_ids)
 
         # set of slurm IDs in the database
         slurm_ids = set(
@@ -267,13 +339,19 @@ def cancel_experiments(
         if len(to_cancel) > 0:
             chunk_size = 100
             chunks = list(chunker(list(to_cancel), chunk_size))
-            [cancel_slurm_jobs(chunk) for chunk in chunks]
+            [cancel_slurm_jobs(*chunk) for chunk in chunks]
             # Wait until all jobs are actually stopped.
-            if wait:
-                for chunk in chunks:
-                    while are_slurm_jobs_running(chunk):
-                        time.sleep(0.5)
+            for chunk in chunks:
+                while wait and are_slurm_jobs_running(*chunk):
+                    time.sleep(0.1)
 
+        canceled = list(map(str, canceled + list(to_cancel)))
+        n_canceled = len(canceled)
+        if n_canceled > 0:
+            logging.info(
+                f'Canceled job{s_if(n_canceled)} with the following ID{s_if(n_canceled)}: '
+                + ', '.join(canceled)
+            )
         # Let's repeat this in case a job cleaned itself up and overwrote the status.
         collection.update_many(db_filter_dict, cancel_update)
     except subprocess.CalledProcessError:

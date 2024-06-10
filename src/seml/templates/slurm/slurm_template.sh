@@ -59,6 +59,9 @@ for i in $(seq 1 {experiments_per_job}); do
     fi
 done
 
+# Kill unnecessary jobs
+seml {db_collection_name} clean-jobs ${{all_exp_ids[@]}}
+
 # Print process information
 echo "Experiments are running under the following process IDs:"
 num_it=${{#process_ids[@]}}

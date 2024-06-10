@@ -61,20 +61,23 @@ seml:
   description: "An advanced example configuration. We can also use variable interpolation here: ${config.model.model_type}"
 
 slurm:
-  experiments_per_job: 1
-  max_simultaneous_jobs: 4 # Restrict number of simultaneously running jobs per job array
-  sbatch_options:
-    gres: gpu:1 # num GPUs
-    mem: 16G # memory
-    cpus-per-task: 2 # num cores
-    time: 0-08:00 # max time, D-HH:MM
-    partition: gpu_gtx1080 # use the 1080ti partition
-  overrides:
-    # We can also increase the number of jobs if we run on A100s
-    - experiments_per_job: 4
-      sbatch_options:
-        partition: gpu_a100
-        cpus-per-task: 8
+  - experiments_per_job: 1
+    max_simultaneous_jobs: 4 # Restrict number of simultaneously running jobs per job array
+    sbatch_options:
+      gres: gpu:1 # num GPUs
+      mem: 16G # memory
+      cpus-per-task: 2 # num cores
+      time: 0-08:00 # max time, D-HH:MM
+      partition: gpu_gtx1080 # use the 1080ti partition
+  # We can also increase the number of jobs if we run on A100s
+  - experiments_per_job: 4
+    max_simultaneous_jobs: 4 # Restrict number of simultaneously running jobs per job array
+    sbatch_options:
+      gres: gpu:1 # num GPUs
+      mem: 16G # memory
+      cpus-per-task: 8 # num cores
+      time: 0-08:00 # max time, D-HH:MM
+      partition: gpu_a100 # Use A100
 
 ###### BEGIN PARAMETER CONFIGURATION ######
 
