@@ -704,26 +704,31 @@ def read_config(config_path: Union[str, Path]):
 
     determine_executable_and_working_dir(config_path, seml_dict)
 
-    if 'slurm' in config_dict and config_dict['slurm'] is not None:
-        slurm_list = config_dict['slurm']
-        del config_dict['slurm']
+    # Get list of slurm configs
+    slurm_list = config_dict.get('slurm', [])
+    if slurm_list is None:
+        slurm_list = []
 
-        if isinstance(slurm_list, dict):
-            warnings.warn('`slurm` is expected to be a list of slurm configurations.')
-            slurm_list = [slurm_list]
+    # Check for deprecated `slurm` dictionary
+    if isinstance(slurm_list, dict):
+        warnings.warn('`slurm` is expected to be a list of slurm configurations.')
+        slurm_list = [slurm_list]
 
-        for slurm_conf in slurm_list:
-            for k in slurm_conf.keys():
-                if k not in SETTINGS.VALID_SLURM_CONFIG_VALUES:
-                    raise ConfigError(
-                        f'{k} is not a valid value in the `slurm` config block.'
-                    )
-                if k == 'sbatch_options' and slurm_conf['sbatch_options'] is None:
-                    slurm_conf['sbatch_options'] = {}
+    # Sanity check
+    for slurm_conf in slurm_list:
+        for k in slurm_conf.keys():
+            if k not in SETTINGS.VALID_SLURM_CONFIG_VALUES:
+                raise ConfigError(
+                    f'{k} is not a valid value in the `slurm` config block.'
+                )
+            if k == 'sbatch_options' and slurm_conf['sbatch_options'] is None:
+                slurm_conf['sbatch_options'] = {}
 
-        return seml_dict, slurm_list, config_dict
-    else:
-        return seml_dict, [{}], config_dict
+    # If we have no config, we should add one
+    if len(slurm_list) == 0:
+        slurm_list.append({})
+
+    return seml_dict, slurm_list, config_dict
 
 
 def determine_executable_and_working_dir(config_path, seml_dict):
