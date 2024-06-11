@@ -706,6 +706,8 @@ def read_config(config_path: Union[str, Path]):
 
     # Get list of slurm configs
     slurm_list = config_dict.get('slurm', [])
+    del config_dict['slurm']
+
     if slurm_list is None:
         slurm_list = []
 
