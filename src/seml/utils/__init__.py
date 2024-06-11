@@ -189,7 +189,7 @@ def list_is_prefix(first: List, second: List) -> bool:
 
 
 def resolve_projection_path_conflicts(
-    projection: Dict[str, bool], sep: str = '.'
+    projection: Dict[str, Union[bool, int]], sep: str = '.'
 ) -> Dict[str, bool]:
     """Removes path conflicts in a MongoDB projection dict. E.g. if you pass the dict
     `{'config' : 1, 'config.dataset' : 1}`, MongoDB will throw an error. This method will ensure that

@@ -72,17 +72,15 @@ def print_fail_trace(
         projection = []
     mongo_db_projection = resolve_projection_path_conflicts(
         {
-            **{
-                '_id': 1,
-                'status': 1,
-                'slurm.array_id': 1,
-                'slurm.task_id': 1,
-                'fail_trace': 1,
-                'seml.description': 1,
-                'batch_id': 1,
-            },
-            **{key: 1 for key in projection},
+            '_id': 1,
+            'status': 1,
+            'execution.array_id': 1,
+            'execution.task_id': 1,
+            'fail_trace': 1,
+            'seml.description': 1,
+            'batch_id': 1,
         }
+        | {key: 1 for key in projection}
     )
 
     if sacred_id is None:
@@ -94,8 +92,8 @@ def print_fail_trace(
         exp_id = exp.get('_id')
         status = exp.get('status')
         batch_id = exp.get('batch_id')
-        slurm_array_id = exp.get('slurm', {}).get('array_id', None)
-        slurm_task_id = exp.get('slurm', {}).get('task_id', None)
+        slurm_array_id = exp.get('execution', {}).get('array_id', None)
+        slurm_task_id = exp.get('execution', {}).get('task_id', None)
         fail_trace = exp.get('fail_trace', [])
         description = exp.get('seml', {}).get('description', None)
         header = (

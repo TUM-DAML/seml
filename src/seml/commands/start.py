@@ -41,16 +41,7 @@ SlurmStates = SETTINGS.SLURM_STATES
 
 
 def get_output_dir_path(config):
-    if 'output_dir' in config['slurm']:
-        logging.warning(
-            "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
-            "by moving the 'output_dir' parameter from 'slurm' to 'seml'."
-        )
-        output_dir = config['slurm']['output_dir']
-    elif 'output_dir' in config['seml']:
-        output_dir = config['seml']['output_dir']
-    else:
-        output_dir = '.'
+    output_dir = config['seml'].get('output_dir', '.')
     output_dir_path = str(Path(output_dir).expanduser().resolve())
     if not os.path.isdir(output_dir_path):
         raise ConfigError(f"Output directory '{output_dir_path}' does not exist.")
@@ -704,8 +695,7 @@ def start_local_worker(
     if not unobserved:
         exp_query['status'] = {'$in': States.PENDING}
     if not steal_slurm:
-        exp_query['slurm.array_id'] = {'$exists': False}
-        exp_query['slurm.id'] = {'$exists': False}
+        exp_query['slurm'] = {'$elemMatch': {'array_id': {'$exists': False}}}
 
     exp_query.update(filter_dict)
 
@@ -727,11 +717,11 @@ def start_local_worker(
                     )
                 if exp is None:
                     continue
-                if 'array_id' in exp['slurm']:
+                if 'array_id' in exp['execution']:
                     # Clean up MongoDB entry
                     slurm_ids = {
-                        'array_id': exp['slurm']['array_id'],
-                        'task_id': exp['slurm']['task_id'],
+                        'array_id': exp['execution']['array_id'],
+                        'task_id': exp['execution']['task_id'],
                     }
                     reset_slurm_dict(exp)
                     collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
