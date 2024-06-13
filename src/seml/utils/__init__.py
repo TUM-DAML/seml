@@ -21,8 +21,6 @@ from typing import (
     Union,
 )
 
-from seml.settings import SETTINGS
-
 
 def s_if(n: int) -> str:
     return '' if n == 1 else 's'
@@ -769,6 +767,8 @@ def is_local_file(filename, root_dir):
 
 
 def smaller_than_version_filter(version: Tuple[int, int, int]):
+    from seml.settings import SETTINGS
+
     version_prefix = f'seml.{SETTINGS.SEML_CONFIG_VALUE_VERSION}'
     return {
         '$or': [
