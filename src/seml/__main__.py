@@ -25,6 +25,7 @@ from seml.commands.manage import (
     reload_sources,
     reset_experiments,
 )
+from seml.commands.migration import migrate_collection
 from seml.commands.print import (
     print_collections,
     print_command,
@@ -346,6 +347,22 @@ def callback(
             autocompletion=first_argument_completer,
         ),
     ],
+    migration_skip: Annotated[
+        bool,
+        typer.Option(
+            '--migration-skip',
+            help='Skip the migration of the database collection.',
+            is_flag=True,
+        ),
+    ] = False,
+    migration_backup: Annotated[
+        bool,
+        typer.Option(
+            '--migration-backup',
+            help='Backup the database collection before migration.',
+            is_flag=True,
+        ),
+    ] = False,
     verbose: Annotated[
         bool,
         typer.Option(
@@ -383,6 +400,9 @@ def callback(
         logging.basicConfig(
             level=logging_level, format='%(message)s', handlers=[handler]
         )
+
+    if collection:
+        migrate_collection(collection, migration_skip, migration_backup)
 
     ctx.obj = dict(collection=collection, verbose=verbose)
 

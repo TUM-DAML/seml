@@ -1,3 +1,4 @@
+import functools
 import os
 import subprocess
 from typing import Dict, Optional
@@ -5,6 +6,7 @@ from typing import Dict, Optional
 from seml.settings import SETTINGS
 
 
+@functools.lru_cache()
 def get_cluster_name():
     """
     Retrieves the name of the cluster from the Slurm configuration.
