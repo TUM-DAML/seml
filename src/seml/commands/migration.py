@@ -2,7 +2,7 @@ import logging
 from typing import TYPE_CHECKING, Protocol
 from seml.database import get_collection
 from seml.settings import SETTINGS
-from seml.utils import s_if, version_filter
+from seml.utils import s_if, smaller_than_version_filter
 from seml.utils.slurm import get_cluster_name
 
 
@@ -130,8 +130,12 @@ class Migration05Version(Migration):
     collection: 'Collection'
     db_filter = {
         '$or': [
-            {'seml.version': {'$not': {'$type': 'array'}}},
-            version_filter((0, 5, 0)),
+            {
+                f'seml.{SETTINGS.SEML_CONFIG_VALUE_VERSION}': {
+                    '$not': {'$type': 'array'}
+                }
+            },
+            smaller_than_version_filter((0, 5, 0)),
         ]
     }
 
@@ -150,7 +154,7 @@ class Migration05Version(Migration):
     def migrate(self):
         n_updated = self.collection.update_many(
             self.db_filter,
-            {'$set': {'seml.version': [0, 5, 0]}},
+            {'$set': {f'seml.{SETTINGS.SEML_CONFIG_VALUE_VERSION}': [0, 5, 0]}},
         ).modified_count
         return n_updated
 
