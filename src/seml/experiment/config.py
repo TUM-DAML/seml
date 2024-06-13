@@ -700,7 +700,8 @@ def read_config(config_path: Union[str, Path]):
             f'Using {SETTINGS.SEML_CONFIG_VALUE_VERSION} in the `seml` config block is prohibited.'
         )
 
-    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = __version__
+    version_array = [(int(x) if x.isdecimal() else x) for x in __version__.split('.')]
+    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = version_array
 
     determine_executable_and_working_dir(config_path, seml_dict)
 

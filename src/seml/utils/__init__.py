@@ -764,3 +764,20 @@ def is_local_file(filename, root_dir):
     file_path = Path(filename).expanduser().resolve()
     root_path = Path(root_dir).expanduser().resolve()
     return root_path in file_path.parents
+
+
+def version_filter(version: Tuple[int, int, int]):
+    return {
+        '$or': [
+            {'seml.version.0': {'$lt': version[0]}},
+            {
+                'seml.version.0': {'$eq': version[0]},
+                'seml.version.1': {'$lt': version[1]},
+            },
+            {
+                'seml.version.0': {'$eq': version[0]},
+                'seml.version.1': {'$eq': version[1]},
+                'seml.version.2': {'$lt': version[2]},
+            },
+        ]
+    }
