@@ -130,6 +130,7 @@ class Migration05Version(Migration):
     collection: 'Collection'
     db_filter = {
         '$or': [
+            {f'seml.{SETTINGS.SEML_CONFIG_VALUE_VERSION}': {'$exists': False}},
             {
                 f'seml.{SETTINGS.SEML_CONFIG_VALUE_VERSION}': {
                     '$not': {'$type': 'array'}
