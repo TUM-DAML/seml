@@ -63,7 +63,7 @@ def migrate_collection(db_collection_name: str, skip: bool, backup: bool):
 
 
 class Migration(Protocol):
-    def __init__(self, db_collection_name: 'Collection'): ...
+    def __init__(self, collection: 'Collection'): ...
     def requires_migration(self) -> bool: ...
     def migrate(self) -> int: ...
     def name(self) -> str: ...
@@ -73,11 +73,11 @@ class Migration04To05Slurm(Migration):
     collection: 'Collection'
     db_filter = {'slurm': {'$not': {'$type': 'array'}}}
 
-    def __init__(self, collection):
+    def __init__(self, collection: 'Collection'):
         self.collection = collection
 
     def requires_migration(self):
-        return self.collection.count_documents(self.db_filter) > 0
+        return self.collection.count_documents(self.db_filter, limit=1) > 0
 
     def name(self):
         return 'SLURM config migration'
