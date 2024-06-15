@@ -1216,6 +1216,6 @@ def prepare_experiment(
         collection.update_one({'_id': exp['_id']}, {'$set': updates})
 
     # Print the command to be ran.
-    print(f'{cmd} > {output_file}')
+    print(f'{cmd} > {output_file} 2>&1')
     # We exit with 0 to signal that the preparation was successful.
     exit(0)
