@@ -20,7 +20,6 @@ from seml.settings import SETTINGS
 from seml.utils import (
     Hashabledict,
     flatten,
-    list_is_prefix,
     merge_dicts,
     remove_keys_from_nested,
     unflatten,
@@ -889,8 +888,40 @@ def config_get_exclude_keys(config: Dict, config_unresolved: Dict) -> List[str]:
     return exclude_keys
 
 
+def requires_interpolation(
+    document: Dict, interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN
+) -> bool:
+    """
+    Check if a document requires variable interpolation. This is done by checking if
+    any value matches the regex: .*\${.+}.*
+
+    Parameters
+    ----------
+    document : Dict
+        The document to check
+    interpolation_keys : List[str]
+        All keys that should be permitted to do variable interpolation. Other keys are taken from the unresolved config.
+
+    Returns
+    -------
+    bool
+        True if the document requires variable interpolation
+    """
+    import re
+
+    flat_dict = flatten(document)
+    pattern = re.compile(r'.*\${.+}.*')
+
+    def check_interpolation(key, value):
+        if not any(key.startswith(allowed_key) for allowed_key in interpolation_keys):
+            return False
+        return isinstance(value, str) and pattern.match(value) is not None
+
+    return any(map(check_interpolation, flat_dict.keys(), flat_dict.values()))
+
+
 def resolve_interpolations(
-    document: Dict, allow_interpolations_in: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN
+    document: Dict, interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN
 ) -> Dict:
     """Resolves variable interpolation using `OmegaConf`
 
@@ -906,6 +937,9 @@ def resolve_interpolations(
     Dict
         The resolved document
     """
+    if not requires_interpolation(document, interpolation_keys):
+        return document
+
     from omegaconf import OmegaConf
 
     resolved = OmegaConf.to_container(
@@ -914,18 +948,12 @@ def resolve_interpolations(
     resolved_flat = {
         key: value
         for key, value in flatten(resolved, sep='.').items()
-        if any(
-            list_is_prefix(allowed_key.split('.'), key.split('.'))
-            for allowed_key in allow_interpolations_in
-        )
+        if any(key.startswith(allowed_key) for allowed_key in interpolation_keys)
     }
     unresolved_flat = {
         key: value
         for key, value in flatten(document, sep='.').items()
-        if not any(
-            list_is_prefix(allowed_key.split('.'), key.split('.'))
-            for allowed_key in allow_interpolations_in
-        )
+        if not any(key.startswith(allowed_key) for allowed_key in interpolation_keys)
     }
     assert resolved_flat.keys().isdisjoint(
         unresolved_flat.keys()

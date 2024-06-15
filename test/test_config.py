@@ -246,7 +246,7 @@ class TestParseConfigDicts(unittest.TestCase):
         self.assertEqual(
             add.resolve_interpolations(
                 {"config": configs[0], "foo": "${config.param1}"},
-                allow_interpolations_in=["config"],
+                interpolation_keys=["config"],
             )["foo"],
             "${config.param1}",
         )
