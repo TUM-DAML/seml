@@ -749,10 +749,13 @@ def reload_sources(
     for batch_id, documents in id_to_document.items():
         seml_config = documents[0]['seml']
 
-        version_seml_config = seml_config.get(SETTINGS.SEML_CONFIG_VALUE_VERSION, None)
-        if version_seml_config != version('seml'):
+        version_seml_config = seml_config.get(
+            SETTINGS.SEML_CONFIG_VALUE_VERSION, (0, 0, 0)
+        )
+        version_str = '.'.join(map(str, version_seml_config))
+        if version_str != version('seml'):
             logging.warn(
-                f'Batch {batch_id} was added with seml version "{version_seml_config}" '
+                f'Batch {batch_id} was added with seml version "{version_str}" '
                 f'which mismatches the current version {version("seml")}'
             )
 
