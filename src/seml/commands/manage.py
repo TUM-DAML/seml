@@ -1,5 +1,4 @@
 import copy
-import datetime
 import itertools
 import logging
 import re
@@ -27,6 +26,7 @@ from seml.utils import (
     chunker,
     make_hash,
     s_if,
+    utcnow,
 )
 from seml.utils.errors import MongoDBError
 from seml.utils.slurm import (
@@ -193,7 +193,7 @@ def cancel_experiment_by_id(
     cancel_update = {
         '$set': {
             'status': States.INTERRUPTED[0],
-            'stop_time': datetime.datetime.now(datetime.UTC),
+            'stop_time': utcnow(),
         }
     }
     if set_interrupted:
@@ -293,7 +293,7 @@ def cancel_experiments(
         cancel_update = {
             '$set': {
                 'status': States.INTERRUPTED[0],
-                'stop_time': datetime.datetime.now(datetime.UTC),
+                'stop_time': utcnow(),
             }
         }
         collection.update_many(db_filter_dict, cancel_update)

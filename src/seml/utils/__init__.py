@@ -767,6 +767,20 @@ def is_local_file(filename, root_dir):
 
 
 def smaller_than_version_filter(version: Tuple[int, int, int]):
+    """
+    Returns a mongodb filter that selects experiments where the version number
+    is small or equal to the supplied version.
+
+    Parameters
+    ----------
+    version: Tuple[int, int, int]
+        The version number to compare to.
+
+    Returns
+    -------
+    Dict
+        The filter.
+    """
     from seml.settings import SETTINGS
 
     version_prefix = f'seml.{SETTINGS.SEML_CONFIG_VALUE_VERSION}'
@@ -784,3 +798,20 @@ def smaller_than_version_filter(version: Tuple[int, int, int]):
             },
         ]
     }
+
+
+def utcnow():
+    """
+    Wrapper around datetime.datetime.now(datetime.UTC) but supports older python versions.
+
+    Returns
+    -------
+    datetime.datetime
+        The current datetime.
+    """
+    import datetime
+
+    try:
+        return datetime.datetime.now(datetime.UTC)
+    except AttributeError:
+        return datetime.datetime.utcnow()
