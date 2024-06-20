@@ -660,7 +660,7 @@ def start_local_worker(
     """
     from rich.progress import Progress
 
-    from seml.console import pause_live_widget
+    from seml.console import pause_live_widget, prompt
 
     check_compute_node()
 
@@ -726,12 +726,16 @@ def start_local_worker(
                     collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
 
                     # Cancel Slurm job; after cleaning up to prevent race conditions
-                    cancel_experiment_by_id(
-                        collection,
-                        exp['_id'],
-                        set_interrupted=False,
-                        slurm_dict=slurm_ids,
-                    )
+                    if prompt(
+                        f"SLURM is currently executing experiment {exp['_id']}, do you want to cancel the SLURM job?",
+                        type=bool,
+                    ):
+                        cancel_experiment_by_id(
+                            collection,
+                            exp['_id'],
+                            set_interrupted=False,
+                            slurm_dict=slurm_ids,
+                        )
 
                 progress.console.print(
                     f"current id : {exp['_id']}, failed={num_exceptions}/{jobs_counter} experiments"
