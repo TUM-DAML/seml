@@ -432,6 +432,54 @@ def print_duplicates(
     console.print(panel)
 
 
+def print_experiment(
+    db_collection_name: str,
+    sacred_id: Optional[int] = None,
+    filter_states: Optional[List[str]] = None,
+    batch_id: Optional[int] = None,
+    filter_dict: Optional[Dict] = None,
+    projection: Optional[List[str]] = None,
+):
+    """
+    Prints the details of an experiment.
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to print the experiment from
+    sacred_id : Optional[int], optional
+        The ID of the experiment to print, by default None
+    filter_states : Optional[List[str]], optional
+        Filter on experiment states, by default None
+    batch_id : Optional[int], optional
+        Filter on the batch ID of experiments, by default None
+    filter_dict : Optional[Dict], optional
+        Additional filters, by default None
+    projection : Optional[List[str]], optional
+        Additional values to print per experiment, by default all are printed
+    """
+    from rich import print_json
+
+    from seml.console import Heading, console, pause_live_widget
+
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id)
+    collection = get_collection(db_collection_name)
+    if projection is None or len(projection) == 0:
+        proj = {}
+    else:
+        proj = {'_id': 1, 'batch_id': 1, **{p: 1 for p in projection}}
+    experiments = list(collection.find(filter_dict, proj))
+
+    if len(experiments) == 0:
+        logging.info('No experiment found to print.')
+        return
+
+    with pause_live_widget():
+        for exp in experiments:
+            console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
+            print_json(data=exp, skip_keys=True, default=str)
+
+
 def print_output(
     db_collection_name: str,
     sacred_id: Optional[int] = None,

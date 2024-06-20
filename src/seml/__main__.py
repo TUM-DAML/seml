@@ -30,6 +30,7 @@ from seml.commands.print import (
     print_collections,
     print_command,
     print_duplicates,
+    print_experiment,
     print_fail_trace,
     print_output,
     print_queue,
@@ -918,6 +919,35 @@ def print_command_command(
         worker_environment_vars=worker_env,
         unresolved=unresolved,
         resolve_interpolations=not no_interpolation,
+    )
+
+
+@app.command('print-experiment', rich_help_panel=_INFORMATION)
+@restrict_collection()
+def print_experiment_command(
+    ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = States.PENDING
+    + States.STAGED
+    + States.RUNNING
+    + States.FAILED
+    + States.KILLED
+    + States.INTERRUPTED
+    + States.COMPLETED,
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    projection: ProjectionAnnotation = [],
+):
+    """
+    Print the experiment document.
+    """
+    print_experiment(
+        ctx.obj['collection'],
+        sacred_id=sacred_id,
+        filter_states=filter_states,
+        batch_id=batch_id,
+        filter_dict=filter_dict,
+        projection=projection,
     )
 
 
