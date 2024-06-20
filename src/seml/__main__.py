@@ -49,6 +49,7 @@ from seml.database import (
     clean_unreferenced_artifacts,
     get_collections_from_mongo_shell_or_pymongo,
     get_mongodb_config,
+    update_working_dir,
 )
 from seml.settings import SETTINGS
 from seml.utils import cache_to_disk
@@ -872,6 +873,39 @@ def reload_sources_command(
         batch_ids=batch_ids,
         keep_old=keep_old,
         yes=yes,
+    )
+
+
+@app.command('update-working-dir', rich_help_panel=_EXPERIMENTS)
+@restrict_collection()
+def update_working_dir_command(
+    ctx: typer.Context,
+    working_dir: Annotated[
+        str,
+        typer.Argument(
+            help='The new working directory for the experiments.',
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ],
+    batch_ids: Annotated[
+        Optional[List[int]],
+        typer.Option(
+            '-b',
+            '--batch-ids',
+            help='Batch IDs (batch_id in the database collection) of the experiments. '
+            'Experiments that were staged together have the same batch_id.',
+        ),
+    ] = None,
+):
+    """
+    Reload stashed source files.
+    """
+    update_working_dir(
+        ctx.obj['collection'],
+        working_directory=working_dir,
+        batch_ids=batch_ids,
     )
 
 

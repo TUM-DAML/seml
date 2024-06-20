@@ -1,5 +1,6 @@
 import logging
-from typing import List
+from pathlib import Path
+from typing import List, Optional
 
 from seml.settings import SETTINGS
 from seml.utils import s_if
@@ -378,4 +379,38 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     delete_files(db, not_referenced_artifacts, progress=True)
     logging.info(
         f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.'
+    )
+
+
+def update_working_dir(
+    db_collection_name: str,
+    working_directory: str,
+    batch_ids: Optional[List[int]] = None,
+):
+    """Changes the working directory of experiments in the database.
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to change the working directory in.
+    working_directory: str
+        The new working directory.
+    batch_ids : Optional[List[int]], optional
+        Filter on the batch ids, by default None
+    """
+
+    collection = get_collection(db_collection_name)
+    if batch_ids is not None and len(batch_ids) > 0:
+        filter_dict = {'batch_id': {'$in': list(batch_ids)}}
+    else:
+        filter_dict = {}
+
+    working_directory = str(Path(working_directory).expanduser().resolve())
+
+    update_result = collection.update_many(
+        filter_dict,
+        {'$set': {'seml.working_dir': working_directory}},
+    )
+    logging.info(
+        f'Updated the working directory of {update_result.modified_count} experiments.'
     )
