@@ -1102,9 +1102,7 @@ def download_sources_command(
 @restrict_collection()
 def hold_command(
     ctx: typer.Context,
-    sacred_id: SacredIdAnnotation = None,
     batch_id: BatchIdAnnotation = None,
-    filter_dict: FilterDictAnnotation = None,
 ):
     """
     Hold queued experiments via SLURM.
@@ -1112,9 +1110,7 @@ def hold_command(
     hold_or_release_experiments(
         True,
         ctx.obj['collection'],
-        sacred_id=sacred_id,
         batch_id=batch_id,
-        filter_dict=filter_dict,
     )
 
 
@@ -1122,9 +1118,7 @@ def hold_command(
 @restrict_collection()
 def release_command(
     ctx: typer.Context,
-    sacred_id: SacredIdAnnotation = None,
     batch_id: BatchIdAnnotation = None,
-    filter_dict: FilterDictAnnotation = None,
 ):
     """
     Release holded experiments via SLURM.
@@ -1132,9 +1126,7 @@ def release_command(
     hold_or_release_experiments(
         False,
         ctx.obj['collection'],
-        sacred_id=sacred_id,
         batch_id=batch_id,
-        filter_dict=filter_dict,
     )
 
 
