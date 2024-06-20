@@ -41,8 +41,8 @@ def migrate_collection(db_collection_name: str, skip: bool, backup: bool):
         if not migration.is_silent():
             logging.warning(
                 f"The collection '{db_collection_name}' needs a {migration.name()} migration to work with newer SEML versions.\n"
-                'If you wish to make backups, do not proceed and call the command with the `--migration-backup` flag.\n'
-                'To skip migration, call the command with the `--migration-skip` flag.'
+                'If you wish to make backups, do not proceed and call `seml --migration-backup <collection> <command>`.\n'
+                'To skip migration, use `seml --migration-skip <collection> <command>`.'
             )
             if not prompt('Do you want to proceed? (y/n)', type=bool):
                 logging.error('Aborted migration.')
