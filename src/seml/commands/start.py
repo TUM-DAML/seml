@@ -565,7 +565,6 @@ def add_to_slurm_queue(
             start_srun_job(
                 collection,
                 exp_array[0],
-                unobserved,
                 srun_options=default_sbatch_options,
                 seml_arguments=seml_arguments,
             )
@@ -717,7 +716,7 @@ def start_local_worker(
                     )
                 if exp is None:
                     continue
-                if 'array_id' in exp['execution']:
+                if 'array_id' in exp.get('execution', {}):
                     # Clean up MongoDB entry
                     slurm_ids = {
                         'array_id': exp['execution']['array_id'],
