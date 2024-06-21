@@ -1,7 +1,8 @@
 import functools
 import os
 import subprocess
-from typing import Dict, Optional
+import time
+from typing import Dict, Optional, Union
 
 from seml.settings import SETTINGS
 
@@ -202,3 +203,27 @@ def are_slurm_jobs_running(*job_ids: str):
         )
         > 0
     )
+
+
+def wait_until_slurm_jobs_finished(*job_ids: str, timeout: Union[int, float]):
+    """
+    Waits until all jobs are finished or until the timeout is reached.
+
+    Parameters
+    ----------
+    job_ids: Sequence[str]
+        The job IDs of the jobs to wait for
+    timeout: Union[int, float]
+        The maximum time to wait in seconds
+
+    Returns
+    -------
+    bool
+        True if the jobs finished before the timeout, False otherwise
+    """
+    end_time = time.time() + timeout
+    while are_slurm_jobs_running(*job_ids):
+        time.sleep(0.1)
+        if time.time() > end_time:
+            return False
+    return True

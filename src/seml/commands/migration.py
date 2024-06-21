@@ -2,7 +2,7 @@ import logging
 from typing import TYPE_CHECKING, Protocol
 from seml.database import get_collection
 from seml.settings import SETTINGS
-from seml.utils import s_if, smaller_than_version_filter
+from seml.utils import s_if, smaller_than_version_filter, utcnow
 from seml.utils.slurm import get_cluster_name
 
 
@@ -27,11 +27,15 @@ def migrate_collection(db_collection_name: str, skip: bool, backup: bool):
     """
     from seml.console import prompt
 
-    collection = get_collection(db_collection_name)
+    skip = SETTINGS.MIGRATION.SKIP or skip
+    yes = SETTINGS.MIGRATION.YES
+    backup = SETTINGS.MIGRATION.BACKUP or backup
+    backup_tmp = SETTINGS.MIGRATION.BACKUP_FMT
 
     if skip:
         return
 
+    collection = get_collection(db_collection_name)
     migrations = [migration_cls(collection) for migration_cls in _MIGRATIONS]
     backed_up = False
     for migration in migrations:
@@ -44,11 +48,14 @@ def migrate_collection(db_collection_name: str, skip: bool, backup: bool):
                 'If you wish to make backups, do not proceed and call `seml --migration-backup <collection> <command>`.\n'
                 'To skip migration, use `seml --migration-skip <collection> <command>`.'
             )
-            if not prompt('Do you want to proceed? (y/n)', type=bool):
+            if not yes and not prompt('Do you want to proceed? (y/n)', type=bool):
                 logging.error('Aborted migration.')
                 exit(1)
 
         if not backed_up and backup and not migration.is_silent():
+            backup_name = backup_tmp.format(
+                collection=db_collection_name, time=utcnow().strftime('%Y%m%d_%H%M%S')
+            )
             backup_name = f'{db_collection_name}_backup'
             if backup_name in collection.database.list_collection_names():
                 logging.error(f'Backup collection {backup_name} already exists.')

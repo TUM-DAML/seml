@@ -108,7 +108,7 @@ def get_command_from_exp(
                     'config_unresolved': config_unresolved,
                     key_named_configs: named_configs,
                 },
-                interpolation_keys=list(SETTINGS.ALLOW_INTERPOLATION_IN)
+                allow_interpolation_keys=list(SETTINGS.ALLOW_INTERPOLATION_IN)
                 + ['config_unresolved', key_named_configs],
             )
 

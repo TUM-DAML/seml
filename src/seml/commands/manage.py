@@ -3,7 +3,6 @@ import itertools
 import logging
 import re
 import subprocess
-import time
 from typing import TYPE_CHECKING, Dict, List, Optional, Set
 
 from seml.database import (
@@ -35,6 +34,7 @@ from seml.utils.slurm import (
     get_cluster_name,
     get_slurm_arrays_tasks,
     get_slurm_jobs,
+    wait_until_slurm_jobs_finished,
 )
 
 States = SETTINGS.STATES
@@ -138,6 +138,7 @@ def cancel_experiment_by_id(
     set_interrupted: bool = True,
     slurm_dict: Optional[Dict] = None,
     wait: bool = False,
+    timeout: int = SETTINGS.CANCEL_TIMEOUT,
 ):
     """Cancels a single experiment by its id
 
@@ -153,6 +154,8 @@ def cancel_experiment_by_id(
         Optional updates to the slurm dict of the experiments, by default None
     wait : bool, optional
         Whether to wait for the cancellation by checking the slurm queue, by default False
+    timeout : int, optional
+        The timeout in seconds to wait for the cancellation, by default SETTINGS.CANCEL_TIMEOUT
     """
 
     exp = collection.find_one({'_id': exp_id})
@@ -211,8 +214,10 @@ def cancel_experiment_by_id(
         if not other_exp_running:
             cancel_slurm_jobs(job_str)
             # Wait until the job is actually gone
-            while wait and are_slurm_jobs_running(job_str):
-                time.sleep(0.1)
+            if wait and not wait_until_slurm_jobs_finished(job_str, timeout=timeout):
+                logging.error('Job did not cancel in time.')
+                exit(1)
+
             if set_interrupted:
                 # set state to interrupted again (might have been overwritten by Sacred in the meantime).
                 collection.update_many(filter_dict, cancel_update)
@@ -230,6 +235,7 @@ def cancel_experiments(
     yes: bool = False,
     wait: bool = False,
     confirm_threshold: int = SETTINGS.CONFIRM_THRESHOLD.CANCEL,
+    timeout: int = SETTINGS.CANCEL_TIMEOUT,
 ):
     """Cancels experiment(s)
 
@@ -251,6 +257,8 @@ def cancel_experiments(
         Whether to wait for all experiments be cancelled (by checking the slurm queue), by default False
     confirm_threshold : int, optional
         The threshold for the number of experiments to cancel before asking for confirmation, by default SETTINGS.CONFIRM_THRESHOLD.CANCEL
+    timeout : int, optional
+        The timeout in seconds to wait for the cancellation, by default SETTINGS.CANCEL_TIMEOUT
     """
     from seml.console import prompt
 
@@ -342,8 +350,9 @@ def cancel_experiments(
             [cancel_slurm_jobs(*chunk) for chunk in chunks]
             # Wait until all jobs are actually stopped.
             for chunk in chunks:
-                while wait and are_slurm_jobs_running(*chunk):
-                    time.sleep(0.1)
+                if wait and not wait_until_slurm_jobs_finished(*chunk, timeout=timeout):
+                    logging.error('Job did not cancel in time.')
+                    exit(1)
 
         canceled = list(map(str, canceled + list(to_cancel)))
         n_canceled = len(canceled)

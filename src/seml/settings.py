@@ -153,6 +153,13 @@ SETTINGS = munchify(
             'CAPTURE_OUTPUT': False,  # whether to capture the output of the experiment in the database
             'TERMINAL_WIDTH': 80,  # width of the terminal for rich output
         },
+        'MIGRATION': {
+            'SKIP': False,  # alwys ignore migrations, changing this most likely breaks compatibility!
+            'YES': False,  # always confirm migrations
+            'BACKUP': False,  # always backup the database before running migrations
+            'BACKUP_TMP': '{collection}_backup_{time}',  # format for backup collections
+        },
+        'CANCEL_TIMEOUT': 60,  # wait up to 60s for canceling an experiment
         'CONFIG_RESOLUTION_PROGRESS_BAR_THRESHOLD': 25,
         'AUTOCOMPLETE_CACHE_ALIVE_TIME': 60 * 60 * 24,  # one day
         'SETUP_COMMAND': '',

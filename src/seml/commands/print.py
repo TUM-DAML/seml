@@ -79,8 +79,8 @@ def print_fail_trace(
             'fail_trace': 1,
             'seml.description': 1,
             'batch_id': 1,
+            **{key: 1 for key in projection},
         }
-        | {key: 1 for key in projection}
     )
 
     if sacred_id is None:

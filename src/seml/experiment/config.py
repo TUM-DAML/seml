@@ -889,7 +889,8 @@ def config_get_exclude_keys(config: Dict, config_unresolved: Dict) -> List[str]:
 
 
 def requires_interpolation(
-    document: Dict, interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN
+    document: Dict,
+    allow_interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
 ) -> bool:
     """
     Check if a document requires variable interpolation. This is done by checking if
@@ -899,7 +900,7 @@ def requires_interpolation(
     ----------
     document : Dict
         The document to check
-    interpolation_keys : List[str]
+    allow_interpolation_keys : List[str]
         All keys that should be permitted to do variable interpolation. Other keys are taken from the unresolved config.
 
     Returns
@@ -913,7 +914,9 @@ def requires_interpolation(
     pattern = re.compile(r'.*\${.+}.*')
 
     def check_interpolation(key, value):
-        if not any(key.startswith(allowed_key) for allowed_key in interpolation_keys):
+        if not any(
+            key.startswith(allowed_key) for allowed_key in allow_interpolation_keys
+        ):
             return False
         return isinstance(value, str) and pattern.match(value) is not None
 
@@ -921,7 +924,8 @@ def requires_interpolation(
 
 
 def resolve_interpolations(
-    document: Dict, interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN
+    document: Dict,
+    allow_interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
 ) -> Dict:
     """Resolves variable interpolation using `OmegaConf`
 
@@ -937,7 +941,7 @@ def resolve_interpolations(
     Dict
         The resolved document
     """
-    if not requires_interpolation(document, interpolation_keys):
+    if not requires_interpolation(document, allow_interpolation_keys):
         return document
 
     from omegaconf import OmegaConf
@@ -948,12 +952,14 @@ def resolve_interpolations(
     resolved_flat = {
         key: value
         for key, value in flatten(resolved, sep='.').items()
-        if any(key.startswith(allowed_key) for allowed_key in interpolation_keys)
+        if any(key.startswith(allowed_key) for allowed_key in allow_interpolation_keys)
     }
     unresolved_flat = {
         key: value
         for key, value in flatten(document, sep='.').items()
-        if not any(key.startswith(allowed_key) for allowed_key in interpolation_keys)
+        if not any(
+            key.startswith(allowed_key) for allowed_key in allow_interpolation_keys
+        )
     }
     assert resolved_flat.keys().isdisjoint(
         unresolved_flat.keys()
