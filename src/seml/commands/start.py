@@ -202,9 +202,12 @@ def start_sbatch_job(
         'tmp_directory': SETTINGS.TMP_DIRECTORY,
         'experiments_per_job': experiments_per_job,
     }
-    variables |= {
-        'setup_command': SETTINGS.SETUP_COMMAND.format(**variables),
-        'end_command': SETTINGS.END_COMMAND.format(**variables),
+    variables = {
+        **{
+            'setup_command': SETTINGS.SETUP_COMMAND.format(**variables),
+            'end_command': SETTINGS.END_COMMAND.format(**variables),
+        },
+        **variables,
     }
     # Construct Slurm script
     template = load_text_resource('templates/slurm/slurm_template.sh')

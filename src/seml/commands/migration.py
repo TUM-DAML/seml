@@ -99,8 +99,9 @@ class Migration04To05Slurm(Migration):
     def migrate(self):
         # Check if there are still experiments running
         # If so, we cannot migrate the SLURM configuration
-        db_filter_running = self.db_filter | {
-            'status': {'$in': [*States.PENDING, *States.RUNNING]}
+        db_filter_running = {
+            **self.db_filter,
+            **{'status': {'$in': [*States.PENDING, *States.RUNNING]}},
         }
         if self.collection.count_documents(db_filter_running) > 0:
             logging.error(
@@ -110,7 +111,7 @@ class Migration04To05Slurm(Migration):
             exit(1)
 
         # Move slurm array to execution field
-        db_filter_executed = self.db_filter | {'slurm.array_id': {'$exists': True}}
+        db_filter_executed = {**self.db_filter, **{'slurm.array_id': {'$exists': True}}}
         self.collection.update_many(
             db_filter_executed,
             {
