@@ -666,6 +666,8 @@ def generate_queue_table(
             row.append('\n'.join(map(format_job, jobs, [col] * len(jobs))))
         table.add_row(*row)
 
+    if len(collections) == 0:
+        return Align('No jobs found.', align='center')
     return Align(table, align='center')
 
 
