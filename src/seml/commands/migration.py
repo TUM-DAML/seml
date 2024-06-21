@@ -30,7 +30,7 @@ def migrate_collection(db_collection_name: str, skip: bool, backup: bool):
     skip = SETTINGS.MIGRATION.SKIP or skip
     yes = SETTINGS.MIGRATION.YES
     backup = SETTINGS.MIGRATION.BACKUP or backup
-    backup_tmp = SETTINGS.MIGRATION.BACKUP_FMT
+    backup_tmp = SETTINGS.MIGRATION.BACKUP_TMP
 
     if skip:
         return
@@ -56,7 +56,6 @@ def migrate_collection(db_collection_name: str, skip: bool, backup: bool):
             backup_name = backup_tmp.format(
                 collection=db_collection_name, time=utcnow().strftime('%Y%m%d_%H%M%S')
             )
-            backup_name = f'{db_collection_name}_backup'
             if backup_name in collection.database.list_collection_names():
                 logging.error(f'Backup collection {backup_name} already exists.')
                 exit(1)
