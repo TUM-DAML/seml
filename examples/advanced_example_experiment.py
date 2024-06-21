@@ -8,7 +8,6 @@ are parsed by a specific method. This avoids having one large "main" function wh
 import numpy as np
 from seml import Experiment
 
-
 ex = Experiment()
 
 

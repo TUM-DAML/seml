@@ -1,8 +1,9 @@
 import logging
-from sacred import Experiment
+import time
+
 import numpy as np
 import seml
-import time
+from sacred import Experiment
 
 ex = Experiment()
 seml.setup_logger(ex)

@@ -1,10 +1,10 @@
 import logging
 from typing import TYPE_CHECKING, Protocol
+
 from seml.database import get_collection
 from seml.settings import SETTINGS
 from seml.utils import s_if, smaller_than_version_filter, utcnow
 from seml.utils.slurm import get_cluster_name
-
 
 if TYPE_CHECKING:
     from pymongo.collection import Collection

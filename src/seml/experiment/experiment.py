@@ -3,21 +3,21 @@ import logging
 import resource
 import sys
 from enum import Enum
-from typing import List, Optional, Sequence, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Sequence, Union
 
-from seml.utils.module_hider import AUTOCOMPLETING
 from seml.database import get_collection
 from seml.experiment.observers import create_mongodb_observer
 from seml.settings import SETTINGS
+from seml.utils.module_hider import AUTOCOMPLETING
 from seml.utils.multi_process import is_main_process
 
 # These are only used for type hints
 if TYPE_CHECKING:
-    from sacred import Ingredient
-    from sacred.host_info import HostInfoGetter
-    from sacred.commandline_options import CLIOption
-    from sacred.utils import PathType
     from sacred import Experiment as ExperimentBase
+    from sacred import Ingredient
+    from sacred.commandline_options import CLIOption
+    from sacred.host_info import HostInfoGetter
+    from sacred.utils import PathType
 
 
 class LoggerOptions(Enum):

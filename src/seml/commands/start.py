@@ -28,8 +28,8 @@ from seml.utils import (
 from seml.utils.errors import ArgumentError, ConfigError
 from seml.utils.slurm import (
     get_cluster_name,
-    get_current_slurm_job_id,
     get_current_slurm_array_id,
+    get_current_slurm_job_id,
     get_slurm_jobs,
 )
 
