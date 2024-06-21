@@ -2,8 +2,9 @@ from typing import Dict
 
 
 def resolve_description(description: str, config: Dict) -> str:
-    from omegaconf import OmegaConf
     import uuid
+
+    from omegaconf import OmegaConf
 
     # omegaconf can only resolve dicts that refers to its own values
     # so we add the description string to the config

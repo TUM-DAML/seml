@@ -5,4 +5,4 @@ seml:
   project_root_dir: ../..
 
 slurm:
-  sbatch_options:
+  - sbatch_options:

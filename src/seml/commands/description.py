@@ -2,7 +2,6 @@ import logging
 from typing import Dict, List, Optional
 
 from seml.commands.manage import detect_killed
-from seml.console import console
 from seml.database import build_filter_dict, get_collection
 from seml.experiment.description import resolve_description
 from seml.settings import SETTINGS
@@ -155,7 +154,7 @@ def collection_list_descriptions(db_collection_name: str, update_status: bool = 
     """
     from rich.align import Align
 
-    from seml.console import Table
+    from seml.console import Table, console
 
     collection = get_collection(db_collection_name)
 

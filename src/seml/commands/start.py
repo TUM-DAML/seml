@@ -1,5 +1,6 @@
 import copy
 import logging
+import math
 import os
 import shutil
 import subprocess
@@ -7,7 +8,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
 
 from seml.commands.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.database import build_filter_dict, get_collection
@@ -25,25 +26,22 @@ from seml.utils import (
     s_if,
 )
 from seml.utils.errors import ArgumentError, ConfigError
+from seml.utils.slurm import (
+    get_cluster_name,
+    get_current_slurm_array_id,
+    get_current_slurm_job_id,
+    get_slurm_jobs,
+)
 
 if TYPE_CHECKING:
-    import pymongo
+    from pymongo.collection import Collection
 
 States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
 
 
 def get_output_dir_path(config):
-    if 'output_dir' in config['slurm']:
-        logging.warning(
-            "'output_dir' has moved from 'slurm' to 'seml'. Please adapt your YAML accordingly"
-            "by moving the 'output_dir' parameter from 'slurm' to 'seml'."
-        )
-        output_dir = config['slurm']['output_dir']
-    elif 'output_dir' in config['seml']:
-        output_dir = config['seml']['output_dir']
-    else:
-        output_dir = '.'
+    output_dir = config['seml'].get('output_dir', '.')
     output_dir_path = str(Path(output_dir).expanduser().resolve())
     if not os.path.isdir(output_dir_path):
         raise ConfigError(f"Output directory '{output_dir_path}' does not exist.")
@@ -111,14 +109,16 @@ def create_slurm_options_string(slurm_options: dict, srun: bool = False):
 
 
 def start_sbatch_job(
-    collection,
-    exp_array,
-    unobserved=False,
-    name=None,
-    output_dir_path='.',
-    sbatch_options=None,
-    max_simultaneous_jobs=None,
-    debug_server=False,
+    collection: 'Collection',
+    exp_array: Sequence[Dict],
+    slurm_options_id: int,
+    sbatch_options: Dict,
+    unobserved: bool = False,
+    name: Optional[str] = None,
+    output_dir_path: str = '.',
+    max_simultaneous_jobs: Optional[int] = None,
+    experiments_per_job: int = 1,
+    debug_server: bool = False,
 ):
     """Run a list of experiments as a job on the Slurm cluster.
 
@@ -126,7 +126,7 @@ def start_sbatch_job(
     ----------
     collection: pymongo.collection.Collection
         The MongoDB collection containing the experiments.
-    exp_array: List[List[dict]]
+    exp_array: List[dict]
         List of chunks of experiments to run. Each chunk is a list of experiments.
     unobserved: bool
         Disable all Sacred observers (nothing written to MongoDB).
@@ -145,8 +145,13 @@ def start_sbatch_job(
     -------
     None
     """
+    from tempfile import NamedTemporaryFile
+
+    seml_conf = exp_array[0]['seml']
+
     # Set Slurm job array options
-    sbatch_options['array'] = f'0-{len(exp_array) - 1}'
+    num_tasks = math.ceil(len(exp_array) / experiments_per_job)
+    sbatch_options['array'] = f'0-{num_tasks}'
     if max_simultaneous_jobs is not None:
         sbatch_options['array'] += f'%{max_simultaneous_jobs}'
 
@@ -162,28 +167,17 @@ def start_sbatch_job(
         # Ensure that the output path exists
         Path(output_file).parent.mkdir(exist_ok=True)
     sbatch_options['output'] = output_file
+    sbatch_options['job-name'] = name
 
     # Construct sbatch options string
     sbatch_options_str = create_slurm_options_string(sbatch_options, False)
 
-    # Construct chunked list with all experiment IDs
-    expid_strings = [
-        ('"' + ';'.join([str(exp['_id']) for exp in chunk]) + '"')
-        for chunk in exp_array
-    ]
+    # Construct list with all experiment IDs
+    expid_strings = f"{' '.join([str(exp['_id']) for exp in exp_array])}"
 
-    with_sources = 'source_files' in exp_array[0][0]['seml']
-    use_conda_env = (
-        'conda_environment' in exp_array[0][0]['seml']
-        and exp_array[0][0]['seml']['conda_environment'] is not None
-    )
-
-    # Construct Slurm script
-    template = load_text_resource('templates/slurm/slurm_template.sh')
-    if 'working_dir' in exp_array[0][0]['seml']:
-        working_dir = exp_array[0][0]['seml']['working_dir']
-    else:
-        working_dir = '${{SLURM_SUBMIT_DIR}}'
+    with_sources = 'source_files' in seml_conf
+    use_conda_env = seml_conf.get('conda_environment')
+    working_dir = seml_conf.get('working_dir', '${{SLURM_SUBMIT_DIR}}')
 
     # Build arguments for the prepare_experiment script
     prepare_args = ''
@@ -199,66 +193,65 @@ def start_sbatch_job(
     variables = {
         'sbatch_options': sbatch_options_str,
         'working_dir': working_dir,
-        'use_conda_env': str(use_conda_env).lower(),
-        'conda_env': exp_array[0][0]['seml']['conda_environment']
-        if use_conda_env
-        else '',
-        'exp_ids': ' '.join(expid_strings),
+        'use_conda_env': str(use_conda_env is not None).lower(),
+        'conda_env': seml_conf['conda_environment'] if use_conda_env else '',
+        'exp_ids': expid_strings,
         'with_sources': str(with_sources).lower(),
         'db_collection_name': collection.name,
         'prepare_args': prepare_args,
         'tmp_directory': SETTINGS.TMP_DIRECTORY,
+        'experiments_per_job': experiments_per_job,
     }
-    setup_command = SETTINGS.SETUP_COMMAND.format(**variables)
-    end_command = SETTINGS.END_COMMAND.format(**variables)
-
-    script = template.format(
-        setup_command=setup_command,
-        end_command=end_command,
+    variables = {
         **variables,
-    )
+        'setup_command': SETTINGS.SETUP_COMMAND.format(**variables),
+        'end_command': SETTINGS.END_COMMAND.format(**variables),
+    }
+    # Construct Slurm script
+    template = load_text_resource('templates/slurm/slurm_template.sh')
+    script = template.format(**variables)
 
-    path = os.path.join(SETTINGS.TMP_DIRECTORY, f'{uuid.uuid4()}.sh')
-    with open(path, 'w') as f:
+    # Dump the prepared script to a temporary file
+    with NamedTemporaryFile('w', dir=SETTINGS.TMP_DIRECTORY) as f:
         f.write(script)
+        f.flush()
 
-    try:
-        output = subprocess.run(
-            f'sbatch {path}', shell=True, check=True, capture_output=True
-        ).stdout
-    except subprocess.CalledProcessError as e:
-        logging.error(
-            f"Could not start Slurm job via sbatch. Here's the sbatch error message:\n"
-            f"{e.stderr.decode('utf-8')}"
-        )
-        os.remove(path)
-        exit(1)
+        # Sbatch the script
+        try:
+            output = subprocess.run(
+                f'sbatch {f.name}', shell=True, check=True, capture_output=True
+            ).stdout
+        except subprocess.CalledProcessError as e:
+            logging.error(
+                f"Could not start Slurm job via sbatch. Here's the sbatch error message:\n"
+                f"{e.stderr.decode('utf-8')}"
+            )
+            exit(1)
+
+    # Now we just update the mongodb. So, if we are in unobserved mode, we can stop here.
+    if unobserved:
+        return
 
     slurm_array_job_id = int(output.split(b' ')[-1])
-    for task_id, chunk in enumerate(exp_array):
-        for exp in chunk:
-            if not unobserved:
-                collection.update_one(
-                    {'_id': exp['_id']},
-                    {
-                        '$set': {
-                            'status': States.PENDING[0],
-                            'slurm.array_id': slurm_array_job_id,
-                            'slurm.task_id': task_id,
-                            'slurm.sbatch_options': sbatch_options,
-                            'seml.output_file': f'{output_dir_path}/{name}_{slurm_array_job_id}_{task_id}.out',
-                        }
-                    },
-                )
-            logging.verbose(
-                f'Started experiment with array job ID {slurm_array_job_id}, task ID {task_id}.'
-            )
-    os.remove(path)
+    output_file = output_file.replace('%A', str(slurm_array_job_id))
+    cluster_name = get_cluster_name()
+    collection.update_many(
+        {'_id': {'$in': [exp['_id'] for exp in exp_array]}},
+        {
+            '$set': {
+                'status': States.PENDING[0],
+                f'slurm.{slurm_options_id}.array_id': slurm_array_job_id,
+                f'slurm.{slurm_options_id}.num_tasks': num_tasks,
+                f'slurm.{slurm_options_id}.output_files_template': output_file,
+                f'slurm.{slurm_options_id}.sbatch_options': sbatch_options,
+                'execution.cluster': cluster_name,
+            }
+        },
+    )
+    return slurm_array_job_id
 
 
-def start_srun_job(
-    collection, exp, unobserved=False, srun_options=None, seml_arguments=None
-):
+def start_srun_job(collection, exp, srun_options=None, seml_arguments=None):
     """Run a list of experiments as a job on the Slurm cluster.
 
     Parameters
@@ -286,11 +279,6 @@ def start_srun_job(
         if 'ntasks' not in srun_options:
             srun_options['ntasks'] = 1
         srun_options_str = create_slurm_options_string(srun_options, True)
-
-        if not unobserved:
-            collection.update_one(
-                {'_id': exp['_id']}, {'$set': {'slurm.sbatch_options': srun_options}}
-            )
 
         # Set command args for job inside Slurm
         cmd_args = f"--local --sacred-id {exp['_id']} "
@@ -384,10 +372,7 @@ def start_local_job(
                 # Alternatively, we could go with subprocess.Popen, but this could conflict with pdb.
                 cmd = f'{cmd} 2>&1 | tee -a {output_file}'
 
-        if (
-            'conda_environment' in seml_config
-            and seml_config['conda_environment'] is not None
-        ):
+        if seml_config.get('conda_environment') is not None:
             cmd = (
                 f". $(conda info --base)/etc/profile.d/conda.sh "
                 f"&& conda activate {seml_config['conda_environment']} "
@@ -395,15 +380,14 @@ def start_local_job(
                 f"&& conda deactivate"
             )
 
-        if 'SLURM_JOBID' in os.environ and not unobserved:
+        if not unobserved:
+            execution = {'cluster': 'local'}
+            if 'SLURM_JOBID' in os.environ:
+                execution['array_id'] = os.environ['SLURM_JOBID']
+                execution['task_id'] = 0
             collection.update_one(
                 {'_id': exp['_id']},
-                {
-                    '$set': {
-                        'slurm.array_id': os.environ['SLURM_JOBID'],
-                        'slurm.task_id': 0,
-                    }
-                },
+                {'$set': {'execution': execution}},
             )
 
         logging.verbose(f'Running the following command:\n {cmd}')
@@ -445,7 +429,7 @@ def start_local_job(
 
 def chunk_list(exps):
     """
-    Divide experiments into chunks of `experiments_per_job` that will be run in parallel in one job.
+    Divide experiments by batch id as these will be submitted jointly.
     This assumes constant Slurm settings per batch (which should be the case if MongoDB wasn't edited manually).
 
     Parameters
@@ -457,47 +441,12 @@ def chunk_list(exps):
     -------
     exp_chunks: list
     """
-    import numpy as np
+    from collections import defaultdict
 
-    batch_idx = [exp['batch_id'] for exp in exps]
-    unique_batch_idx = np.unique(batch_idx)
-    exp_chunks = []
-    for batch in unique_batch_idx:
-        idx = [i for i, batch_id in enumerate(batch_idx) if batch_id == batch]
-        size = exps[idx[0]]['slurm']['experiments_per_job']
-        exp_chunks.extend(
-            (
-                [exps[i] for i in idx[pos : pos + size]]
-                for pos in range(0, len(idx), size)
-            )
-        )
-    return exp_chunks
-
-
-def batch_chunks(exp_chunks):
-    """
-    Divide chunks of experiments into Slurm job arrays with one experiment batch per array.
-    Each array is started together.
-    This assumes constant Slurm settings per batch (which should be the case if MongoDB wasn't edited manually).
-
-    Parameters
-    ----------
-    exp_chunks: list[list[dict]]
-        List of list of dictionaries containing the experiment settings as saved in the MongoDB
-
-    Returns
-    -------
-    exp_arrays: list[list[list[dict]]]
-    """
-    import numpy as np
-
-    batch_idx = np.array([chunk[0]['batch_id'] for chunk in exp_chunks])
-    unique_batch_idx = np.unique(batch_idx)
-    ids_per_array = [
-        np.where(batch_idx == array_bidx)[0] for array_bidx in unique_batch_idx
-    ]
-    exp_arrays = [[exp_chunks[idx] for idx in chunk_ids] for chunk_ids in ids_per_array]
-    return exp_arrays
+    exp_chunks = defaultdict(list)
+    for exp in exps:
+        exp_chunks[exp['batch_id']].append(exp)
+    return list(exp_chunks.values())
 
 
 def prepare_staged_experiments(
@@ -588,23 +537,22 @@ def add_to_slurm_queue(
     """
 
     nexps = len(exps_list)
-    exp_chunks = chunk_list(exps_list)
-    exp_arrays = batch_chunks(exp_chunks)
-    njobs = len(exp_chunks)
-    narrays = len(exp_arrays)
-
-    logging.info(
-        f'Starting {nexps} experiment{s_if(nexps)} in '
-        f'{njobs} Slurm job{s_if(njobs)} in {narrays} Slurm job array{s_if(narrays)}.'
-    )
+    exp_arrays = chunk_list(exps_list)
+    narrays = 0
+    array_ids = []
 
     for exp_array in exp_arrays:
-        sbatch_options = exp_array[0][0]['slurm']['sbatch_options']
-        job_name = get_exp_name(exp_array[0][0], collection.name)
-        set_slurm_job_name(sbatch_options, job_name, exp_array[0][0], collection.name)
+        slurm_options = exp_array[0]['slurm']
+        default_sbatch_options = slurm_options[0]['sbatch_options']
+        job_name = get_exp_name(exp_array[0], collection.name)
         if srun:
+            set_slurm_job_name(
+                default_sbatch_options,
+                job_name,
+                exp_array[0],
+                collection.name,
+            )
             assert len(exp_array) == 1
-            assert len(exp_array[0]) == 1
             seml_arguments = []
             seml_arguments.append('--debug')
             if post_mortem:
@@ -617,29 +565,42 @@ def add_to_slurm_queue(
                 seml_arguments.append('--debug-server')
             start_srun_job(
                 collection,
-                exp_array[0][0],
-                unobserved,
-                srun_options=sbatch_options,
+                exp_array[0],
+                srun_options=default_sbatch_options,
                 seml_arguments=seml_arguments,
             )
+            narrays += 1
         else:
             if output_to_file:
-                output_dir_path = get_output_dir_path(exp_array[0][0])
+                output_dir_path = get_output_dir_path(exp_array[0])
             else:
                 output_dir_path = '/dev/null'
             assert not post_mortem
-            start_sbatch_job(
-                collection,
-                exp_array,
-                unobserved,
-                name=job_name,
-                output_dir_path=output_dir_path,
-                sbatch_options=sbatch_options,
-                max_simultaneous_jobs=exp_array[0][0]['slurm'].get(
-                    'max_simultaneous_jobs'
-                ),
-                debug_server=debug_server,
-            )
+            for slurm_options_id, slurm_option in enumerate(slurm_options):
+                set_slurm_job_name(
+                    slurm_option['sbatch_options'],
+                    job_name,
+                    exp_array[0],
+                    collection.name,
+                )
+                array_id = start_sbatch_job(
+                    collection,
+                    exp_array,
+                    slurm_options_id,
+                    slurm_option['sbatch_options'],
+                    unobserved,
+                    name=job_name,
+                    output_dir_path=output_dir_path,
+                    max_simultaneous_jobs=slurm_option.get('max_simultaneous_jobs'),
+                    experiments_per_job=slurm_option.get('experiments_per_job', 1),
+                    debug_server=debug_server,
+                )
+                array_ids.append(array_id)
+                narrays += 1
+    logging.info(
+        f'Started {nexps} experiment{s_if(nexps)} in '
+        f'{narrays} Slurm job array{s_if(narrays)}: {", ".join(map(str, array_ids))}'
+    )
 
 
 def check_compute_node():
@@ -700,7 +661,7 @@ def start_local_worker(
     """
     from rich.progress import Progress
 
-    from seml.console import pause_live_widget
+    from seml.console import pause_live_widget, prompt
 
     check_compute_node()
 
@@ -734,8 +695,7 @@ def start_local_worker(
     if not unobserved:
         exp_query['status'] = {'$in': States.PENDING}
     if not steal_slurm:
-        exp_query['slurm.array_id'] = {'$exists': False}
-        exp_query['slurm.id'] = {'$exists': False}
+        exp_query['slurm'] = {'$elemMatch': {'array_id': {'$exists': False}}}
 
     exp_query.update(filter_dict)
 
@@ -747,26 +707,36 @@ def start_local_worker(
                     exp = collection.find_one(exp_query)
                 else:
                     exp = collection.find_one_and_update(
-                        exp_query, {'$set': {'status': States.RUNNING[0]}}
+                        exp_query,
+                        {
+                            '$set': {
+                                'status': States.RUNNING[0],
+                                'execution.cluster': 'local',
+                            }
+                        },
                     )
                 if exp is None:
                     continue
-                if 'array_id' in exp['slurm']:
+                if 'array_id' in exp.get('execution', {}):
                     # Clean up MongoDB entry
                     slurm_ids = {
-                        'array_id': exp['slurm']['array_id'],
-                        'task_id': exp['slurm']['task_id'],
+                        'array_id': exp['execution']['array_id'],
+                        'task_id': exp['execution']['task_id'],
                     }
                     reset_slurm_dict(exp)
                     collection.replace_one({'_id': exp['_id']}, exp, upsert=False)
 
                     # Cancel Slurm job; after cleaning up to prevent race conditions
-                    cancel_experiment_by_id(
-                        collection,
-                        exp['_id'],
-                        set_interrupted=False,
-                        slurm_dict=slurm_ids,
-                    )
+                    if prompt(
+                        f"SLURM is currently executing experiment {exp['_id']}, do you want to cancel the SLURM job?",
+                        type=bool,
+                    ):
+                        cancel_experiment_by_id(
+                            collection,
+                            exp['_id'],
+                            set_interrupted=False,
+                            slurm_dict=slurm_ids,
+                        )
 
                 progress.console.print(
                     f"current id : {exp['_id']}, failed={num_exceptions}/{jobs_counter} experiments"
@@ -1019,8 +989,8 @@ def start_jupyter_job(
     logging.info(f"To stop the job, run 'scancel {slurm_array_job_id}'.")
 
 
-def get_experiment_and_set_running(
-    collection: 'pymongo.Collection',
+def get_experiment_to_prepare(
+    collection: 'Collection',
     exp_id: int,
     unobserved: bool,
 ):
@@ -1045,34 +1015,80 @@ def get_experiment_and_set_running(
         return collection.find_one({'_id': exp_id})
     # This returns the document as it was BEFORE the update. So we first have to check whether its state was
     # PENDING. This is to avoid race conditions, since find_one_and_update is an atomic operation.
-    slurm_array_id = os.environ.get('SLURM_ARRAY_JOB_ID', None)
-    slurm_task_id = os.environ.get('SLURM_ARRAY_TASK_ID', None)
+    slurm_array_id, slurm_task_id = get_current_slurm_array_id()
     if slurm_array_id is not None and slurm_task_id is not None:
         # We're running in SLURM.
         # Check if the job executing is this one.
+        cluster_name = get_cluster_name()
         job_filter = {
-            'slurm.array_id': int(slurm_array_id),
-            'slurm.task_id': int(slurm_task_id),
+            '_id': exp_id,
+            'execution.array_id': int(slurm_array_id),
+            'execution.task_id': int(slurm_task_id),
+            'execution.cluster': cluster_name,
         }
         # Either take the experiment if it is pending or if it is the one being executed.
         # The latter case is important for multi-node jobs.
-        return collection.find_one_and_update(
-            {
-                '$and': [
-                    {'_id': exp_id},
-                    {'$or': [{'status': {'$in': States.PENDING}}, job_filter]},
-                ]
-            },
-            {'$set': {'status': States.RUNNING[0]}},
+        return collection.find_one(job_filter)
+    # Steal slurm case
+    return collection.find_one({'_id': exp_id})
+
+
+def claim_experiment(db_collection_name: str, exp_ids: Sequence[int]):
+    """
+    Claim an experiment for execution by setting its state to RUNNING.
+
+    Parameters
+    ----------
+    db_collection_name: str
+        The name of the MongoDB collection containing the experiments.
+    exp_ids: Sequence[int]
+        The IDs of the experiments to claim.
+
+    Exit Codes
+    ----------
+    0: Experiment claimed successfully
+    3: Experiment not in the database
+
+    Stdout
+    -------
+    The ID of the claimed experiment.
+    """
+    collection = get_collection(db_collection_name)
+    array_id, task_id = get_current_slurm_array_id()
+    if array_id is not None and task_id is not None:
+        # We are running in slurm
+        array_id, task_id = int(array_id), int(task_id)
+        cluster_name = get_cluster_name()
+        update = {
+            'execution.array_id': array_id,
+            'execution.task_id': task_id,
+            'execution.cluster': cluster_name,
+        }
+        exp = collection.find_one_and_update(
+            {'_id': {'$in': list(exp_ids)}, 'status': {'$in': States.PENDING}},
+            {'$set': {'status': States.RUNNING[0], **update}},
+            {'_id': 1, 'slurm': 1},
         )
-    # Stel slurm case
-    return collection.find_one_and_update(
-        {'_id': exp_id, 'status': {'$in': States.PENDING}},
-        {
-            '$set': {'status': States.RUNNING[0]},
-            '$unset': {'slurm.array_id': '', 'slurm.task_id': ''},
-        },
-    )
+        # Set slurm output file
+        for s_conf in exp['slurm']:
+            if s_conf['array_id'] == array_id:
+                output_file = s_conf['output_files_template']
+                output_file = output_file.replace('%a', str(task_id))
+                collection.update_one(
+                    {'_id': exp['_id']},
+                    {'$set': {'execution.slurm_output_file': output_file}},
+                )
+    else:
+        # Steal slurm
+        exp = collection.find_one_and_update(
+            {'_id': {'$in': list(exp_ids)}, 'status': {'$in': States.PENDING}},
+            {'$set': {'status': States.RUNNING[0], 'execution.cluster': 'local'}},
+            {'_id': 1},
+        )
+    if exp is None:
+        exit(3)
+    print(exp['_id'])
+    exit(0)
 
 
 def prepare_experiment(
@@ -1129,7 +1145,7 @@ def prepare_experiment(
         exit(0)
 
     collection = get_collection(db_collection_name)
-    exp = get_experiment_and_set_running(collection, exp_id, unobserved)
+    exp = get_experiment_to_prepare(collection, exp_id, unobserved)
 
     if exp is None:
         # These exit codes will be handled in the bash script
@@ -1157,6 +1173,17 @@ def prepare_experiment(
         if SETTINGS.CONFIG_KEY_SEED not in exp['config']:
             exp['config'][SETTINGS.CONFIG_KEY_SEED] = get_seed()
 
+    # Let's generate a output file
+    output_dir = get_output_dir_path(exp)
+    try:
+        job_info = get_slurm_jobs(get_current_slurm_job_id())[0]
+        name = job_info['JobName']
+        array_id, task_id = get_current_slurm_array_id()
+        name = f'{name}_{array_id}_{task_id}'
+    except Exception:
+        name = str(uuid.uuid4())
+    output_file = f'{output_dir}/{name}_{exp["_id"]}.out'
+
     interpreter, exe, config = get_command_from_exp(
         exp,
         db_collection_name,
@@ -1180,6 +1207,7 @@ def prepare_experiment(
     updates = {
         'seml.command': cmd,
         'seml.command_unresolved': cmd_unresolved,
+        'seml.output_file': output_file,
     }
 
     if stored_sources_dir:
@@ -1189,9 +1217,9 @@ def prepare_experiment(
         cmd = get_shell_command(interpreter, os.path.join(temp_dir, exe), config)
 
     if not unobserved:
-        collection.update_one({'_id': exp_id}, {'$set': updates})
+        collection.update_one({'_id': exp['_id']}, {'$set': updates})
 
     # Print the command to be ran.
-    print(cmd)
+    print(f'{cmd} > {output_file} 2>&1')
     # We exit with 0 to signal that the preparation was successful.
     exit(0)

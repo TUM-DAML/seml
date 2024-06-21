@@ -1,5 +1,6 @@
 import copy
 import functools
+import hashlib
 import logging
 import os
 import subprocess
@@ -188,7 +189,7 @@ def list_is_prefix(first: List, second: List) -> bool:
 
 
 def resolve_projection_path_conflicts(
-    projection: Dict[str, bool], sep: str = '.'
+    projection: Dict[str, Union[bool, int]], sep: str = '.'
 ) -> Dict[str, bool]:
     """Removes path conflicts in a MongoDB projection dict. E.g. if you pass the dict
     `{'config' : 1, 'config.dataset' : 1}`, MongoDB will throw an error. This method will ensure that
@@ -430,9 +431,12 @@ class DiskCachedFunction(Generic[R]):
         name: str,
         time_to_live: float,
     ):
-        import seml.utils.typer as typer
+        from seml.settings import SETTINGS
 
-        self.cache_path = Path(typer.get_app_dir('seml')) / f'{name}.json'
+        user = os.environ.get('USER', 'unknown')
+        install_hash = hashlib.md5(name.encode('utf-8')).hexdigest()
+        file_name = f'seml_{user}_{name}_{install_hash}.json'
+        self.cache_path = Path(SETTINGS.TMP_DIRECTORY) / file_name
         self.time_to_live = time_to_live
         self.fun = fun
 
@@ -760,3 +764,54 @@ def is_local_file(filename, root_dir):
     file_path = Path(filename).expanduser().resolve()
     root_path = Path(root_dir).expanduser().resolve()
     return root_path in file_path.parents
+
+
+def smaller_than_version_filter(version: Tuple[int, int, int]):
+    """
+    Returns a mongodb filter that selects experiments where the version number
+    is small or equal to the supplied version.
+
+    Parameters
+    ----------
+    version: Tuple[int, int, int]
+        The version number to compare to.
+
+    Returns
+    -------
+    Dict
+        The filter.
+    """
+    from seml.settings import SETTINGS
+
+    version_prefix = f'seml.{SETTINGS.SEML_CONFIG_VALUE_VERSION}'
+    return {
+        '$or': [
+            {f'{version_prefix}.0': {'$lt': version[0]}},
+            {
+                f'{version_prefix}.0': {'$eq': version[0]},
+                f'{version_prefix}.1': {'$lt': version[1]},
+            },
+            {
+                f'{version_prefix}.0': {'$eq': version[0]},
+                f'{version_prefix}.1': {'$eq': version[1]},
+                f'{version_prefix}.2': {'$lt': version[2]},
+            },
+        ]
+    }
+
+
+def utcnow():
+    """
+    Wrapper around datetime.datetime.now(datetime.UTC) but supports older python versions.
+
+    Returns
+    -------
+    datetime.datetime
+        The current datetime.
+    """
+    import datetime
+
+    try:
+        return datetime.datetime.now(datetime.UTC)
+    except AttributeError:
+        return datetime.datetime.utcnow()

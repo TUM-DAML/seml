@@ -1,7 +1,7 @@
 import logging
+
 import numpy as np
 from seml import Experiment
-
 
 ex = Experiment()
 

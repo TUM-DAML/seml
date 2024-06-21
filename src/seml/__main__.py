@@ -17,6 +17,7 @@ from seml.commands.description import (
     collection_set_description,
 )
 from seml.commands.manage import (
+    cancel_empty_pending_jobs,
     cancel_experiments,
     delete_experiments,
     detect_killed,
@@ -24,10 +25,12 @@ from seml.commands.manage import (
     reload_sources,
     reset_experiments,
 )
+from seml.commands.migration import migrate_collection
 from seml.commands.print import (
     print_collections,
     print_command,
     print_duplicates,
+    print_experiment,
     print_fail_trace,
     print_output,
     print_queue,
@@ -37,6 +40,7 @@ from seml.commands.project import init_project, print_available_templates
 from seml.commands.slurm import hold_or_release_experiments
 from seml.commands.sources import download_sources
 from seml.commands.start import (
+    claim_experiment,
     prepare_experiment,
     start_experiments,
     start_jupyter_job,
@@ -45,6 +49,7 @@ from seml.database import (
     clean_unreferenced_artifacts,
     get_collections_from_mongo_shell_or_pymongo,
     get_mongodb_config,
+    update_working_dir,
 )
 from seml.settings import SETTINGS
 from seml.utils import cache_to_disk
@@ -55,6 +60,10 @@ States = SETTINGS.STATES
 
 P = ParamSpec('P')
 R = TypeVar('R')
+
+
+# numexpr will log unnecessary info we don't want in our CLI
+logging.getLogger('numexpr').setLevel(logging.ERROR)
 
 # Let's not import json if we are only autocompleting
 if not AUTOCOMPLETING:
@@ -340,6 +349,22 @@ def callback(
             autocompletion=first_argument_completer,
         ),
     ],
+    migration_skip: Annotated[
+        bool,
+        typer.Option(
+            '--migration-skip',
+            help='Skip the migration of the database collection.',
+            is_flag=True,
+        ),
+    ] = False,
+    migration_backup: Annotated[
+        bool,
+        typer.Option(
+            '--migration-backup',
+            help='Backup the database collection before migration.',
+            is_flag=True,
+        ),
+    ] = False,
     verbose: Annotated[
         bool,
         typer.Option(
@@ -377,6 +402,9 @@ def callback(
         logging.basicConfig(
             level=logging_level, format='%(message)s', handlers=[handler]
         )
+
+    if collection:
+        migrate_collection(collection, migration_skip, migration_backup)
 
     ctx.obj = dict(collection=collection, verbose=verbose)
 
@@ -654,6 +682,23 @@ def start_command(
     )
 
 
+@app.command('clean-jobs', rich_help_panel=_EXPERIMENTS, hidden=True)
+@restrict_collection()
+def clean_jobs_command(
+    ctx: typer.Context,
+    sacred_ids: Annotated[
+        List[int],
+        typer.Argument(
+            help='Sacred IDs (_id in the database collection) of the experiments to claim.',
+        ),
+    ],
+):
+    """
+    Cancel empty pending jobs.
+    """
+    cancel_empty_pending_jobs(ctx.obj['collection'], *sacred_ids)
+
+
 @app.command('prepare-experiment', rich_help_panel=_EXPERIMENTS, hidden=True)
 @restrict_collection()
 def prepare_experiment_command(
@@ -708,6 +753,23 @@ def prepare_experiment_command(
         stored_sources_dir,
         debug_server,
     )
+
+
+@app.command('claim-experiment', rich_help_panel=_EXPERIMENTS, hidden=True)
+@restrict_collection()
+def claim_experiment_command(
+    ctx: typer.Context,
+    sacred_ids: Annotated[
+        List[int],
+        typer.Argument(
+            help='Sacred IDs (_id in the database collection) of the experiments to claim.',
+        ),
+    ],
+):
+    """
+    Claim an experiment from the database.
+    """
+    claim_experiment(ctx.obj['collection'], sacred_ids)
 
 
 @app.command('launch-worker', rich_help_panel=_EXPERIMENTS)
@@ -814,6 +876,39 @@ def reload_sources_command(
     )
 
 
+@app.command('update-working-dir', rich_help_panel=_DATABASE)
+@restrict_collection()
+def update_working_dir_command(
+    ctx: typer.Context,
+    working_dir: Annotated[
+        str,
+        typer.Argument(
+            help='The new working directory for the experiments.',
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+        ),
+    ],
+    batch_ids: Annotated[
+        Optional[List[int]],
+        typer.Option(
+            '-b',
+            '--batch-ids',
+            help='Batch IDs (batch_id in the database collection) of the experiments. '
+            'Experiments that were staged together have the same batch_id.',
+        ),
+    ] = None,
+):
+    """
+    Change the working directory of experiments in case you moved the source code to a different location.
+    """
+    update_working_dir(
+        ctx.obj['collection'],
+        working_directory=working_dir,
+        batch_ids=batch_ids,
+    )
+
+
 @app.command('print-command', rich_help_panel=_INFORMATION)
 @restrict_collection()
 def print_command_command(
@@ -861,6 +956,35 @@ def print_command_command(
     )
 
 
+@app.command('print-experiment', rich_help_panel=_INFORMATION)
+@restrict_collection()
+def print_experiment_command(
+    ctx: typer.Context,
+    sacred_id: SacredIdAnnotation = None,
+    filter_states: FilterStatesAnnotation = States.PENDING
+    + States.STAGED
+    + States.RUNNING
+    + States.FAILED
+    + States.KILLED
+    + States.INTERRUPTED
+    + States.COMPLETED,
+    filter_dict: FilterDictAnnotation = None,
+    batch_id: BatchIdAnnotation = None,
+    projection: ProjectionAnnotation = [],
+):
+    """
+    Print the experiment document.
+    """
+    print_experiment(
+        ctx.obj['collection'],
+        sacred_id=sacred_id,
+        filter_states=filter_states,
+        batch_id=batch_id,
+        filter_dict=filter_dict,
+        projection=projection,
+    )
+
+
 @app.command('print-output', rich_help_panel=_INFORMATION)
 @restrict_collection()
 def print_output_command(
@@ -873,6 +997,15 @@ def print_output_command(
     + States.COMPLETED,
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
+    slurm: Annotated[
+        bool,
+        typer.Option(
+            '-sl',
+            '--slurm',
+            help='Whether to print the Slurm output instead of the experiment output.',
+            is_flag=True,
+        ),
+    ] = False,
 ):
     """
     Print the output of experiments.
@@ -883,6 +1016,7 @@ def print_output_command(
         filter_states=filter_states,
         batch_id=batch_id,
         filter_dict=filter_dict,
+        slurm=slurm,
     )
 
 
@@ -1032,9 +1166,7 @@ def download_sources_command(
 @restrict_collection()
 def hold_command(
     ctx: typer.Context,
-    sacred_id: SacredIdAnnotation = None,
     batch_id: BatchIdAnnotation = None,
-    filter_dict: FilterDictAnnotation = None,
 ):
     """
     Hold queued experiments via SLURM.
@@ -1042,9 +1174,7 @@ def hold_command(
     hold_or_release_experiments(
         True,
         ctx.obj['collection'],
-        sacred_id=sacred_id,
         batch_id=batch_id,
-        filter_dict=filter_dict,
     )
 
 
@@ -1052,9 +1182,7 @@ def hold_command(
 @restrict_collection()
 def release_command(
     ctx: typer.Context,
-    sacred_id: SacredIdAnnotation = None,
     batch_id: BatchIdAnnotation = None,
-    filter_dict: FilterDictAnnotation = None,
 ):
     """
     Release holded experiments via SLURM.
@@ -1062,9 +1190,7 @@ def release_command(
     hold_or_release_experiments(
         False,
         ctx.obj['collection'],
-        sacred_id=sacred_id,
         batch_id=batch_id,
-        filter_dict=filter_dict,
     )
 
 

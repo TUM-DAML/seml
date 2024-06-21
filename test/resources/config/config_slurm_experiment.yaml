@@ -5,6 +5,6 @@ seml:
   project_root_dir: ../..
 
 slurm:
-  sbatch_options_template: GPU
-  sbatch_options:
-    cpus-per-task: 4
+  - sbatch_options_template: GPU
+    sbatch_options:
+      cpus-per-task: 4

@@ -5,4 +5,4 @@ seml:
   project_root_dir: ../..
 
 slurm:
-  sbatch_options_template: GPU
+  - sbatch_options_template: GPU

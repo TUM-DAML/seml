@@ -265,7 +265,7 @@ def add_config_file(
     """
 
     collection = get_collection(db_collection_name)
-    seml_config, slurm_config, experiment_config = read_config(config_file)
+    seml_config, slurm_configs, experiment_config = read_config(config_file)
 
     # Use current Anaconda environment if not specified
     if 'conda_environment' not in seml_config:
@@ -285,7 +285,9 @@ def add_config_file(
         batch_id = batch_id + 1
 
     # Assemble the Slurm config:
-    slurm_config = assemble_slurm_config_dict(slurm_config)
+    slurm_configs = list(map(assemble_slurm_config_dict, slurm_configs))
+    if len(slurm_configs) == 0:
+        raise ConfigError('No slurm configuration found.')
 
     configs_unresolved = generate_configs(
         experiment_config, overwrite_params=overwrite_params
@@ -305,7 +307,7 @@ def add_config_file(
             **resolve_interpolations(
                 {
                     'seml': seml_config,
-                    'slurm': slurm_config,
+                    'slurm': slurm_configs,
                     'git': git_info,
                     'batch_id': batch_id,  # needs to be determined now for source file uploading
                     'config': config,

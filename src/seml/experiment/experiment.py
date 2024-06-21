@@ -3,25 +3,27 @@ import logging
 import resource
 import sys
 from enum import Enum
-from typing import List, Optional, Sequence, Union
-
-from sacred import SETTINGS as SACRED_SETTINGS
-from sacred import Experiment as ExperimentBase
-from sacred import Ingredient
-from sacred.commandline_options import CLIOption
-from sacred.config.config_summary import ConfigSummary
-from sacred.config.utils import (
-    dogmatize,
-    recursive_fill_in,
-    undogmatize,
-)
-from sacred.host_info import HostInfoGetter
-from sacred.utils import PathType
+from typing import TYPE_CHECKING, List, Optional, Sequence, Union
 
 from seml.database import get_collection
 from seml.experiment.observers import create_mongodb_observer
 from seml.settings import SETTINGS
 from seml.utils.multi_process import is_main_process
+
+# These are only used for type hints
+if TYPE_CHECKING:
+    from sacred import Experiment as ExperimentBase
+    from sacred import Ingredient
+    from sacred.commandline_options import CLIOption
+    from sacred.host_info import HostInfoGetter
+    from sacred.utils import PathType
+from sacred import SETTINGS as SACRED_SETTINGS
+from sacred import Experiment as ExperimentBase
+from sacred.config.utils import (
+    dogmatize,
+    recursive_fill_in,
+    undogmatize,
+)
 
 
 class LoggerOptions(Enum):
@@ -34,11 +36,11 @@ class Experiment(ExperimentBase):
     def __init__(
         self,
         name: Optional[str] = None,
-        ingredients: Sequence[Ingredient] = (),
+        ingredients: Sequence['Ingredient'] = (),
         interactive: bool = False,
-        base_dir: Optional[PathType] = None,
-        additional_host_info: Optional[List[HostInfoGetter]] = None,
-        additional_cli_options: Optional[Sequence[CLIOption]] = None,
+        base_dir: Optional['PathType'] = None,
+        additional_host_info: Optional[List['HostInfoGetter']] = None,
+        additional_cli_options: Optional[Sequence['CLIOption']] = None,
         save_git_info: bool = True,
         add_mongodb_observer: bool = True,
         logger: Optional[Union[LoggerOptions, str]] = LoggerOptions.RICH,
@@ -91,6 +93,8 @@ class MongoDbObserverConfig:
         self.experiment = experiment
 
     def __call__(self, fixed=None, preset=None, fallback=None):
+        from sacred.config.config_summary import ConfigSummary
+
         result = dogmatize(fixed or {})
         defaults = dict(overwrite=None, db_collection=None)
         recursive_fill_in(result, defaults)
@@ -114,6 +118,8 @@ class ClearObserverForMultiTaskConfig:
         self.experiment = experiment
 
     def __call__(self, fixed=None, preset=None, fallback=None):
+        from sacred.config.config_summary import ConfigSummary
+
         result = dogmatize(fixed or {})
         defaults = dict(overwrite=None, db_collection=None)
         recursive_fill_in(result, defaults)
@@ -129,7 +135,7 @@ class ClearObserverForMultiTaskConfig:
 
 
 def setup_logger(
-    ex: ExperimentBase,
+    ex: 'ExperimentBase',
     logger_option: LoggerOptions = LoggerOptions.RICH,
     level: Optional[Union[str, int]] = None,
 ):
@@ -274,5 +280,4 @@ __all__ = [
     'setup_logger',
     'collect_exp_stats',
     'Experiment',
-    'is_main_process',
 ]

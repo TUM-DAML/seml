@@ -2,15 +2,14 @@ import copy
 import unittest
 
 import yaml
-
 from seml import utils
-from seml.commands.add import assemble_slurm_config_dict
-from seml.experiment.config import read_config
 from seml.commands import add
+from seml.commands.add import assemble_slurm_config_dict
 from seml.experiment import config
-from seml.utils.errors import ConfigError
+from seml.experiment.config import read_config
 from seml.settings import SETTINGS
 from seml.utils import flatten, merge_dicts
+from seml.utils.errors import ConfigError
 
 
 class TestParseConfigDicts(unittest.TestCase):
@@ -65,23 +64,26 @@ class TestParseConfigDicts(unittest.TestCase):
 
     def test_config_inheritance(self):
         # Check default config
-        seml_config, slurm_config, experiment_config = read_config(
+        seml_config, slurm_configs, experiment_config = read_config(
             self.CONFIG_SLURM_DEFAULT
         )
+        slurm_config = slurm_configs[0]
         slurm_config = assemble_slurm_config_dict(slurm_config)
         self.assertEqual(slurm_config, SETTINGS.SLURM_DEFAULT)
 
         # Check default config with empty sbatch options
-        seml_config, slurm_config, experiment_config = read_config(
+        seml_config, slurm_configs, experiment_config = read_config(
             self.CONFIG_SLURM_DEFAULT_EMPTY_SBATCH
         )
+        slurm_config = slurm_configs[0]
         slurm_config = assemble_slurm_config_dict(slurm_config)
         self.assertEqual(slurm_config, SETTINGS.SLURM_DEFAULT)
 
         # Check default -> template inheritance
-        seml_config, slurm_config, experiment_config = read_config(
+        seml_config, slurm_configs, experiment_config = read_config(
             self.CONFIG_SLURM_TEMPLATE
         )
+        slurm_config = slurm_configs[0]
         slurm_config = assemble_slurm_config_dict(slurm_config)
         target_config = copy.deepcopy(SETTINGS.SLURM_DEFAULT)
         target_config["sbatch_options"] = merge_dicts(
@@ -91,9 +93,10 @@ class TestParseConfigDicts(unittest.TestCase):
         self.assertEqual(slurm_config, target_config)
 
         # Check default -> template -> experiment inheritance
-        seml_config, slurm_config, experiment_config = read_config(
+        seml_config, slurm_configs, experiment_config = read_config(
             self.CONFIG_SLURM_EXPERIMENT
         )
+        slurm_config = slurm_configs[0]
         slurm_config = assemble_slurm_config_dict(slurm_config)
         target_config = copy.deepcopy(SETTINGS.SLURM_DEFAULT)
         target_config["sbatch_options"] = merge_dicts(
@@ -242,7 +245,7 @@ class TestParseConfigDicts(unittest.TestCase):
         self.assertEqual(
             add.resolve_interpolations(
                 {"config": configs[0], "foo": "${config.param1}"},
-                allow_interpolations_in=["config"],
+                allow_interpolation_keys=["config"],
             )["foo"],
             "${config.param1}",
         )

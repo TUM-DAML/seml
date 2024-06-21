@@ -60,13 +60,20 @@ seml:
   description: An example configuration.
 
 slurm:
-  experiments_per_job: 1
-  sbatch_options:
-    gres: gpu:1 # num GPUs
-    mem: 16G # memory
-    cpus-per-task: 2 # num cores
-    time: 0-08:00 # max time, D-HH:MM
-    partition: gpu_gtx1080
+  - experiments_per_job: 4
+    sbatch_options:
+      gres: gpu:1 # num GPUs
+      mem: 16G # memory
+      cpus-per-task: 2 # num cores
+      time: 0-08:00 # max time, D-HH:MM
+      partition: gpu_gtx1080
+  - experiments_per_job: 16
+    sbatch_options:
+      gres: gpu:1 # num GPUs
+      mem: 16G # memory
+      cpus-per-task: 2 # num cores
+      time: 0-08:00 # max time, D-HH:MM
+      partition: gpu_a100
 
 ###### BEGIN PARAMETER CONFIGURATION ######
 
@@ -78,10 +85,10 @@ grid:
     type: loguniform
     min: 1e-5
     max: 1e-1
-    num: 5
+    num: 1
 
 random:
-  samples: 3
+  samples: 1
   seed: 821
 
   # SEML supports dot-notation for nested dictionaries.

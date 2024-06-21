@@ -1,7 +1,6 @@
 import logging
 import os
 import re
-import subprocess
 import time
 from collections import defaultdict
 from typing import Dict, List, Optional, Sequence
@@ -29,6 +28,7 @@ from seml.utils import (
     to_hashable,
     to_slices,
 )
+from seml.utils.slurm import get_cluster_name, get_slurm_jobs
 
 States = SETTINGS.STATES
 
@@ -72,15 +72,13 @@ def print_fail_trace(
         projection = []
     mongo_db_projection = resolve_projection_path_conflicts(
         {
-            **{
-                '_id': 1,
-                'status': 1,
-                'slurm.array_id': 1,
-                'slurm.task_id': 1,
-                'fail_trace': 1,
-                'seml.description': 1,
-                'batch_id': 1,
-            },
+            '_id': 1,
+            'status': 1,
+            'execution.array_id': 1,
+            'execution.task_id': 1,
+            'fail_trace': 1,
+            'seml.description': 1,
+            'batch_id': 1,
             **{key: 1 for key in projection},
         }
     )
@@ -94,8 +92,8 @@ def print_fail_trace(
         exp_id = exp.get('_id')
         status = exp.get('status')
         batch_id = exp.get('batch_id')
-        slurm_array_id = exp.get('slurm', {}).get('array_id', None)
-        slurm_task_id = exp.get('slurm', {}).get('task_id', None)
+        slurm_array_id = exp.get('execution', {}).get('array_id', None)
+        slurm_task_id = exp.get('execution', {}).get('task_id', None)
         fail_trace = exp.get('fail_trace', [])
         description = exp.get('seml', {}).get('description', None)
         header = (
@@ -434,12 +432,61 @@ def print_duplicates(
     console.print(panel)
 
 
+def print_experiment(
+    db_collection_name: str,
+    sacred_id: Optional[int] = None,
+    filter_states: Optional[List[str]] = None,
+    batch_id: Optional[int] = None,
+    filter_dict: Optional[Dict] = None,
+    projection: Optional[List[str]] = None,
+):
+    """
+    Prints the details of an experiment.
+
+    Parameters
+    ----------
+    db_collection_name : str
+        The collection to print the experiment from
+    sacred_id : Optional[int], optional
+        The ID of the experiment to print, by default None
+    filter_states : Optional[List[str]], optional
+        Filter on experiment states, by default None
+    batch_id : Optional[int], optional
+        Filter on the batch ID of experiments, by default None
+    filter_dict : Optional[Dict], optional
+        Additional filters, by default None
+    projection : Optional[List[str]], optional
+        Additional values to print per experiment, by default all are printed
+    """
+    from rich import print_json
+
+    from seml.console import Heading, console, pause_live_widget
+
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id)
+    collection = get_collection(db_collection_name)
+    if projection is None or len(projection) == 0:
+        proj = {}
+    else:
+        proj = {'_id': 1, 'batch_id': 1, **{p: 1 for p in projection}}
+    experiments = list(collection.find(filter_dict, proj))
+
+    if len(experiments) == 0:
+        logging.info('No experiment found to print.')
+        return
+
+    with pause_live_widget():
+        for exp in experiments:
+            console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
+            print_json(data=exp, skip_keys=True, default=str)
+
+
 def print_output(
     db_collection_name: str,
     sacred_id: Optional[int] = None,
     filter_states: Optional[List[str]] = None,
     batch_id: Optional[int] = None,
     filter_dict: Optional[Dict] = None,
+    slurm: bool = False,
 ):
     """
     Prints the output of experiments
@@ -456,6 +503,8 @@ def print_output(
         Filter on the batch ID of experiments, by default None
     filter_dict : Optional[Dict], optional
         Additional filters, by default None
+    slurm : bool, optional
+        Whether to print the Slurm output instead of the experiment output, by default False
     """
     from seml.console import Heading, console, pause_live_widget
 
@@ -464,71 +513,56 @@ def print_output(
     )
     collection = get_collection(db_collection_name)
     experiments = collection.find(
-        filter_dict, {'seml.output_file': 1, '_id': 1, 'batch_id': 1, 'captured_out': 1}
+        filter_dict,
+        {
+            'seml.output_file': 1,
+            '_id': 1,
+            'batch_id': 1,
+            'captured_out': 1,
+            'execution': 1,
+        },
     )
     count = 0
     for exp in experiments:
         count += 1
         console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
         with pause_live_widget():
+            # Select output file
+            out_file = exp['seml'].get('output_file')
+            if out_file is None or slurm:
+                if not slurm:
+                    logging.info(
+                        f'No experiment output file found for experiment {exp["_id"]}.'
+                        'Using Slurm output instead.'
+                    )
+                if 'slurm_output_file' in exp['execution']:
+                    out_file = exp['execution']['slurm_output_file']
+                else:
+                    logging.error(
+                        f'No Slurm output file found for experiment {exp["_id"]}.'
+                    )
+                    continue
+            # Actually read
             try:
-                with open(
-                    exp['seml']['output_file'], mode='r', newline='', errors='replace'
-                ) as f:
+                with open(out_file, mode='r', newline='', errors='replace') as f:
                     for line in f:
                         console.print(line[:-1], end=line[-1])
                     console.print()  # new line
             except IOError:
-                logging.info(f"File {exp['seml']['output_file']} could not be read.")
+                logging.info(f'File {out_file} could not be read.')
                 if 'captured_out' in exp and exp['captured_out']:
                     logging.info('Captured output from DB:')
                     console.print(exp['captured_out'])
                 else:
                     logging.error('No output available.')
-            except KeyError:
-                logging.error(f"Output file not found in experiment {exp['_id']}.")
 
     if count == 0:
         logging.info('No experiments found.')
 
 
-def parse_scontrol_job_info(job_info: str):
-    """
-    Converts the return value of `scontrol show job <jobid>` into a python dictionary.
-
-    Parameters
-    ----------
-    job_info : str
-        The output of `scontrol show job <jobid>`
-
-    Returns
-    -------
-    dict
-        The job information as a dictionary
-    """
-    job_info_dict: Dict[str, str] = {}
-    # we may split to many times, e.g., if a value contains a space
-    unfiltered_lines = job_info.split()
-    filtered_lines = []
-    for line in unfiltered_lines:
-        if line:
-            if '=' in line:
-                # new variable
-                filtered_lines.append(line)
-            else:
-                # just append to the previous variable
-                filtered_lines[-1] += ' ' + line
-
-    # Now every line must contain a '=' sign and we can simply split here
-    for line in filtered_lines:
-        key, value = line.split('=', 1)
-        job_info_dict[key] = value
-    return job_info_dict
-
-
 def generate_queue_table(
     db,
-    job_ids: List[str],
+    job_ids: Optional[List[str]],
     filter_states: Optional[List[str]],
     filter_by_user: bool = True,
 ):
@@ -551,29 +585,10 @@ def generate_queue_table(
 
     from seml.console import Table
 
-    # Run scontrol
-    if job_ids is None or len(job_ids) == 0:
-        job_info_str = subprocess.run(
-            'scontrol show job',
-            shell=True,
-            check=True,
-            capture_output=True,
-        ).stdout.decode('utf-8')
-        job_info_strs = job_info_str.split('\n\n')
+    if job_ids:
+        job_infos = get_slurm_jobs(*job_ids)
     else:
-        job_info_strs = []
-        for job_id in job_ids:
-            job_info_str = subprocess.run(
-                f'scontrol show job {job_id}',
-                shell=True,
-                check=True,
-                capture_output=True,
-            ).stdout.decode('utf-8')
-            job_info_strs.append(job_info_str)
-
-    # Convert to dictionary
-    job_info_strs = list(filter(None, job_info_strs))
-    job_infos = list(map(parse_scontrol_job_info, job_info_strs))
+        job_infos = get_slurm_jobs()
 
     # Find the collections
     all_collections = set(db.list_collection_names())
@@ -611,19 +626,36 @@ def generate_queue_table(
         *states,
         show_header=True,
     )
+    cluster_name = get_cluster_name()
 
-    def format_job(job_info):
+    def format_job(job_info, db_col_name):
         if job_info is None:
             return ''
         nodelist = job_info['NodeList']
-        job_id = job_info.get('ArrayJobId', job_info['JobId'])
+        array_id = job_info.get('ArrayJobId', job_info['JobId'])
         task_id = job_info.get('ArrayTaskId', None)
         if task_id:
             if any(x in task_id for x in ',-'):
                 task_id = f'[{task_id}]'
-            job_id = f'{job_id}_{task_id}'
+            job_id = f'{array_id}_{task_id}'
+        else:
+            job_id = array_id
         if nodelist:
-            return f"{job_id} ({job_info['RunTime']}, {nodelist})"
+            # Running
+            collection = get_collection(db_col_name)
+            experiments = collection.find(
+                {
+                    'execution.cluster': cluster_name,
+                    'execution.array_id': int(array_id),
+                    'execution.task_id': int(task_id),
+                },
+                {'_id': 1},
+            )
+            ids = [exp['_id'] for exp in experiments]
+            if len(ids) > 0:
+                return f"{job_id} ({job_info['RunTime']}, {nodelist}, Ids: {'|'.join(map(str, ids))})"
+            else:
+                return f"{job_id} ({job_info['RunTime']}, {nodelist})"
         else:
             return f"{job_id} ({job_info.get('Reason', '')})"
 
@@ -631,9 +663,11 @@ def generate_queue_table(
         row = [col]
         for state in states:
             jobs = collection_to_jobs[(col, state)]
-            row.append('\n'.join(map(format_job, jobs)))
+            row.append('\n'.join(map(format_job, jobs, [col] * len(jobs))))
         table.add_row(*row)
 
+    if len(collections) == 0:
+        return Align('No jobs found.', align='center')
     return Align(table, align='center')
 
 

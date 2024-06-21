@@ -1,8 +1,10 @@
 import ast
 import copy
+import functools
 import logging
 import numbers
 import os
+import warnings
 from itertools import combinations
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
@@ -18,7 +20,6 @@ from seml.settings import SETTINGS
 from seml.utils import (
     Hashabledict,
     flatten,
-    list_is_prefix,
     merge_dicts,
     remove_keys_from_nested,
     unflatten,
@@ -404,6 +405,58 @@ def generate_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[s
     return result_configs, result_named_configs
 
 
+@functools.lru_cache()
+def load_config_dict(cfg_name: str):
+    """
+    Wrapper around sacred internal function to load a configuration file.
+    This wrapper is cached to avoid loading the same file multiple times.
+
+    Parameters
+    ----------
+    cfg_name : str
+        Path to the configuration file.
+
+    Returns
+    -------
+    ConfigDict
+        The configuration dictionary.
+    """
+    from sacred.config.config_dict import ConfigDict
+    from sacred.config.config_files import load_config_file
+
+    return ConfigDict(load_config_file(cfg_name))
+
+
+_SCAFFOLD_KEYS = (
+    'config_updates',
+    'named_configs_to_use',
+    'config',
+    'fallback',
+    'presets',
+    'fixture',
+    'logger',
+    'seed',
+    'rnd',
+    'config_mods',
+    'summaries',
+)
+
+
+def _get_scaffold_state(scaffolding):
+    return {
+        k2: {k: getattr(scaffold, k) for k in _SCAFFOLD_KEYS}
+        for k2, scaffold in scaffolding.items()
+    }
+
+
+def _set_scaffold_state(scaffolding, state):
+    from copy import copy
+
+    for k2, scaffold in scaffolding.items():
+        for k, v in state[k2].items():
+            setattr(scaffold, k, copy(v))
+
+
 def _sacred_create_configs(
     exp: 'sacred.Experiment',
     configs: List[Dict],
@@ -426,7 +479,11 @@ def _sacred_create_configs(
     Dict
         The updated configurations containing all values derived from the experiment.
     """
+    from copy import deepcopy
+
+    from sacred.config.utils import undogmatize
     from sacred.initialize import (
+        Scaffold,
         create_scaffolding,
         distribute_config_updates,
         distribute_presets,
@@ -444,9 +501,32 @@ def _sacred_create_configs(
 
     from seml.console import track
 
+    def run_named_config(scaffold: Scaffold, cfg_name: str):
+        # This version of sacred.initialize.Scaffold.run_named_config uses our
+        # cached version of load_config_dict. This is necessary to avoid loading the same file multiple times.
+        if os.path.isfile(cfg_name):
+            nc = load_config_dict(cfg_name)
+            cfg = nc(
+                fixed=scaffold.get_config_updates_recursive(),
+                preset=scaffold.presets,
+                fallback=scaffold.fallback,
+            )
+            return undogmatize(cfg)
+        return scaffold.run_named_config(cfg_name)
+
     configs_resolved = []
     if named_configs is None:
         named_configs = [()] * len(configs)
+    sorted_ingredients = gather_ingredients_topological(exp)
+    scaffolding = create_scaffolding(exp, sorted_ingredients)
+    init_state = deepcopy(_get_scaffold_state(scaffolding))
+    # get all split non-empty prefixes sorted from deepest to shallowest
+    prefixes = sorted(
+        [s.split('.') for s in scaffolding if s != ''],
+        reverse=True,
+        key=lambda p: len(p),
+    )
+
     for config, named_config in track(
         list(zip(configs, named_configs)),
         description='Resolving configurations',
@@ -455,17 +535,8 @@ def _sacred_create_configs(
         # The following code is adapted from sacred directly: This results in a significant speedup
         # as we only care about the config but not about creating runs, however it is more error prone
         # to changes to sacred
-        sorted_ingredients = gather_ingredients_topological(exp)
-        scaffolding = create_scaffolding(exp, sorted_ingredients)
-        # get all split non-empty prefixes sorted from deepest to shallowest
-        prefixes = sorted(
-            [s.split('.') for s in scaffolding if s != ''],
-            reverse=True,
-            key=lambda p: len(p),
-        )
-
+        _set_scaffold_state(scaffolding, init_state)
         # --------- configuration process -------------------
-
         # Phase 1: Config updates
         config_updates = convert_to_nested_dict(config)
         distribute_config_updates(prefixes, scaffolding, config_updates)
@@ -474,7 +545,7 @@ def _sacred_create_configs(
         for ncfg in named_config:
             scaff, cfg_name = get_scaffolding_and_config_name(ncfg, scaffolding)
             scaff.gather_fallbacks()
-            ncfg_updates = scaff.run_named_config(cfg_name)
+            ncfg_updates = run_named_config(scaff, cfg_name)
             distribute_presets(scaff.path, prefixes, scaffolding, ncfg_updates)
             for ncfg_key, value in iterate_flattened(ncfg_updates):
                 set_by_dotted_path(
@@ -506,7 +577,6 @@ def _sacred_create_configs(
                 config_resolved, config_get_exclude_keys(config_resolved, config)
             )
         )
-
     return configs_resolved
 
 
@@ -561,8 +631,8 @@ def resolve_configs(
     exp = exps[0]
     if not isinstance(exp, Experiment):
         logging.warning(
-            'The use of sacred.Experiment is deprecated. Please use seml.experiment.Experiment instead.\n'
-            'seml.experiment.Experiment already includes typical MongoDB observer and logging setups.\n'
+            'The use of sacred.Experiment is deprecated. Please use seml.Experiment instead.\n'
+            'seml.Experiment already includes typical MongoDB observer and logging setups.\n'
             'Please familiar yourself with the new API and adjust your code accordingly.\n'
             'See https://github.com/TUM-DAML/seml/blob/master/examples/example_experiment.py'
         )
@@ -699,25 +769,38 @@ def read_config(config_path: Union[str, Path]):
             f'Using {SETTINGS.SEML_CONFIG_VALUE_VERSION} in the `seml` config block is prohibited.'
         )
 
-    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = __version__
+    version_array = [(int(x) if x.isdecimal() else x) for x in __version__.split('.')]
+    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = version_array
 
     determine_executable_and_working_dir(config_path, seml_dict)
 
-    if 'slurm' in config_dict and config_dict['slurm'] is not None:
-        slurm_dict = config_dict['slurm']
-        del config_dict['slurm']
+    # Get list of slurm configs
+    slurm_list = config_dict.get('slurm', [])
+    del config_dict['slurm']
 
-        for k in slurm_dict.keys():
+    if slurm_list is None:
+        slurm_list = []
+
+    # Check for deprecated `slurm` dictionary
+    if isinstance(slurm_list, dict):
+        warnings.warn('`slurm` is expected to be a list of slurm configurations.')
+        slurm_list = [slurm_list]
+
+    # Sanity check
+    for slurm_conf in slurm_list:
+        for k in slurm_conf.keys():
             if k not in SETTINGS.VALID_SLURM_CONFIG_VALUES:
                 raise ConfigError(
                     f'{k} is not a valid value in the `slurm` config block.'
                 )
-            if k == 'sbatch_options' and slurm_dict['sbatch_options'] is None:
-                slurm_dict['sbatch_options'] = {}
+            if k == 'sbatch_options' and slurm_conf['sbatch_options'] is None:
+                slurm_conf['sbatch_options'] = {}
 
-        return seml_dict, slurm_dict, config_dict
-    else:
-        return seml_dict, {}, config_dict
+    # If we have no config, we should add one
+    if len(slurm_list) == 0:
+        slurm_list.append({})
+
+    return seml_dict, slurm_list, config_dict
 
 
 def determine_executable_and_working_dir(config_path, seml_dict):
@@ -805,8 +888,44 @@ def config_get_exclude_keys(config: Dict, config_unresolved: Dict) -> List[str]:
     return exclude_keys
 
 
+def requires_interpolation(
+    document: Dict,
+    allow_interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
+) -> bool:
+    """
+    Check if a document requires variable interpolation. This is done by checking if
+    any value matches the regex: .*\${.+}.*
+
+    Parameters
+    ----------
+    document : Dict
+        The document to check
+    allow_interpolation_keys : List[str]
+        All keys that should be permitted to do variable interpolation. Other keys are taken from the unresolved config.
+
+    Returns
+    -------
+    bool
+        True if the document requires variable interpolation
+    """
+    import re
+
+    flat_dict = flatten(document)
+    pattern = re.compile(r'.*\${.+}.*')
+
+    def check_interpolation(key, value):
+        if not any(
+            key.startswith(allowed_key) for allowed_key in allow_interpolation_keys
+        ):
+            return False
+        return isinstance(value, str) and pattern.match(value) is not None
+
+    return any(map(check_interpolation, flat_dict.keys(), flat_dict.values()))
+
+
 def resolve_interpolations(
-    document: Dict, allow_interpolations_in: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN
+    document: Dict,
+    allow_interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
 ) -> Dict:
     """Resolves variable interpolation using `OmegaConf`
 
@@ -822,6 +941,9 @@ def resolve_interpolations(
     Dict
         The resolved document
     """
+    if not requires_interpolation(document, allow_interpolation_keys):
+        return document
+
     from omegaconf import OmegaConf
 
     resolved = OmegaConf.to_container(
@@ -830,17 +952,13 @@ def resolve_interpolations(
     resolved_flat = {
         key: value
         for key, value in flatten(resolved, sep='.').items()
-        if any(
-            list_is_prefix(allowed_key.split('.'), key.split('.'))
-            for allowed_key in allow_interpolations_in
-        )
+        if any(key.startswith(allowed_key) for allowed_key in allow_interpolation_keys)
     }
     unresolved_flat = {
         key: value
         for key, value in flatten(document, sep='.').items()
         if not any(
-            list_is_prefix(allowed_key.split('.'), key.split('.'))
-            for allowed_key in allow_interpolations_in
+            key.startswith(allowed_key) for allowed_key in allow_interpolation_keys
         )
     }
     assert resolved_flat.keys().isdisjoint(
