@@ -3,34 +3,17 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union, cast
+from typing import TYPE_CHECKING, Dict, Set, Union, cast
 
-from seml.database import build_filter_dict, delete_files, get_collection, upload_file
-from seml.errors import ExecutableError, MongoDBError
+from seml.database import delete_files, upload_file
 from seml.settings import SETTINGS
-from seml.utils import src_layout_to_flat_layout, working_directory
+from seml.utils import is_local_file, src_layout_to_flat_layout, working_directory
+from seml.utils.errors import ExecutableError, MongoDBError
 
 if TYPE_CHECKING:
-    import pymongo
+    from pymongo.collection import Collection
 
 States = SETTINGS.STATES
-
-
-def is_local_file(filename, root_dir):
-    """
-    See https://github.com/IDSIA/sacred/blob/master/sacred/dependencies.py
-    Parameters
-    ----------
-    filename
-    root_dir
-
-    Returns
-    -------
-
-    """
-    file_path = Path(filename).expanduser().resolve()
-    root_path = Path(root_dir).expanduser().resolve()
-    return root_path in file_path.parents
 
 
 def import_exe(executable, conda_env, working_dir):
@@ -189,7 +172,7 @@ def get_git_info(filename, working_dir):
 
 def load_sources_from_db(
     experiment: Dict,
-    collection: 'pymongo.Collection',
+    collection: 'Collection',
     to_directory: Union[str, Path],
     remove_src_directory: bool = SETTINGS.CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY,
 ):
@@ -221,79 +204,7 @@ def load_sources_from_db(
             f.write(db_file.read())
 
 
-def download_sources(
-    target_directory: str,
-    collection_name: str,
-    sacred_id: Optional[int] = None,
-    filter_states: Optional[List[str]] = None,
-    batch_id: Optional[int] = None,
-    filter_dict: Optional[Dict] = None,
-):
-    """
-    Restore source files from the database to the provided path. This is a helper function for the CLI.
-
-    Parameters
-    ----------
-    target_directory: str
-        The directory where the source files should be restored.
-    collection_name: str
-        The name of the MongoDB collection.
-    sacred_id: int
-        The ID of the Sacred experiment.
-    filter_states: List[str]
-        The states of the experiments to filter.
-    batch_id: int
-        The ID of the batch.
-    filter_dict: Dict
-        Additional filter dictionary.
-    """
-    from seml.console import prompt
-
-    filter_dict = build_filter_dict(
-        filter_states, batch_id, filter_dict, sacred_id=sacred_id
-    )
-    collection = get_collection(collection_name)
-    experiments = list(collection.find(filter_dict))
-    batch_ids = {exp['batch_id'] for exp in experiments}
-
-    if len(batch_ids) > 1:
-        logging.error(
-            f'Multiple source code versions found for batch IDs: {batch_ids}.'
-        )
-        logging.error('Please specify the target experiment more concretely.')
-        exit(1)
-
-    exp = experiments[0]
-    target_directory = os.path.expandvars(os.path.expanduser(target_directory))
-    if not os.path.exists(target_directory):
-        os.mkdir(target_directory)
-    if os.listdir(target_directory):
-        logging.warning(
-            f'Target directory "{target_directory}" is not empty. '
-            f'Files may be overwritten.'
-        )
-        if not prompt('Are you sure you want to continue? (y/n)', type=bool):
-            exit(0)
-
-    load_sources_from_db(exp, collection, target_directory)
-    logging.info(f'Source files restored to "{target_directory}".')
-
-
-def delete_orphaned_sources(collection, batch_ids=None):
-    if batch_ids is not None:
-        # check for empty batches within list of batch ids
-        filter_dict = {'batch_id': {'$in': list(batch_ids)}}
-    else:
-        # check for any empty batches
-        filter_dict = {}
-    db_results = collection.find(filter_dict, {'batch_id'})
-    remaining_batch_ids = set([x['batch_id'] for x in db_results])
-    empty_batch_ids = set(batch_ids) - remaining_batch_ids
-    for b_id in empty_batch_ids:
-        delete_batch_sources(collection, b_id)
-
-
-def delete_batch_sources(collection, batch_id):
+def delete_batch_sources(collection: 'Collection', batch_id: int):
     db = collection.database
     filter_dict = {
         'metadata.batch_id': batch_id,
@@ -307,3 +218,17 @@ def delete_batch_sources(collection, batch_id):
             f'to batch {batch_id} in collection {collection.name}.'
         )
         delete_files(db, source_files)
+
+
+def delete_orphaned_sources(collection: 'Collection', batch_ids=None):
+    if batch_ids is not None:
+        # check for empty batches within list of batch ids
+        filter_dict = {'batch_id': {'$in': list(batch_ids)}}
+    else:
+        # check for any empty batches
+        filter_dict = {}
+    db_results = collection.find(filter_dict, {'batch_id'})
+    remaining_batch_ids = set([x['batch_id'] for x in db_results])
+    empty_batch_ids = set(batch_ids) - remaining_batch_ids
+    for b_id in empty_batch_ids:
+        delete_batch_sources(collection, b_id)

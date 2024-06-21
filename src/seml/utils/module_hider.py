@@ -1,6 +1,6 @@
 import os
 import sys
-from importlib.abc import MetaPathFinder, Loader
+from importlib.abc import Loader, MetaPathFinder
 from importlib.util import spec_from_loader
 
 AUTOCOMPLETING = bool(os.environ.get('_SEML_COMPLETE', False))

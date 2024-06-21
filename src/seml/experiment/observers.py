@@ -136,7 +136,7 @@ def create_mattermost_observer(webhook=None, channel=None, **kwargs):
     The observer.
 
     """
-    from seml.mattermost_observer import MattermostObserver
+    from seml.experiment.mattermost_observer import MattermostObserver
 
     if channel is None:
         if 'OBSERVERS' in SETTINGS and 'MATTERMOST' in SETTINGS.OBSERVERS:

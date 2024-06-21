@@ -6,7 +6,7 @@ from bson import json_util
 from sacred.config.config_files import load_config_file
 from sacred.observers.base import RunObserver, td_format
 
-from seml.json import NumpyEncoder
+from seml.utils.json import NumpyEncoder
 
 
 def to_local_timezone(dtime):

@@ -1,34 +1,29 @@
 import datetime
-import functools
 import logging
-import os
 import resource
 import sys
 from enum import Enum
-from typing import Callable, List, Optional, Sequence, TypeVar, Union, overload
-from typing_extensions import ParamSpec
+from typing import TYPE_CHECKING, List, Optional, Sequence, Union
 
+from seml.database import get_collection
+from seml.experiment.observers import create_mongodb_observer
+from seml.settings import SETTINGS
+from seml.utils.multi_process import is_main_process
+
+# These are only used for type hints
+if TYPE_CHECKING:
+    from sacred import Experiment as ExperimentBase
+    from sacred import Ingredient
+    from sacred.commandline_options import CLIOption
+    from sacred.host_info import HostInfoGetter
+    from sacred.utils import PathType
 from sacred import SETTINGS as SACRED_SETTINGS
 from sacred import Experiment as ExperimentBase
-from sacred import Ingredient
-from sacred.commandline_options import CLIOption
-from sacred.config.config_summary import ConfigSummary
 from sacred.config.utils import (
     dogmatize,
     recursive_fill_in,
     undogmatize,
 )
-from sacred.host_info import HostInfoGetter
-from sacred.utils import PathType
-
-from seml.database import get_collection
-from seml.observers import create_mongodb_observer
-from seml.settings import SETTINGS
-
-
-_LOCAL_ID = 'SLURM_LOCALID'
-_PROCESS_ID = 'SLURM_PROCID'
-_PROCESS_COUNT = 'SLURM_NTASKS'
 
 
 class LoggerOptions(Enum):
@@ -37,87 +32,15 @@ class LoggerOptions(Enum):
     RICH = 'rich'
 
 
-def process_id():
-    return int(os.environ.get(_PROCESS_ID, 0))
-
-
-def local_id():
-    return int(os.environ.get(_LOCAL_ID, 0))
-
-
-def process_count():
-    return int(os.environ.get(_PROCESS_COUNT, 1))
-
-
-def is_main_process():
-    return process_id() == 0
-
-
-def is_local_main_process():
-    return local_id() == 0
-
-
-def is_running_in_multi_process():
-    return process_count() > 1
-
-
-class ChildProcessSkip(Exception): ...
-
-
-class MainProcessExecuteContext:
-    def __enter__(self):
-        if not is_main_process():
-            sys.settrace(lambda *args, **keys: None)
-            frame = sys._getframe(1)
-            frame.f_trace = self.trace
-
-    def trace(self, frame, event, arg):
-        raise ChildProcessSkip()
-
-    def __exit__(self, type, value, traceback):
-        if type is None:
-            return  # No exception
-        if issubclass(type, ChildProcessSkip):
-            return True  # Suppress special SkipWithBlock exception
-
-
-P = ParamSpec('P')
-R = TypeVar('R')
-
-
-@overload
-def only_on_main_process(func: Callable[P, R]) -> Callable[P, Optional[R]]: ...
-
-
-@overload
-def only_on_main_process(func: None = None) -> MainProcessExecuteContext: ...
-
-
-def only_on_main_process(
-    func: Optional[Callable[P, R]] = None,
-) -> Union[Callable[P, Optional[R]], MainProcessExecuteContext]:
-    if callable(func):
-
-        @functools.wraps(func)
-        def wrapper(*args: P.args, **kwargs: P.kwargs):
-            if is_main_process():
-                return func(*args, **kwargs)
-            return None
-
-        return wrapper
-    else:
-        return MainProcessExecuteContext()
-
-
 class Experiment(ExperimentBase):
     def __init__(
         self,
         name: Optional[str] = None,
-        ingredients: Sequence[Ingredient] = (),
+        ingredients: Sequence['Ingredient'] = (),
         interactive: bool = False,
-        base_dir: Optional[PathType] = None,
-        additional_host_info: Optional[List[HostInfoGetter]] = None,
-        additional_cli_options: Optional[Sequence[CLIOption]] = None,
+        base_dir: Optional['PathType'] = None,
+        additional_host_info: Optional[List['HostInfoGetter']] = None,
+        additional_cli_options: Optional[Sequence['CLIOption']] = None,
         save_git_info: bool = True,
         add_mongodb_observer: bool = True,
         logger: Optional[Union[LoggerOptions, str]] = LoggerOptions.RICH,
@@ -170,6 +93,8 @@ class MongoDbObserverConfig:
         self.experiment = experiment
 
     def __call__(self, fixed=None, preset=None, fallback=None):
+        from sacred.config.config_summary import ConfigSummary
+
         result = dogmatize(fixed or {})
         defaults = dict(overwrite=None, db_collection=None)
         recursive_fill_in(result, defaults)
@@ -193,6 +118,8 @@ class ClearObserverForMultiTaskConfig:
         self.experiment = experiment
 
     def __call__(self, fixed=None, preset=None, fallback=None):
+        from sacred.config.config_summary import ConfigSummary
+
         result = dogmatize(fixed or {})
         defaults = dict(overwrite=None, db_collection=None)
         recursive_fill_in(result, defaults)
@@ -208,7 +135,7 @@ class ClearObserverForMultiTaskConfig:
 
 
 def setup_logger(
-    ex: ExperimentBase,
+    ex: 'ExperimentBase',
     logger_option: LoggerOptions = LoggerOptions.RICH,
     level: Optional[Union[str, int]] = None,
 ):
@@ -353,11 +280,4 @@ __all__ = [
     'setup_logger',
     'collect_exp_stats',
     'Experiment',
-    'process_id',
-    'local_id',
-    'process_count',
-    'is_main_process',
-    'is_local_main_process',
-    'is_running_in_multi_process',
-    'only_on_main_process',
 ]

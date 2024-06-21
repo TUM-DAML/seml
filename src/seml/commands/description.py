@@ -1,26 +1,14 @@
 import logging
 from typing import Dict, List, Optional
 
+from seml.commands.manage import detect_killed
 from seml.database import build_filter_dict, get_collection
-from seml.errors import MongoDBError
-from seml.manage import detect_killed
+from seml.experiment.description import resolve_description
 from seml.settings import SETTINGS
 from seml.utils import slice_to_str, to_slices
+from seml.utils.errors import MongoDBError
 
 States = SETTINGS.STATES
-
-
-def resolve_description(description: str, config: Dict) -> str:
-    from omegaconf import OmegaConf
-    import uuid
-
-    # omegaconf can only resolve dicts that refers to its own values
-    # so we add the description string to the config
-    key = str(uuid.uuid4())
-    config = OmegaConf.create(
-        {key: description, **config}, flags={'allow_objects': True}
-    )
-    return OmegaConf.to_container(config, resolve=True)[key]
 
 
 def collection_set_description(
@@ -55,6 +43,7 @@ def collection_set_description(
         Whether to use omegaconf to resolve descriptions
     """
     from pymongo import UpdateOne
+
     from seml.console import prompt
 
     collection = get_collection(db_collection_name)
@@ -165,7 +154,7 @@ def collection_list_descriptions(db_collection_name: str, update_status: bool = 
     """
     from rich.align import Align
 
-    from seml.console import console, Table
+    from seml.console import Table, console
 
     collection = get_collection(db_collection_name)
 

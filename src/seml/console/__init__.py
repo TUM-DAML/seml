@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.padding import Padding
 from rich.rule import Rule
 
-from seml.typer import prompt as typer_prompt
+from seml.utils.typer import prompt as typer_prompt
 
 try:
     terminal_width = os.get_terminal_size().columns
@@ -65,7 +65,7 @@ def track(*args, **kwargs):
     """
     # Directly return the sequence if the track is disabled. This avoids empty
     # ipywidgets in jupyter instances.
-    if kwargs['disable']:
+    if kwargs.get('disable', False):
         if len(args) == 0:
             yield from kwargs['sequence']
         else:

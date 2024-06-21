@@ -1,13 +1,14 @@
 import unittest
-from seml import start
+
+from seml.experiment.command import value_to_string
 
 
 class TestValueToString(unittest.TestCase):
     def test_literal(self):
         vals = [True, False, None]
         for val in vals:
-            str_json = start.value_to_string(val, use_json=True)
-            str_repr = start.value_to_string(val, use_json=False)
+            str_json = value_to_string(val, use_json=True)
+            str_repr = value_to_string(val, use_json=False)
             self.assertEqual(str_json, str_repr)
 
     def test_list(self):
@@ -48,8 +49,8 @@ class TestValueToString(unittest.TestCase):
                 for val in vals:
                     test_list = raw_list.copy()
                     test_list.insert(pos, val)
-                    str_json = start.value_to_string(test_list, use_json=True)
-                    str_repr = start.value_to_string(test_list, use_json=False)
+                    str_json = value_to_string(test_list, use_json=True)
+                    str_repr = value_to_string(test_list, use_json=False)
                     self.assertEqual(str_json, res_json[ilist][pos].format(val=val))
                     self.assertEqual(str_repr, res_repr[ilist][pos].format(val=val))
 
@@ -106,7 +107,7 @@ class TestValueToString(unittest.TestCase):
                 for val in vals:
                     test_dict = raw_dict.copy()
                     test_dict[key] = val
-                    str_json = start.value_to_string(test_dict, use_json=True)
-                    str_repr = start.value_to_string(test_dict, use_json=False)
+                    str_json = value_to_string(test_dict, use_json=True)
+                    str_repr = value_to_string(test_dict, use_json=False)
                     self.assertEqual(str_json, res_json[idict][ikey].format(val=val))
                     self.assertEqual(str_repr, res_repr[idict][ikey].format(val=val))
