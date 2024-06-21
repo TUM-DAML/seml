@@ -876,7 +876,7 @@ def reload_sources_command(
     )
 
 
-@app.command('update-working-dir', rich_help_panel=_EXPERIMENTS)
+@app.command('update-working-dir', rich_help_panel=_DATABASE)
 @restrict_collection()
 def update_working_dir_command(
     ctx: typer.Context,
@@ -900,7 +900,7 @@ def update_working_dir_command(
     ] = None,
 ):
     """
-    Reload stashed source files.
+    Change the working directory of experiments in case you moved the source code to a different location.
     """
     update_working_dir(
         ctx.obj['collection'],
