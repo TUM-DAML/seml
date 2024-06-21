@@ -288,10 +288,8 @@ def cancel_experiments(
         running_filter = copy.deepcopy(db_filter_dict)
         running_filter = {
             **running_filter,
-            **{
-                'execution.cluster': get_cluster_name(),
-                'execution.array_id': {'$exists': True},
-            },
+            'execution.cluster': get_cluster_name(),
+            'execution.array_id': {'$exists': True},
         }
         running_exps = list(
             collection.find(
