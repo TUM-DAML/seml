@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, List, Optional, Sequence, Union
 from seml.database import get_collection
 from seml.experiment.observers import create_mongodb_observer
 from seml.settings import SETTINGS
-from seml.utils.module_hider import AUTOCOMPLETING
 from seml.utils.multi_process import is_main_process
 
 # These are only used for type hints
@@ -18,6 +17,13 @@ if TYPE_CHECKING:
     from sacred.commandline_options import CLIOption
     from sacred.host_info import HostInfoGetter
     from sacred.utils import PathType
+from sacred import SETTINGS as SACRED_SETTINGS
+from sacred import Experiment as ExperimentBase
+from sacred.config.utils import (
+    dogmatize,
+    recursive_fill_in,
+    undogmatize,
+)
 
 
 class LoggerOptions(Enum):
@@ -26,74 +32,60 @@ class LoggerOptions(Enum):
     RICH = 'rich'
 
 
-# This condition is always met except for if we are in autocompletition at which point
-# the actual class content shouldn't matter, so we replace it with a dummy class w/o imports.
-if TYPE_CHECKING or not AUTOCOMPLETING:
-    from sacred import SETTINGS as SACRED_SETTINGS
-    from sacred import Experiment as ExperimentBase
-    from sacred.config.utils import (
-        dogmatize,
-        recursive_fill_in,
-        undogmatize,
-    )
+class Experiment(ExperimentBase):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        ingredients: Sequence['Ingredient'] = (),
+        interactive: bool = False,
+        base_dir: Optional['PathType'] = None,
+        additional_host_info: Optional[List['HostInfoGetter']] = None,
+        additional_cli_options: Optional[Sequence['CLIOption']] = None,
+        save_git_info: bool = True,
+        add_mongodb_observer: bool = True,
+        logger: Optional[Union[LoggerOptions, str]] = LoggerOptions.RICH,
+        capture_output: Optional[bool] = None,
+        collect_stats: bool = True,
+    ):
+        super().__init__(
+            name=name,
+            ingredients=ingredients,
+            interactive=interactive,
+            base_dir=base_dir,
+            additional_host_info=additional_host_info,
+            additional_cli_options=additional_cli_options,
+            save_git_info=save_git_info,
+        )
+        self.capture_output = capture_output
+        if add_mongodb_observer:
+            self.configurations.append(MongoDbObserverConfig(self))
+        self.configurations.append(ClearObserverForMultiTaskConfig(self))
+        if logger:
+            setup_logger(self, LoggerOptions(logger))
+        if collect_stats:
+            self.post_run_hook(lambda _run: _collect_exp_stats(_run))
 
-    class Experiment(ExperimentBase):
-        def __init__(
-            self,
-            name: Optional[str] = None,
-            ingredients: Sequence['Ingredient'] = (),
-            interactive: bool = False,
-            base_dir: Optional['PathType'] = None,
-            additional_host_info: Optional[List['HostInfoGetter']] = None,
-            additional_cli_options: Optional[Sequence['CLIOption']] = None,
-            save_git_info: bool = True,
-            add_mongodb_observer: bool = True,
-            logger: Optional[Union[LoggerOptions, str]] = LoggerOptions.RICH,
-            capture_output: Optional[bool] = None,
-            collect_stats: bool = True,
-        ):
-            super().__init__(
-                name=name,
-                ingredients=ingredients,
-                interactive=interactive,
-                base_dir=base_dir,
-                additional_host_info=additional_host_info,
-                additional_cli_options=additional_cli_options,
-                save_git_info=save_git_info,
-            )
-            self.capture_output = capture_output
-            if add_mongodb_observer:
-                self.configurations.append(MongoDbObserverConfig(self))
-            self.configurations.append(ClearObserverForMultiTaskConfig(self))
-            if logger:
-                setup_logger(self, LoggerOptions(logger))
-            if collect_stats:
-                self.post_run_hook(lambda _run: _collect_exp_stats(_run))
-
-        def run(
-            self,
-            command_name: Optional[str] = None,
-            config_updates: Optional[dict] = None,
-            named_configs: Sequence[str] = (),
-            info: Optional[dict] = None,
-            meta_info: Optional[dict] = None,
-            options: Optional[dict] = None,
-        ):
-            if (
-                not SETTINGS.EXPERIMENT.CAPTURE_OUTPUT and not self.capture_output
-            ) or self.capture_output is False:
-                SACRED_SETTINGS.CAPTURE_MODE = 'no'
-            super().run(
-                command_name=command_name,
-                config_updates=config_updates,
-                named_configs=named_configs,
-                info=info,
-                meta_info=meta_info,
-                options=options,
-            )
-else:
-    # If we run in autocompletition we create a dummy Experiment class. To avoid the sacred import.
-    class Experiment: ...
+    def run(
+        self,
+        command_name: Optional[str] = None,
+        config_updates: Optional[dict] = None,
+        named_configs: Sequence[str] = (),
+        info: Optional[dict] = None,
+        meta_info: Optional[dict] = None,
+        options: Optional[dict] = None,
+    ):
+        if (
+            not SETTINGS.EXPERIMENT.CAPTURE_OUTPUT and not self.capture_output
+        ) or self.capture_output is False:
+            SACRED_SETTINGS.CAPTURE_MODE = 'no'
+        super().run(
+            command_name=command_name,
+            config_updates=config_updates,
+            named_configs=named_configs,
+            info=info,
+            meta_info=meta_info,
+            options=options,
+        )
 
 
 class MongoDbObserverConfig:
