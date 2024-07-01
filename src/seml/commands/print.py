@@ -24,6 +24,7 @@ from seml.utils import (
     flatten,
     get_from_nested,
     resolve_projection_path_conflicts,
+    s_if,
     slice_to_str,
     to_hashable,
     to_slices,
@@ -653,7 +654,7 @@ def generate_queue_table(
             )
             ids = [exp['_id'] for exp in experiments]
             if len(ids) > 0:
-                return f"{job_id} ({job_info['RunTime']}, {nodelist}, Ids: {'|'.join(map(str, ids))})"
+                return f"{job_id} ({job_info['RunTime']}, {nodelist}, Id{s_if(len(ids))}: {'|'.join(map(str, ids))})"
             else:
                 return f"{job_id} ({job_info['RunTime']}, {nodelist})"
         else:
