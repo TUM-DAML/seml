@@ -151,7 +151,7 @@ def start_sbatch_job(
 
     # Set Slurm job array options
     num_tasks = math.ceil(len(exp_array) / experiments_per_job)
-    sbatch_options['array'] = f'0-{num_tasks}'
+    sbatch_options['array'] = f'0-{num_tasks - 1}'
     if max_simultaneous_jobs is not None:
         sbatch_options['array'] += f'%{max_simultaneous_jobs}'
 
