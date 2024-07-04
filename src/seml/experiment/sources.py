@@ -228,7 +228,7 @@ def delete_orphaned_sources(collection: 'Collection', batch_ids=None):
         # check for any empty batches
         filter_dict = {}
     db_results = collection.find(filter_dict, {'batch_id'})
-    remaining_batch_ids = set([x['batch_id'] for x in db_results])
+    remaining_batch_ids = {x['batch_id'] for x in db_results}
     empty_batch_ids = set(batch_ids) - remaining_batch_ids
     for b_id in empty_batch_ids:
         delete_batch_sources(collection, b_id)

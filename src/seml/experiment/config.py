@@ -145,7 +145,7 @@ def detect_duplicate_parameters(
         else:
             raise ConfigError(f'Found duplicate keys: {duplicate_keys}')
 
-    start_characters = set([x[0] for x in inverted_config.keys()])
+    start_characters = {x[0] for x in inverted_config.keys()}
     buckets = {
         k: {x for x in inverted_config.keys() if x.startswith(k)}
         for k in start_characters
@@ -405,7 +405,7 @@ def generate_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[s
     return result_configs, result_named_configs
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def load_config_dict(cfg_name: str):
     """
     Wrapper around sacred internal function to load a configuration file.
@@ -751,7 +751,7 @@ def read_config(config_path: Union[str, Path]):
     from seml import __version__
     from seml.utils.yaml import YamlUniqueLoader
 
-    with open(config_path, 'r') as conf:
+    with open(config_path) as conf:
         config_dict = convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
 
     if 'seml' not in config_dict:
@@ -892,7 +892,7 @@ def requires_interpolation(
     document: Dict,
     allow_interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
 ) -> bool:
-    """
+    r"""
     Check if a document requires variable interpolation. This is done by checking if
     any value matches the regex: .*\${.+}.*
 

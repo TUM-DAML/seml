@@ -408,7 +408,7 @@ def start_local_job(
 
     except subprocess.CalledProcessError:
         success = False
-    except IOError:
+    except OSError:
         logging.error(f'Log file {output_file} could not be written.')
         # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
         if not unobserved:

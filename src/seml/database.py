@@ -123,7 +123,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
             f"MongoDB credentials could not be read at '{path}'.{config_str}"
         )
 
-    with open(path, 'r') as conf:
+    with open(path) as conf:
         access_dict = yaml.safe_load(conf)
 
     required_entries = ['username', 'password', 'port', 'host', 'database']
@@ -271,7 +271,7 @@ def upload_file(filename, db_collection, batch_id, filetype):
                 },
             )
             return file_id
-    except IOError:
+    except OSError:
         logging.error(f'IOError: could not read {filename}')
     return None
 

@@ -198,7 +198,7 @@ def print_status(
             for values in record[f'projection_{idx}']:
                 for x, y in flatten({f'${idx}': values}).items():
                     result_projection[-1][x].add(to_hashable(y))
-    projection_columns = sorted(set(k for record in result_projection for k in record))
+    projection_columns = sorted({k for record in result_projection for k in record})
     # For the column headers, we replace ${id} with the projection key
     columns = []
     for projection_column in projection_columns:
@@ -210,11 +210,11 @@ def print_status(
                 f'${projection_key_idx}', projection[projection_key_idx]
             )
         )
-    duplicate_experiment_ids = set(
+    duplicate_experiment_ids = {
         experiment_id
         for dups in detect_duplicates(db_collection_name)
         for experiment_id in dups
-    )
+    }
 
     if show_descriptions:
         columns.insert(0, 'Descriptions')
@@ -309,7 +309,7 @@ def print_collections(
 
     # Count the number of experiments in each state
     name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
-    name_to_descriptions = defaultdict(lambda: '')
+    name_to_descriptions = defaultdict(str)
     it = track(collection_names, disable=not progress)
 
     inv_states = {v: k for k, states in States.items() for v in states}
@@ -545,11 +545,11 @@ def print_output(
                     continue
             # Actually read
             try:
-                with open(out_file, mode='r', newline='', errors='replace') as f:
+                with open(out_file, newline='', errors='replace') as f:
                     for line in f:
                         console.print(line[:-1], end=line[-1])
                     console.print()  # new line
-            except IOError:
+            except OSError:
                 logging.info(f'File {out_file} could not be read.')
                 if 'captured_out' in exp and exp['captured_out']:
                     logging.info('Captured output from DB:')

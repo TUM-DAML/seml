@@ -452,7 +452,7 @@ class DiskCachedFunction(Generic[R]):
                     cache = json.load(f)
                 if cache['expire'] > time.time():
                     return cache['result']
-            except IOError:
+            except OSError:
                 pass
             except json.JSONDecodeError:
                 pass
@@ -462,7 +462,7 @@ class DiskCachedFunction(Generic[R]):
         try:
             with open(self.cache_path, 'w') as f:
                 json.dump(cache, f)
-        except IOError:
+        except OSError:
             # If the writing fails for any reason we can just continue.
             pass
         return result
@@ -472,7 +472,7 @@ class DiskCachedFunction(Generic[R]):
             try:
                 os.remove(self.cache_path)
                 return True
-            except IOError:
+            except OSError:
                 return False
         return False
 
@@ -707,13 +707,13 @@ def find_jupyter_host(
         log_file_contents = ''
         while ' is running at' not in log_file_contents:
             if os.path.exists(log_file):
-                with open(log_file, 'r') as f:
+                with open(log_file) as f:
                     log_file_contents = f.read()
             time.sleep(0.5)
     else:
         if not os.path.exists(log_file):
             return None, None
-        with open(log_file, 'r') as f:
+        with open(log_file) as f:
             log_file_contents = f.read()
         if ' is running at' not in log_file_contents:
             return None, None

@@ -7,7 +7,7 @@ from typing import Dict, Optional, Union
 from seml.settings import SETTINGS
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_cluster_name():
     """
     Retrieves the name of the cluster from the Slurm configuration.

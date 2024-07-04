@@ -34,7 +34,7 @@ class ModuleHider(MetaPathFinder):
             # a special case for munch <3
             if fullname == 'importlib_metadata':
                 return spec_from_loader(fullname, FakeImportlibMetadata())
-            raise ImportError('No module named {}'.format(fullname))
+            raise ImportError(f'No module named {fullname}')
 
     def __enter__(self):
         if self.hide:

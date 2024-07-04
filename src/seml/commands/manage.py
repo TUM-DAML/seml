@@ -83,12 +83,12 @@ def cancel_empty_pending_jobs(db_collection_name: str, *sacred_ids: int):
         # There are still pending experiments, we don't want to cancel the jobs.
         return
     pending_exps = list(collection.find({'_id': {'$in': sacred_ids}}, {'slurm'}))
-    array_ids = set(
+    array_ids = {
         conf['array_id']
         for exp in pending_exps
         for conf in exp['slurm']
         if 'array_id' in conf
-    )
+    }
     # Only cancel the pending jobs
     cancel_slurm_jobs(*array_ids, state='PENDING')
 
@@ -308,23 +308,21 @@ def cancel_experiments(
         collection.update_many(db_filter_dict, cancel_update)
 
         # Cancel pending jobs that will not execute anything
-        array_ids = set(
+        array_ids = {
             conf['array_id']
             for exp in to_cancel_arr_ids
             for conf in exp['slurm']
             if 'array_id' in conf
-        )
+        }
         canceled = cancel_jobs_without_experiments(*array_ids)
 
         # set of slurm IDs in the database
-        slurm_ids = set(
-            [
-                (e['execution']['array_id'], e['execution']['task_id'])
-                for e in running_exps
-            ]
-        )
+        slurm_ids = {
+            (e['execution']['array_id'], e['execution']['task_id'])
+            for e in running_exps
+        }
         # set of experiment IDs to be cancelled.
-        exp_ids = set([e['_id'] for e in running_exps])
+        exp_ids = {e['_id'] for e in running_exps}
         to_cancel = set()
 
         # iterate over slurm IDs to check which slurm jobs can be cancelled altogether
@@ -339,7 +337,7 @@ def cancel_experiments(
                     and e['status'] in States.RUNNING
                 )
             ]
-            running_exp_ids = set(e['_id'] for e in jobs_running)
+            running_exp_ids = {e['_id'] for e in jobs_running}
             if len(running_exp_ids.difference(exp_ids)) == 0:
                 # there are no running jobs in this slurm job that should not be canceled.
                 to_cancel.add(f'{a_id}_{t_id}')
@@ -426,7 +424,7 @@ def delete_experiments(
     if sacred_id is not None and ndelete == 0:
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
     batch_ids = collection.find(filter_dict, {'batch_id'})
-    batch_ids_in_del = set([x.get('batch_id', -1) for x in batch_ids])
+    batch_ids_in_del = {x.get('batch_id', -1) for x in batch_ids}
 
     logging.info(
         f'Deleting {ndelete} configuration{s_if(ndelete)} from database collection.'
@@ -550,7 +548,7 @@ def reset_single_experiment(collection: 'Collection', exp: Dict):
     ]
 
     # Clean up SEML dictionary
-    keep_seml = set(['source_files', 'working_dir', SETTINGS.SEML_CONFIG_VALUE_VERSION])
+    keep_seml = {'source_files', 'working_dir', SETTINGS.SEML_CONFIG_VALUE_VERSION}
     keep_seml.update(SETTINGS.VALID_SEML_CONFIG_VALUES)
     seml_keys = set(exp['seml'].keys())
     for key in seml_keys - keep_seml:
@@ -664,12 +662,12 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                     {'_id': exp['_id']}, {'$set': {'status': States.KILLED[0]}}
                 )
                 try:
-                    with open(exp['seml']['output_file'], 'r', errors='replace') as f:
+                    with open(exp['seml']['output_file'], errors='replace') as f:
                         all_lines = f.readlines()
                     collection.update_one(
                         {'_id': exp['_id']}, {'$set': {'fail_trace': all_lines[-4:]}}
                     )
-                except IOError:
+                except OSError:
                     # If the experiment is cancelled before starting (e.g. when still queued), there is not output file.
                     logging.verbose(
                         f"File {exp['seml']['output_file']} could not be read."

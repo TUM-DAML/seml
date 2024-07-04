@@ -1451,7 +1451,7 @@ class CommandTreeNode:
     groups: Dict[str, 'CommandTreeNode']
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def command_tree(app: typer.Typer) -> CommandTreeNode:
     return CommandTreeNode(
         commands={

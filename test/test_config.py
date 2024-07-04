@@ -58,7 +58,7 @@ class TestParseConfigDicts(unittest.TestCase):
     )
 
     def load_config_dict(self, path):
-        with open(path, "r") as conf:
+        with open(path) as conf:
             config_dict = config.convert_values(yaml.load(conf, Loader=yaml.FullLoader))
         return config_dict
 
