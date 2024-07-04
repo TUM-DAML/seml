@@ -61,7 +61,6 @@ def init_project(
         ):
             exit(1)
 
-    tmp_dir = checkout_template_repo(git_remote, git_commit)
     with checkout_template_repo(git_remote, git_commit) as tmp_dir:
         template_path = tmp_dir / 'templates' / template
         if not template_path.exists():
