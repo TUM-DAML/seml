@@ -29,4 +29,11 @@ repos:
     rev: v3.16.0
     hooks:
       - id: pyupgrade
+        name: pyupgrade
         args: [--py38-plus]
+        exclude: .*\/__main__.py
+      # typer doesn't supper PEP604 yet, so let's stick to the old typing
+      - id: pyupgrade
+        name: pyupgrade (__main__.py)
+        args: [--py38-plus, --keep-runtime-typing]
+        files: .*\/__main__.py
