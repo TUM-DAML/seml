@@ -3,6 +3,7 @@ import os
 import re
 import time
 from collections import defaultdict
+from io import TextIOWrapper
 from typing import Dict, List, Optional, Sequence
 
 from seml.commands.manage import detect_duplicates, detect_killed, should_check_killed
@@ -488,6 +489,8 @@ def print_output(
     batch_id: Optional[int] = None,
     filter_dict: Optional[Dict] = None,
     slurm: bool = False,
+    head: Optional[int] = None,
+    tail: Optional[int] = None,
 ):
     """
     Prints the output of experiments
@@ -506,8 +509,14 @@ def print_output(
         Additional filters, by default None
     slurm : bool, optional
         Whether to print the Slurm output instead of the experiment output, by default False
+    head : Optional[int], optional
+        The number of lines to print from the beginning of the output, by default None
+    tail : Optional[int], optional
+        The number of lines to print from the end of the output, by default None
     """
     from seml.console import Heading, console, pause_live_widget
+
+    assert tail is None or head is None, 'Cannot specify both tail and head.'
 
     filter_dict = build_filter_dict(
         filter_states, batch_id, filter_dict, sacred_id=sacred_id
@@ -523,6 +532,27 @@ def print_output(
             'execution': 1,
         },
     )
+
+    def print_head(file: TextIOWrapper):
+        for i, line in enumerate(file):
+            console.print(line[:-1], end=line[-1])
+            if head is not None and i >= head:
+                break
+
+    def print_tail(file: TextIOWrapper):
+        from collections import deque
+
+        last_rows: deque[str] = deque([], maxlen=tail)
+        for line in file:
+            last_rows.append(line)
+
+        for line in last_rows:
+            console.print(line[:-1], end=line[-1])
+
+    def print_all(file: TextIOWrapper):
+        for line in file:
+            console.print(line[:-1], end=line[-1])
+
     count = 0
     for exp in experiments:
         count += 1
@@ -546,9 +576,13 @@ def print_output(
             # Actually read
             try:
                 with open(out_file, newline='', errors='replace') as f:
-                    for line in f:
-                        console.print(line[:-1], end=line[-1])
-                    console.print()  # new line
+                    if head:
+                        print_head(f)
+                    elif tail:
+                        print_tail(f)
+                    else:
+                        print_all(f)
+                console.print()  # new line
             except OSError:
                 logging.info(f'File {out_file} could not be read.')
                 if 'captured_out' in exp and exp['captured_out']:

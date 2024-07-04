@@ -1006,6 +1006,22 @@ def print_output_command(
             is_flag=True,
         ),
     ] = False,
+    head: Annotated[
+        Optional[int],
+        typer.Option(
+            '-h',
+            '--head',
+            help='Print the first n lines of the output.',
+        ),
+    ] = None,
+    tail: Annotated[
+        Optional[int],
+        typer.Option(
+            '-t',
+            '--tail',
+            help='Print the last n lines of the output.',
+        ),
+    ] = None,
 ):
     """
     Print the output of experiments.
@@ -1017,6 +1033,8 @@ def print_output_command(
         batch_id=batch_id,
         filter_dict=filter_dict,
         slurm=slurm,
+        head=head,
+        tail=tail,
     )
 
 
