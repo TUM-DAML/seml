@@ -654,11 +654,10 @@ def generate_queue_table(
         collections.add(collection)
 
     # Print the collections
-    states = sorted(states)
-    collections = sorted(collections)
+    sorted_states = sorted(states)
     table = Table(
         'Collection',
-        *states,
+        *map(str.title, sorted_states),
         show_header=True,
     )
     cluster_name = get_cluster_name()
@@ -694,9 +693,9 @@ def generate_queue_table(
         else:
             return f"{job_id} ({job_info.get('Reason', '')})"
 
-    for col in collections:
+    for col in sorted(collections):
         row = [col]
-        for state in states:
+        for state in sorted_states:
             jobs = collection_to_jobs[(col, state)]
             row.append('\n'.join(map(format_job, jobs, [col] * len(jobs))))
         table.add_row(*row)
