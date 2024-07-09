@@ -499,6 +499,8 @@ $ seml print-output [OPTIONS]
 * `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-sl, --slurm`: Whether to print the Slurm output instead of the experiment output.
+* `-h, --head INTEGER`: Print the first n lines of the output.
+* `-t, --tail INTEGER`: Print the last n lines of the output.
 * `--help`: Show this message and exit.
 
 ## `seml project`
