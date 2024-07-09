@@ -1,6 +1,6 @@
 [project]
 name = "seml"
-version = "0.5.0"
+version = "0.5.1"
 description = "Slurm Experiment Management Library"
 readme = "README.md"
 requires-python = ">=3.8"
