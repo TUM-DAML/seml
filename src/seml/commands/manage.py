@@ -153,9 +153,9 @@ def cancel_experiment_by_id(
     slurm_dict : Optional[Dict], optional
         Optional updates to the slurm dict of the experiments, by default None
     wait : bool, optional
-        Whether to wait for the cancellation by checking the slurm queue, by default False
+        Whether to wait for the cancelation by checking the slurm queue, by default False
     timeout : int, optional
-        The timeout in seconds to wait for the cancellation, by default SETTINGS.CANCEL_TIMEOUT
+        The timeout in seconds to wait for the cancelation, by default SETTINGS.CANCEL_TIMEOUT
     """
 
     exp = collection.find_one({'_id': exp_id})
@@ -254,11 +254,11 @@ def cancel_experiments(
     yes : bool, optional
         Whether to override confirmation prompts, by default False
     wait : bool, optional
-        Whether to wait for all experiments be cancelled (by checking the slurm queue), by default False
+        Whether to wait for all experiments be canceled (by checking the slurm queue), by default False
     confirm_threshold : int, optional
         The threshold for the number of experiments to cancel before asking for confirmation, by default SETTINGS.CONFIRM_THRESHOLD.CANCEL
     timeout : int, optional
-        The timeout in seconds to wait for the cancellation, by default SETTINGS.CANCEL_TIMEOUT
+        The timeout in seconds to wait for the cancelation, by default SETTINGS.CANCEL_TIMEOUT
     """
     from seml.console import prompt
 
@@ -280,7 +280,7 @@ def cancel_experiments(
         if sacred_id is not None and ncancel == 0:
             logging.error(f'No experiment found with ID {sacred_id}.')
 
-        logging.info(f'Cancelling {ncancel} experiment{s_if(ncancel)}.')
+        logging.info(f'Canceling {ncancel} experiment{s_if(ncancel)}.')
         if ncancel >= confirm_threshold:
             if not yes and not prompt('Are you sure? (y/n)', type=bool):
                 exit(1)
@@ -321,11 +321,11 @@ def cancel_experiments(
             (e['execution']['array_id'], e['execution']['task_id'])
             for e in running_exps
         }
-        # set of experiment IDs to be cancelled.
+        # set of experiment IDs to be canceled.
         exp_ids = {e['_id'] for e in running_exps}
         to_cancel = set()
 
-        # iterate over slurm IDs to check which slurm jobs can be cancelled altogether
+        # iterate over slurm IDs to check which slurm jobs can be canceled altogether
         for a_id, t_id in slurm_ids:
             # find experiments RUNNING under the slurm job
             jobs_running = [
@@ -668,7 +668,7 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                         {'_id': exp['_id']}, {'$set': {'fail_trace': all_lines[-4:]}}
                     )
                 except OSError:
-                    # If the experiment is cancelled before starting (e.g. when still queued), there is not output file.
+                    # If the experiment is canceled before starting (e.g. when still queued), there is not output file.
                     logging.verbose(
                         f"File {exp['seml']['output_file']} could not be read."
                     )
