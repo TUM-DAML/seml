@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import sys
 from importlib.abc import Loader, MetaPathFinder
@@ -14,13 +16,13 @@ class FakeImportlibMetadata(Loader):
         return None
 
     def exec_module(self, module):
-        module.PackageNotFoundError = PackageNotFoundError
+        module.PackageNotFoundError = PackageNotFoundError  # type: ignore
 
         def version(package):
             return '0.0.0'
 
-        module.version = version
-        module.metadata = lambda name: {'version': '0.0.0'}
+        module.version = version  # type: ignore
+        module.metadata = lambda name: {'version': '0.0.0'}  # type: ignore
 
 
 class ModuleHider(MetaPathFinder):

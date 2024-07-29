@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import copy
 import itertools
 import logging
 import re
 import subprocess
-from typing import TYPE_CHECKING, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Iterable, cast
 
 from seml.database import (
     build_filter_dict,
@@ -12,6 +14,7 @@ from seml.database import (
     get_database,
     get_mongodb_config,
 )
+from seml.document import ExperimentDoc
 from seml.experiment.config import (
     check_config,
     config_get_exclude_keys,
@@ -43,7 +46,7 @@ if TYPE_CHECKING:
     from pymongo.collection import Collection
 
 
-def should_check_killed(filter_states: Optional[List[str]]) -> bool:
+def should_check_killed(filter_states: list[str] | None) -> bool:
     """Checks whether killed experiments should be checked
 
     Parameters
@@ -133,10 +136,10 @@ def cancel_jobs_without_experiments(*slurm_array_ids: str):
 
 
 def cancel_experiment_by_id(
-    collection: 'Collection',
+    collection: Collection,
     exp_id: int,
     set_interrupted: bool = True,
-    slurm_dict: Optional[Dict] = None,
+    slurm_dict: dict | None = None,
     wait: bool = False,
     timeout: int = SETTINGS.CANCEL_TIMEOUT,
 ):
@@ -176,12 +179,7 @@ def cancel_experiment_by_id(
     # check if the job has been claimed and associated with a concrete job
     is_running = 'array_id' in exp['execution']
     if is_running:
-        job_str = f"{exp['execution']['array_id']}_{exp['execution']['task_id']}"
-        job_strings = [job_str]
-        filter_dict = {
-            'execution.array_id': exp['execution']['array_id'],
-            'execution.task_id': exp['execution']['task_id'],
-        }
+        job_strings = [f"{exp['execution']['array_id']}_{exp['execution']['task_id']}"]
     else:
         job_strings = list(map(str, array_ids))
 
@@ -205,13 +203,20 @@ def cancel_experiment_by_id(
 
     if is_running:
         # Check if other experiments are running in the same job
-        other_exps_filter = filter_dict.copy()
-        other_exps_filter['_id'] = {'$ne': exp_id}
-        other_exps_filter['status'] = {'$in': [*States.RUNNING, *States.PENDING]}
-        other_exp_running = collection.count_documents(other_exps_filter) >= 1
+        filter_dict = {
+            'execution.array_id': exp['execution']['array_id'],
+            'execution.task_id': exp['execution']['task_id'],
+        }
+        filter_dict_others = {
+            **filter_dict,
+            '_id': {'$ne': exp_id},
+            'status': {'$in': [*States.RUNNING, *States.PENDING]},
+        }
+        other_exp_running = collection.count_documents(filter_dict_others) >= 1
 
         # Cancel if no other experiments are running in the same job
         if not other_exp_running:
+            job_str = job_strings[0]
             cancel_slurm_jobs(job_str)
             # Wait until the job is actually gone
             if wait and not wait_until_slurm_jobs_finished(job_str, timeout=timeout):
@@ -228,10 +233,10 @@ def cancel_experiment_by_id(
 
 def cancel_experiments(
     db_collection_name: str,
-    sacred_id: Optional[int] = None,
-    filter_states: Optional[List[str]] = None,
-    batch_id: Optional[int] = None,
-    filter_dict: Optional[Dict] = None,
+    sacred_id: int | None = None,
+    filter_states: list[str] | None = None,
+    batch_id: int | None = None,
+    filter_dict: dict | None = None,
     yes: bool = False,
     wait: bool = False,
     confirm_threshold: int = SETTINGS.CONFIRM_THRESHOLD.CANCEL,
@@ -370,10 +375,10 @@ def cancel_experiments(
 
 def delete_experiments(
     db_collection_name: str,
-    sacred_id: Optional[int] = None,
-    filter_states: Optional[List[str]] = None,
-    batch_id: Optional[int] = None,
-    filter_dict: Optional[Dict] = None,
+    sacred_id: int | None = None,
+    filter_states: list[str] | None = None,
+    batch_id: int | None = None,
+    filter_dict: dict | None = None,
     yes: bool = False,
     cancel: bool = True,
 ):
@@ -423,7 +428,7 @@ def delete_experiments(
     ndelete = collection.count_documents(filter_dict)
     if sacred_id is not None and ndelete == 0:
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
-    batch_ids = collection.find(filter_dict, {'batch_id'})
+    batch_ids: Iterable[ExperimentDoc] = collection.find(filter_dict, {'batch_id'})
     batch_ids_in_del = {x.get('batch_id', -1) for x in batch_ids}
 
     logging.info(
@@ -460,7 +465,7 @@ def delete_experiments(
 
 
 def drop_collections(
-    pattern: str, mongodb_config: Optional[Dict] = None, yes: bool = False
+    pattern: str, mongodb_config: dict | None = None, yes: bool = False
 ):
     """
     Drops collections matching the given pattern.
@@ -500,7 +505,7 @@ def drop_collections(
         delete_experiments(name, yes=True)
 
 
-def reset_slurm_dict(exp: Dict):
+def reset_slurm_dict(exp: dict):
     """Resets the slurm dict of an experiment
 
     Parameters
@@ -522,7 +527,7 @@ def reset_slurm_dict(exp: Dict):
             del sub_conf['sbatch_options'][key]
 
 
-def reset_single_experiment(collection: 'Collection', exp: Dict):
+def reset_single_experiment(collection: Collection, exp: dict):
     """Resets a single experiment
 
     Parameters
@@ -565,10 +570,10 @@ def reset_single_experiment(collection: 'Collection', exp: Dict):
 
 def reset_experiments(
     db_collection_name: str,
-    sacred_id: Optional[int] = None,
-    filter_states: Optional[List[str]] = None,
-    batch_id: Optional[int] = None,
-    filter_dict: Optional[Dict] = None,
+    sacred_id: int | None = None,
+    filter_states: list[str] | None = None,
+    batch_id: int | None = None,
+    filter_dict: dict | None = None,
     yes: bool = False,
 ):
     """Resets experiments
@@ -635,17 +640,17 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
     running_jobs = get_slurm_arrays_tasks()
     nkilled = 0
     for exp in exps:
+        exp = cast(ExperimentDoc, exp)
         # detect whether the experiment is running in slurm
-        exp_running = exp['execution'].get('array_id', -1) in running_jobs and (
-            any(
-                exp['execution']['task_id'] in r
-                for r in running_jobs[exp['execution']['array_id']][0]
-            )
-            or exp['execution']['task_id']
-            in running_jobs[exp['execution']['array_id']][1]
+        assert 'execution' in exp
+        arr_id = exp['execution'].get('array_id', -1)
+        task_id = exp['execution'].get('task_id', -1)
+        exp_running = arr_id in running_jobs and (
+            any(task_id in r for r in running_jobs[arr_id][0])
+            or task_id in running_jobs[arr_id][1]
         )
         # detect whether any job that could execute it is pending
-        array_ids = [conf['array_id'] for conf in exp['slurm']]
+        array_ids = [conf.get('array_id') for conf in exp['slurm']]
         # Any of these jobs may still pull the experiment and run it
         exp_pending = any(array_id in running_jobs for array_id in array_ids)
 
@@ -661,26 +666,24 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                 collection.update_one(
                     {'_id': exp['_id']}, {'$set': {'status': States.KILLED[0]}}
                 )
-                try:
-                    with open(exp['seml']['output_file'], errors='replace') as f:
-                        all_lines = f.readlines()
-                    collection.update_one(
-                        {'_id': exp['_id']}, {'$set': {'fail_trace': all_lines[-4:]}}
-                    )
-                except OSError:
-                    # If the experiment is canceled before starting (e.g. when still queued), there is not output file.
-                    logging.verbose(
-                        f"File {exp['seml']['output_file']} could not be read."
-                    )
-                except KeyError:
-                    logging.verbose(
-                        f"Output file not found in experiment {exp['_id']}."
-                    )
+                if output_file := exp['seml'].get('output_file', None) is not None:
+                    try:
+                        with open(output_file, errors='replace') as f:
+                            all_lines = f.readlines()
+                        collection.update_one(
+                            {'_id': exp['_id']},
+                            {'$set': {'fail_trace': all_lines[-4:]}},
+                        )
+                    except OSError:
+                        # If the experiment is canceled before starting (e.g. when still queued), there is not output file.
+                        logging.debug(f'File {output_file} could not be read.')
+                else:
+                    logging.debug(f"Output file not found in experiment {exp['_id']}.")
     if print_detected:
         logging.info(f'Detected {nkilled} externally killed experiment{s_if(nkilled)}.')
 
 
-def get_experiment_files(experiment: Dict) -> List[str]:
+def get_experiment_files(experiment: dict) -> list[str]:
     """Gets the file ids of files associated with an experiment
 
     Parameters
@@ -705,7 +708,7 @@ def get_experiment_files(experiment: Dict) -> List[str]:
 
 def reload_sources(
     db_collection_name: str,
-    batch_ids: Optional[List[int]] = None,
+    batch_ids: list[int] | None = None,
     keep_old: bool = False,
     yes: bool = False,
 ):
@@ -742,7 +745,7 @@ def reload_sources(
             filter_dict, {'batch_id', 'seml', 'config', 'status', 'config_unresolved'}
         )
     )
-    id_to_document = {}
+    id_to_document: dict[int, list[ExperimentDoc]] = {}
     for bid, documents in itertools.groupby(db_results, lambda x: x['batch_id']):
         id_to_document[bid] = list(documents)
     states = {x['status'] for x in db_results}
@@ -798,7 +801,7 @@ def reload_sources(
                     SETTINGS.CONFIG_KEY_SEED
                 ]
 
-        documents = [
+        new_documents = [
             resolve_interpolations(
                 {
                     **{**document, 'config': config},
@@ -827,7 +830,7 @@ def reload_sources(
                         }
                     },
                 )
-                for document in documents
+                for document in new_documents
             ]
         )
         logging.info(
@@ -899,8 +902,8 @@ def reload_sources(
 
 
 def detect_duplicates(
-    db_collection_name: str, filter_dict: Optional[Dict] = None
-) -> List[Set[int]]:
+    db_collection_name: str, filter_dict: dict | None = None
+) -> list[set[int]]:
     """Finds duplicate configurations based on their hashes.
 
     Parameters

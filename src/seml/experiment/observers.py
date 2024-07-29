@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import logging
 import os
+from typing import Any
 
 from seml.database import get_mongo_client, get_mongodb_config
 from seml.settings import SETTINGS
@@ -22,7 +25,11 @@ __all__ = [
     'Either disable the default observer (seml.experiment.Experiment(add_mongodb_observer=False)) \n'
     'or remove the explicit call to create_mongodb_observer.'
 )
-def create_mongodb_observer(collection, mongodb_config=None, overwrite=None):
+def create_mongodb_observer(
+    collection: str,
+    mongodb_config: dict[str, Any] | None = None,
+    overwrite: int | None = None,
+):
     """Create a MongoDB observer for a Sacred experiment
 
     Parameters
@@ -52,7 +59,9 @@ def create_mongodb_observer(collection, mongodb_config=None, overwrite=None):
     return observer
 
 
-def create_file_storage_observer(runs_folder_name, basedir=None, **kwargs):
+def create_file_storage_observer(
+    runs_folder_name: str, basedir: str | None = None, **kwargs
+):
     from sacred.observers import FileStorageObserver
 
     if basedir is None:
@@ -65,11 +74,13 @@ def create_file_storage_observer(runs_folder_name, basedir=None, **kwargs):
         logging.info(
             f'Starting file observer in location {basedir}/{runs_folder_name}.'
         )
-    observer = FileStorageObserver(f'{basedir}/{runs_folder_name}', kwargs)
+    observer = FileStorageObserver(f'{basedir}/{runs_folder_name}', **kwargs)
     return observer
 
 
-def add_to_file_storage_observer(file, experiment, delete_local_file=False):
+def add_to_file_storage_observer(
+    file: str, experiment, delete_local_file: bool = False
+):
     """
 
     Parameters
@@ -101,17 +112,13 @@ def add_to_file_storage_observer(file, experiment, delete_local_file=False):
         os.remove(file)
 
 
-def create_slack_observer(webhook=None):
+def create_slack_observer(webhook: str | None = None):
     from sacred.observers import SlackObserver
 
     slack_obs = None
     if webhook is None:
-        if 'OBSERVERS' in SETTINGS and 'SLACK' in SETTINGS.OBSERVERS:
-            if 'WEBHOOK' in SETTINGS.OBSERVERS.SLACK:
-                webhook = SETTINGS.OBSERVERS.SLACK.WEBHOOK
-                slack_obs = SlackObserver(webhook)
-    else:
-        slack_obs = SlackObserver(webhook)
+        webhook = SETTINGS.get('OBSERVERS', {}).get('SLACK', {}).get('WEBHOOK')
+    slack_obs = SlackObserver(webhook)
 
     if slack_obs is None:
         logging.warning('Failed to create Slack observer.')
@@ -159,7 +166,7 @@ def create_neptune_observer(
     project_name, api_token=None, source_extensions=['**/*.py', '**/*.yaml', '**/*.yml']
 ):
     try:
-        from neptunecontrib.monitoring.sacred import NeptuneObserver
+        from neptunecontrib.monitoring.sacred import NeptuneObserver  # type: ignore
     except ImportError:
         logging.error(
             'Could not import neptunecontrib. Install via `pip install neptune-contrib`.'

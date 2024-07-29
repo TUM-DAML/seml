@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 import copy
 import datetime
 import logging
 import os
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, cast
 
 from seml.database import get_collection, get_max_in_collection
+from seml.document import ExperimentDoc, SBatchOptions, SemlDoc, SlurmDoc
 from seml.experiment.config import (
     check_config,
     config_get_exclude_keys,
@@ -30,14 +33,14 @@ from seml.utils import (
 from seml.utils.errors import ConfigError
 
 if TYPE_CHECKING:
-    import pymongo
+    import pymongo.collection
 
 States = SETTINGS.STATES
 
 
 def filter_experiments(
-    collection: 'pymongo.collection.Collection',
-    documents: List[Dict],
+    collection: pymongo.collection.Collection,
+    documents: list[ExperimentDoc],
     use_hash: bool = True,
 ):
     """Check database collection for already present entries.
@@ -61,7 +64,7 @@ def filter_experiments(
         No longer contains configurations that are already in the database collection.
 
     """
-    filtered_documents = []
+    filtered_documents: list[ExperimentDoc] = []
     for document in documents:
         if use_hash:
             lookup_result = collection.find_one(
@@ -71,7 +74,7 @@ def filter_experiments(
             lookup_dict = flatten(
                 {
                     'config': remove_keys_from_nested(
-                        document['config'], document['config_unresolved']
+                        document['config'], document['config_unresolved'].keys()
                     )
                 }
             )
@@ -81,10 +84,75 @@ def filter_experiments(
     return filtered_documents
 
 
+def remove_duplicates(
+    collection: pymongo.collection.Collection,
+    documents: Sequence[ExperimentDoc],
+    use_hash: bool,
+):
+    """
+    Returns a new list of documents that do not contain duplicates in the database or within the input list.
+
+    Parameters
+    ----------
+    collection: pymongo.collection.Collection
+        The MongoDB collection containing the experiments.
+    documents: Sequence[ExperimentDoc]
+        The documents to filter.
+    use_hash : bool
+        Whether to use hashes (faster)
+
+    Returns
+    -------
+    filtered_configs: list of ExperimentDoc
+        No longer contains configurations that are already in the database collection.
+    """
+    if len(documents) == 0:
+        return list(documents)
+    len_before = len(documents)
+
+    # First, check for duplicates withing the experiment configurations from the file.
+    if not use_hash:
+        # slow duplicate detection without hashes
+        unique_documents, unique_keys = [], set()
+        for document in documents:
+            key = Hashabledict(
+                **remove_keys_from_nested(
+                    document['config'],
+                    config_get_exclude_keys(
+                        document['config'], document['config_unresolved']
+                    ),
+                )
+            )
+            if key not in unique_keys:
+                unique_documents.append(document)
+                unique_keys.add(key)
+        documents = unique_documents
+    else:
+        # fast duplicate detection using hashing.
+        documents_dict = {document['config_hash']: document for document in documents}
+        documents = list(documents_dict.values())
+
+    len_after_deduplication = len(documents)
+    # Now, check for duplicate configurations in the database.
+    documents = filter_experiments(collection, documents, use_hash=use_hash)
+    len_after = len(documents)
+    if len_after_deduplication != len_before:
+        logging.info(
+            f'{len_before - len_after_deduplication} of {len_before} experiment{s_if(len_before)} were '
+            f'duplicates. Adding only the {len_after_deduplication} unique configurations.'
+        )
+    if len_after != len_after_deduplication:
+        logging.info(
+            f'{len_after_deduplication - len_after} of {len_after_deduplication} '
+            f'experiment{s_if(len_before)} were already found in the database. They were not added again.'
+        )
+    return documents
+
+
 def add_configs(
-    collection: 'pymongo.collection.Collection',
-    documents: List[Dict],
-    description: Optional[str] = None,
+    collection: pymongo.collection.Collection,
+    documents: list[ExperimentDoc],
+    description: str | None = None,
     resolve_descriptions: bool = True,
 ):
     """Put the input configurations into the database.
@@ -115,14 +183,17 @@ def add_configs(
     )
 
     documents = [
-        {
-            **document,
-            **{
-                '_id': start_id + idx,
-                'status': States.STAGED[0],
-                'add_time': datetime.datetime.utcnow(),
+        cast(
+            ExperimentDoc,
+            {
+                **document,
+                **{
+                    '_id': start_id + idx,
+                    'status': States.STAGED[0],
+                    'add_time': datetime.datetime.utcnow(),
+                },
             },
-        }
+        )
         for idx, document in enumerate(documents)
     ]
     if description is not None:
@@ -140,13 +211,13 @@ def add_configs(
 
 def add_config_files(
     db_collection_name: str,
-    config_files: List[str],
+    config_files: list[str],
     force_duplicates: bool = False,
-    overwrite_params: Optional[Dict] = None,
+    overwrite_params: dict | None = None,
     no_hash: bool = False,
     no_sanity_check: bool = False,
     no_code_checkpoint: bool = False,
-    description: Optional[str] = None,
+    description: str | None = None,
     resolve_descriptions: bool = True,
 ):
     """Adds configuration files to the MongoDB
@@ -187,7 +258,7 @@ def add_config_files(
         )
 
 
-def assemble_slurm_config_dict(experiment_slurm_config: dict):
+def assemble_slurm_config_dict(experiment_slurm_config: SlurmDoc):
     """
     Realize inheritance for the slurm configuration, with the following relationship:
     Default -> Template -> Experiment
@@ -206,7 +277,7 @@ def assemble_slurm_config_dict(experiment_slurm_config: dict):
     # Assemble the Slurm config:
     # Basis config is the default config. This can be overridden by the sbatch_options_template.
     # And this in turn can be overridden by the sbatch config defined in the experiment .yaml file.
-    slurm_config_base = copy.deepcopy(SETTINGS.SLURM_DEFAULT)
+    slurm_config_base = cast(SlurmDoc, copy.deepcopy(SETTINGS.SLURM_DEFAULT))
 
     # Check for and use sbatch options template
     sbatch_options_template = slurm_config.get('sbatch_options_template', None)
@@ -223,21 +294,22 @@ def assemble_slurm_config_dict(experiment_slurm_config: dict):
     # Integrate experiment specific config
     slurm_config = merge_dicts(slurm_config_base, slurm_config)
 
-    slurm_config['sbatch_options'] = remove_prepended_dashes(
-        slurm_config['sbatch_options']
+    slurm_config['sbatch_options'] = cast(
+        SBatchOptions,
+        remove_prepended_dashes(cast(Dict[str, Any], slurm_config['sbatch_options'])),
     )
-    return slurm_config
+    return cast(SlurmDoc, slurm_config)
 
 
 def add_config_file(
     db_collection_name: str,
     config_file: str,
     force_duplicates: bool = False,
-    overwrite_params: Optional[Dict] = None,
+    overwrite_params: dict[str, Any] | None = None,
     no_hash: bool = False,
     no_sanity_check: bool = False,
     no_code_checkpoint: bool = False,
-    description: Optional[str] = None,
+    description: str | None = None,
     resolve_descriptions: bool = True,
 ):
     """Adds configuration files to the MongoDB
@@ -271,14 +343,11 @@ def add_config_file(
     if 'conda_environment' not in seml_config:
         seml_config['conda_environment'] = os.environ.get('CONDA_DEFAULT_ENV')
 
-    path, commit, dirty = get_git_info(
-        seml_config['executable'], seml_config['working_dir']
-    )
-    git_info = None
-    if path is not None:
-        git_info = {'path': path, 'commit': commit, 'dirty': dirty}
+    # Get git info
+    git_info = get_git_info(seml_config['executable'], seml_config['working_dir'])
 
-    batch_id = get_max_in_collection(collection, 'batch_id')
+    # Compute batch id
+    batch_id = cast(Optional[int], get_max_in_collection(collection, 'batch_id'))
     if batch_id is None:
         batch_id = 1
     else:
@@ -301,29 +370,34 @@ def add_config_file(
         seml_config['working_dir'],
     )
 
-    # Create documents that can be interpolated
-    documents = [
-        {
-            **resolve_interpolations(
-                {
-                    'seml': seml_config,
-                    'slurm': slurm_configs,
-                    'git': git_info,
-                    'batch_id': batch_id,  # needs to be determined now for source file uploading
-                    'config': config,
-                    'config_unresolved': config_unresolved,
-                }
-            ),
-            'config_unresolved': config_unresolved,
-        }
-        for config, config_unresolved in zip(configs, configs_unresolved)
-    ]
-
     # Upload source files: This also determines the batch_id
     if seml_config['use_uploaded_sources'] and not no_code_checkpoint:
         seml_config['source_files'] = upload_sources(seml_config, collection, batch_id)
-    del seml_config['use_uploaded_sources']
-    documents = [{**document, **{'seml': seml_config}} for document in documents]
+    del seml_config['use_uploaded_sources']  # type: ignore
+    # Now it is in the right format for the type checks
+    seml_config = cast(SemlDoc, seml_config)
+
+    # Create documents that can be interpolated
+    documents = [
+        cast(
+            ExperimentDoc,
+            {
+                **resolve_interpolations(
+                    {
+                        'seml': seml_config,
+                        'slurm': slurm_configs,
+                        'git': git_info,
+                        'batch_id': batch_id,  # needs to be determined now for source file uploading
+                        'config': config,
+                        'config_unresolved': config_unresolved,
+                    }
+                ),
+                'config_unresolved': config_unresolved,
+                'seml': seml_config,
+            },
+        )
+        for config, config_unresolved in zip(configs, configs_unresolved)
+    ]
 
     if not no_sanity_check:
         # Sanity checking uses the resolved values (after considering named configs)
@@ -334,7 +408,6 @@ def add_config_file(
             seml_config['working_dir'],
         )
 
-    use_hash = not no_hash
     for document in documents:
         document['config_hash'] = make_hash(
             document['config'],
@@ -342,46 +415,7 @@ def add_config_file(
         )
 
     if not force_duplicates:
-        len_before = len(documents)
-
-        # First, check for duplicates withing the experiment configurations from the file.
-        if not use_hash:
-            # slow duplicate detection without hashes
-            unique_documents, unique_keys = [], set()
-            for document in documents:
-                key = Hashabledict(
-                    **remove_keys_from_nested(
-                        document['config'],
-                        config_get_exclude_keys(
-                            document['config'], document['config_unresolved']
-                        ),
-                    )
-                )
-                if key not in unique_keys:
-                    unique_documents.append(document)
-                    unique_keys.add(key)
-            documents = unique_documents
-        else:
-            # fast duplicate detection using hashing.
-            documents_dict = {
-                document['config_hash']: document for document in documents
-            }
-            documents = list(documents_dict.values())
-
-        len_after_deduplication = len(documents)
-        # Now, check for duplicate configurations in the database.
-        documents = filter_experiments(collection, documents, use_hash=use_hash)
-        len_after = len(documents)
-        if len_after_deduplication != len_before:
-            logging.info(
-                f'{len_before - len_after_deduplication} of {len_before} experiment{s_if(len_before)} were '
-                f'duplicates. Adding only the {len_after_deduplication} unique configurations.'
-            )
-        if len_after != len_after_deduplication:
-            logging.info(
-                f'{len_after_deduplication - len_after} of {len_after_deduplication} '
-                f'experiment{s_if(len_before)} were already found in the database. They were not added again.'
-            )
+        documents = remove_duplicates(collection, documents, use_hash=not no_hash)
 
     # Create an index on the config hash. If the index is already present, this simply does nothing.
     collection.create_index('config_hash')

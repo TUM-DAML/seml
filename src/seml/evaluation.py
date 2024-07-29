@@ -1,15 +1,30 @@
+from __future__ import annotations
+
 import logging
 from copy import deepcopy
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    List,
+    Literal,
+    Sequence,
+    cast,
+    overload,
+)
 
 from seml.database import get_collection
+from seml.document import ExperimentDoc
 from seml.settings import SETTINGS
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 States = SETTINGS.STATES
 
 __all__ = ['get_results']
 
 
-def parse_jsonpickle(db_entry):
+def parse_jsonpickle(db_entry: ExperimentDoc):
     import json
 
     import jsonpickle
@@ -21,16 +36,42 @@ def parse_jsonpickle(db_entry):
         parsed = jsonpickle.loads(json.dumps(db_entry, default=p.flatten), keys=False)
     except IndexError:
         parsed = db_entry
-    return parsed
+    return cast(ExperimentDoc, parsed)
+
+
+@overload
+def get_results(
+    db_collection_name: str,
+    fields: Sequence[str] | None = None,
+    to_data_frame: Literal[False] = False,
+    mongodb_config: dict[str, Any] | None = None,
+    states: Sequence[str] | None = None,
+    filter_dict: dict[str, Any] | None = None,
+    parallel: bool = False,
+    progress: bool = True,
+) -> list[ExperimentDoc]: ...
+
+
+@overload
+def get_results(
+    db_collection_name: str,
+    fields: Sequence[str] | None = None,
+    to_data_frame: Literal[True] = True,
+    mongodb_config: dict[str, Any] | None = None,
+    states: Sequence[str] | None = None,
+    filter_dict: dict[str, Any] | None = None,
+    parallel: bool = False,
+    progress: bool = True,
+) -> pd.DataFrame: ...
 
 
 def get_results(
-    db_collection_name,
-    fields=None,
-    to_data_frame=False,
-    mongodb_config=None,
-    states=None,
-    filter_dict=None,
+    db_collection_name: str,
+    fields: Sequence[str] | None = None,
+    to_data_frame: bool = False,
+    mongodb_config: dict[str, Any] | None = None,
+    states: Sequence[str] | None = None,
+    filter_dict: dict[str, Any] | None = None,
     parallel: bool = False,
     progress: bool = True,
 ):
@@ -99,6 +140,7 @@ def get_results(
             parsed = list(track(p.imap(parse_jsonpickle, results), total=len(results)))
     else:
         parsed = [parse_jsonpickle(entry) for entry in track(results)]
+    parsed = cast(List[ExperimentDoc], parsed)
     if to_data_frame:
-        parsed = pd.json_normalize(parsed, sep='.')
+        parsed = pd.json_normalize(parsed, sep='.')  # type: ignore
     return parsed

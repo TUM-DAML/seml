@@ -1,19 +1,24 @@
+from __future__ import annotations
+
 import atexit
 import logging
 import time
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any
 
 from seml.settings import SETTINGS
 from seml.utils import assert_package_installed
+
+if TYPE_CHECKING:
+    import multiprocessing.connection
 
 States = SETTINGS.STATES
 
 
 def retried_and_locked_ssh_port_forward(
-    retries_max=SETTINGS.SSH_FORWARD.RETRIES_MAX,
-    retries_delay=SETTINGS.SSH_FORWARD.RETRIES_DELAY,
-    lock_file=SETTINGS.SSH_FORWARD.LOCK_FILE,
-    lock_timeout=SETTINGS.SSH_FORWARD.LOCK_TIMEOUT,
+    retries_max: int = SETTINGS.SSH_FORWARD.RETRIES_MAX,
+    retries_delay: int = SETTINGS.SSH_FORWARD.RETRIES_DELAY,
+    lock_file: str = SETTINGS.SSH_FORWARD.LOCK_FILE,
+    lock_timeout: int = SETTINGS.SSH_FORWARD.LOCK_TIMEOUT,
     **ssh_config,
 ):
     """
@@ -66,12 +71,13 @@ def retried_and_locked_ssh_port_forward(
             delay *= 2
             delay += random.uniform(0, 1)
 
-    if error:
-        logging.error(f'Failed to establish ssh tunnel: {error}')
-        exit(1)
+    logging.error(f'Failed to establish ssh tunnel: {error}')
+    exit(1)
 
 
-def _ssh_forward_process(pipe, ssh_config: Dict[str, Any]):
+def _ssh_forward_process(
+    pipe: multiprocessing.connection.Connection, ssh_config: dict[str, Any]
+):
     """
     Establish an SSH tunnel in a separate process. The process periodically checks if the tunnel is still up and
     restarts it if it is not.
@@ -117,7 +123,7 @@ _mp_context = None
 
 
 def get_forwarded_mongo_client(
-    db_name, username, password, ssh_config: Dict[str, Any], **kwargs
+    db_name: str, username: str, password: str, ssh_config: dict[str, Any], **kwargs
 ):
     """
     Establish an SSH tunnel and return a forwarded MongoDB client.

@@ -51,6 +51,7 @@ from seml.database import (
     get_mongodb_config,
     update_working_dir,
 )
+from seml.document import SBatchOptions
 from seml.settings import SETTINGS
 from seml.utils import cache_to_disk
 from seml.utils.module_hider import AUTOCOMPLETING
@@ -205,7 +206,7 @@ FilterStatesAnnotation = Annotated[
     ),
 ]
 SBatchOptionsAnnotation = Annotated[
-    Optional[Dict],
+    Optional[SBatchOptions],
     JsonOption(
         '-sb',
         '--sbatch-options',
@@ -1563,6 +1564,7 @@ if AUTOCOMPLETING and os.environ.get('COMP_WORDS'):
         os.environ['COMP_WORDS'].split('\n'), command_tree(app)
     )
     cword = int(os.environ['COMP_CWORD'])
+    cmd = commands[0]
     if cword > 1:
         # Case where we complete a command
         # To find the right command, we must subtract the length of all previous commands
@@ -1575,9 +1577,6 @@ if AUTOCOMPLETING and os.environ.get('COMP_WORDS'):
                 break
             cword -= cmd_length
         cword += 2  # add back the -2 we subtracted above
-    else:
-        # If we complete collection names
-        cmd = commands[0]
     os.environ['COMP_WORDS'] = '\n'.join(cmd)
     os.environ['COMP_CWORD'] = str(cword)
     # If we are not at the top level typer, we must not suggest top level commands

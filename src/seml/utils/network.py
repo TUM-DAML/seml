@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import array
 import fcntl
 import socket
@@ -30,7 +32,7 @@ def get_network_interfaces():
         else:
             break
     namestr = names.tobytes()
-    ifaces = {}
+    ifaces: dict[str, str] = {}
     for i in range(0, outbytes, struct_size):
         iface_name = bytes.decode(namestr[i : i + 16]).split('\0', 1)[0]
         iface_addr = socket.inet_ntoa(namestr[i + 20 : i + 24])

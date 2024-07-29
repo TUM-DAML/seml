@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import logging
 import os
 import re
 import time
 from collections import defaultdict
 from io import TextIOWrapper
-from typing import Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Sequence, cast
+
+import pymongo.database
 
 from seml.commands.manage import detect_duplicates, detect_killed, should_check_killed
 from seml.database import (
@@ -13,6 +17,7 @@ from seml.database import (
     get_database,
     get_mongodb_config,
 )
+from seml.document import ExperimentDoc
 from seml.experiment.command import (
     get_command_from_exp,
     get_config_overrides,
@@ -32,16 +37,19 @@ from seml.utils import (
 )
 from seml.utils.slurm import get_cluster_name, get_slurm_jobs
 
+if TYPE_CHECKING:
+    import pymongo
+
 States = SETTINGS.STATES
 
 
 def print_fail_trace(
     db_collection_name: str,
-    sacred_id: Optional[int],
-    filter_states: Optional[List[str]],
-    batch_id: Optional[int],
-    filter_dict: Optional[Dict],
-    projection: Optional[List[str]] = None,
+    sacred_id: int | None,
+    filter_states: list[str] | None,
+    batch_id: int | None,
+    filter_dict: dict | None,
+    projection: list[str] | None = None,
 ):
     """Convenience function that prints the fail trace of experiments
 
@@ -61,7 +69,7 @@ def print_fail_trace(
         Additional values to print per failed experiment, by default None
     """
     from rich.align import Align
-    from rich.console import Group
+    from rich.console import ConsoleRenderable, Group
     from rich.panel import Panel
     from rich.rule import Rule
     from rich.text import Text
@@ -85,11 +93,8 @@ def print_fail_trace(
         }
     )
 
-    if sacred_id is None:
-        filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
-        exps = list(collection.find(filter_dict, mongo_db_projection))
-    else:
-        exps = [collection.find_one({'_id': sacred_id}, mongo_db_projection)]
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id)
+    exps: list[ExperimentDoc] = list(collection.find(filter_dict, mongo_db_projection))
     for exp in exps:
         exp_id = exp.get('_id')
         status = exp.get('status')
@@ -105,7 +110,7 @@ def print_fail_trace(
             f'Slurm Array-Task id: {slurm_array_id}-{slurm_task_id}'
         )
 
-        renderables = []
+        renderables: list[ConsoleRenderable | str] = []
         if description is not None:
             text_description = Text()
             text_description.append('Description: ', style='bold magenta')
@@ -138,7 +143,7 @@ def print_fail_trace(
 def print_status(
     db_collection_name: str,
     update_status: bool = True,
-    projection: Optional[List[str]] = None,
+    projection: list[str] | None = None,
 ):
     """Prints the status of an experiment collection
 
@@ -192,7 +197,7 @@ def print_status(
     show_descriptions = any(len(row['descriptions']) > 0 for row in result)
     # Unpack the (nested) projections
     # We keep prefixes encoded as ${id} to preserve the order of the projection keys
-    result_projection = []
+    result_projection: list[dict[str, set]] = []
     for record in result:
         result_projection.append(defaultdict(set))
         for idx, key in enumerate(projection):
@@ -203,9 +208,9 @@ def print_status(
     # For the column headers, we replace ${id} with the projection key
     columns = []
     for projection_column in projection_columns:
-        projection_key_idx = int(
-            re.match(r'.*\$([0-9]+)(\..*|$)', projection_column).groups()[0]
-        )
+        match = re.match(r'.*\$([0-9]+)(\..*|$)', projection_column)
+        assert match is not None
+        projection_key_idx = int(match.groups()[0])
         columns.append(
             projection_column.replace(
                 f'${projection_key_idx}', projection[projection_key_idx]
@@ -259,7 +264,7 @@ def print_status(
 
 def print_collections(
     pattern: str,
-    mongodb_config: Optional[Dict] = None,
+    mongodb_config: dict | None = None,
     progress: bool = False,
     list_empty: bool = False,
     update_status: bool = False,
@@ -309,7 +314,9 @@ def print_collections(
         )
 
     # Count the number of experiments in each state
-    name_to_counts = defaultdict(lambda: {state: 0 for state in States.keys()})
+    name_to_counts: dict[str, dict[str, int]] = defaultdict(
+        lambda: {state: 0 for state in States.keys()}
+    )
     name_to_descriptions = defaultdict(str)
     it = track(collection_names, disable=not progress)
 
@@ -350,14 +357,16 @@ def print_collections(
         logging.info(f'Found no collection matching "{pattern}"!')
         return
 
-    df = pd.DataFrame.from_dict(name_to_counts, dtype=int).transpose()
+    df = pd.DataFrame.from_dict(name_to_counts, dtype=int).transpose()  # type: ignore
     # Remove empty collections
     if not list_empty:
         df = df[df.sum(axis=1) > 0]
     # sort rows and columns
-    df = df.sort_index()[States.keys()]
+    df = df.sort_index()[list(States.keys())]
     # add a column with the total
     df['Total'] = df.sum(axis=1)
+    # I don't know why but pyright thinks it could be a numpy array.
+    df = cast(pd.DataFrame, df)
 
     totals = df.sum(axis=0)
     max_len = max(map(len, collection_names))
@@ -379,20 +388,20 @@ def print_collections(
         )
     table = Table(*columns, show_footer=df.shape[0] > 1)
     for collection_name, row in df.iterrows():
-        row = [collection_name, *[str(x) for x in row.to_list()]]
+        tab_row = [collection_name, *[str(x) for x in row.to_list()]]
         if show_description:
-            row.append(name_to_descriptions[collection_name])
-        table.add_row(*row)
+            tab_row.append(name_to_descriptions[collection_name])
+        table.add_row(*tab_row)
     # For some reason the table thinks the terminal is larger than it is
-    table = Align(table, align='center', width=console.width - max_len + 1)
-    console.print(Align(table, align='center'), soft_wrap=True)
+    to_print = Align(table, align='center', width=console.width - max_len + 1)
+    console.print(to_print, soft_wrap=True)
 
 
 def print_duplicates(
     db_collection_name: str,
-    filter_states: Optional[List[str]] = None,
-    batch_id: Optional[int] = None,
-    filter_dict: Optional[Dict] = None,
+    filter_states: list[str] | None = None,
+    batch_id: int | None = None,
+    filter_dict: dict | None = None,
 ):
     """Detects and lists duplicate experiment configurations
 
@@ -436,11 +445,11 @@ def print_duplicates(
 
 def print_experiment(
     db_collection_name: str,
-    sacred_id: Optional[int] = None,
-    filter_states: Optional[List[str]] = None,
-    batch_id: Optional[int] = None,
-    filter_dict: Optional[Dict] = None,
-    projection: Optional[List[str]] = None,
+    sacred_id: int | None = None,
+    filter_states: list[str] | None = None,
+    batch_id: int | None = None,
+    filter_dict: dict | None = None,
+    projection: list[str] | None = None,
 ):
     """
     Prints the details of an experiment.
@@ -470,7 +479,7 @@ def print_experiment(
         proj = {}
     else:
         proj = {'_id': 1, 'batch_id': 1, **{p: 1 for p in projection}}
-    experiments = list(collection.find(filter_dict, proj))
+    experiments: list[ExperimentDoc] = list(collection.find(filter_dict, proj))
 
     if len(experiments) == 0:
         logging.info('No experiment found to print.')
@@ -484,13 +493,13 @@ def print_experiment(
 
 def print_output(
     db_collection_name: str,
-    sacred_id: Optional[int] = None,
-    filter_states: Optional[List[str]] = None,
-    batch_id: Optional[int] = None,
-    filter_dict: Optional[Dict] = None,
+    sacred_id: int | None = None,
+    filter_states: list[str] | None = None,
+    batch_id: int | None = None,
+    filter_dict: dict | None = None,
     slurm: bool = False,
-    head: Optional[int] = None,
-    tail: Optional[int] = None,
+    head: int | None = None,
+    tail: int | None = None,
 ):
     """
     Prints the output of experiments
@@ -514,6 +523,8 @@ def print_output(
     tail : Optional[int], optional
         The number of lines to print from the end of the output, by default None
     """
+    from collections import deque
+
     from seml.console import Heading, console, pause_live_widget
 
     assert tail is None or head is None, 'Cannot specify both tail and head.'
@@ -540,8 +551,6 @@ def print_output(
                 break
 
     def print_tail(file: TextIOWrapper):
-        from collections import deque
-
         last_rows: deque[str] = deque([], maxlen=tail)
         for line in file:
             last_rows.append(line)
@@ -596,9 +605,9 @@ def print_output(
 
 
 def generate_queue_table(
-    db,
-    job_ids: Optional[List[str]],
-    filter_states: Optional[List[str]],
+    db: pymongo.database.Database,
+    job_ids: Sequence[str] | None,
+    filter_states: Sequence[str] | None,
     filter_by_user: bool = True,
 ):
     """
@@ -628,7 +637,7 @@ def generate_queue_table(
     # Find the collections
     all_collections = set(db.list_collection_names())
 
-    collection_to_jobs = defaultdict(list)
+    collection_to_jobs: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
     states = set()
     collections = set()
     for job in job_infos:
@@ -706,8 +715,8 @@ def generate_queue_table(
 
 
 def print_queue(
-    job_ids: Optional[Sequence[str]],
-    filter_states: Optional[Sequence[str]],
+    job_ids: Sequence[str] | None,
+    filter_states: Sequence[str] | None,
     filter_by_user: bool,
     watch: bool,
 ):
@@ -745,14 +754,14 @@ def print_queue(
 
 def print_command(
     db_collection_name: str,
-    sacred_id: Optional[int],
-    batch_id: Optional[int],
-    filter_states: List[str],
-    filter_dict: Optional[Dict],
+    sacred_id: int | None,
+    batch_id: int | None,
+    filter_states: list[str],
+    filter_dict: dict | None,
     num_exps: int,
-    worker_gpus: Optional[str] = None,
-    worker_cpus: Optional[int] = None,
-    worker_environment_vars: Optional[Dict] = None,
+    worker_gpus: str | None = None,
+    worker_cpus: int | None = None,
+    worker_environment_vars: dict | None = None,
     unresolved: bool = False,
     resolve_interpolations: bool = True,
 ):
@@ -779,7 +788,7 @@ def print_command(
     _, exe, config = get_command_from_exp(
         exp,
         collection.name,
-        verbose=logging.root.level <= logging.VERBOSE,
+        verbose=logging.root.level <= logging.DEBUG,
         unobserved=True,
         post_mortem=False,
         unresolved=unresolved,
@@ -788,7 +797,7 @@ def print_command(
     _, exe, vscode_config = get_command_from_exp(
         exp,
         collection.name,
-        verbose=logging.root.level <= logging.VERBOSE,
+        verbose=logging.root.level <= logging.DEBUG,
         unobserved=True,
         post_mortem=False,
         use_json=True,
@@ -811,7 +820,7 @@ def print_command(
     interpreter, exe, config = get_command_from_exp(
         exps_list[0],
         collection.name,
-        verbose=logging.root.level <= logging.VERBOSE,
+        verbose=logging.root.level <= logging.DEBUG,
         unobserved=True,
         post_mortem=True,
         unresolved=unresolved,
@@ -823,7 +832,7 @@ def print_command(
     interpreter, exe, config = get_command_from_exp(
         exps_list[0],
         collection.name,
-        verbose=logging.root.level <= logging.VERBOSE,
+        verbose=logging.root.level <= logging.DEBUG,
         unobserved=True,
         debug_server=True,
         print_info=False,
@@ -838,7 +847,7 @@ def print_command(
         interpreter, exe, config = get_command_from_exp(
             exp,
             collection.name,
-            verbose=logging.root.level <= logging.VERBOSE,
+            verbose=logging.root.level <= logging.DEBUG,
             unresolved=unresolved,
             resolve_interpolations=resolve_interpolations,
         )

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Protocol
 
@@ -73,7 +75,7 @@ def migrate_collection(db_collection_name: str, skip: bool, backup: bool):
 
 
 class Migration(Protocol):
-    def __init__(self, collection: 'Collection'): ...
+    def __init__(self, collection: Collection): ...
     def requires_migration(self) -> bool: ...
     def migrate(self) -> int: ...
     def name(self) -> str: ...
@@ -81,10 +83,10 @@ class Migration(Protocol):
 
 
 class Migration04To05Slurm(Migration):
-    collection: 'Collection'
+    collection: Collection
     db_filter = {'slurm': {'$not': {'$type': 'array'}}}
 
-    def __init__(self, collection: 'Collection'):
+    def __init__(self, collection: Collection):
         self.collection = collection
 
     def is_silent(self):
@@ -134,7 +136,7 @@ class Migration04To05Slurm(Migration):
 
 
 class Migration05Version(Migration):
-    collection: 'Collection'
+    collection: Collection
     db_filter = {
         '$or': [
             {f'seml.{SETTINGS.SEML_CONFIG_VALUE_VERSION}': {'$exists': False}},
@@ -147,7 +149,7 @@ class Migration05Version(Migration):
         ]
     }
 
-    def __init__(self, collection: 'Collection'):
+    def __init__(self, collection: Collection):
         self.collection = collection
 
     def is_silent(self):
@@ -167,7 +169,7 @@ class Migration05Version(Migration):
         return n_updated
 
 
-_MIGRATIONS = [
+_MIGRATIONS: tuple[type[Migration], ...] = (
     Migration04To05Slurm,
     Migration05Version,
-]
+)

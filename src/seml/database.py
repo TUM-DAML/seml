@@ -1,22 +1,24 @@
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, Any
 
 from seml.settings import SETTINGS
 from seml.utils import s_if
 from seml.utils.errors import MongoDBError
 from seml.utils.ssh_forward import get_forwarded_mongo_client
 
+if TYPE_CHECKING:
+    import pymongo.collection
+
 States = SETTINGS.STATES
 
 
-def get_collection(collection_name, mongodb_config=None, suffix=None):
+def get_collection(collection_name: str, mongodb_config: dict[str, Any] | None = None):
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
     db = get_database(**mongodb_config)
-    if suffix is not None and not collection_name.endswith(suffix):
-        collection_name = f'{collection_name}{suffix}'
-
     return db[collection_name]
 
 
@@ -48,7 +50,7 @@ def get_database(db_name, host, port, username, password, **kwargs):
 
 def get_collections_from_mongo_shell_or_pymongo(
     db_name: str, host: str, port: int, username: str, password: str, **kwargs
-) -> List[str]:
+) -> list[str]:
     """Gets all collections in the database by first using the mongo shell and if that fails uses pymongo.
 
     Args:
@@ -123,7 +125,7 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
             f"MongoDB credentials could not be read at '{path}'.{config_str}"
         )
 
-    with open(path) as conf:
+    with open(str(path)) as conf:
         access_dict = yaml.safe_load(conf)
 
     required_entries = ['username', 'password', 'port', 'host', 'database']
@@ -211,7 +213,7 @@ def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
     return filter_dict
 
 
-def get_max_in_collection(collection, field: str):
+def get_max_in_collection(collection: pymongo.collection.Collection, field: str):
     """
     Find the maximum value in the input collection for the input field.
     Parameters
@@ -225,19 +227,11 @@ def get_max_in_collection(collection, field: str):
     """
     import pymongo
 
-    ndocs = collection.count_documents({})
-    if field == '_id':
-        c = collection.find({}, {'_id': 1})
-    else:
-        c = collection.find({}, {'_id': 1, field: 1})
-    b = c.sort(field, pymongo.DESCENDING).limit(1)
-    if ndocs != 0:
-        b_next = b.next()
-        max_val = b_next.get(field)
-    else:
-        max_val = None
-
-    return max_val
+    if result := collection.find_one(
+        projection={field: 1}, sort=[(field, pymongo.DESCENDING)], limit=1
+    ):
+        return result.get(field)
+    return None
 
 
 def upload_file(filename, db_collection, batch_id, filetype):
@@ -385,7 +379,7 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
 def update_working_dir(
     db_collection_name: str,
     working_directory: str,
-    batch_ids: Optional[List[int]] = None,
+    batch_ids: list[int] | None = None,
 ):
     """Changes the working directory of experiments in the database.
 

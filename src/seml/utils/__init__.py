@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import functools
 import hashlib
@@ -11,14 +13,15 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Generator,
     Generic,
     Hashable,
     Iterable,
-    List,
-    Optional,
-    Tuple,
+    Mapping,
+    Sequence,
     TypeVar,
-    Union,
+    cast,
+    overload,
 )
 
 
@@ -26,7 +29,12 @@ def s_if(n: int) -> str:
     return '' if n == 1 else 's'
 
 
-def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=None):
+def unflatten(
+    dictionary: dict,
+    sep: str = '.',
+    recursive: bool = False,
+    levels: int | Sequence[int] | None = None,
+):
     """
     Turns a flattened dict into a nested one, e.g. {'a.b':2, 'c':3} becomes {'a':{'b': 2}, 'c': 3}
     From https://stackoverflow.com/questions/6037503/python-unflatten-dict.
@@ -47,6 +55,7 @@ def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=
     -------
     result_dict: the nested dictionary.
     """
+    import collections.abc
 
     duplicate_key_warning_str = (
         'Duplicate key detected in recursive dictionary unflattening. '
@@ -54,7 +63,9 @@ def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=
     )
 
     if levels is not None:
-        if not isinstance(levels, tuple) and not isinstance(levels, list):
+        if isinstance(levels, collections.abc.Sequence):
+            levels = list(levels)
+        else:
             levels = [levels]
         if len(levels) == 0:
             raise ValueError(
@@ -130,7 +141,7 @@ def unflatten(dictionary: dict, sep: str = '.', recursive: bool = False, levels=
     return result_dict
 
 
-def flatten(dictionary: dict, parent_key: str = '', sep: str = '.'):
+def flatten(dictionary: Mapping[str, Any], parent_key: str = '', sep: str = '.'):
     """
     Flatten a nested dictionary, e.g. {'a':{'b': 2}, 'c': 3} becomes {'a.b':2, 'c':3}.
     From https://stackoverflow.com/questions/6027558/flatten-nested-dictionaries-compressing-keys
@@ -145,7 +156,7 @@ def flatten(dictionary: dict, parent_key: str = '', sep: str = '.'):
     -------
     flattened dictionary.
     """
-    import collections
+    import collections.abc
 
     items = []
     for k, v in dictionary.items():
@@ -162,7 +173,7 @@ def flatten(dictionary: dict, parent_key: str = '', sep: str = '.'):
     return dict(items)
 
 
-def get_from_nested(d: Dict, key: str, sep: str = '.') -> Any:
+def get_from_nested(d: Mapping[str, Any], key: str, sep: str = '.') -> Any:
     """Gets a value from an unflattened dict, e.g. allows to use strings like `config.data` on a nesteddict
 
     Parameters
@@ -184,13 +195,13 @@ def get_from_nested(d: Dict, key: str, sep: str = '.') -> Any:
     return d
 
 
-def list_is_prefix(first: List, second: List) -> bool:
+def list_is_prefix(first: Sequence, second: Sequence) -> bool:
     return len(first) <= len(second) and all(x1 == x2 for x1, x2 in zip(first, second))
 
 
 def resolve_projection_path_conflicts(
-    projection: Dict[str, Union[bool, int]], sep: str = '.'
-) -> Dict[str, bool]:
+    projection: dict[str, bool | int], sep: str = '.'
+) -> dict[str, bool]:
     """Removes path conflicts in a MongoDB projection dict. E.g. if you pass the dict
     `{'config' : 1, 'config.dataset' : 1}`, MongoDB will throw an error. This method will ensure that
     always the "bigger" projection is returned, i.e. `"config"` in the aforementioned example.
@@ -208,7 +219,7 @@ def resolve_projection_path_conflicts(
     Dict[str, bool]
         The resolved projection
     """
-    result = {}
+    result: dict[tuple[str, ...], bool] = {}
     for k, v in projection.items():
         k = tuple(k.split(sep))
         add_k = True
@@ -228,11 +239,14 @@ def resolve_projection_path_conflicts(
                     )
                 add_k = False
         if add_k:
-            result[k] = v
+            result[k] = bool(v)
     return {sep.join(k): v for k, v in result.items()}
 
 
-def chunker(seq, size):
+S = TypeVar('S', bound=Sequence)
+
+
+def chunker(seq: S, size: int) -> Generator[S, None, None]:
     """
     Chunk a list into chunks of size `size`.
     From
@@ -247,10 +261,21 @@ def chunker(seq, size):
     -------
     The list of lists of size `size`
     """
-    return (seq[pos : pos + size] for pos in range(0, len(seq), size))
+    yield from (cast(S, seq[pos : pos + size]) for pos in range(0, len(seq), size))
 
 
-def merge_dicts(dict1, dict2):
+D = TypeVar('D', bound=Mapping)
+
+
+@overload
+def merge_dicts(dict1: D, dict2: D) -> D: ...
+
+
+@overload
+def merge_dicts(dict1: Mapping, dict2: Mapping) -> dict: ...
+
+
+def merge_dicts(dict1: Mapping | D, dict2: Mapping | D) -> dict | D:
     """Recursively merge two dictionaries.
 
     Values in dict2 override values in dict1. If dict1 and dict2 contain a dictionary as a
@@ -289,7 +314,7 @@ def merge_dicts(dict1, dict2):
     return return_dict
 
 
-def remove_keys_from_nested(d: Dict, keys: List[str] = []) -> Dict:
+def remove_keys_from_nested(d: dict, keys: Iterable[str] = []) -> dict:
     """Removes keys from a nested dictionary
 
     Parameters
@@ -314,8 +339,8 @@ def remove_keys_from_nested(d: Dict, keys: List[str] = []) -> Dict:
 
 
 def make_hash(
-    d: Dict,
-    exclude_keys: List[str] = [
+    d: dict,
+    exclude_keys: list[str] = [
         'seed',
     ],
 ):
@@ -385,7 +410,6 @@ add_logging_level('VERBOSE', 19)
 class LoggingFormatter(logging.Formatter):
     FORMATS = {
         logging.INFO: '%(msg)s',
-        logging.VERBOSE: '%(msg)s',
         logging.DEBUG: 'DEBUG: %(module)s: %(lineno)d: %(msg)s',
         'DEFAULT': '%(levelname)s: %(msg)s',
     }
@@ -404,7 +428,7 @@ class Hashabledict(dict):
 
 
 @contextmanager
-def working_directory(path: Path):
+def working_directory(path: Path | str):
     """
     Context manager to temporarily change the working directory.
 
@@ -505,7 +529,7 @@ def cache_to_disk(name: str, time_to_live: float):
     return wrapper
 
 
-def to_slices(items: List[int]) -> List[Tuple[int, int]]:
+def to_slices(items: list[int]) -> list[tuple[int, int]]:
     """
     Convert a list of integers to a list of slices.
 
@@ -535,7 +559,7 @@ def to_slices(items: List[int]) -> List[Tuple[int, int]]:
     return slices
 
 
-def slice_to_str(s: Tuple[int, int]) -> str:
+def slice_to_str(s: tuple[int, int]) -> str:
     """
     Convert a slice to a string.
 
@@ -605,12 +629,12 @@ def warn_multiple_calls(warning: str, warn_after: int = 1):
                 logging.warning(warning.format(num_calls=num_calls))
             return f(*args, **kwargs)
 
-        return wrapper
+        return wrapper  # type: ignore
 
     return decorator
 
 
-def load_text_resource(path: Union[str, Path]):
+def load_text_resource(path: str | Path):
     """
     Read a text resource from the package.
 
@@ -624,17 +648,18 @@ def load_text_resource(path: Union[str, Path]):
     str
         The resource content.
     """
+    path = Path(path)
     try:
         import importlib.resources
 
-        full_path = importlib.resources.files('seml') / path
+        full_path = importlib.resources.files('seml') / path  # type: ignore
     except (AttributeError, ImportError):
         # Python 3.8
         import importlib_resources
 
         full_path = importlib_resources.files('seml') / path
 
-    with open(full_path) as inp:
+    with open(str(full_path)) as inp:
         return inp.read()
 
 
@@ -656,7 +681,7 @@ def assert_package_installed(package: str, error: str):
         exit(1)
 
 
-def src_layout_to_flat_layout(original_path: Union[Path, str]):
+def src_layout_to_flat_layout(original_path: Path | str):
     """
     Removes the first "src" directory from the path, handling any position.
     For the imports to prefer our loaded seml version, we need to convert the src-layout to the flat-layout.
@@ -677,8 +702,8 @@ def src_layout_to_flat_layout(original_path: Union[Path, str]):
 
 
 def find_jupyter_host(
-    log_file: Union[str, Path], wait: bool
-) -> Tuple[Optional[str], Optional[bool]]:
+    log_file: str | Path, wait: bool
+) -> tuple[str | None, bool | None]:
     """
     Extracts the hostname from the jupyter log file and returns the URL.
 
@@ -766,7 +791,7 @@ def is_local_file(filename, root_dir):
     return root_path in file_path.parents
 
 
-def smaller_than_version_filter(version: Tuple[int, int, int]):
+def smaller_than_version_filter(version: tuple[int, int, int]):
     """
     Returns a mongodb filter that selects experiments where the version number
     is small or equal to the supplied version.
@@ -812,6 +837,6 @@ def utcnow():
     import datetime
 
     try:
-        return datetime.datetime.now(datetime.UTC)
+        return datetime.datetime.now(datetime.UTC)  # type: ignore - here the type checker may fail in old python version
     except AttributeError:
         return datetime.datetime.utcnow()

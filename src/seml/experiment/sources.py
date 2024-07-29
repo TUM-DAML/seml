@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import importlib
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Set, Union, cast
+from typing import TYPE_CHECKING, Iterable, cast
 
 from seml.database import delete_files, upload_file
+from seml.document import GitDoc
 from seml.settings import SETTINGS
 from seml.utils import is_local_file, src_layout_to_flat_layout, working_directory
 from seml.utils.errors import ExecutableError, MongoDBError
@@ -66,7 +69,7 @@ def import_exe(executable, conda_env, working_dir):
 
 def get_imported_sources(
     executable, root_dir, conda_env, working_dir, stash_all_py_files: bool
-) -> Set[str]:
+) -> set[str]:
     """Get the sources imported by the given executable.
 
     Args:
@@ -89,9 +92,10 @@ def get_imported_sources(
         for name, mod in list(sys.modules.items()):
             if mod is None:
                 continue
-            if not getattr(mod, '__file__', False):
+            filename = getattr(mod, '__file__', None)
+            if not filename:
                 continue
-            filename = os.path.abspath(mod.__file__)
+            filename = os.path.abspath(filename)
             if filename not in sources and is_local_file(filename, root_path):
                 sources.add(filename)
                 source_added = True
@@ -129,7 +133,7 @@ def upload_sources(seml_config, collection, batch_id):
     return uploaded_files
 
 
-def get_git_info(filename, working_dir):
+def get_git_info(filename: str, working_dir: str):
     """
     Get the git commit info.
     See https://github.com/IDSIA/sacred/blob/c1c19a58332368da5f184e113252b6b0abc8e33b/sacred/dependencies.py#L400
@@ -161,19 +165,19 @@ def get_git_info(filename, working_dir):
         try:
             repo = Repo(directory, search_parent_directories=True)
         except InvalidGitRepositoryError:
-            return None, None, None
+            return None
         try:
             path = repo.remote().url
         except ValueError:
-            path = 'git:/' + repo.working_dir
+            path = 'git:/' + str(repo.working_dir)
         commit = repo.head.commit.hexsha
-    return path, commit, repo.is_dirty()
+    return GitDoc(path=path, commit=commit, dirty=repo.is_dirty())
 
 
 def load_sources_from_db(
-    experiment: Dict,
-    collection: 'Collection',
-    to_directory: Union[str, Path],
+    experiment: dict,
+    collection: Collection,
+    to_directory: str | Path,
     remove_src_directory: bool = SETTINGS.CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY,
 ):
     import gridfs
@@ -204,7 +208,7 @@ def load_sources_from_db(
             f.write(db_file.read())
 
 
-def delete_batch_sources(collection: 'Collection', batch_id: int):
+def delete_batch_sources(collection: Collection, batch_id: int):
     db = collection.database
     filter_dict = {
         'metadata.batch_id': batch_id,
@@ -220,15 +224,19 @@ def delete_batch_sources(collection: 'Collection', batch_id: int):
         delete_files(db, source_files)
 
 
-def delete_orphaned_sources(collection: 'Collection', batch_ids=None):
+def delete_orphaned_sources(
+    collection: Collection, batch_ids: Iterable[int] | None = None
+):
     if batch_ids is not None:
         # check for empty batches within list of batch ids
         filter_dict = {'batch_id': {'$in': list(batch_ids)}}
+        batch_ids = set(batch_ids)
     else:
         # check for any empty batches
         filter_dict = {}
+        batch_ids = set()
     db_results = collection.find(filter_dict, {'batch_id'})
     remaining_batch_ids = {x['batch_id'] for x in db_results}
-    empty_batch_ids = set(batch_ids) - remaining_batch_ids
+    empty_batch_ids = batch_ids - remaining_batch_ids
     for b_id in empty_batch_ids:
         delete_batch_sources(collection, b_id)
