@@ -52,3 +52,4 @@ repos:
     hooks:
       - id: pyright
         additional_dependencies: {dependencies}
+        files: src/seml/.*\.py
