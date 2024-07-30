@@ -3,11 +3,12 @@ repos:
     hooks:
       - id: sync-dependencies
         name: update pre-commit-config
-        entry: python scripts/sync_precommit_dependencies.py
+        entry: python scripts/pre_commit_sync_pyright_deps.py
         language: python
         additional_dependencies:
           - toml
-        files: (pyproject.toml|scripts/.pre-commit-config.yaml.template|.pre-commit.config.yaml)
+          - ruamel.yaml
+        files: "(pyproject.toml|scripts/.pre-commit-config.yaml.template|.pre-commit.config.yaml)" # the quotes are here to make sure that this stay in line for the formatter.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
@@ -27,29 +28,43 @@ repos:
       - id: pyupgrade
         name: pyupgrade
         args: [--py38-plus]
-        exclude: .*\/__main__.py
-      # typer doesn't supper PEP604 yet, so let's stick to the old typing
+        exclude: .*\/__main__.py # typer doesn't supper PEP604 yet, so let's stick to the old typing
       - id: pyupgrade
         name: pyupgrade (__main__.py)
         args: [--py38-plus, --keep-runtime-typing]
-        files: .*\/__main__.py
-  # We run ruff after pyugprade to remove unused imports
+        files: .*\/__main__.py # We run ruff after pyugprade to remove unused imports
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Ruff version.
     rev: v0.5.0
     hooks:
-      # Run the linter.
-      - id: ruff
+      - id: ruff # Run the linter.
         args: [--fix]
-      # Sort improts
-      - id: ruff
+      - id: ruff # Sort improts
         name: sort imports with ruff
         args: [--select, I, --fix]
-      # Run the formatter.
-      - id: ruff-format
+      - id: ruff-format # Run the formatter.
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.373
     hooks:
       - id: pyright
-        additional_dependencies: [numpy>=1.15,pymongo>=3.11,pandas,sacred>=0.8.4,pyyaml>=5.1,jsonpickle>=2.2,munch>=2.0.4,debugpy>=1.2.1,requests>=2.28.1,typer>=0.12,rich>=13.0,omegaconf>=2.3.0,gitignore_parser>=0.1.11,setuptools>=69.2.0,importlib_resources>=5.7.0,pytest,ruff,pre-commit,sshtunnel>=0.4.0,filelock>=3.13.3]
+        additional_dependencies: # these dependencies are synced via the first hook
+          - numpy>=1.15
+          - pymongo>=3.11
+          - pandas
+          - sacred>=0.8.4
+          - pyyaml>=5.1
+          - jsonpickle>=2.2
+          - munch>=2.0.4
+          - debugpy>=1.2.1
+          - requests>=2.28.1
+          - typer>=0.12
+          - rich>=13.0
+          - omegaconf>=2.3.0
+          - gitignore_parser>=0.1.11
+          - setuptools>=69.2.0
+          - importlib_resources>=5.7.0
+          - pytest
+          - ruff
+          - pre-commit
+          - sshtunnel>=0.4.0
+          - filelock>=3.13.3
         files: src/seml/.*\.py
