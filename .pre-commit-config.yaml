@@ -62,6 +62,7 @@ repos:
           - gitignore_parser>=0.1.11
           - setuptools>=69.2.0
           - importlib_resources>=5.7.0
+          - typing_extensions>=4.10
           - pytest
           - ruff
           - pre-commit
