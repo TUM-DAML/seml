@@ -19,7 +19,6 @@ from seml.utils import (
 from seml.utils.errors import ExecutableError, MongoDBError
 
 if TYPE_CHECKING:
-    from bson import ObjectId
     from pymongo.collection import Collection
 
 States = SETTINGS.STATES
@@ -211,6 +210,8 @@ def load_sources_from_db(
 
 
 def delete_batch_sources(collection: Collection[ExperimentDoc], batch_id: int):
+    from bson import ObjectId
+
     db = collection.database
     filter_dict = {
         'metadata.batch_id': batch_id,
