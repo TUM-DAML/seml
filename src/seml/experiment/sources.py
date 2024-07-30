@@ -19,6 +19,7 @@ from seml.utils import (
 from seml.utils.errors import ExecutableError, MongoDBError
 
 if TYPE_CHECKING:
+    from bson import ObjectId
     from pymongo.collection import Collection
 
 States = SETTINGS.STATES
@@ -178,7 +179,7 @@ def get_git_info(filename: str, working_dir: str):
 
 def load_sources_from_db(
     experiment: ExperimentDoc,
-    collection: Collection,
+    collection: Collection[ExperimentDoc],
     to_directory: str | Path,
     remove_src_directory: bool = SETTINGS.CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY,
 ):
@@ -193,7 +194,6 @@ def load_sources_from_db(
     source_files = experiment['seml']['source_files']
     target_directory = Path(to_directory)
     for path, _id in source_files:
-        path = cast(str, path)
         # For the imports to prefer our loaded seml version, we need to convert the src-layout to the flat-layout.
         # https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
         if remove_src_directory:
@@ -210,14 +210,14 @@ def load_sources_from_db(
             f.write(db_file.read())
 
 
-def delete_batch_sources(collection: Collection, batch_id: int):
+def delete_batch_sources(collection: Collection[ExperimentDoc], batch_id: int):
     db = collection.database
     filter_dict = {
         'metadata.batch_id': batch_id,
         'metadata.collection_name': f'{collection.name}',
     }
-    source_files = db['fs.files'].find(filter_dict, {'_id'})
-    source_files = [x['_id'] for x in source_files]
+    source_files = list(db['fs.files'].find(filter_dict, {'_id'}))
+    source_files = [cast(ObjectId, x['_id']) for x in source_files]
     if len(source_files) > 0:
         logging.info(
             f'Deleting {len(source_files)} source files corresponding '
@@ -227,7 +227,7 @@ def delete_batch_sources(collection: Collection, batch_id: int):
 
 
 def delete_orphaned_sources(
-    collection: Collection, batch_ids: Iterable[int] | None = None
+    collection: Collection[ExperimentDoc], batch_ids: Iterable[int] | None = None
 ):
     if batch_ids is not None:
         # check for empty batches within list of batch ids

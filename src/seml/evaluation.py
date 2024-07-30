@@ -34,9 +34,10 @@ def parse_jsonpickle(db_entry: ExperimentDoc):
     try:
         p = jsonpickle.pickler.Pickler(keys=False)
         parsed = jsonpickle.loads(json.dumps(db_entry, default=p.flatten), keys=False)
+        parsed = cast(ExperimentDoc, parsed)
     except IndexError:
         parsed = db_entry
-    return cast(ExperimentDoc, parsed)
+    return parsed
 
 
 @overload
@@ -138,9 +139,9 @@ def get_results(
 
         with Pool() as p:
             parsed = list(track(p.imap(parse_jsonpickle, results), total=len(results)))
+        parsed = cast(List[ExperimentDoc], parsed)
     else:
         parsed = [parse_jsonpickle(entry) for entry in track(results)]
-    parsed = cast(List[ExperimentDoc], parsed)
     if to_data_frame:
         parsed = pd.json_normalize(parsed, sep='.')  # type: ignore
     return parsed

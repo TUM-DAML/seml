@@ -165,7 +165,7 @@ def get_current_slurm_job_id():
     return os.environ.get('SLURM_JOB_ID', None)
 
 
-def cancel_slurm_jobs(*job_ids: str, state: str | None = None):
+def cancel_slurm_jobs(*job_ids: str | int, state: str | None = None):
     """
     Cancels the Slurm jobs with the given job IDs.
 

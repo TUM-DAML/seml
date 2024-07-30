@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import List, cast
+from typing import Any
 
 from seml.commands.manage import detect_killed
 from seml.database import build_filter_dict, get_collection
-from seml.document import ExperimentDoc
 from seml.experiment.description import resolve_description
 from seml.settings import SETTINGS
 from seml.utils import slice_to_str, to_slices
@@ -55,7 +54,6 @@ def collection_set_description(
         filter_states, batch_id, filter_dict, sacred_id=sacred_id
     )
     exps = list(collection.find(filter_dict, {}))
-    exps = cast(List[ExperimentDoc], exps)
     if len(exps) == 0 and sacred_id is not None:
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
     descriptions_resolved = {
@@ -101,7 +99,7 @@ def collection_delete_description(
     db_collection_name: str,
     sacred_id: int | None = None,
     filter_states: list[str] | None = None,
-    filter_dict: dict | None = None,
+    filter_dict: dict[str, Any] | None = None,
     batch_id: int | None = None,
     yes: bool = False,
 ):
@@ -129,11 +127,8 @@ def collection_delete_description(
     filter_dict = build_filter_dict(
         filter_states, batch_id, filter_dict, sacred_id=sacred_id
     )
-    exps = [
-        cast(ExperimentDoc, exp)
-        for exp in collection.find(filter_dict, {'seml.description': 1})
-        if exp.get('seml', {}).get('description', None) is not None
-    ]
+    filter_dict['seml.description'] = {'$exists': True}
+    exps = list(collection.find(filter_dict, {'seml.description': 1}))
     if (
         not yes
         and len(exps) >= SETTINGS.CONFIRM_THRESHOLD.DESCRIPTION_DELETE
@@ -171,10 +166,10 @@ def collection_list_descriptions(db_collection_name: str, update_status: bool = 
         )
 
     description_slices = {
-        (obj['_id'] if obj['_id'] else ''): {
-            'ids': to_slices(obj['ids']),
-            'batch_ids': to_slices(obj['batch_ids']),
-            'states': set(obj['states']),
+        str(obj.get('_id', '')): {
+            'ids': to_slices(obj['ids']),  # type: ignore - these keys are added through the aggregate function.
+            'batch_ids': to_slices(obj['batch_ids']),  # type: ignore
+            'states': set(obj['states']),  # type: ignore
         }
         for obj in collection.aggregate(
             [

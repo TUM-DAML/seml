@@ -5,7 +5,7 @@ import itertools
 import logging
 import re
 import subprocess
-from typing import TYPE_CHECKING, Iterable, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, cast
 
 from seml.database import (
     build_filter_dict,
@@ -93,10 +93,10 @@ def cancel_empty_pending_jobs(db_collection_name: str, *sacred_ids: int):
         if 'array_id' in conf
     }
     # Only cancel the pending jobs
-    cancel_slurm_jobs(*array_ids, state='PENDING')
+    cancel_slurm_jobs(*array_ids, state=SETTINGS.SLURM_STATES.PENDING[0])
 
 
-def cancel_jobs_without_experiments(*slurm_array_ids: str):
+def cancel_jobs_without_experiments(*slurm_array_ids: str | int):
     """
     Cancels Slurm jobs that are not associated with any experiment that is still pending/running.
 
@@ -136,7 +136,7 @@ def cancel_jobs_without_experiments(*slurm_array_ids: str):
 
 
 def cancel_experiment_by_id(
-    collection: Collection,
+    collection: Collection[ExperimentDoc],
     exp_id: int,
     set_interrupted: bool = True,
     slurm_dict: dict | None = None,
@@ -505,7 +505,7 @@ def drop_collections(
         delete_experiments(name, yes=True)
 
 
-def reset_slurm_dict(exp: dict):
+def reset_slurm_dict(exp: ExperimentDoc):
     """Resets the slurm dict of an experiment
 
     Parameters
@@ -527,7 +527,7 @@ def reset_slurm_dict(exp: dict):
             del sub_conf['sbatch_options'][key]
 
 
-def reset_single_experiment(collection: Collection, exp: dict):
+def reset_single_experiment(collection: Collection[ExperimentDoc], exp: ExperimentDoc):
     """Resets a single experiment
 
     Parameters
@@ -640,9 +640,7 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
     running_jobs = get_slurm_arrays_tasks()
     nkilled = 0
     for exp in exps:
-        exp = cast(ExperimentDoc, exp)
         # detect whether the experiment is running in slurm
-        assert 'execution' in exp
         arr_id = exp['execution'].get('array_id', -1)
         task_id = exp['execution'].get('task_id', -1)
         exp_running = arr_id in running_jobs and (
@@ -683,7 +681,7 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
         logging.info(f'Detected {nkilled} externally killed experiment{s_if(nkilled)}.')
 
 
-def get_experiment_files(experiment: dict) -> list[str]:
+def get_experiment_files(experiment: ExperimentDoc) -> list[str]:
     """Gets the file ids of files associated with an experiment
 
     Parameters
@@ -934,4 +932,6 @@ def detect_duplicates(
     if filter_dict is not None:
         pipeline = [{'$match': filter_dict}] + pipeline
     duplicates = collection.aggregate(pipeline)
+    # the aggregate type is wrongly typed.
+    duplicates = cast(List[Dict[str, Any]], duplicates)
     return [set(duplicate['ids']) for duplicate in duplicates]

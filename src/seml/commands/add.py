@@ -39,7 +39,7 @@ States = SETTINGS.STATES
 
 
 def filter_experiments(
-    collection: pymongo.collection.Collection,
+    collection: pymongo.collection.Collection[ExperimentDoc],
     documents: list[ExperimentDoc],
     use_hash: bool = True,
 ):
@@ -85,7 +85,7 @@ def filter_experiments(
 
 
 def remove_duplicates(
-    collection: pymongo.collection.Collection,
+    collection: pymongo.collection.Collection[ExperimentDoc],
     documents: Sequence[ExperimentDoc],
     use_hash: bool,
 ):
@@ -150,7 +150,7 @@ def remove_duplicates(
 
 
 def add_configs(
-    collection: pymongo.collection.Collection,
+    collection: pymongo.collection.Collection[ExperimentDoc],
     documents: list[ExperimentDoc],
     description: str | None = None,
     resolve_descriptions: bool = True,
@@ -277,7 +277,7 @@ def assemble_slurm_config_dict(experiment_slurm_config: SlurmDoc):
     # Assemble the Slurm config:
     # Basis config is the default config. This can be overridden by the sbatch_options_template.
     # And this in turn can be overridden by the sbatch config defined in the experiment .yaml file.
-    slurm_config_base = cast(SlurmDoc, copy.deepcopy(SETTINGS.SLURM_DEFAULT))
+    slurm_config_base = copy.deepcopy(SETTINGS.SLURM_DEFAULT)
 
     # Check for and use sbatch options template
     sbatch_options_template = slurm_config.get('sbatch_options_template', None)
@@ -298,7 +298,7 @@ def assemble_slurm_config_dict(experiment_slurm_config: SlurmDoc):
         SBatchOptions,
         remove_prepended_dashes(cast(Dict[str, Any], slurm_config['sbatch_options'])),
     )
-    return cast(SlurmDoc, slurm_config)
+    return slurm_config
 
 
 def add_config_file(

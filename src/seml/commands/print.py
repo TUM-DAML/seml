@@ -6,7 +6,7 @@ import re
 import time
 from collections import defaultdict
 from io import TextIOWrapper
-from typing import TYPE_CHECKING, Sequence, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Sequence, cast
 
 import pymongo.database
 
@@ -193,6 +193,8 @@ def print_status(
             }
         ]
     )
+    # the aggregate function is wrongly typed.
+    result = cast(List[Dict[str, Any]], list(result))
     result = sorted(result, key=lambda x: list(States.keys()).index(x['_id']))
     show_descriptions = any(len(row['descriptions']) > 0 for row in result)
     # Unpack the (nested) projections
@@ -334,9 +336,13 @@ def print_collections(
                 }
             ]
         )
+        # the aggregate function is wrongly typed.
+        counts_by_status = cast(List[Dict[str, Any]], list(counts_by_status))
         descriptions = db[collection_name].aggregate(
             [{'$group': {'_id': '$seml.description'}}]
         )
+        # the aggregate function is wrongly typed.
+        descriptions = cast(List[Dict[str, Any]], list(descriptions))
         descriptions = [
             result['_id'] for result in descriptions if result['_id'] is not None
         ]

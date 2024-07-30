@@ -109,7 +109,7 @@ def create_slurm_options_string(slurm_options: SBatchOptions, srun: bool = False
 
 
 def start_sbatch_job(
-    collection: Collection,
+    collection: Collection[ExperimentDoc],
     exp_array: Sequence[ExperimentDoc],
     slurm_options_id: int,
     sbatch_options: SBatchOptions,
@@ -252,7 +252,7 @@ def start_sbatch_job(
 
 
 def start_srun_job(
-    collection: Collection,
+    collection: Collection[ExperimentDoc],
     exp: ExperimentDoc,
     srun_options: SBatchOptions,
     seml_arguments: Sequence[str],
@@ -301,7 +301,7 @@ def start_srun_job(
 
 
 def start_local_job(
-    collection: Collection,
+    collection: Collection[ExperimentDoc],
     exp: ExperimentDoc,
     unobserved: bool = False,
     post_mortem: bool = False,
@@ -388,7 +388,7 @@ def start_local_job(
             )
 
         if not unobserved:
-            execution = ExecutionDoc(cluster='local')
+            execution = ExecutionDoc(cluster='local')  # type: ignore
             if 'SLURM_JOBID' in os.environ:
                 execution['array_id'] = int(os.environ['SLURM_JOBID'])
                 execution['task_id'] = 0
@@ -457,7 +457,7 @@ def chunk_list(exps: Sequence[ExperimentDoc]):
 
 
 def prepare_staged_experiments(
-    collection: Collection,
+    collection: Collection[ExperimentDoc],
     filter_dict: dict[str, Any] | None = None,
     num_exps: int = 0,
     set_to_pending: bool = True,
@@ -509,7 +509,7 @@ def prepare_staged_experiments(
 
 
 def add_to_slurm_queue(
-    collection: Collection,
+    collection: Collection[ExperimentDoc],
     exps_list: Sequence[ExperimentDoc],
     unobserved: bool = False,
     post_mortem: bool = False,
@@ -622,7 +622,7 @@ def check_compute_node():
 
 
 def start_local_worker(
-    collection: Collection,
+    collection: Collection[ExperimentDoc],
     num_exps: int = 0,
     filter_dict: dict[str, Any] | None = None,
     unobserved: bool = False,
@@ -1001,7 +1001,7 @@ def start_jupyter_job(
 
 
 def get_experiment_to_prepare(
-    collection: Collection,
+    collection: Collection[ExperimentDoc],
     exp_id: int,
     unobserved: bool,
 ):

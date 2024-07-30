@@ -48,9 +48,9 @@ class SlurmDoc(TypedDict):
     experiments_per_job: int
     sbatch_options_template: NotRequired[str | None]
     sbatch_options: SBatchOptions
-    array_id: NotRequired[int]
+    array_id: int
     num_tasks: NotRequired[int]
-    output_files_template: NotRequired[str]
+    output_files_template: str
 
 
 class GitDoc(TypedDict):
@@ -59,8 +59,8 @@ class GitDoc(TypedDict):
     dirty: bool
 
 
-class ExecutionDoc(TypedDict, total=False):
-    cluster: Required[str]
+class ExecutionDoc(TypedDict):
+    cluster: str
     array_id: int
     task_id: int
     slurm_output_file: str
@@ -120,7 +120,9 @@ class StatsDoc(TypedDict):
     tensorflow: NotRequired[GPUStatDoc]
 
 
-class ExperimentDoc(TypedDict, total=False):
+# One could technically set total=False and properly check if attributes exist. However, this is frequently redundant with the MongoDB query!
+# This could be changed in the future. This applies to many other places as well.
+class ExperimentDoc(TypedDict, total=True):
     # Set at init
     _id: Required[int]
     add_time: Required[datetime]

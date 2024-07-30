@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING, Protocol
 
 from seml.database import get_collection
+from seml.document import ExperimentDoc
 from seml.settings import SETTINGS
 from seml.utils import s_if, smaller_than_version_filter, utcnow
 from seml.utils.slurm import get_cluster_name
@@ -75,7 +76,7 @@ def migrate_collection(db_collection_name: str, skip: bool, backup: bool):
 
 
 class Migration(Protocol):
-    def __init__(self, collection: Collection): ...
+    def __init__(self, collection: Collection[ExperimentDoc]): ...
     def requires_migration(self) -> bool: ...
     def migrate(self) -> int: ...
     def name(self) -> str: ...
@@ -83,10 +84,10 @@ class Migration(Protocol):
 
 
 class Migration04To05Slurm(Migration):
-    collection: Collection
+    collection: Collection[ExperimentDoc]
     db_filter = {'slurm': {'$not': {'$type': 'array'}}}
 
-    def __init__(self, collection: Collection):
+    def __init__(self, collection: Collection[ExperimentDoc]):
         self.collection = collection
 
     def is_silent(self):
@@ -136,7 +137,7 @@ class Migration04To05Slurm(Migration):
 
 
 class Migration05Version(Migration):
-    collection: Collection
+    collection: Collection[ExperimentDoc]
     db_filter = {
         '$or': [
             {f'seml.{SETTINGS.SEML_CONFIG_VALUE_VERSION}': {'$exists': False}},
@@ -149,7 +150,7 @@ class Migration05Version(Migration):
         ]
     }
 
-    def __init__(self, collection: Collection):
+    def __init__(self, collection: Collection[ExperimentDoc]):
         self.collection = collection
 
     def is_silent(self):

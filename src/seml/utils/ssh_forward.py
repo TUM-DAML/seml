@@ -5,6 +5,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from seml.document import ExperimentDoc
 from seml.settings import SETTINGS
 from seml.utils import assert_package_installed
 
@@ -178,7 +179,7 @@ def get_forwarded_mongo_client(
         finally:
             pass
 
-    class ForwardedMongoClient(pymongo.MongoClient):
+    class ForwardedMongoClient(pymongo.MongoClient[ExperimentDoc]):
         def __del__(self):
             try_close()
 

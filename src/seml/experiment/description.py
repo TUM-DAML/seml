@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from seml.document import ExperimentDoc
+from typing import Mapping
 
 
-def resolve_description(description: str, config: dict | ExperimentDoc) -> str:
+def resolve_description(description: str, config: Mapping) -> str:
     import uuid
 
     from omegaconf import OmegaConf
