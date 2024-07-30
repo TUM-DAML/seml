@@ -55,4 +55,4 @@ seml = "seml.__main__:main"
 
 [tool.pyright]
 # TODO: Bump this to "strict" once we have type hints for everything.
-typeCheckingMode = "basic"
+typeCheckingMode = "standard"

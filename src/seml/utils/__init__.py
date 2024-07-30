@@ -271,11 +271,15 @@ D = TypeVar('D', bound=Mapping)
 def merge_dicts(dict1: D, dict2: D) -> D: ...
 
 
+# NG: I don't have a good idea how to type this properly.
+# The idea is that if the two types are identical, we
+# return the same type (for TypedDicts). Otherwise, we
+# want to return just a dict without any assumptions.
 @overload
-def merge_dicts(dict1: Mapping, dict2: Mapping) -> dict: ...
+def merge_dicts(dict1: dict, dict2: dict) -> dict: ...  # type: ignore
 
 
-def merge_dicts(dict1: Mapping | D, dict2: Mapping | D) -> dict | D:
+def merge_dicts(dict1: Mapping, dict2: Mapping) -> Mapping:
     """Recursively merge two dictionaries.
 
     Values in dict2 override values in dict1. If dict1 and dict2 contain a dictionary as a
@@ -421,7 +425,7 @@ class LoggingFormatter(logging.Formatter):
 
 
 class Hashabledict(dict):
-    def __hash__(self):
+    def __hash__(self):  # type: ignore - I don't think we can satisfy this. This is indeed a hack.
         import json
 
         return hash(json.dumps(self, sort_keys=True))

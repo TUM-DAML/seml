@@ -27,6 +27,7 @@ from seml.utils import (
     find_jupyter_host,
     load_text_resource,
     s_if,
+    working_directory,
 )
 from seml.utils.errors import ArgumentError, ConfigError
 from seml.utils.slurm import (
@@ -300,13 +301,13 @@ def start_srun_job(
 
 
 def start_local_job(
-    collection,
-    exp,
-    unobserved=False,
-    post_mortem=False,
-    output_dir_path='.',
-    output_to_console=False,
-    debug_server=False,
+    collection: Collection,
+    exp: ExperimentDoc,
+    unobserved: bool = False,
+    post_mortem: bool = False,
+    output_dir_path: str = '.',
+    output_to_console: bool = False,
+    debug_server: bool = False,
 ):
     """Run an experiment locally.
 
@@ -346,14 +347,16 @@ def start_local_job(
     )
     cmd = get_shell_command(interpreter, exe, config)
 
-    if not use_stored_sources:
-        origin = Path().absolute()
-        os.chdir(exp['seml']['working_dir'])
+    wd = None
+    if use_stored_sources:
+        wd = working_directory(exp['seml']['working_dir'])
+        wd.__enter__()
 
     success = True
+    temp_dir = None
+    output_file = ''
     try:
         seml_config = exp['seml']
-        slurm_config = exp['slurm']
 
         if use_stored_sources:
             temp_dir = os.path.join(SETTINGS.TMP_DIRECTORY, str(uuid.uuid4()))
@@ -422,11 +425,11 @@ def start_local_job(
             )
         success = False
     finally:
-        if use_stored_sources and 'temp_dir' in locals():
+        if use_stored_sources and temp_dir is not None:
             # clean up temp directory
             shutil.rmtree(temp_dir)
-        if not use_stored_sources:
-            os.chdir(origin)
+        if wd is not None:
+            wd.__exit__(None, None, None)
 
     return success
 

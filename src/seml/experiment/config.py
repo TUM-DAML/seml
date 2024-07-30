@@ -285,13 +285,6 @@ def generate_configs(experiment_config, overwrite_params=None):
         fixed_params = flatten(conf.get('fixed', {}))
         grid_params = conf.get('grid', {})
 
-        if len(random_params) > 0:
-            num_samples = random_params['samples']
-            root_seed = random_params.get('seed', None)
-            random_sampled = sample_random_configs(
-                flatten(random_params), seed=root_seed, samples=num_samples
-            )
-
         grids = [generate_grid(v, parent_key=k) for k, v in grid_params.items()]
         grid_configs = dict([sub for item in grids for sub in item])
         grouped_configs = zipped_dict(grid_configs)
@@ -299,6 +292,11 @@ def generate_configs(experiment_config, overwrite_params=None):
 
         with_fixed = [{**d, **fixed_params} for d in grid_product]
         if len(random_params) > 0:
+            num_samples = random_params['samples']
+            root_seed = random_params.get('seed', None)
+            random_sampled = sample_random_configs(
+                flatten(random_params), seed=root_seed, samples=num_samples
+            )
             with_random = [
                 {**grid, **random} for grid in with_fixed for random in random_sampled
             ]

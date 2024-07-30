@@ -78,7 +78,7 @@ class Experiment(ExperimentBase):
             not SETTINGS.EXPERIMENT.CAPTURE_OUTPUT and not self.capture_output
         ) or self.capture_output is False:
             SACRED_SETTINGS.CAPTURE_MODE = 'no'  # type: ignore
-        super().run(
+        return super().run(
             command_name=command_name,
             config_updates=config_updates,
             named_configs=named_configs,

@@ -8,9 +8,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, cast
 
 from seml.database import delete_files, upload_file
-from seml.document import GitDoc
+from seml.document import ExperimentDoc, GitDoc
 from seml.settings import SETTINGS
-from seml.utils import is_local_file, src_layout_to_flat_layout, working_directory
+from seml.utils import (
+    assert_package_installed,
+    is_local_file,
+    src_layout_to_flat_layout,
+    working_directory,
+)
 from seml.utils.errors import ExecutableError, MongoDBError
 
 if TYPE_CHECKING:
@@ -151,13 +156,10 @@ def get_git_info(filename: str, working_dir: str):
     is_dirty: bool
         True if there are uncommitted changes in the repository
     """
-
-    try:
-        from git import InvalidGitRepositoryError, Repo
-    except ImportError:
-        logging.warning(
-            'Cannot import git (pip install GitPython). ' 'Not saving git status.'
-        )
+    assert_package_installed(
+        'git', 'Cannot import git (pip install GitPython). Not saving git status.'
+    )
+    from git import InvalidGitRepositoryError, Repo
 
     with working_directory(working_dir):
         directory = os.path.dirname(filename)
@@ -175,7 +177,7 @@ def get_git_info(filename: str, working_dir: str):
 
 
 def load_sources_from_db(
-    experiment: dict,
+    experiment: ExperimentDoc,
     collection: Collection,
     to_directory: str | Path,
     remove_src_directory: bool = SETTINGS.CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY,

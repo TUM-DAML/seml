@@ -6,7 +6,7 @@ from typing import Any
 
 from seml.database import get_mongo_client, get_mongodb_config
 from seml.settings import SETTINGS
-from seml.utils import warn_multiple_calls
+from seml.utils import assert_package_installed, warn_multiple_calls
 
 __all__ = [
     'create_mongodb_observer',
@@ -165,12 +165,11 @@ def create_mattermost_observer(webhook=None, channel=None, **kwargs):
 def create_neptune_observer(
     project_name, api_token=None, source_extensions=['**/*.py', '**/*.yaml', '**/*.yml']
 ):
-    try:
-        from neptunecontrib.monitoring.sacred import NeptuneObserver  # type: ignore
-    except ImportError:
-        logging.error(
-            'Could not import neptunecontrib. Install via `pip install neptune-contrib`.'
-        )
+    assert_package_installed(
+        'neptunecontrib',
+        'Could not import neptunecontrib. Install via `pip install neptune-contrib`.',
+    )
+    from neptunecontrib.monitoring.sacred import NeptuneObserver  # type: ignore
 
     if api_token is None:
         if 'OBSERVERS' in SETTINGS and 'NEPTUNE' in SETTINGS.OBSERVERS:
