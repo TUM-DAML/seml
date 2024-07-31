@@ -43,7 +43,7 @@ def parse_jsonpickle(db_entry: ExperimentDoc):
 @overload
 def get_results(
     db_collection_name: str,
-    fields: Sequence[str] | None = None,
+    fields: Sequence[str] | dict[str, Any] | None = None,
     to_data_frame: Literal[False] = False,
     mongodb_config: dict[str, Any] | None = None,
     states: Sequence[str] | None = None,
@@ -56,7 +56,7 @@ def get_results(
 @overload
 def get_results(
     db_collection_name: str,
-    fields: Sequence[str] | None = None,
+    fields: Sequence[str] | dict[str, Any] | None = None,
     to_data_frame: Literal[True] = True,
     mongodb_config: dict[str, Any] | None = None,
     states: Sequence[str] | None = None,
@@ -68,7 +68,7 @@ def get_results(
 
 def get_results(
     db_collection_name: str,
-    fields: Sequence[str] | None = None,
+    fields: Sequence[str] | dict[str, Any] | None = None,
     to_data_frame: bool = False,
     mongodb_config: dict[str, Any] | None = None,
     states: Sequence[str] | None = None,
