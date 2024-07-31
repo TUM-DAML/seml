@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import array
-import fcntl
-import socket
-import struct
 import sys
-from contextlib import closing
 
 
 def get_network_interfaces():
+    import array
+    import fcntl
+    import socket
+    import struct
+
     # From https://code.activestate.com/recipes/439093/#c1
     is_64bits = sys.maxsize > 2**32
     struct_size = 40 if is_64bits else 32
@@ -42,6 +42,9 @@ def get_network_interfaces():
 
 
 def find_free_port():
+    import socket
+    from contextlib import closing
+
     ifaces = get_network_interfaces()
     if 'lo' in ifaces:
         del ifaces['lo']

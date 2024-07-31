@@ -8,8 +8,6 @@ from collections import defaultdict
 from io import TextIOWrapper
 from typing import TYPE_CHECKING, Any, Dict, List, Sequence, cast
 
-import pymongo.database
-
 from seml.commands.manage import detect_duplicates, detect_killed, should_check_killed
 from seml.database import (
     build_filter_dict,
@@ -38,7 +36,7 @@ from seml.utils import (
 from seml.utils.slurm import get_cluster_name, get_slurm_jobs
 
 if TYPE_CHECKING:
-    import pymongo
+    import pymongo.database
 
 States = SETTINGS.STATES
 

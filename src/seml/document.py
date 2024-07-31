@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from bson import ObjectId
 from typing_extensions import NotRequired, Required, TypedDict
+
+if TYPE_CHECKING:
+    from bson import ObjectId
 
 
 class SemlDoc(TypedDict, total=False):

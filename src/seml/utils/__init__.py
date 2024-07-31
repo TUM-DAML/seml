@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import copy
 import functools
-import hashlib
 import logging
 import os
-import subprocess
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -459,6 +457,8 @@ class DiskCachedFunction(Generic[R]):
         name: str,
         time_to_live: float,
     ):
+        import hashlib
+
         from seml.settings import SETTINGS
 
         user = os.environ.get('USER', 'unknown')
@@ -725,6 +725,8 @@ def find_jupyter_host(
     Optional[bool]
         Whether the hostname is known. If None is returned, an error occured.
     """
+    import subprocess
+
     hosts_str = subprocess.run(
         'sinfo -h -o "%N|%o"', shell=True, check=True, capture_output=True
     ).stdout.decode('utf-8')
