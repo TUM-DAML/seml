@@ -454,6 +454,7 @@ def print_experiment(
     batch_id: int | None = None,
     filter_dict: dict | None = None,
     projection: list[str] | None = None,
+    format: str = 'yaml',
 ):
     """
     Prints the details of an experiment.
@@ -472,8 +473,12 @@ def print_experiment(
         Additional filters, by default None
     projection : Optional[List[str]], optional
         Additional values to print per experiment, by default all are printed
+    format: Literal['json', 'yaml'], optional
+        The format to print the experiment in, by default 'yaml'
     """
+    import yaml
     from rich import print_json
+    from rich.syntax import Syntax
 
     from seml.console import Heading, console, pause_live_widget
 
@@ -489,10 +494,34 @@ def print_experiment(
         logging.info('No experiment found to print.')
         return
 
+    def json_print_fn(exp):
+        print_json(data=exp, skip_keys=True, default=str)
+
+    def yaml_print_fn(exp):
+        yaml_str = yaml.dump(exp, indent=2, default_flow_style=None)
+        syntax = Syntax(
+            yaml_str[:-1],  # remove trailing newline
+            lexer='yaml',
+            background_color='default',
+        )
+        console.print(syntax)
+
+    format = format.lower()
+    if format == 'json':
+        print_fn = json_print_fn
+    elif format == 'yaml':
+        print_fn = yaml_print_fn
+    else:
+        raise ValueError(f'Unknown format: {format}')
+
     with pause_live_widget():
         for exp in experiments:
             console.print(Heading(f'Experiment {exp["_id"]} (batch {exp["batch_id"]})'))
-            print_json(data=exp, skip_keys=True, default=str)
+            # id and batch_id are already printed in the header.
+            to_print = dict(exp)
+            del to_print['_id']
+            del to_print['batch_id']
+            print_fn(to_print)
 
 
 def print_output(

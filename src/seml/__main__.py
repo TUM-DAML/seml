@@ -4,7 +4,16 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple, TypeVar
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
+)
 
 from typing_extensions import Annotated, ParamSpec
 
@@ -972,6 +981,15 @@ def print_experiment_command(
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     projection: ProjectionAnnotation = [],
+    format: Annotated[
+        str,
+        typer.Option(
+            '-f',
+            '--format',
+            help='The format in which to print the experiment document.',
+            case_sensitive=False,
+        ),
+    ] = 'yaml',
 ):
     """
     Print the experiment document.
@@ -983,6 +1001,7 @@ def print_experiment_command(
         batch_id=batch_id,
         filter_dict=filter_dict,
         projection=projection,
+        format=format,
     )
 
 
