@@ -75,14 +75,21 @@ R = TypeVar('R')
 # numexpr will log unnecessary info we don't want in our CLI
 logging.getLogger('numexpr').setLevel(logging.ERROR)
 
-# Let's not import json if we are only autocompleting
-if not AUTOCOMPLETING:
-    import json
 
-JsonOption = functools.partial(
+def parse_dict(x: str):
+    import ast
+
+    try:
+        return ast.literal_eval(x)
+    except Exception as e:
+        logging.error(f'Could not parse dictionary: {e}\n{x}')
+        exit(1)
+
+
+DictOption = functools.partial(
     typer.Option,
-    metavar='JSON',
-    parser=json.loads if not AUTOCOMPLETING else lambda s: None,  # type: ignore
+    metavar='DICT',
+    parser=parse_dict,
 )
 
 
@@ -161,8 +168,8 @@ SacredIdAnnotation = Annotated[
 ]
 FilterDictAnnotation = Annotated[
     Optional[Dict],
-    JsonOption(
-        '-f',
+    DictOption(
+        '-fd',
         '--filter-dict',
         help='Dictionary (passed as a string, e.g. \'{"config.dataset": "cora_ml"}\') to filter '
         'the experiments by.',
@@ -206,7 +213,7 @@ _STATE_LIST = [s for states in States.values() for s in states]
 FilterStatesAnnotation = Annotated[
     List[str],
     typer.Option(
-        '-s',
+        '-fs',
         '--filter-states',
         help='List of states to filter the experiments by. If empty (""), all states are considered.',
         metavar=f'[{"|".join(_STATE_LIST)}]',
@@ -216,7 +223,7 @@ FilterStatesAnnotation = Annotated[
 ]
 SBatchOptionsAnnotation = Annotated[
     Optional[SBatchOptions],
-    JsonOption(
+    DictOption(
         '-sb',
         '--sbatch-options',
         help='Dictionary (passed as a string, e.g. \'{"gres": "gpu:2"}\') to request two GPUs.',
@@ -285,7 +292,7 @@ WorkerCPUsAnnotation = Annotated[
 ]
 WorkerEnvAnnotation = Annotated[
     Optional[Dict],
-    JsonOption(
+    DictOption(
         '-we',
         '--worker-env',
         help='Further environment variables to be set for the local worker.',
@@ -599,7 +606,7 @@ def add_command(
     ] = False,
     overwrite_params: Annotated[
         Optional[Dict],
-        JsonOption(
+        DictOption(
             '-o',
             '--overwrite-params',
             help='Dictionary (passed as a string, e.g. \'{"epochs": 100}\') to overwrite parameters in the config.',
@@ -984,7 +991,7 @@ def print_experiment_command(
     format: Annotated[
         str,
         typer.Option(
-            '-f',
+            '-F',
             '--format',
             help='The format in which to print the experiment document.',
             case_sensitive=False,
