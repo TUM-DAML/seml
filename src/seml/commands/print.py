@@ -498,9 +498,11 @@ def print_experiment(
         print_json(data=exp, skip_keys=True, default=str)
 
     def yaml_print_fn(exp):
-        yaml_str = yaml.dump(exp, indent=2, default_flow_style=None)
+        from seml.utils.yaml import YamlDumper
+
+        yaml_str = yaml.dump(exp, indent=2, default_flow_style=None, Dumper=YamlDumper)
         syntax = Syntax(
-            yaml_str[:-1],  # remove trailing newline
+            yaml_str.strip(),  # remove trailing newline
             lexer='yaml',
             background_color='default',
         )

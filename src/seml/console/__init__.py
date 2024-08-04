@@ -98,7 +98,7 @@ def Heading(text: str):
     text : str
         The text to display in the seperator.
     """
-    return Padding(Rule(text, style='red'), pad=(1, 0, 0, 0))
+    return Padding(Rule(text, style='red'), pad=(0, 0, 0, 0))
 
 
 def list_items(items: Sequence[str]):
