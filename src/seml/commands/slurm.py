@@ -5,7 +5,6 @@ import subprocess
 
 from seml.commands.manage import detect_killed
 from seml.database import build_filter_dict, get_collection
-from seml.document import ExperimentDoc
 from seml.settings import SETTINGS
 from seml.utils import s_if
 
@@ -33,7 +32,7 @@ def hold_or_release_experiments(
 
     filter_dict = build_filter_dict([*SETTINGS.STATES.PENDING], batch_id, None, None)
     collection = get_collection(db_collection_name)
-    experiments: list[ExperimentDoc] = list(collection.find(filter_dict, {'slurm': 1}))
+    experiments = list(collection.find(filter_dict, {'slurm': 1}))
 
     arrays = set()
     for exp in experiments:
@@ -56,5 +55,5 @@ def hold_or_release_experiments(
     n_exp = len(experiments)
     n_job = len(arrays)
     logging.info(
-        f'{op_name} {n_exp} experiment{s_if(n_exp)} in {n_job} job{s_if(n_job)}.'
+        f'{op_name} {n_exp} experiment{s_if(n_exp)} in {n_job} job{s_if(n_job)} ({",".join(map(str, arrays))}).'
     )
