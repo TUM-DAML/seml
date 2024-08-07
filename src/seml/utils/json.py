@@ -1,21 +1,22 @@
+# type: ignore - we ignore typing here since this is copied from the CPython repo
 # We need the custom json encoding for vscode due to https://github.com/microsoft/vscode/issues/91578
 # Once this bug has been fixed we should only rely on `repr` and remove this file.
 import json
 
 
 class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
+    def default(self, o):
         import numpy as np
         from bson import json_util
 
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
+        if isinstance(o, np.integer):
+            return int(o)
+        elif isinstance(o, np.floating):
+            return float(o)
+        elif isinstance(o, np.ndarray):
+            return o.tolist()
         # we default to json_util.default as it can deal with more data types.
-        return json_util.default(obj)
+        return json_util.default(o)
 
 
 class PythonEncoder(json.JSONEncoder):

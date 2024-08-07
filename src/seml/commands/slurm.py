@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import logging
 import subprocess
-from typing import Optional
 
 from seml.commands.manage import detect_killed
 from seml.database import build_filter_dict, get_collection
@@ -11,7 +12,7 @@ from seml.utils import s_if
 def hold_or_release_experiments(
     hold: bool,
     db_collection_name: str,
-    batch_id: Optional[int] = None,
+    batch_id: int | None = None,
 ):
     """
     Holds or releases experiments that are currently in the SLURM queue.
@@ -54,5 +55,5 @@ def hold_or_release_experiments(
     n_exp = len(experiments)
     n_job = len(arrays)
     logging.info(
-        f'{op_name} {n_exp} experiment{s_if(n_exp)} in {n_job} job{s_if(n_job)}.'
+        f'{op_name} {n_exp} experiment{s_if(n_exp)} in {n_job} job{s_if(n_job)} ({",".join(map(str, arrays))}).'
     )

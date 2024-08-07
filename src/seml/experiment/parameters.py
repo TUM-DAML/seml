@@ -1,13 +1,17 @@
+from __future__ import annotations
+
 import itertools
 import random
 import uuid
-from typing import DefaultDict
+from typing import Any, DefaultDict, Sequence
 
 from seml.utils import unflatten
 from seml.utils.errors import ConfigError
 
 
-def sample_random_configs(random_config, samples=1, seed=None):
+def sample_random_configs(
+    random_block: dict[str, Any], samples: int = 1, seed: int | None = None
+):
     """
     Sample random configurations from the specified search space.
 
@@ -28,11 +32,11 @@ def sample_random_configs(random_config, samples=1, seed=None):
 
     """
 
-    if len(random_config) == 0:
+    if len(random_block) == 0:
         return [{}]
 
-    rdm_keys = [k for k in random_config.keys() if k not in ['samples', 'seed']]
-    random_config = {k: random_config[k] for k in rdm_keys}
+    rdm_keys = [k for k in random_block.keys() if k not in ['samples', 'seed']]
+    random_config = {k: random_block[k] for k in rdm_keys}
     random_parameter_dicts = unflatten(random_config, levels=-1)
     random_samples = [
         sample_parameter(random_parameter_dicts[k], samples, seed, parent_key=k)
@@ -46,7 +50,12 @@ def sample_random_configs(random_config, samples=1, seed=None):
     return random_configurations
 
 
-def sample_parameter(parameter, samples, seed=None, parent_key=''):
+def sample_parameter(
+    parameter: dict[str, Any],
+    samples: int,
+    seed: int | None = None,
+    parent_key: str = '',
+):
     """
     Generate random samples from the specified parameter.
 
@@ -149,7 +158,7 @@ def sample_parameter(parameter, samples, seed=None, parent_key=''):
     return return_items
 
 
-def generate_grid(parameter, parent_key=''):
+def generate_grid(parameter: dict[str, Any], parent_key: str = ''):
     """
     Generate a grid of parameter values from the input configuration.
 
@@ -182,7 +191,7 @@ def generate_grid(parameter, parent_key=''):
     param_type = parameter['type']
     allowed_keys = ['type', 'zip_id']
 
-    return_items = []
+    return_items: list[tuple[str, Any]] = []
 
     if param_type == 'choice':
         values = parameter['options']
@@ -231,12 +240,12 @@ def generate_grid(parameter, parent_key=''):
                 f'{allowed_keys}. Unexpected keys: {extra_keys}'
             )
 
-    zip_id = parameter['zip_id'] if 'zip_id' in parameter else uuid.uuid4()
+    zip_id = parameter.get('zip_id', str(uuid.uuid4()))
     return_items = [(item[0], (item[1], zip_id)) for item in return_items]
     return return_items
 
 
-def zipped_dict(input_dict):
+def zipped_dict(input_dict: dict[str, tuple[Sequence, str]]):
     """Zips dictionaries of type:
     {
         'element1': (values, zip_id),
@@ -258,7 +267,7 @@ def zipped_dict(input_dict):
         dict[str, dict[str, list]]: zipped dictionary
     """
     # Zip by zip_id attribute
-    zipped_dict = DefaultDict(dict)
+    zipped_dict: dict[str, dict[str, Sequence]] = DefaultDict(dict)
     for k, (val, zip_id) in input_dict.items():
         zipped_dict[zip_id][k] = val
 
@@ -271,7 +280,7 @@ def zipped_dict(input_dict):
     return zipped_dict
 
 
-def cartesian_product_zipped_dict(zipped_dict):
+def cartesian_product_zipped_dict(zipped_dict: dict[str, dict[str, Sequence]]):
     """Compute the Cartesian product of the ziped input dictionary values.
     Parameters
     ----------

@@ -1,20 +1,21 @@
+from __future__ import annotations
+
 import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Optional, Union
 
 from seml.settings import SETTINGS
 
 
 def init_project(
-    directory: Union[str, Path] = '.',
-    project_name: Optional[str] = None,
-    user_name: Optional[str] = None,
-    user_mail: Optional[str] = None,
+    directory: str | Path = '.',
+    project_name: str | None = None,
+    user_name: str | None = None,
+    user_mail: str | None = None,
     template: str = 'default',
-    git_remote: Optional[str] = None,
-    git_commit: Optional[str] = None,
+    git_remote: str | None = None,
+    git_commit: str | None = None,
     yes: bool = False,
 ):
     """
@@ -41,7 +42,7 @@ def init_project(
     yes : bool
         If True, no confirmation is asked before initializing the project.
     """
-    from gitignore_parser import parse_gitignore
+    from gitignore_parser import parse_gitignore  # type: ignore
 
     from seml.console import prompt
 
@@ -83,7 +84,7 @@ def init_project(
 
         gitignore_path = template_path / '.gitignore'
         if gitignore_path.exists():
-            ignore_file = parse_gitignore(gitignore_path)
+            ignore_file = parse_gitignore(gitignore_path)  # type: ignore
         else:
 
             def ignore_file(file_path: str):
@@ -115,7 +116,7 @@ def init_project(
 
 @contextmanager
 def checkout_template_repo(
-    git_remote: Optional[str] = None, git_commit: Optional[str] = None
+    git_remote: str | None = None, git_commit: str | None = None
 ):
     """
     Context manager to clone the template repository. The cloned repository
@@ -139,7 +140,7 @@ def checkout_template_repo(
         try:
             repo = Repo.clone_from(git_remote, tmp_dir)
             if git_commit is not None:
-                repo.head.reference = repo.commit(git_commit)
+                repo.head.reference = repo.commit(git_commit)  # type: ignore
                 repo.head.reset(index=True, working_tree=True)
         except Exception as e:
             logging.error(
@@ -151,8 +152,8 @@ def checkout_template_repo(
 
 
 def get_available_templates(
-    git_remote: Optional[str] = None, git_commit: Optional[str] = None
-) -> List[str]:
+    git_remote: str | None = None, git_commit: str | None = None
+) -> list[str]:
     """
     Return a list of available templates.
 
@@ -173,7 +174,7 @@ def get_available_templates(
 
 
 def print_available_templates(
-    git_remote: Optional[str] = None, git_commit: Optional[str] = None
+    git_remote: str | None = None, git_commit: str | None = None
 ):
     """
     Print the available templates.

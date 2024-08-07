@@ -1,19 +1,25 @@
+from __future__ import annotations
+
 import atexit
 import logging
 import time
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any
 
+from seml.document import ExperimentDoc
 from seml.settings import SETTINGS
-from seml.utils import assert_package_installed
+from seml.utils import Hashabledict, assert_package_installed
+
+if TYPE_CHECKING:
+    import multiprocessing.connection
 
 States = SETTINGS.STATES
 
 
 def retried_and_locked_ssh_port_forward(
-    retries_max=SETTINGS.SSH_FORWARD.RETRIES_MAX,
-    retries_delay=SETTINGS.SSH_FORWARD.RETRIES_DELAY,
-    lock_file=SETTINGS.SSH_FORWARD.LOCK_FILE,
-    lock_timeout=SETTINGS.SSH_FORWARD.LOCK_TIMEOUT,
+    retries_max: int = SETTINGS.SSH_FORWARD.RETRIES_MAX,
+    retries_delay: int = SETTINGS.SSH_FORWARD.RETRIES_DELAY,
+    lock_file: str = SETTINGS.SSH_FORWARD.LOCK_FILE,
+    lock_timeout: int = SETTINGS.SSH_FORWARD.LOCK_TIMEOUT,
     **ssh_config,
 ):
     """
@@ -66,12 +72,13 @@ def retried_and_locked_ssh_port_forward(
             delay *= 2
             delay += random.uniform(0, 1)
 
-    if error:
-        logging.error(f'Failed to establish ssh tunnel: {error}')
-        exit(1)
+    logging.error(f'Failed to establish ssh tunnel: {error}')
+    exit(1)
 
 
-def _ssh_forward_process(pipe, ssh_config: Dict[str, Any]):
+def _ssh_forward_process(
+    pipe: multiprocessing.connection.Connection, ssh_config: dict[str, Any]
+):
     """
     Establish an SSH tunnel in a separate process. The process periodically checks if the tunnel is still up and
     restarts it if it is not.
@@ -114,10 +121,79 @@ def _ssh_forward_process(pipe, ssh_config: Dict[str, Any]):
 
 # We want to reuse the same multiprocessing context for all SSH tunnels
 _mp_context = None
+# To establish only a single connection to a remote
+_forwards: dict[Hashabledict, tuple[str, int]] = {}
+
+
+def _get_ssh_forward(ssh_config: dict[str, Any]):
+    """
+    Establishes an SSH tunnel in a separate process and returns the local address of the tunnel.
+    If a connection to the remote host already exists, it is reused.
+
+    Parameters
+    ----------
+    ssh_config: dict
+        Configuration for the SSH tunnel.
+
+    Returns
+    -------
+    local_address: tuple
+        Local address of the SSH tunnel.
+    try_close: Callable
+        Function to close the SSH tunnel.
+    """
+    assert_package_installed(
+        'sshtunnel',
+        'Opening ssh tunnel requires `sshtunnel` (e.g. `pip install sshtunnel`)',
+    )
+    assert_package_installed(
+        'filelock',
+        'Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)',
+    )
+    import multiprocessing as mp
+
+    global _forwards, _mp_context
+
+    ssh_config = Hashabledict(ssh_config)
+    if ssh_config not in _forwards:
+        if _mp_context is None:
+            _mp_context = mp.get_context('forkserver')
+        main_pipe, forward_pipe = _mp_context.Pipe(True)
+        proc = _mp_context.Process(
+            target=_ssh_forward_process, args=(forward_pipe, ssh_config)
+        )
+        proc.start()
+
+        def try_close():
+            try:
+                if not main_pipe.closed:
+                    main_pipe.send('stop')
+                    main_pipe.close()
+            finally:
+                pass
+
+        # Send stop if we exit the program
+        atexit.register(try_close)
+
+        # Compute the maximum time we should wait
+        retries_max = ssh_config.get('retries_max', SETTINGS.SSH_FORWARD.RETRIES_MAX)
+        retries_delay = ssh_config.get(
+            'retries_delay', SETTINGS.SSH_FORWARD.RETRIES_DELAY
+        )
+        max_delay = 2 ** (retries_max + 1) * retries_delay
+
+        # check if the forward process has been established correctly
+        if main_pipe.poll(max_delay):
+            host, port = main_pipe.recv()
+            _forwards[ssh_config] = (str(host), int(port))
+        else:
+            logging.error('Failed to establish SSH tunnel.')
+            exit(1)
+    return _forwards[ssh_config]
 
 
 def get_forwarded_mongo_client(
-    db_name, username, password, ssh_config: Dict[str, Any], **kwargs
+    db_name: str, username: str, password: str, ssh_config: dict[str, Any], **kwargs
 ):
     """
     Establish an SSH tunnel and return a forwarded MongoDB client.
@@ -141,62 +217,16 @@ def get_forwarded_mongo_client(
     client: pymongo.MongoClient
         Forwarded MongoDB client.
     """
-    import multiprocessing as mp
-
     import pymongo
 
-    global _mp_context
+    host, port = _get_ssh_forward(ssh_config)
 
-    assert_package_installed(
-        'sshtunnel',
-        'Opening ssh tunnel requires `sshtunnel` (e.g. `pip install sshtunnel`)',
+    client = pymongo.MongoClient[ExperimentDoc](
+        host,
+        int(port),
+        username=username,
+        password=password,
+        authSource=db_name,
+        **kwargs,
     )
-    assert_package_installed(
-        'filelock',
-        'Opening ssh tunnel requires `filelock` (e.g. `pip install filelock`)',
-    )
-
-    if _mp_context is None:
-        _mp_context = mp.get_context('forkserver')
-    main_pipe, forward_pipe = _mp_context.Pipe(True)
-    proc = _mp_context.Process(
-        target=_ssh_forward_process, args=(forward_pipe, ssh_config)
-    )
-    proc.start()
-
-    def try_close():
-        try:
-            if not main_pipe.closed:
-                main_pipe.send('stop')
-                main_pipe.close()
-        finally:
-            pass
-
-    class ForwardedMongoClient(pymongo.MongoClient):
-        def __del__(self):
-            try_close()
-
-    # Send stop if we exit the program
-    atexit.register(try_close)
-
-    # Compute the maximum time we should wait
-    retries_max = ssh_config.get('retries_max', SETTINGS.SSH_FORWARD.RETRIES_MAX)
-    retries_delay = ssh_config.get('retries_delay', SETTINGS.SSH_FORWARD.RETRIES_DELAY)
-    max_delay = 2 ** (retries_max + 1) * retries_delay
-
-    # check if the forward process has been established correctly
-    if main_pipe.poll(max_delay):
-        host, port = main_pipe.recv()
-
-        client = ForwardedMongoClient(
-            host,
-            int(port),
-            username=username,
-            password=password,
-            authSource=db_name,
-            **kwargs,
-        )
-        return client
-    else:
-        logging.error('Failed to establish SSH tunnel.')
-        exit(1)
+    return client

@@ -4,7 +4,16 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple, TypeVar
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
+)
 
 from typing_extensions import Annotated, ParamSpec
 
@@ -51,6 +60,7 @@ from seml.database import (
     get_mongodb_config,
     update_working_dir,
 )
+from seml.document import SBatchOptions
 from seml.settings import SETTINGS
 from seml.utils import cache_to_disk
 from seml.utils.module_hider import AUTOCOMPLETING
@@ -65,14 +75,21 @@ R = TypeVar('R')
 # numexpr will log unnecessary info we don't want in our CLI
 logging.getLogger('numexpr').setLevel(logging.ERROR)
 
-# Let's not import json if we are only autocompleting
-if not AUTOCOMPLETING:
-    import json
 
-JsonOption = functools.partial(
+def parse_dict(x: str):
+    import ast
+
+    try:
+        return ast.literal_eval(x)
+    except Exception as e:
+        logging.error(f'Could not parse dictionary: {e}\n{x}')
+        exit(1)
+
+
+DictOption = functools.partial(
     typer.Option,
-    metavar='JSON',
-    parser=json.loads if not AUTOCOMPLETING else lambda s: None,  # type: ignore
+    metavar='DICT',
+    parser=parse_dict,
 )
 
 
@@ -151,8 +168,8 @@ SacredIdAnnotation = Annotated[
 ]
 FilterDictAnnotation = Annotated[
     Optional[Dict],
-    JsonOption(
-        '-f',
+    DictOption(
+        '-fd',
         '--filter-dict',
         help='Dictionary (passed as a string, e.g. \'{"config.dataset": "cora_ml"}\') to filter '
         'the experiments by.',
@@ -196,7 +213,7 @@ _STATE_LIST = [s for states in States.values() for s in states]
 FilterStatesAnnotation = Annotated[
     List[str],
     typer.Option(
-        '-s',
+        '-fs',
         '--filter-states',
         help='List of states to filter the experiments by. If empty (""), all states are considered.',
         metavar=f'[{"|".join(_STATE_LIST)}]',
@@ -205,8 +222,8 @@ FilterStatesAnnotation = Annotated[
     ),
 ]
 SBatchOptionsAnnotation = Annotated[
-    Optional[Dict],
-    JsonOption(
+    Optional[SBatchOptions],
+    DictOption(
         '-sb',
         '--sbatch-options',
         help='Dictionary (passed as a string, e.g. \'{"gres": "gpu:2"}\') to request two GPUs.',
@@ -275,7 +292,7 @@ WorkerCPUsAnnotation = Annotated[
 ]
 WorkerEnvAnnotation = Annotated[
     Optional[Dict],
-    JsonOption(
+    DictOption(
         '-we',
         '--worker-env',
         help='Further environment variables to be set for the local worker.',
@@ -589,7 +606,7 @@ def add_command(
     ] = False,
     overwrite_params: Annotated[
         Optional[Dict],
-        JsonOption(
+        DictOption(
             '-o',
             '--overwrite-params',
             help='Dictionary (passed as a string, e.g. \'{"epochs": 100}\') to overwrite parameters in the config.',
@@ -971,6 +988,15 @@ def print_experiment_command(
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     projection: ProjectionAnnotation = [],
+    format: Annotated[
+        str,
+        typer.Option(
+            '-F',
+            '--format',
+            help='The format in which to print the experiment document.',
+            case_sensitive=False,
+        ),
+    ] = 'yaml',
 ):
     """
     Print the experiment document.
@@ -982,6 +1008,7 @@ def print_experiment_command(
         batch_id=batch_id,
         filter_dict=filter_dict,
         projection=projection,
+        format=format,
     )
 
 
@@ -1563,6 +1590,7 @@ if AUTOCOMPLETING and os.environ.get('COMP_WORDS'):
         os.environ['COMP_WORDS'].split('\n'), command_tree(app)
     )
     cword = int(os.environ['COMP_CWORD'])
+    cmd = commands[0]
     if cword > 1:
         # Case where we complete a command
         # To find the right command, we must subtract the length of all previous commands
@@ -1575,9 +1603,6 @@ if AUTOCOMPLETING and os.environ.get('COMP_WORDS'):
                 break
             cword -= cmd_length
         cword += 2  # add back the -2 we subtracted above
-    else:
-        # If we complete collection names
-        cmd = commands[0]
     os.environ['COMP_WORDS'] = '\n'.join(cmd)
     os.environ['COMP_CWORD'] = str(cword)
     # If we are not at the top level typer, we must not suggest top level commands

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class InputError(SystemExit):
     """Parent class for input errors that don't print a stack trace."""
 
