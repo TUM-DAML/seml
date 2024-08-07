@@ -24,7 +24,8 @@ with ModuleHider(
 T = TypeVar('T', default=Any)
 
 
-class SettingsDict(Mapping[str, T]): ...
+class SettingsDict(Mapping[str, T]):
+    def __getattr__(self, name: str) -> T: ...
 
 
 class DatabaseSettings(SettingsDict):
@@ -109,10 +110,6 @@ class SSHForwardSettings(SettingsDict):
     HEALTH_CHECK_INTERVAL: int
 
 
-class SBatchTemplates(SettingsDict):
-    def __getattr__(self, name: str) -> SBatchOptions: ...
-
-
 class Settings(SettingsDict):
     USER_SETTINGS_PATH: Path
     TMP_DIRECTORY: str
@@ -120,7 +117,7 @@ class Settings(SettingsDict):
     CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY: bool
     DATABASE: DatabaseSettings
     SLURM_DEFAULT: SlurmDoc
-    SBATCH_OPTIONS_TEMPLATES: SBatchTemplates
+    SBATCH_OPTIONS_TEMPLATES: SettingsDict[SBatchOptions]
     STATES: States
     SLURM_STATES: SlurmStates
     VALID_SEML_CONFIG_VALUES: list[str]
