@@ -4,10 +4,10 @@ import copy
 import datetime
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Any, Dict, Sequence, cast
 
 from seml.database import get_collection, get_max_in_collection
-from seml.document import ExperimentDoc, SBatchOptions, SemlDoc, SlurmDoc
+from seml.document import ExperimentDoc, SBatchOptions, SemlDoc, SlurmConfig
 from seml.experiment.config import (
     check_config,
     config_get_exclude_keys,
@@ -28,6 +28,7 @@ from seml.utils import (
     merge_dicts,
     remove_keys_from_nested,
     s_if,
+    to_super_typeddict,
     unflatten,
 )
 from seml.utils.errors import ConfigError
@@ -258,7 +259,7 @@ def add_config_files(
         )
 
 
-def assemble_slurm_config_dict(experiment_slurm_config: SlurmDoc):
+def assemble_slurm_config_dict(experiment_slurm_config: SlurmConfig):
     """
     Realize inheritance for the slurm configuration, with the following relationship:
     Default -> Template -> Experiment
@@ -347,11 +348,8 @@ def add_config_file(
     git_info = get_git_info(seml_config['executable'], seml_config['working_dir'])
 
     # Compute batch id
-    batch_id = cast(Optional[int], get_max_in_collection(collection, 'batch_id'))
-    if batch_id is None:
-        batch_id = 1
-    else:
-        batch_id = batch_id + 1
+    batch_id = get_max_in_collection(collection, 'batch_id', int)
+    batch_id = 1 if batch_id is None else batch_id + 1
 
     # Assemble the Slurm config:
     slurm_configs = list(map(assemble_slurm_config_dict, slurm_configs))
@@ -371,11 +369,10 @@ def add_config_file(
     )
 
     # Upload source files: This also determines the batch_id
-    if seml_config['use_uploaded_sources'] and not no_code_checkpoint:
+    use_uploaded_sources = seml_config['use_uploaded_sources']
+    seml_config = to_super_typeddict(seml_config, SemlDoc)
+    if use_uploaded_sources and not no_code_checkpoint:
         seml_config['source_files'] = upload_sources(seml_config, collection, batch_id)
-    del seml_config['use_uploaded_sources']  # type: ignore
-    # Now it is in the right format for the type checks
-    seml_config = cast(SemlDoc, seml_config)
 
     # Create documents that can be interpolated
     documents = [

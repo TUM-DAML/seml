@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Sequence, TypeVar, overload
 
 from seml.document import ExperimentDoc
 from seml.settings import SETTINGS
@@ -231,9 +231,30 @@ def build_filter_dict(
     return filter_dict
 
 
+T = TypeVar('T')
+
+
+@overload
 def get_max_in_collection(
-    collection: pymongo.collection.Collection[ExperimentDoc], field: str
-):
+    collection: pymongo.collection.Collection[ExperimentDoc],
+    field: str,
+    cls: type[T],
+) -> T | None: ...
+
+
+@overload
+def get_max_in_collection(
+    collection: pymongo.collection.Collection[ExperimentDoc],
+    field: str,
+    cls: None = None,
+) -> Any | None: ...
+
+
+def get_max_in_collection(
+    collection: pymongo.collection.Collection[ExperimentDoc],
+    field: str,
+    cls: type[T] | None = None,
+) -> T | Any | None:
     """
     Find the maximum value in the input collection for the input field.
     Parameters
@@ -250,7 +271,10 @@ def get_max_in_collection(
     if result := collection.find_one(
         projection={field: 1}, sort=[(field, pymongo.DESCENDING)], limit=1
     ):
-        return result.get(field)
+        var = result.get(field)
+        if cls is not None and not isinstance(var, cls):
+            raise ValueError(f'Expected {cls}, got {type(var)}')
+        return var
     return None
 
 

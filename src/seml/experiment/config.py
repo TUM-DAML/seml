@@ -13,14 +13,20 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
-    List,
     Mapping,
     Sequence,
     TypeVar,
     cast,
 )
 
-from seml.document import SemlConfigDoc, SlurmDoc
+from seml.document import (
+    ConfigFile,
+    ExperimentFile,
+    SemlConfig,
+    SemlDocBase,
+    SemlFileConfig,
+    SlurmConfig,
+)
 from seml.experiment.parameters import (
     cartesian_product_zipped_dict,
     generate_grid,
@@ -34,6 +40,7 @@ from seml.utils import (
     flatten,
     merge_dicts,
     remove_keys_from_nested,
+    to_super_typeddict,
     unflatten,
     working_directory,
 )
@@ -767,40 +774,45 @@ def read_config(config_path: str | Path):
 
     with open(config_path) as conf:
         config_dict = cast(
-            Dict[str, Any], convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
+            ExperimentFile, convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
         )
 
     if 'seml' not in config_dict:
         raise ConfigError("Please specify a 'seml' dictionary.")
 
-    seml_dict = config_dict['seml']
-    del config_dict['seml']
+    seml_conf = config_dict['seml']
 
-    for k in seml_dict.keys():
+    for k in seml_conf.keys():
         if k not in SETTINGS.VALID_SEML_CONFIG_VALUES:
             raise ConfigError(f'{k} is not a valid value in the `seml` config block.')
 
-    if SETTINGS.SEML_CONFIG_VALUE_VERSION in seml_dict:
+    if SETTINGS.SEML_CONFIG_VALUE_VERSION in seml_conf:
         raise ConfigError(
             f'Using {SETTINGS.SEML_CONFIG_VALUE_VERSION} in the `seml` config block is prohibited.'
         )
 
     version_array = [(int(x) if x.isdecimal() else x) for x in __version__.split('.')]
-    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = version_array
-
-    determine_executable_and_working_dir(config_path, seml_dict)
+    executable, working_dir, output_dir, use_uploaded_sources = (
+        determine_executable_and_working_dir(config_path, seml_conf)
+    )
+    seml = to_super_typeddict(seml_conf, SemlDocBase)
+    seml.update(executable=executable)
+    seml = SemlConfig(
+        **seml,
+        version=version_array,
+        working_dir=working_dir,
+        use_uploaded_sources=use_uploaded_sources,
+    )
+    if output_dir is not None:
+        seml['output_dir'] = output_dir
 
     # Get list of slurm configs
-    slurm_list = config_dict.get('slurm', [])
-    del config_dict['slurm']
-
-    if slurm_list is None:
-        slurm_list = []
+    slurm_list: list[SlurmConfig] = config_dict.get('slurm', [])
 
     # Check for deprecated `slurm` dictionary
     if isinstance(slurm_list, dict):
         warnings.warn('`slurm` is expected to be a list of slurm configurations.')
-        slurm_list = [slurm_list]
+        slurm_list = [cast(SlurmConfig, slurm_list)]
 
     # Sanity check
     for slurm_conf in slurm_list:
@@ -809,22 +821,18 @@ def read_config(config_path: str | Path):
                 raise ConfigError(
                     f'{k} is not a valid value in the `slurm` config block.'
                 )
-            if k == 'sbatch_options' and slurm_conf['sbatch_options'] is None:
-                slurm_conf['sbatch_options'] = {}
+        if slurm_conf.get('sbatch_options', None) is None:
+            slurm_conf['sbatch_options'] = {}
 
     # If we have no config, we should add one
     if len(slurm_list) == 0:
-        slurm_list.append({})
+        slurm_list.append(SlurmConfig(experiments_per_job=1, sbatch_options={}))
 
-    return (
-        cast(SemlConfigDoc, seml_dict),
-        cast(List[SlurmDoc], slurm_list),
-        cast(Dict[str, Any], config_dict),
-    )
+    return seml, slurm_list, to_super_typeddict(config_dict, ConfigFile)
 
 
 def determine_executable_and_working_dir(
-    config_path: str | Path, seml_dict: SemlConfigDoc
+    config_path: str | Path, seml_dict: SemlFileConfig
 ):
     """
     Determine the working directory of the project and chdir into the working directory.
@@ -850,29 +858,29 @@ def determine_executable_and_working_dir(
             working_dir = str(
                 Path(seml_dict['project_root_dir']).expanduser().resolve()
             )
-        seml_dict['use_uploaded_sources'] = True
+        use_uploaded_sources = True
         with working_directory(working_dir):  # use project root as base dir from now on
             executable_relative_to_project_root = os.path.exists(executable)
         del seml_dict['project_root_dir']  # from now on we use only the working dir
     else:
-        seml_dict['use_uploaded_sources'] = False
+        use_uploaded_sources = False
         logging.warning(
             "'project_root_dir' not defined in seml config. Source files will not be saved in MongoDB."
         )
-    seml_dict['working_dir'] = working_dir
     if not (executable_relative_to_config or executable_relative_to_project_root):
         raise ExecutableError('Could not find the executable.')
     with working_directory(working_dir):
         executable = str(Path(executable).expanduser().resolve())
         if executable_relative_to_project_root:
-            seml_dict['executable'] = str(Path(executable).relative_to(working_dir))
+            executable = str(Path(executable).relative_to(working_dir))
         else:
-            seml_dict['executable'] = str(Path(executable).relative_to(config_dir))
+            executable = str(Path(executable).relative_to(config_dir))
 
         if 'output_dir' in seml_dict:
-            seml_dict['output_dir'] = str(
-                Path(seml_dict['output_dir']).expanduser().resolve()
-            )
+            output_dir = seml_dict['output_dir']
+        else:
+            output_dir = None
+    return executable, working_dir, output_dir, use_uploaded_sources
 
 
 def remove_prepended_dashes(param_dict: dict[str, Any]) -> dict[str, Any]:

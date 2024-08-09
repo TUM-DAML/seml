@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Mapping, cast
 from typing_extensions import TypeVar
 
 import seml.utils.typer as typer
-from seml.document import SBatchOptions, SlurmDoc
+from seml.document import SBatchOptions, SlurmConfig
 from seml.utils import merge_dicts
 from seml.utils.module_hider import ModuleHider
 
@@ -116,7 +116,7 @@ class Settings(SettingsDict):
     TEMPLATE_REMOTE: str
     CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY: bool
     DATABASE: DatabaseSettings
-    SLURM_DEFAULT: SlurmDoc
+    SLURM_DEFAULT: SlurmConfig
     SBATCH_OPTIONS_TEMPLATES: SettingsDict[SBatchOptions]
     STATES: States
     SLURM_STATES: SlurmStates
@@ -242,7 +242,6 @@ SETTINGS = cast(
                 'max_simultaneous_jobs',
                 'sbatch_options_template',
                 'sbatch_options',
-                'overrides',
             ],
             'LOGIN_NODE_NAMES': ['fs'],
             'OBSERVERS': {
@@ -283,7 +282,7 @@ SETTINGS = cast(
                 'TERMINAL_WIDTH': 80,  # width of the terminal for rich output
             },
             'MIGRATION': {
-                'SKIP': False,  # alwys ignore migrations, changing this most likely breaks compatibility!
+                'SKIP': False,  # always ignore migrations, changing this most likely breaks compatibility!
                 'YES': False,  # always confirm migrations
                 'BACKUP': False,  # always backup the database before running migrations
                 'BACKUP_TMP': '{collection}_backup_{time}',  # format for backup collections

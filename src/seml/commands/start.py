@@ -347,89 +347,88 @@ def start_local_job(
     )
     cmd = get_shell_command(interpreter, exe, config)
 
-    wd = None
-    if use_stored_sources:
-        wd = working_directory(exp['seml']['working_dir'])
-        wd.__enter__()
+    wd_path = exp['seml']['working_dir'] if use_stored_sources else '.'
+    with working_directory(wd_path):
+        success = True
+        temp_dir = None
+        output_file = ''
+        try:
+            seml_config = exp['seml']
 
-    success = True
-    temp_dir = None
-    output_file = ''
-    try:
-        seml_config = exp['seml']
+            if use_stored_sources:
+                temp_dir = os.path.join(SETTINGS.TMP_DIRECTORY, str(uuid.uuid4()))
+                os.mkdir(temp_dir, mode=0o700)
+                load_sources_from_db(exp, collection, to_directory=temp_dir)
+                env = {'PYTHONPATH': f'{temp_dir}:$PYTHONPATH'}
+                temp_exe = os.path.join(temp_dir, exe)
+                # update the command to use the temp dir
+                cmd = get_shell_command(interpreter, temp_exe, config, env=env)
 
-        if use_stored_sources:
-            temp_dir = os.path.join(SETTINGS.TMP_DIRECTORY, str(uuid.uuid4()))
-            os.mkdir(temp_dir, mode=0o700)
-            load_sources_from_db(exp, collection, to_directory=temp_dir)
-            env = {'PYTHONPATH': f'{temp_dir}:$PYTHONPATH'}
-            temp_exe = os.path.join(temp_dir, exe)
-            # update the command to use the temp dir
-            cmd = get_shell_command(interpreter, temp_exe, config, env=env)
+            if output_dir_path:
+                exp_name = get_exp_name(exp, collection.name)
+                output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
+                if not unobserved:
+                    collection.update_one(
+                        {'_id': exp['_id']}, {'$set': {'seml.output_file': output_file}}
+                    )
+                if output_to_console:
+                    # redirect output to logfile AND output to console. See https://stackoverflow.com/a/34604684.
+                    # Alternatively, we could go with subprocess.Popen, but this could conflict with pdb.
+                    cmd = f'{cmd} 2>&1 | tee -a {output_file}'
 
-        if output_dir_path:
-            exp_name = get_exp_name(exp, collection.name)
-            output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
-            if not unobserved:
-                collection.update_one(
-                    {'_id': exp['_id']}, {'$set': {'seml.output_file': output_file}}
+            if seml_config.get('conda_environment') is not None:
+                cmd = (
+                    f". $(conda info --base)/etc/profile.d/conda.sh "
+                    f"&& conda activate {seml_config['conda_environment']} "
+                    f"&& {cmd} "
+                    f"&& conda deactivate"
                 )
-            if output_to_console:
-                # redirect output to logfile AND output to console. See https://stackoverflow.com/a/34604684.
-                # Alternatively, we could go with subprocess.Popen, but this could conflict with pdb.
-                cmd = f'{cmd} 2>&1 | tee -a {output_file}'
 
-        if seml_config.get('conda_environment') is not None:
-            cmd = (
-                f". $(conda info --base)/etc/profile.d/conda.sh "
-                f"&& conda activate {seml_config['conda_environment']} "
-                f"&& {cmd} "
-                f"&& conda deactivate"
-            )
+            if not unobserved:
+                execution = ExecutionDoc(cluster='local')  # type: ignore
+                if 'SLURM_JOBID' in os.environ:
+                    execution['array_id'] = int(os.environ['SLURM_JOBID'])
+                    execution['task_id'] = 0
+                collection.update_one(
+                    {'_id': exp['_id']},
+                    {'$set': {'execution': execution}},
+                )
 
-        if not unobserved:
-            execution = ExecutionDoc(cluster='local')  # type: ignore
-            if 'SLURM_JOBID' in os.environ:
-                execution['array_id'] = int(os.environ['SLURM_JOBID'])
-                execution['task_id'] = 0
-            collection.update_one(
-                {'_id': exp['_id']},
-                {'$set': {'execution': execution}},
-            )
+            logging.debug(f'Running the following command:\n {cmd}')
 
-        logging.debug(f'Running the following command:\n {cmd}')
-
-        if output_dir_path:
-            if output_to_console:
-                # Let's pause the live widget so we can actually see the output.
+            if output_dir_path:
+                if output_to_console:
+                    # Let's pause the live widget so we can actually see the output.
+                    with pause_live_widget():
+                        subprocess.run(cmd, shell=True, check=True)
+                else:  # redirect output to logfile
+                    with open(output_file, 'w') as log_file:
+                        subprocess.run(
+                            cmd,
+                            shell=True,
+                            stderr=log_file,
+                            stdout=log_file,
+                            check=True,
+                        )
+            else:
                 with pause_live_widget():
                     subprocess.run(cmd, shell=True, check=True)
-            else:  # redirect output to logfile
-                with open(output_file, 'w') as log_file:
-                    subprocess.run(
-                        cmd, shell=True, stderr=log_file, stdout=log_file, check=True
-                    )
-        else:
-            with pause_live_widget():
-                subprocess.run(cmd, shell=True, check=True)
 
-    except subprocess.CalledProcessError:
-        success = False
-    except OSError:
-        logging.error(f'Log file {output_file} could not be written.')
-        # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
-        if not unobserved:
-            collection.update_one(
-                filter={'_id': exp['_id']},
-                update={'$set': {'status': States.FAILED[0]}},
-            )
-        success = False
-    finally:
-        if use_stored_sources and temp_dir is not None:
-            # clean up temp directory
-            shutil.rmtree(temp_dir)
-        if wd is not None:
-            wd.__exit__(None, None, None)
+        except subprocess.CalledProcessError:
+            success = False
+        except OSError:
+            logging.error(f'Log file {output_file} could not be written.')
+            # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
+            if not unobserved:
+                collection.update_one(
+                    filter={'_id': exp['_id']},
+                    update={'$set': {'status': States.FAILED[0]}},
+                )
+            success = False
+        finally:
+            if use_stored_sources and temp_dir is not None:
+                # clean up temp directory
+                shutil.rmtree(temp_dir)
 
     return success
 
@@ -1188,7 +1187,7 @@ def prepare_experiment(
     output_dir = get_output_dir_path(exp)
     try:
         slurm_id = get_current_slurm_job_id()
-        assert slurm_id is not None
+        assert slurm_id is not None, 'No SLURM job ID found.'
         job_info = get_slurm_jobs(slurm_id)[0]
         name = job_info['JobName']
         array_id, task_id = get_current_slurm_array_id()

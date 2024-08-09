@@ -1,4 +1,13 @@
+"""
+This script reads the pyproject.toml and updates the pyright dependencies in
+our pre-commit hook with the current dependencies from the pyproject.toml.
+This script itself will be called from a pre-commit hook everytime the pyproject.toml
+gets edited.
+"""
+
 import toml
+
+# We use ruamel.yaml instead of pyyaml since it preseveres comments and structure.
 from ruamel.yaml import YAML
 
 with open('pyproject.toml') as inp:

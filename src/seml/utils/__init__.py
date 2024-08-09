@@ -633,7 +633,7 @@ def warn_multiple_calls(warning: str, warn_after: int = 1):
                 logging.warning(warning.format(num_calls=num_calls))
             return f(*args, **kwargs)
 
-        return wrapper  # type: ignore
+        return cast(T, wrapper)
 
     return decorator
 
@@ -846,3 +846,18 @@ def utcnow():
         return datetime.datetime.now(datetime.UTC)  # type: ignore - here the type checker may fail in old python version
     except AttributeError:
         return datetime.datetime.utcnow()
+
+
+TD = TypeVar('TD', bound=Mapping[str, Any])
+
+
+def to_super_typeddict(
+    d: Mapping[str, Any], cls: type[TD], missing_ok: bool = True
+) -> TD:
+    result = dict()
+    for key in cls.__annotations__:
+        if key in d:
+            result[key] = d[key]
+        elif not missing_ok:
+            raise ValueError(f'Missing key {key} in {d}.')
+    return cast(TD, result)
