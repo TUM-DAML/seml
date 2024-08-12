@@ -441,16 +441,15 @@ class ExperimentDoc(TypedDict, total=True):
     stop_time: datetime
 
 
-class ConfigFile(TypedDict, total=False):
+class ExperimentConfig(TypedDict, total=False, closed=True):
     # We have this base class to represent also sub-configurations.
     # TODO: properly type the configurations files.
     fixed: Any
     grid: Any
     random: Any
+    __extra_items__: dict[str, ExperimentConfig]
 
 
-class ExperimentFile(ConfigFile, total=False, closed=False):
+class SemlExperimentFile(ExperimentConfig, total=False, closed=True):
     seml: SemlFileConfig
     slurm: list[SlurmConfig]
-    # the extra items are all sub-configurations
-    __extra_items__: dict[str, ConfigFile]

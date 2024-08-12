@@ -20,11 +20,11 @@ from typing import (
 )
 
 from seml.document import (
-    ConfigFile,
+    ExperimentConfig,
     ExperimentDoc,
-    ExperimentFile,
     SemlConfig,
     SemlDocBase,
+    SemlExperimentFile,
     SemlFileConfig,
     SlurmConfig,
 )
@@ -38,6 +38,7 @@ from seml.experiment.sources import import_exe
 from seml.settings import SETTINGS
 from seml.utils import (
     Hashabledict,
+    cast_and_drop,
     flatten,
     merge_dicts,
     remove_keys_from_nested,
@@ -777,7 +778,7 @@ def read_config(config_path: str | Path):
 
     with open(config_path) as conf:
         config_dict = cast(
-            ExperimentFile, convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
+            SemlExperimentFile, convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
         )
 
     if 'seml' not in config_dict:
@@ -834,7 +835,9 @@ def read_config(config_path: str | Path):
     if len(slurm_list) == 0:
         slurm_list.append(SlurmConfig(experiments_per_job=1, sbatch_options={}))
 
-    return seml, slurm_list, to_super_typeddict(config_dict, ConfigFile)
+    # Remove unnecessary keys from config_dict
+    config_dict = cast_and_drop(config_dict, SemlExperimentFile, ExperimentConfig)
+    return seml, slurm_list, config_dict
 
 
 def determine_executable_and_working_dir(

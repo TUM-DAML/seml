@@ -854,6 +854,32 @@ TD = TypeVar('TD', bound=Mapping[str, Any])
 def to_super_typeddict(
     d: Mapping[str, Any], cls: type[TD], missing_ok: bool = True
 ) -> TD:
+    """
+    Returns a new TypedDict where only keys that are in the class type are kept.
+
+    If the class has an `__extra_items__` attribute, the input dict is returned as is.
+
+    If one wants to explicitly drop the delta between two typed dicts, use `cast_and_drop`.
+
+    Parameters
+    ----------
+    d: Mapping[str, Any]
+        The object to cast.
+    cls: type[TD]
+        The target class.
+    missing_ok: bool, default: True
+        Whether to allow missing keys in `d`.
+
+    Returns
+    -------
+    TD
+        The new object.
+    """
+    from copy import deepcopy
+
+    if getattr(cls, '__extra_items__', None):
+        return cast(TD, deepcopy(d))
+
     result = dict()
     for key in cls.__annotations__:
         if key in d:
@@ -861,3 +887,35 @@ def to_super_typeddict(
         elif not missing_ok:
             raise ValueError(f'Missing key {key} in {d}.')
     return cast(TD, result)
+
+
+TD1 = TypeVar('TD1', bound=Mapping[str, Any])
+TD2 = TypeVar('TD2', bound=Mapping[str, Any])
+
+
+def cast_and_drop(obj: TD1, cls: type[TD1], cls2: type[TD2]):
+    """
+    Returns a new TypedDict where all keys that cls has but cls2 does not have are dropped.
+
+    Parameters
+    ----------
+    obj: TD1
+        The object to cast.
+    cls: type[TD1]
+        The current class.
+    cls2: type[TD2]
+        The target class.
+
+    Returns
+    -------
+    TD2
+        The new object.
+    """
+    from copy import deepcopy
+
+    result = dict(deepcopy(obj))
+    to_drop = [key for key in cls.__annotations__ if key not in cls2.__annotations__]
+    for k in to_drop:
+        if k in result:
+            del result[k]
+    return cast(cls2, result)
