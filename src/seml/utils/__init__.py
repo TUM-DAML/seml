@@ -851,9 +851,7 @@ def utcnow():
 TD = TypeVar('TD', bound=Mapping[str, Any])
 
 
-def to_super_typeddict(
-    d: Mapping[str, Any], cls: type[TD], missing_ok: bool = True
-) -> TD:
+def to_typeddict(d: Mapping[str, Any], cls: type[TD], missing_ok: bool = True) -> TD:
     """
     Returns a new TypedDict where only keys that are in the class type are kept.
 
@@ -893,7 +891,7 @@ TD1 = TypeVar('TD1', bound=Mapping[str, Any])
 TD2 = TypeVar('TD2', bound=Mapping[str, Any])
 
 
-def cast_and_drop(obj: TD1, cls: type[TD1], cls2: type[TD2]):
+def drop_typeddict_difference(obj: TD1, cls: type[TD1], cls2: type[TD2]):
     """
     Returns a new TypedDict where all keys that cls has but cls2 does not have are dropped.
 

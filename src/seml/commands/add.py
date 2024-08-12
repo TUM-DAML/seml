@@ -27,7 +27,7 @@ from seml.utils import (
     make_hash,
     merge_dicts,
     remove_keys_from_nested,
-    to_super_typeddict,
+    to_typeddict,
     unflatten,
 )
 from seml.utils.errors import ConfigError
@@ -304,7 +304,7 @@ def add_config_file(
 
     # Upload source files: This also determines the batch_id
     use_uploaded_sources = seml_config['use_uploaded_sources']
-    seml_config = to_super_typeddict(seml_config, SemlDoc)
+    seml_config = to_typeddict(seml_config, SemlDoc)
     if use_uploaded_sources and not no_code_checkpoint:
         seml_config['source_files'] = upload_sources(seml_config, collection, batch_id)
 

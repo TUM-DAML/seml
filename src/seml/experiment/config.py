@@ -38,12 +38,12 @@ from seml.experiment.sources import import_exe
 from seml.settings import SETTINGS
 from seml.utils import (
     Hashabledict,
-    cast_and_drop,
+    drop_typeddict_difference,
     flatten,
     merge_dicts,
     remove_keys_from_nested,
     s_if,
-    to_super_typeddict,
+    to_typeddict,
     unflatten,
     working_directory,
 )
@@ -799,7 +799,7 @@ def read_config(config_path: str | Path):
     executable, working_dir, output_dir, use_uploaded_sources = (
         determine_executable_and_working_dir(config_path, seml_conf)
     )
-    seml = to_super_typeddict(seml_conf, SemlDocBase)
+    seml = to_typeddict(seml_conf, SemlDocBase)
     seml.update(executable=executable)
     seml = SemlConfig(
         **seml,
@@ -836,7 +836,9 @@ def read_config(config_path: str | Path):
         slurm_list.append(SlurmConfig(experiments_per_job=1, sbatch_options={}))
 
     # Remove unnecessary keys from config_dict
-    config_dict = cast_and_drop(config_dict, SemlExperimentFile, ExperimentConfig)
+    config_dict = drop_typeddict_difference(
+        config_dict, SemlExperimentFile, ExperimentConfig
+    )
     return seml, slurm_list, config_dict
 
 
