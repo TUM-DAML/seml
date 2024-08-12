@@ -213,7 +213,7 @@ _STATE_LIST = [s for states in States.values() for s in states]
 FilterStatesAnnotation = Annotated[
     List[str],
     typer.Option(
-        '-fs',
+        '-s',
         '--filter-states',
         help='List of states to filter the experiments by. If empty (""), all states are considered.',
         metavar=f'[{"|".join(_STATE_LIST)}]',

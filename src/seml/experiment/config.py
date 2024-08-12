@@ -21,6 +21,7 @@ from typing import (
 
 from seml.document import (
     ConfigFile,
+    ExperimentDoc,
     ExperimentFile,
     SemlConfig,
     SemlDocBase,
@@ -40,6 +41,7 @@ from seml.utils import (
     flatten,
     merge_dicts,
     remove_keys_from_nested,
+    s_if,
     to_super_typeddict,
     unflatten,
     working_directory,
@@ -48,6 +50,7 @@ from seml.utils.errors import ConfigError, ExecutableError
 
 if TYPE_CHECKING:
     import sacred
+    from pymongo.collection import Collection
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
 
@@ -1018,3 +1021,134 @@ def resolve_interpolations(
     ), f'Overlap between unresolved and resolved dicts: {resolved_keys.intersection(unresolved_keys)}'
     resolved = unflatten({**resolved_flat, **unresolved_flat})
     return cast(T, resolved)
+
+
+def remove_duplicates_in_list(documents: Sequence[ExperimentDoc], use_hash: bool):
+    """
+    Returns a new list of ExperimentDoc where all elements are unique.
+
+    Parameters
+    ----------
+    documents: Sequence[ExperimentDoc]
+        The documents to filter.
+    use_hash : bool
+        Whether to use hashes (faster)
+
+    Returns
+    -------
+    List[ExperimentDoc]
+        List of unique documents.
+    """
+    if not use_hash:
+        # slow duplicate detection without hashes
+        unique_documents, unique_keys = [], set()
+        for document in documents:
+            key = Hashabledict(
+                **remove_keys_from_nested(
+                    document['config'],
+                    config_get_exclude_keys(
+                        document['config'], document['config_unresolved']
+                    ),
+                )
+            )
+            if key not in unique_keys:
+                unique_documents.append(document)
+                unique_keys.add(key)
+        documents = unique_documents
+    else:
+        # fast duplicate detection using hashing.
+        documents_dict = {document['config_hash']: document for document in documents}
+        documents = list(documents_dict.values())
+    return documents
+
+
+def remove_duplicates_in_db(
+    collection: Collection[ExperimentDoc],
+    documents: Sequence[ExperimentDoc],
+    use_hash: bool,
+):
+    """Check database collection for already present entries.
+
+    Check the database collection for experiments that have the same configuration.
+    Remove the corresponding entries from the input list of configurations to prevent
+    re-running the experiments.
+
+    Parameters
+    ----------
+    collection: pymongo.collection.Collection
+        The MongoDB collection containing the experiments.
+    documents: List[Dict]
+        The documents to filter.
+    use_hash : bool
+        Whether to use hashes (faster)
+
+    Returns
+    -------
+    filtered_configs: list of dicts
+        No longer contains configurations that are already in the database collection.
+
+    """
+    filtered_documents: list[ExperimentDoc] = []
+    for document in documents:
+        if use_hash:
+            lookup_result = collection.find_one(
+                {'config_hash': document['config_hash']}
+            )
+        else:
+            lookup_dict = flatten(
+                {
+                    'config': remove_keys_from_nested(
+                        document['config'], document['config_unresolved'].keys()
+                    )
+                }
+            )
+            lookup_result = collection.find_one(unflatten(lookup_dict))
+        if lookup_result is None:
+            filtered_documents.append(document)
+    return filtered_documents
+
+
+def remove_duplicates(
+    collection: Collection[ExperimentDoc] | None,
+    documents: Sequence[ExperimentDoc],
+    use_hash: bool = True,
+):
+    """
+    Returns a new list of documents that do not contain duplicates in the database or within the input list.
+
+    Parameters
+    ----------
+    collection: pymongo.collection.Collection
+        The MongoDB collection containing the experiments.
+    documents: Sequence[ExperimentDoc]
+        The documents to filter.
+    use_hash : bool
+        Whether to use hashes (faster)
+
+    Returns
+    -------
+    filtered_configs: list of ExperimentDoc
+        No longer contains configurations that are already in the database collection.
+    """
+    if len(documents) == 0:
+        return list(documents)
+    n_total = len(documents)
+
+    # First, check for duplicates withing the experiment configurations from the file.
+    documents = remove_duplicates_in_list(documents, use_hash)
+    n_unique = len(documents)
+    if n_unique != n_total:
+        logging.info(
+            f'{n_total - n_unique} of {n_total} experiment{s_if(n_total)} were '
+            f'duplicates. Adding only the {n_unique} unique configurations.'
+        )
+    # Now, check for duplicate configurations in the database.
+    if collection is not None:
+        documents = remove_duplicates_in_db(collection, documents, use_hash)
+        n_unique_and_not_in_db = len(documents)
+        if n_unique_and_not_in_db != n_unique:
+            logging.info(
+                f'{n_unique - n_unique_and_not_in_db} of {n_unique} '
+                f'experiment{s_if(n_unique)} were already found in the database. They were not added again.'
+            )
+    return documents

@@ -4,7 +4,7 @@ import copy
 import datetime
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, Sequence, cast
+from typing import TYPE_CHECKING, Any, Dict, cast
 
 from seml.database import get_collection, get_max_in_collection
 from seml.document import ExperimentDoc, SBatchOptions, SemlDoc, SlurmConfig
@@ -14,6 +14,7 @@ from seml.experiment.config import (
     generate_configs,
     generate_named_configs,
     read_config,
+    remove_duplicates,
     remove_prepended_dashes,
     resolve_configs,
     resolve_interpolations,
@@ -22,25 +23,23 @@ from seml.experiment.description import resolve_description
 from seml.experiment.sources import get_git_info, upload_sources
 from seml.settings import SETTINGS
 from seml.utils import (
-    Hashabledict,
     flatten,
     make_hash,
     merge_dicts,
     remove_keys_from_nested,
-    s_if,
     to_super_typeddict,
     unflatten,
 )
 from seml.utils.errors import ConfigError
 
 if TYPE_CHECKING:
-    import pymongo.collection
+    from pymongo.collection import Collection
 
 States = SETTINGS.STATES
 
 
-def filter_experiments(
-    collection: pymongo.collection.Collection[ExperimentDoc],
+def remove_existing_experiments(
+    collection: Collection[ExperimentDoc],
     documents: list[ExperimentDoc],
     use_hash: bool = True,
 ):
@@ -85,73 +84,8 @@ def filter_experiments(
     return filtered_documents
 
 
-def remove_duplicates(
-    collection: pymongo.collection.Collection[ExperimentDoc],
-    documents: Sequence[ExperimentDoc],
-    use_hash: bool,
-):
-    """
-    Returns a new list of documents that do not contain duplicates in the database or within the input list.
-
-    Parameters
-    ----------
-    collection: pymongo.collection.Collection
-        The MongoDB collection containing the experiments.
-    documents: Sequence[ExperimentDoc]
-        The documents to filter.
-    use_hash : bool
-        Whether to use hashes (faster)
-
-    Returns
-    -------
-    filtered_configs: list of ExperimentDoc
-        No longer contains configurations that are already in the database collection.
-    """
-    if len(documents) == 0:
-        return list(documents)
-    len_before = len(documents)
-
-    # First, check for duplicates withing the experiment configurations from the file.
-    if not use_hash:
-        # slow duplicate detection without hashes
-        unique_documents, unique_keys = [], set()
-        for document in documents:
-            key = Hashabledict(
-                **remove_keys_from_nested(
-                    document['config'],
-                    config_get_exclude_keys(
-                        document['config'], document['config_unresolved']
-                    ),
-                )
-            )
-            if key not in unique_keys:
-                unique_documents.append(document)
-                unique_keys.add(key)
-        documents = unique_documents
-    else:
-        # fast duplicate detection using hashing.
-        documents_dict = {document['config_hash']: document for document in documents}
-        documents = list(documents_dict.values())
-
-    len_after_deduplication = len(documents)
-    # Now, check for duplicate configurations in the database.
-    documents = filter_experiments(collection, documents, use_hash=use_hash)
-    len_after = len(documents)
-    if len_after_deduplication != len_before:
-        logging.info(
-            f'{len_before - len_after_deduplication} of {len_before} experiment{s_if(len_before)} were '
-            f'duplicates. Adding only the {len_after_deduplication} unique configurations.'
-        )
-    if len_after != len_after_deduplication:
-        logging.info(
-            f'{len_after_deduplication - len_after} of {len_after_deduplication} '
-            f'experiment{s_if(len_before)} were already found in the database. They were not added again.'
-        )
-    return documents
-
-
 def add_configs(
-    collection: pymongo.collection.Collection[ExperimentDoc],
+    collection: Collection[ExperimentDoc],
     documents: list[ExperimentDoc],
     description: str | None = None,
     resolve_descriptions: bool = True,

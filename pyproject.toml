@@ -55,5 +55,4 @@ Changelog = "https://github.com/TUM-DAML/seml/releases/latest"
 seml = "seml.__main__:main"
 
 [tool.pyright]
-# TODO: Bump this to "strict" once we have type hints for everything.
 typeCheckingMode = "standard"
