@@ -817,6 +817,9 @@ def read_config(config_path: str | Path):
         warnings.warn('`slurm` is expected to be a list of slurm configurations.')
         slurm_list = [cast(SlurmConfig, slurm_list)]
 
+    if slurm_list is None:
+        slurm_list: list[SlurmConfig] = []
+
     # Sanity check
     for slurm_conf in slurm_list:
         for k in slurm_conf.keys():
