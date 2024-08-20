@@ -5,7 +5,6 @@ import os
 import re
 import time
 from collections import defaultdict
-from io import TextIOWrapper
 from typing import TYPE_CHECKING, Any, Dict, List, Sequence, cast
 
 from seml.commands.manage import detect_duplicates, detect_killed, should_check_killed
@@ -33,6 +32,7 @@ from seml.utils import (
     to_hashable,
     to_slices,
 )
+from seml.utils.io import tail_file
 from seml.utils.slurm import get_cluster_name, get_slurm_jobs
 
 if TYPE_CHECKING:
@@ -558,8 +558,6 @@ def print_output(
     tail : Optional[int], optional
         The number of lines to print from the end of the output, by default None
     """
-    from collections import deque
-
     from seml.console import Heading, console, pause_live_widget
 
     assert tail is None or head is None, 'Cannot specify both tail and head.'
@@ -579,23 +577,20 @@ def print_output(
         },
     )
 
-    def print_head(file: TextIOWrapper):
-        for i, line in enumerate(file):
-            console.print(line[:-1], end=line[-1])
-            if head is not None and i >= head:
-                break
+    def print_head(file: str):
+        with open(file, newline='', errors='replace') as f:
+            for i, line in enumerate(f):
+                console.print(line[:-1], end=line[-1])
+                if head is not None and i >= head:
+                    break
 
-    def print_tail(file: TextIOWrapper):
-        last_rows: deque[str] = deque([], maxlen=tail)
-        for line in file:
-            last_rows.append(line)
+    def print_tail(file: str, tail: int):
+        console.print(tail_file(file, n=tail))
 
-        for line in last_rows:
-            console.print(line[:-1], end=line[-1])
-
-    def print_all(file: TextIOWrapper):
-        for line in file:
-            console.print(line[:-1], end=line[-1])
+    def print_all(file: str):
+        with open(file, newline='', errors='replace') as f:
+            for line in f:
+                console.print(line[:-1], end=line[-1])
 
     count = 0
     for exp in experiments:
@@ -619,13 +614,12 @@ def print_output(
                     continue
             # Actually read
             try:
-                with open(out_file, newline='', errors='replace') as f:
-                    if head:
-                        print_head(f)
-                    elif tail:
-                        print_tail(f)
-                    else:
-                        print_all(f)
+                if head:
+                    print_head(out_file)
+                elif tail:
+                    print_tail(out_file, tail)
+                else:
+                    print_all(out_file)
                 console.print()  # new line
             except OSError:
                 logging.info(f'File {out_file} could not be read.')

@@ -31,6 +31,7 @@ from seml.utils import (
     utcnow,
 )
 from seml.utils.errors import MongoDBError
+from seml.utils.io import tail_file
 from seml.utils.slurm import (
     are_slurm_jobs_running,
     cancel_slurm_jobs,
@@ -664,13 +665,12 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                 collection.update_one(
                     {'_id': exp['_id']}, {'$set': {'status': States.KILLED[0]}}
                 )
-                if output_file := exp['seml'].get('output_file', None) is not None:
+                if output_file := exp['seml'].get('output_file') is not None:
                     try:
-                        with open(output_file, errors='replace') as f:
-                            all_lines = f.readlines()
+                        fail_trace = tail_file(output_file, n=4)
                         collection.update_one(
                             {'_id': exp['_id']},
-                            {'$set': {'fail_trace': all_lines[-4:]}},
+                            {'$set': {'fail_trace': fail_trace}},
                         )
                     except OSError:
                         # If the experiment is canceled before starting (e.g. when still queued), there is not output file.
