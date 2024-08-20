@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import shlex
 from typing import Any, List, Sequence, cast
 
 from seml.document import ExperimentDoc
@@ -50,6 +49,8 @@ def get_environment_variables(
 
 
 def get_config_overrides(config: Sequence[str]):
+    import shlex
+
     return ' '.join(map(shlex.quote, config))
 
 
@@ -59,6 +60,8 @@ def get_shell_command(
     config: Sequence[str],
     env: dict[str, str] | None = None,
 ):
+    import shlex
+
     config_overrides = get_config_overrides(config)
 
     if env is None or len(env) == 0:

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING, Any, List, Optional, Union
 
 from typing_extensions import NotRequired, Required, TypeAlias, TypedDict
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from bson import ObjectId
 
 
