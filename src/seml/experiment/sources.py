@@ -101,13 +101,19 @@ def get_imported_sources(
             if not filename:
                 continue
             filename = os.path.abspath(filename)
-            if filename not in sources and is_local_file(filename, root_path):
+            # Check if the file is a local file and not in site-packages (i.e., an installed package)
+            if (
+                filename not in sources
+                and is_local_file(filename, root_path)
+                and 'site-packages' not in filename
+            ):
                 sources.add(filename)
                 source_added = True
 
     if stash_all_py_files:
         for file in Path(working_dir).glob('**/*.py'):
-            sources.add(str(file))
+            if 'site-packages' not in str(file):
+                sources.add(str(file))
 
     return sources
 
@@ -132,6 +138,7 @@ def upload_sources(seml_config, collection, batch_id):
 
         uploaded_files = []
         for s in sources:
+            print(s)
             file_id = upload_file(s, collection, batch_id, 'source_file')
             source_path = Path(s)
             uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
