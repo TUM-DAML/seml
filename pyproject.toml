@@ -3,7 +3,7 @@ name = "seml"
 version = "0.5.1"
 description = "Slurm Experiment Management Library"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
     { name = "Daniel Zügner", email = "zuegnerd@in.tum.de" },
@@ -20,8 +20,8 @@ classifiers = ["Programming Language :: Python"]
 
 dependencies = [
     "numpy>=1.15",
-    "pymongo>=3.11",
-    "pandas",
+    "pymongo>=4.1",
+    "pandas>=2.2",
     "sacred>=0.8.4",
     "pyyaml>=5.1",
     "jsonpickle>=2.2",
@@ -38,7 +38,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff", "pre-commit", "sshtunnel>=0.4.0", "filelock>=3.13.3"]
 ssh_forward = ["sshtunnel>=0.4.0", "filelock>=3.13.3"]
 
 [tool.ruff.format]
@@ -56,3 +55,12 @@ seml = "seml.__main__:main"
 
 [tool.pyright]
 typeCheckingMode = "standard"
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.6.1",
+    "pytest>=8.3.2",
+    "pre-commit>=3.8.0",
+    "filelock>=3.15.4",
+    "sshtunnel>=0.4.0",
+]

@@ -665,7 +665,7 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                 collection.update_one(
                     {'_id': exp['_id']}, {'$set': {'status': States.KILLED[0]}}
                 )
-                if output_file := exp['seml'].get('output_file') is not None:
+                if output_file := exp['seml'].get('output_file'):
                     try:
                         fail_trace = tail_file(output_file, n=4)
                         collection.update_one(

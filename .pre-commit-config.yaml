@@ -3,11 +3,8 @@ repos:
     hooks:
       - id: sync-dependencies
         name: update pre-commit-config
-        entry: python scripts/pre_commit_sync_pyright_deps.py
-        language: python
-        additional_dependencies:
-          - toml
-          - ruamel.yaml
+        entry: uv run scripts/pre_commit_sync_pyright_deps.py
+        language: system
         files: "(pyproject.toml|scripts/.pre-commit-config.yaml.template|.pre-commit.config.yaml)" # the quotes are here to make sure that this stay in line for the formatter.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
@@ -48,8 +45,8 @@ repos:
       - id: pyright
         additional_dependencies: # these dependencies are synced via the first hook
           - numpy>=1.15
-          - pymongo>=3.11
-          - pandas
+          - pymongo>=4.1
+          - pandas>=2.2
           - sacred>=0.8.4
           - pyyaml>=5.1
           - jsonpickle>=2.2
@@ -63,9 +60,9 @@ repos:
           - setuptools>=69.2.0
           - importlib_resources>=5.7.0
           - typing_extensions>=4.10
-          - pytest
-          - ruff
-          - pre-commit
+          - ruff>=0.6.1
+          - pytest>=8.3.2
+          - pre-commit>=3.8.0
+          - filelock>=3.15.4
           - sshtunnel>=0.4.0
-          - filelock>=3.13.3
         files: src/seml/.*\.py

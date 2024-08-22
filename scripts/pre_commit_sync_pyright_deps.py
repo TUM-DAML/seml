@@ -1,3 +1,11 @@
+#!/usr/bin/env uv run
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "toml",
+#     "ruamel-yaml",
+# ]
+# ///
 """
 This script reads the pyproject.toml and updates the pyright dependencies in
 our pre-commit hook with the current dependencies from the pyproject.toml.
@@ -14,8 +22,7 @@ with open('pyproject.toml') as inp:
     pyproject = toml.load(inp)
 
 deps = (
-    pyproject['project']['dependencies']
-    + pyproject['project']['optional-dependencies']['dev']
+    pyproject['project']['dependencies'] + pyproject['tool']['uv']['dev-dependencies']
 )
 
 yaml = YAML()
