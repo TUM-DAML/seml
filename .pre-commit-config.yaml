@@ -20,7 +20,7 @@ repos:
       - id: check-added-large-files
       - id: trailing-whitespace
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.16.0
+    rev: v3.17.0
     hooks:
       - id: pyupgrade
         name: pyupgrade
@@ -31,7 +31,7 @@ repos:
         args: [--py38-plus, --keep-runtime-typing]
         files: .*\/__main__.py # We run ruff after pyugprade to remove unused imports
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.0
+    rev: v0.6.1
     hooks:
       - id: ruff # Run the linter.
         args: [--fix]
@@ -40,7 +40,7 @@ repos:
         args: [--select, I, --fix]
       - id: ruff-format # Run the formatter.
   - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.373
+    rev: v1.1.377
     hooks:
       - id: pyright
         additional_dependencies: # these dependencies are synced via the first hook
