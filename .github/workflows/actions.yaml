@@ -19,7 +19,7 @@ jobs:
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
       # Test whether the CLI is working
       - name: Test CLI
-        run: uv run -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }}  seml#
+        run: uv run -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }}  seml
       # Test with pytest
       - name: Test with pytest
         run: |
