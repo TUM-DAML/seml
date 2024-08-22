@@ -244,7 +244,7 @@ def resolve_projection_path_conflicts(
 S = TypeVar('S', bound=Sequence)
 
 
-def chunker(seq: S, size: int) -> Generator[S, None, None]:
+def chunker(seq: S, size: int) -> Generator[S]:
     """
     Chunk a list into chunks of size `size`.
     From
