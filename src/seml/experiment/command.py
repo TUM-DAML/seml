@@ -127,6 +127,7 @@ def get_command_from_exp(
                 allow_interpolation_keys=list(SETTINGS.ALLOW_INTERPOLATION_IN)
                 + ['config_unresolved', key_named_configs],
             )
+            interpolated = cast(ExperimentDoc, interpolated)
 
             config = {
                 k: v
