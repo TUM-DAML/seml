@@ -138,7 +138,6 @@ def upload_sources(seml_config, collection, batch_id):
 
         uploaded_files = []
         for s in sources:
-            print(s)
             file_id = upload_file(s, collection, batch_id, 'source_file')
             source_path = Path(s)
             uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
