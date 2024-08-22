@@ -852,7 +852,7 @@ requires-dist = [
     { name = "gitignore-parser", specifier = ">=0.1.11" },
     { name = "importlib-resources", specifier = ">=5.7.0" },
     { name = "jsonpickle", specifier = ">=2.2" },
-    { name = "munch", specifier = ">=2.0.4" },
+    { name = "munch", specifier = ">=4.0" },
     { name = "numpy", specifier = ">=1.15" },
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pandas", specifier = ">=2.2" },
