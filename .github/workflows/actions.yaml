@@ -19,7 +19,7 @@ jobs:
         with:
           path: ~/.cache/uv
           key: uv-${{ matrix.python-version }}-${{ matrix.resolution }}
-      - name: Change to test directory
-        run: cd test
       - name: Test with pytest
-        run: uv run -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }} pytest
+        run: |
+          cd test
+          uv run -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }} pytest
