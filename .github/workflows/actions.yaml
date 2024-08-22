@@ -19,4 +19,4 @@ jobs:
       - name: Test with pytest
         run: |
           cd test
-          uv run -p ${{ matrix.python-version }} --resolution ${{ resolution }} pytest
+          uv run -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }} pytest
