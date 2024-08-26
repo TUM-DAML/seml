@@ -1,13 +1,21 @@
+from __future__ import annotations
+
 import importlib
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Set, Union, cast
+from typing import TYPE_CHECKING, Iterable, cast
 
 from seml.database import delete_files, upload_file
+from seml.document import ExperimentDoc, GitDoc
 from seml.settings import SETTINGS
-from seml.utils import is_local_file, src_layout_to_flat_layout, working_directory
+from seml.utils import (
+    assert_package_installed,
+    is_local_file,
+    src_layout_to_flat_layout,
+    working_directory,
+)
 from seml.utils.errors import ExecutableError, MongoDBError
 
 if TYPE_CHECKING:
@@ -66,7 +74,7 @@ def import_exe(executable, conda_env, working_dir):
 
 def get_imported_sources(
     executable, root_dir, conda_env, working_dir, stash_all_py_files: bool
-) -> Set[str]:
+) -> set[str]:
     """Get the sources imported by the given executable.
 
     Args:
@@ -80,7 +88,7 @@ def get_imported_sources(
         List[str]: The sources imported by the given executable.
     """
     import_exe(executable, conda_env, working_dir)
-    root_path = str(Path(root_dir).expanduser().resolve())
+    root_path = Path(root_dir).expanduser().resolve()
 
     sources = set()
     source_added = True
@@ -89,16 +97,20 @@ def get_imported_sources(
         for name, mod in list(sys.modules.items()):
             if mod is None:
                 continue
-            if not getattr(mod, '__file__', False):
+            filename = getattr(mod, '__file__', None)
+            if not filename:
                 continue
-            filename = os.path.abspath(mod.__file__)
+            filename = os.path.abspath(filename)
+            # Check if the file is a local file and not in site-packages (i.e., an installed package)
             if filename not in sources and is_local_file(filename, root_path):
                 sources.add(filename)
                 source_added = True
 
     if stash_all_py_files:
         for file in Path(working_dir).glob('**/*.py'):
-            sources.add(str(file))
+            # This check ensures that we don't add files from site-packages.
+            if is_local_file(file, root_path):
+                sources.add(str(file))
 
     return sources
 
@@ -129,7 +141,7 @@ def upload_sources(seml_config, collection, batch_id):
     return uploaded_files
 
 
-def get_git_info(filename, working_dir):
+def get_git_info(filename: str, working_dir: str):
     """
     Get the git commit info.
     See https://github.com/IDSIA/sacred/blob/c1c19a58332368da5f184e113252b6b0abc8e33b/sacred/dependencies.py#L400
@@ -147,13 +159,10 @@ def get_git_info(filename, working_dir):
     is_dirty: bool
         True if there are uncommitted changes in the repository
     """
-
-    try:
-        from git import InvalidGitRepositoryError, Repo
-    except ImportError:
-        logging.warning(
-            'Cannot import git (pip install GitPython). ' 'Not saving git status.'
-        )
+    assert_package_installed(
+        'git', 'Cannot import git (pip install GitPython). Not saving git status.'
+    )
+    from git import InvalidGitRepositoryError, Repo
 
     with working_directory(working_dir):
         directory = os.path.dirname(filename)
@@ -161,19 +170,19 @@ def get_git_info(filename, working_dir):
         try:
             repo = Repo(directory, search_parent_directories=True)
         except InvalidGitRepositoryError:
-            return None, None, None
+            return None
         try:
             path = repo.remote().url
         except ValueError:
-            path = 'git:/' + repo.working_dir
+            path = 'git:/' + str(repo.working_dir)
         commit = repo.head.commit.hexsha
-    return path, commit, repo.is_dirty()
+    return GitDoc(path=path, commit=commit, dirty=repo.is_dirty())
 
 
 def load_sources_from_db(
-    experiment: Dict,
-    collection: 'Collection',
-    to_directory: Union[str, Path],
+    experiment: ExperimentDoc,
+    collection: Collection[ExperimentDoc],
+    to_directory: str | Path,
     remove_src_directory: bool = SETTINGS.CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY,
 ):
     import gridfs
@@ -187,7 +196,6 @@ def load_sources_from_db(
     source_files = experiment['seml']['source_files']
     target_directory = Path(to_directory)
     for path, _id in source_files:
-        path = cast(str, path)
         # For the imports to prefer our loaded seml version, we need to convert the src-layout to the flat-layout.
         # https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
         if remove_src_directory:
@@ -204,14 +212,16 @@ def load_sources_from_db(
             f.write(db_file.read())
 
 
-def delete_batch_sources(collection: 'Collection', batch_id: int):
+def delete_batch_sources(collection: Collection[ExperimentDoc], batch_id: int):
+    from bson import ObjectId
+
     db = collection.database
     filter_dict = {
         'metadata.batch_id': batch_id,
         'metadata.collection_name': f'{collection.name}',
     }
-    source_files = db['fs.files'].find(filter_dict, {'_id'})
-    source_files = [x['_id'] for x in source_files]
+    source_files = list(db['fs.files'].find(filter_dict, {'_id'}))
+    source_files = [cast(ObjectId, x['_id']) for x in source_files]
     if len(source_files) > 0:
         logging.info(
             f'Deleting {len(source_files)} source files corresponding '
@@ -220,15 +230,19 @@ def delete_batch_sources(collection: 'Collection', batch_id: int):
         delete_files(db, source_files)
 
 
-def delete_orphaned_sources(collection: 'Collection', batch_ids=None):
+def delete_orphaned_sources(
+    collection: Collection[ExperimentDoc], batch_ids: Iterable[int] | None = None
+):
     if batch_ids is not None:
         # check for empty batches within list of batch ids
         filter_dict = {'batch_id': {'$in': list(batch_ids)}}
+        batch_ids = set(batch_ids)
     else:
         # check for any empty batches
         filter_dict = {}
+        batch_ids = set()
     db_results = collection.find(filter_dict, {'batch_id'})
     remaining_batch_ids = {x['batch_id'] for x in db_results}
-    empty_batch_ids = set(batch_ids) - remaining_batch_ids
+    empty_batch_ids = batch_ids - remaining_batch_ids
     for b_id in empty_batch_ids:
         delete_batch_sources(collection, b_id)

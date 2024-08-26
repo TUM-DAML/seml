@@ -5,9 +5,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - name: Cache pre-commit # taken from https://github.com/pre-commit/action/blob/main/action.yml
+        uses: actions/cache@v4
         with:
-          python-version: 3.12
-      - uses: pre-commit/action@v3.0.1
-      - uses: pre-commit-ci/lite-action@v1.0.2
-        if: always()
+          path: ~/.cache/pre-commit
+          key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/0.3.1/install.sh | sh
+      - name: Install pre-commit
+        run: uv tool install pre-commit --with pre-commit-uv
+      - name: Run pre-commit
+        run: uv tool run pre-commit run --show-diff-on-failure --color=always --all-files

@@ -1,8 +1,9 @@
-import logging
-import shlex
-import urllib
-from typing import Optional
+from __future__ import annotations
 
+import logging
+from typing import Any, List, Sequence, cast
+
+from seml.document import ExperimentDoc
 from seml.experiment.config import generate_named_configs
 from seml.experiment.config import (
     resolve_interpolations as resolve_config_interpolations,
@@ -12,8 +13,9 @@ from seml.utils.errors import ArgumentError, MongoDBError
 from seml.utils.network import find_free_port
 
 
-def _generate_debug_attach_url(ip_address, port):
+def _generate_debug_attach_url(ip_address: str, port: int):
     import json
+    import urllib.parse
 
     launch_config = {
         'type': 'debugpy',
@@ -25,7 +27,11 @@ def _generate_debug_attach_url(ip_address, port):
     return f'vscode://fabiospampinato.vscode-debug-launcher/launch?args={launch_config}'
 
 
-def get_environment_variables(gpus=None, cpus=None, environment_variables=None):
+def get_environment_variables(
+    gpus: str | None = None,
+    cpus: int | None = None,
+    environment_variables: dict[str, str] | None = None,
+):
     if environment_variables is None:
         environment_variables = {}
 
@@ -42,11 +48,20 @@ def get_environment_variables(gpus=None, cpus=None, environment_variables=None):
     return environment_variables
 
 
-def get_config_overrides(config):
+def get_config_overrides(config: Sequence[str]):
+    import shlex
+
     return ' '.join(map(shlex.quote, config))
 
 
-def get_shell_command(interpreter, exe, config, env: Optional[dict] = None):
+def get_shell_command(
+    interpreter: str,
+    exe: str,
+    config: Sequence[str],
+    env: dict[str, str] | None = None,
+):
+    import shlex
+
     config_overrides = get_config_overrides(config)
 
     if env is None or len(env) == 0:
@@ -59,7 +74,7 @@ def get_shell_command(interpreter, exe, config, env: Optional[dict] = None):
         return f'{env_overrides} {interpreter} {exe} with {config_overrides}'
 
 
-def value_to_string(value, use_json=False):
+def value_to_string(value: Any, use_json: bool = False):
     from seml.utils.json import PythonEncoder
 
     # We need the json encoding for vscode due to https://github.com/microsoft/vscode/issues/91578
@@ -71,16 +86,16 @@ def value_to_string(value, use_json=False):
 
 
 def get_command_from_exp(
-    exp,
-    db_collection_name,
-    verbose=False,
-    unobserved=False,
-    post_mortem=False,
-    debug=False,
-    debug_server=False,
-    print_info=True,
-    use_json=False,
-    unresolved=False,
+    exp: ExperimentDoc,
+    db_collection_name: str,
+    verbose: bool = False,
+    unobserved: bool = False,
+    post_mortem: bool = False,
+    debug: bool = False,
+    debug_server: bool = False,
+    print_info: bool = True,
+    use_json: bool = False,
+    unresolved: bool = False,
     resolve_interpolations: bool = True,
 ):
     from seml.console import console
@@ -91,6 +106,7 @@ def get_command_from_exp(
         )
     exe = exp['seml']['executable']
 
+    named_configs: list[str]
     if unresolved:
         config_unresolved = exp.get('config_unresolved', exp['config'])
         config, named_configs = tuple(
@@ -111,13 +127,14 @@ def get_command_from_exp(
                 allow_interpolation_keys=list(SETTINGS.ALLOW_INTERPOLATION_IN)
                 + ['config_unresolved', key_named_configs],
             )
+            interpolated = cast(ExperimentDoc, interpolated)
 
             config = {
                 k: v
                 for k, v in interpolated['config_unresolved'].items()
                 if not k.startswith(SETTINGS.NAMED_CONFIG.PREFIX)
             }
-            named_configs = interpolated[key_named_configs]
+            named_configs = cast(List[str], interpolated[key_named_configs])
         else:
             config = {
                 k: v

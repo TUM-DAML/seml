@@ -1,15 +1,19 @@
+from __future__ import annotations
+
 import json
 import re
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from bson import json_util
 from sacred.config.config_files import load_config_file
 from sacred.observers.base import RunObserver, td_format
 
+from seml.utils import utcnow
 from seml.utils.json import NumpyEncoder
 
 
-def to_local_timezone(dtime):
+def to_local_timezone(dtime: datetime):
     return dtime.replace(tzinfo=timezone.utc).astimezone(tz=None)
 
 
@@ -30,7 +34,7 @@ class MattermostObserver(RunObserver):
         ``bot_name``, ``icon``, ``completed_text``, ``interrupted_text``, and
         ``failed_text``.
         """
-        return cls(**load_config_file(filename))
+        return cls(**load_config_file(filename))  # type: ignore
 
     def __init__(
         self,
@@ -120,7 +124,7 @@ class MattermostObserver(RunObserver):
             'Next heartbeat will be sent in about _{heartbeat_interval}_, i.e., on _{next_heartbeat_date}_.'
         )
 
-        self.run = None
+        self._run: dict[str, Any] | None = None
         self.channel = channel
 
         self.notify_on_completed = notify_on_completed
@@ -128,28 +132,35 @@ class MattermostObserver(RunObserver):
         self.notify_on_interrupted = notify_on_interrupted
         self.notify_on_started = notify_on_started
         self.notify_on_heartbeat = False
-        self.last_heartbeat_notification = None
+        self.last_heartbeat_notification = utcnow()
         self.convert_utc_to_local_timezone = convert_utc_to_local_timezone
 
         self.heartbeat_interval = None
         if heartbeat_interval is not None:
             # unfortunately datetime.strptime() doesn't work with timedeltas, so we parse the date ourselves:
             pattern = re.compile('([0-9]+)-([0-9]+):([0-9]+)')
-            days, hours, minutes = pattern.match(heartbeat_interval).groups()
+            match = pattern.match(heartbeat_interval)
+            assert match is not None, 'Invalid heartbeat_interval format. Use D-hh:mm.'
+            days, hours, minutes = match.groups()
             self.heartbeat_interval = timedelta(
                 days=int(days), hours=int(hours), minutes=int(minutes)
             )
             self.notify_on_heartbeat = True
 
+    @property
+    def run(self):
+        assert self._run is not None, 'No run has been started.'
+        return self._run
+
     def started_event(
-        self, ex_info, command, host_info, start_time, config, meta_info, _id
+        self, ex_info, command, host_info, start_time: datetime, config, meta_info, _id
     ):
         import requests
 
         if self.convert_utc_to_local_timezone:
             start_time = to_local_timezone(start_time)
 
-        self.run = {
+        self._run = {
             '_id': _id,
             'config': config,
             'start_time': start_time,
@@ -259,10 +270,14 @@ class MattermostObserver(RunObserver):
         headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
         requests.post(self.webhook_url, data=json.dumps(data), headers=headers)
 
-    def heartbeat_event(self, info, captured_out, beat_time, result):
+    def heartbeat_event(self, info, captured_out, beat_time: datetime, result):
         import requests
 
-        if self.heartbeat_text is None or not self.notify_on_heartbeat:
+        if (
+            self.heartbeat_text is None
+            or not self.notify_on_heartbeat
+            or self.heartbeat_interval is None
+        ):
             return
 
         if self.convert_utc_to_local_timezone:

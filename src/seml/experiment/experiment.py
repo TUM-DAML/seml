@@ -3,7 +3,7 @@ import logging
 import resource
 import sys
 from enum import Enum
-from typing import TYPE_CHECKING, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, List, Optional, Sequence, Union, cast
 
 from seml.database import get_collection
 from seml.experiment.observers import create_mongodb_observer
@@ -77,8 +77,8 @@ class Experiment(ExperimentBase):
         if (
             not SETTINGS.EXPERIMENT.CAPTURE_OUTPUT and not self.capture_output
         ) or self.capture_output is False:
-            SACRED_SETTINGS.CAPTURE_MODE = 'no'
-        super().run(
+            SACRED_SETTINGS.CAPTURE_MODE = 'no'  # type: ignore
+        return super().run(
             command_name=command_name,
             config_updates=config_updates,
             named_configs=named_configs,
@@ -94,8 +94,9 @@ class MongoDbObserverConfig:
 
     def __call__(self, fixed=None, preset=None, fallback=None):
         from sacred.config.config_summary import ConfigSummary
+        from sacred.config.custom_containers import DogmaticDict
 
-        result = dogmatize(fixed or {})
+        result = cast(DogmaticDict, dogmatize(fixed or {}))
         defaults = dict(overwrite=None, db_collection=None)
         recursive_fill_in(result, defaults)
         recursive_fill_in(result, preset or {})
@@ -119,8 +120,9 @@ class ClearObserverForMultiTaskConfig:
 
     def __call__(self, fixed=None, preset=None, fallback=None):
         from sacred.config.config_summary import ConfigSummary
+        from sacred.config.custom_containers import DogmaticDict
 
-        result = dogmatize(fixed or {})
+        result = cast(DogmaticDict, dogmatize(fixed or {}))
         defaults = dict(overwrite=None, db_collection=None)
         recursive_fill_in(result, defaults)
         recursive_fill_in(result, preset or {})
@@ -192,7 +194,7 @@ def setup_logger(
         ch.setFormatter(formatter)
         logger.addHandler(ch)
     logger.setLevel(level)
-    ex.logger = logger
+    ex.logger = logger  # type: ignore
 
 
 def _collect_exp_stats(run):
@@ -235,14 +237,14 @@ def _collect_exp_stats(run):
     )
 
     if 'torch' in sys.modules:
-        import torch
+        import torch  # type: ignore
 
         stats['pytorch'] = {}
         if torch.cuda.is_available():
             stats['pytorch']['gpu_max_memory_bytes'] = torch.cuda.max_memory_allocated()
 
     if 'tensorflow' in sys.modules:
-        import tensorflow as tf
+        import tensorflow as tf  # type: ignore
 
         stats['tensorflow'] = {}
         if int(tf.__version__.split('.')[0]) < 2:

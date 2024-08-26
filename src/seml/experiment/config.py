@@ -1,14 +1,33 @@
+from __future__ import annotations
+
 import ast
 import copy
 import functools
+import itertools  # type: ignore - N.Gao: I don't get this error
 import logging
 import numbers
 import os
 import warnings
-from itertools import combinations
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Mapping,
+    Sequence,
+    TypeVar,
+    cast,
+)
 
+from seml.document import (
+    ExperimentConfig,
+    ExperimentDoc,
+    SemlConfig,
+    SemlDocBase,
+    SemlExperimentFile,
+    SemlFileConfig,
+    SlurmConfig,
+)
 from seml.experiment.parameters import (
     cartesian_product_zipped_dict,
     generate_grid,
@@ -19,9 +38,12 @@ from seml.experiment.sources import import_exe
 from seml.settings import SETTINGS
 from seml.utils import (
     Hashabledict,
+    drop_typeddict_difference,
     flatten,
     merge_dicts,
     remove_keys_from_nested,
+    s_if,
+    to_typeddict,
     unflatten,
     working_directory,
 )
@@ -29,6 +51,7 @@ from seml.utils.errors import ConfigError, ExecutableError
 
 if TYPE_CHECKING:
     import sacred
+    from pymongo.collection import Collection
 
 RESERVED_KEYS = ['grid', 'fixed', 'random']
 
@@ -124,7 +147,9 @@ def invert_config(config: dict):
 
 
 def detect_duplicate_parameters(
-    inverted_config: dict, sub_config_name: str = None, ignore_keys: dict = None
+    inverted_config: dict,
+    sub_config_name: str | None = None,
+    ignore_keys: dict[str, Any] | None = None,
 ):
     if ignore_keys is None:
         ignore_keys = {'random': ('seed', 'samples')}
@@ -167,7 +192,7 @@ def detect_duplicate_parameters(
         )
 
     for k in buckets.keys():
-        for p1, p2 in combinations(buckets[k], r=2):
+        for p1, p2 in itertools.combinations(buckets[k], r=2):
             if p1.startswith(
                 f'{p2}.'
             ):  # with "." after p2 to catch cases like "test" and "test1", which are valid.
@@ -271,13 +296,6 @@ def generate_configs(experiment_config, overwrite_params=None):
         fixed_params = flatten(conf.get('fixed', {}))
         grid_params = conf.get('grid', {})
 
-        if len(random_params) > 0:
-            num_samples = random_params['samples']
-            root_seed = random_params.get('seed', None)
-            random_sampled = sample_random_configs(
-                flatten(random_params), seed=root_seed, samples=num_samples
-            )
-
         grids = [generate_grid(v, parent_key=k) for k, v in grid_params.items()]
         grid_configs = dict([sub for item in grids for sub in item])
         grouped_configs = zipped_dict(grid_configs)
@@ -285,6 +303,11 @@ def generate_configs(experiment_config, overwrite_params=None):
 
         with_fixed = [{**d, **fixed_params} for d in grid_product]
         if len(random_params) > 0:
+            num_samples = random_params['samples']
+            root_seed = random_params.get('seed', None)
+            random_sampled = sample_random_configs(
+                flatten(random_params), seed=root_seed, samples=num_samples
+            )
             with_random = [
                 {**grid, **random} for grid in with_fixed for random in random_sampled
             ]
@@ -319,7 +342,7 @@ def generate_configs(experiment_config, overwrite_params=None):
     return all_configs
 
 
-def generate_named_config(named_config_dict: Dict) -> List[str]:
+def generate_named_config(named_config_dict: dict) -> list[str]:
     """Generates a sequence of named configs that is resolved by sacred in-order
 
     Parameters
@@ -376,7 +399,7 @@ def generate_named_config(named_config_dict: Dict) -> List[str]:
     ]
 
 
-def generate_named_configs(configs: List[Dict]) -> Tuple[List[Dict], List[List[str]]]:
+def generate_named_configs(configs: list[dict]) -> tuple[list[dict], list[list[str]]]:
     """From experiment configurations, generates both the config updates as well as the named configs in the order specified.
 
     Parameters
@@ -458,10 +481,10 @@ def _set_scaffold_state(scaffolding, state):
 
 
 def _sacred_create_configs(
-    exp: 'sacred.Experiment',
-    configs: List[Dict],
-    named_configs: Optional[List[Tuple[str]]] = None,
-) -> List[Dict]:
+    exp: sacred.Experiment,
+    configs: list[dict],
+    named_configs: Sequence[Sequence[str]] | None = None,
+) -> list[dict]:
     """Creates configs from an experiment and update values. This is done by re-implementing sacreds `sacred.initialize.create_run`
     method. Doing this is significantly faster, but it can be out-of-sync with sacred's current implementation.
 
@@ -582,11 +605,11 @@ def _sacred_create_configs(
 
 def resolve_configs(
     executable: str,
-    conda_env: str,
-    configs: List[Dict],
-    named_configs: List[List[str]],
+    conda_env: str | None,
+    configs: list[dict],
+    named_configs: list[list[str]],
     working_dir: str,
-) -> List[Dict]:
+) -> list[dict]:
     """Resolves configurations by adding keys that are only added when the experiment is run to the MongoDB
 
     Parameters
@@ -641,7 +664,7 @@ def resolve_configs(
 
 
 def check_config(
-    executable: str, conda_env: str, configs: List[Dict], working_dir: str
+    executable: str, conda_env: str | None, configs: list[dict], working_dir: str
 ):
     """Check if the given configs are consistent with the Sacred experiment in the given executable.
 
@@ -657,6 +680,8 @@ def check_config(
         The current working directory.
     """
     import sacred
+    import sacred.initialize
+    import sacred.utils
 
     exp_module = import_exe(executable, conda_env, working_dir)
 
@@ -733,7 +758,7 @@ def _convert_value(value):
         return value
 
 
-def convert_values(val):
+def convert_values(val: Any):
     if isinstance(val, dict):
         for key, inner_val in val.items():
             val[key] = convert_values(inner_val)
@@ -745,46 +770,56 @@ def convert_values(val):
     return val
 
 
-def read_config(config_path: Union[str, Path]):
+def read_config(config_path: str | Path):
     import yaml
 
     from seml import __version__
     from seml.utils.yaml import YamlUniqueLoader
 
     with open(config_path) as conf:
-        config_dict = convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
+        config_dict = cast(
+            SemlExperimentFile, convert_values(yaml.load(conf, Loader=YamlUniqueLoader))
+        )
 
     if 'seml' not in config_dict:
         raise ConfigError("Please specify a 'seml' dictionary.")
 
-    seml_dict = config_dict['seml']
-    del config_dict['seml']
+    seml_conf = config_dict['seml']
 
-    for k in seml_dict.keys():
+    for k in seml_conf.keys():
         if k not in SETTINGS.VALID_SEML_CONFIG_VALUES:
             raise ConfigError(f'{k} is not a valid value in the `seml` config block.')
 
-    if SETTINGS.SEML_CONFIG_VALUE_VERSION in seml_dict:
+    if SETTINGS.SEML_CONFIG_VALUE_VERSION in seml_conf:
         raise ConfigError(
             f'Using {SETTINGS.SEML_CONFIG_VALUE_VERSION} in the `seml` config block is prohibited.'
         )
 
     version_array = [(int(x) if x.isdecimal() else x) for x in __version__.split('.')]
-    seml_dict[SETTINGS.SEML_CONFIG_VALUE_VERSION] = version_array
-
-    determine_executable_and_working_dir(config_path, seml_dict)
+    executable, working_dir, output_dir, use_uploaded_sources = (
+        determine_executable_and_working_dir(config_path, seml_conf)
+    )
+    seml = to_typeddict(seml_conf, SemlDocBase)
+    seml.update(executable=executable)
+    seml = SemlConfig(
+        **seml,
+        version=version_array,
+        working_dir=working_dir,
+        use_uploaded_sources=use_uploaded_sources,
+    )
+    if output_dir is not None:
+        seml['output_dir'] = output_dir
 
     # Get list of slurm configs
-    slurm_list = config_dict.get('slurm', [])
-    del config_dict['slurm']
-
-    if slurm_list is None:
-        slurm_list = []
+    slurm_list: list[SlurmConfig] = config_dict.get('slurm', [])
 
     # Check for deprecated `slurm` dictionary
     if isinstance(slurm_list, dict):
         warnings.warn('`slurm` is expected to be a list of slurm configurations.')
-        slurm_list = [slurm_list]
+        slurm_list = [cast(SlurmConfig, slurm_list)]
+
+    if slurm_list is None:
+        slurm_list: list[SlurmConfig] = []
 
     # Sanity check
     for slurm_conf in slurm_list:
@@ -793,17 +828,23 @@ def read_config(config_path: Union[str, Path]):
                 raise ConfigError(
                     f'{k} is not a valid value in the `slurm` config block.'
                 )
-            if k == 'sbatch_options' and slurm_conf['sbatch_options'] is None:
-                slurm_conf['sbatch_options'] = {}
+        if slurm_conf.get('sbatch_options', None) is None:
+            slurm_conf['sbatch_options'] = {}
 
     # If we have no config, we should add one
     if len(slurm_list) == 0:
-        slurm_list.append({})
+        slurm_list.append(SlurmConfig(experiments_per_job=1, sbatch_options={}))
 
-    return seml_dict, slurm_list, config_dict
+    # Remove unnecessary keys from config_dict
+    config_dict = drop_typeddict_difference(
+        config_dict, SemlExperimentFile, ExperimentConfig
+    )
+    return seml, slurm_list, config_dict
 
 
-def determine_executable_and_working_dir(config_path, seml_dict):
+def determine_executable_and_working_dir(
+    config_path: str | Path, seml_dict: SemlFileConfig
+):
     """
     Determine the working directory of the project and chdir into the working directory.
     Parameters
@@ -828,32 +869,45 @@ def determine_executable_and_working_dir(config_path, seml_dict):
             working_dir = str(
                 Path(seml_dict['project_root_dir']).expanduser().resolve()
             )
-        seml_dict['use_uploaded_sources'] = True
+        use_uploaded_sources = True
         with working_directory(working_dir):  # use project root as base dir from now on
             executable_relative_to_project_root = os.path.exists(executable)
         del seml_dict['project_root_dir']  # from now on we use only the working dir
     else:
-        seml_dict['use_uploaded_sources'] = False
+        use_uploaded_sources = False
         logging.warning(
             "'project_root_dir' not defined in seml config. Source files will not be saved in MongoDB."
         )
-    seml_dict['working_dir'] = working_dir
     if not (executable_relative_to_config or executable_relative_to_project_root):
         raise ExecutableError('Could not find the executable.')
     with working_directory(working_dir):
         executable = str(Path(executable).expanduser().resolve())
         if executable_relative_to_project_root:
-            seml_dict['executable'] = str(Path(executable).relative_to(working_dir))
+            executable = str(Path(executable).relative_to(working_dir))
         else:
-            seml_dict['executable'] = str(Path(executable).relative_to(config_dir))
+            executable = str(Path(executable).relative_to(config_dir))
 
         if 'output_dir' in seml_dict:
-            seml_dict['output_dir'] = str(
-                Path(seml_dict['output_dir']).expanduser().resolve()
-            )
+            output_dir = seml_dict['output_dir']
+        else:
+            output_dir = None
+    return executable, working_dir, output_dir, use_uploaded_sources
 
 
-def remove_prepended_dashes(param_dict):
+def remove_prepended_dashes(param_dict: dict[str, Any]) -> dict[str, Any]:
+    """
+    Returns a new dictionary where all keys that start with a dash are stripped of the dash.
+
+    Parameters
+    ----------
+    param_dict : Dict[str, Any]
+        The dictionary to remove the dashes from.
+
+    Returns
+    -------
+    Dict[str, Any]
+        The dictionary with the dashes removed.
+    """
     new_dict = {}
     for k, v in param_dict.items():
         if k.startswith('--'):
@@ -865,7 +919,7 @@ def remove_prepended_dashes(param_dict):
     return new_dict
 
 
-def config_get_exclude_keys(config: Dict, config_unresolved: Dict) -> List[str]:
+def config_get_exclude_keys(config: dict, config_unresolved: dict) -> list[str]:
     """Gets the key that should be excluded from identifying a config. These should
     e.g. not be used in hashing
 
@@ -889,8 +943,8 @@ def config_get_exclude_keys(config: Dict, config_unresolved: Dict) -> List[str]:
 
 
 def requires_interpolation(
-    document: Dict,
-    allow_interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
+    document: Mapping[str, Any],
+    allow_interpolation_keys: list[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
 ) -> bool:
     r"""
     Check if a document requires variable interpolation. This is done by checking if
@@ -923,10 +977,13 @@ def requires_interpolation(
     return any(map(check_interpolation, flat_dict.keys(), flat_dict.values()))
 
 
+T = TypeVar('T', bound=Mapping[str, Any])
+
+
 def resolve_interpolations(
-    document: Dict,
-    allow_interpolation_keys: List[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
-) -> Dict:
+    document: T,
+    allow_interpolation_keys: list[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
+) -> T:
     """Resolves variable interpolation using `OmegaConf`
 
     Parameters
@@ -946,8 +1003,12 @@ def resolve_interpolations(
 
     from omegaconf import OmegaConf
 
-    resolved = OmegaConf.to_container(
-        OmegaConf.create(document, flags={'allow_objects': True}), resolve=True
+    resolved = cast(
+        T,
+        OmegaConf.to_container(
+            OmegaConf.create(dict(document), flags={'allow_objects': True}),
+            resolve=True,
+        ),
     )
     resolved_flat = {
         key: value
@@ -961,8 +1022,141 @@ def resolve_interpolations(
             key.startswith(allowed_key) for allowed_key in allow_interpolation_keys
         )
     }
-    assert resolved_flat.keys().isdisjoint(
-        unresolved_flat.keys()
-    ), f'Overlap between unresolved and resolved dicts: {resolved_flat.keys().intersection(unresolved_flat.keys())}'
+    resolved_keys = set(resolved_flat.keys())
+    unresolved_keys = set(unresolved_flat.keys())
+    assert resolved_keys.isdisjoint(
+        unresolved_keys
+    ), f'Overlap between unresolved and resolved dicts: {resolved_keys.intersection(unresolved_keys)}'
     resolved = unflatten({**resolved_flat, **unresolved_flat})
-    return resolved
+    return cast(T, resolved)
+
+
+def remove_duplicates_in_list(documents: Sequence[ExperimentDoc], use_hash: bool):
+    """
+    Returns a new list of ExperimentDoc where all elements are unique.
+
+    Parameters
+    ----------
+    documents: Sequence[ExperimentDoc]
+        The documents to filter.
+    use_hash : bool
+        Whether to use hashes (faster)
+
+    Returns
+    -------
+    List[ExperimentDoc]
+        List of unique documents.
+    """
+    if not use_hash:
+        # slow duplicate detection without hashes
+        unique_documents, unique_keys = [], set()
+        for document in documents:
+            key = Hashabledict(
+                **remove_keys_from_nested(
+                    document['config'],
+                    config_get_exclude_keys(
+                        document['config'], document['config_unresolved']
+                    ),
+                )
+            )
+            if key not in unique_keys:
+                unique_documents.append(document)
+                unique_keys.add(key)
+        documents = unique_documents
+    else:
+        # fast duplicate detection using hashing.
+        documents_dict = {document['config_hash']: document for document in documents}
+        documents = list(documents_dict.values())
+    return documents
+
+
+def remove_duplicates_in_db(
+    collection: Collection[ExperimentDoc],
+    documents: Sequence[ExperimentDoc],
+    use_hash: bool,
+):
+    """Check database collection for already present entries.
+
+    Check the database collection for experiments that have the same configuration.
+    Remove the corresponding entries from the input list of configurations to prevent
+    re-running the experiments.
+
+    Parameters
+    ----------
+    collection: pymongo.collection.Collection
+        The MongoDB collection containing the experiments.
+    documents: List[Dict]
+        The documents to filter.
+    use_hash : bool
+        Whether to use hashes (faster)
+
+    Returns
+    -------
+    filtered_configs: list of dicts
+        No longer contains configurations that are already in the database collection.
+
+    """
+    filtered_documents: list[ExperimentDoc] = []
+    for document in documents:
+        if use_hash:
+            lookup_result = collection.find_one(
+                {'config_hash': document['config_hash']}
+            )
+        else:
+            lookup_dict = flatten(
+                {
+                    'config': remove_keys_from_nested(
+                        document['config'], document['config_unresolved'].keys()
+                    )
+                }
+            )
+            lookup_result = collection.find_one(unflatten(lookup_dict))
+        if lookup_result is None:
+            filtered_documents.append(document)
+    return filtered_documents
+
+
+def remove_duplicates(
+    collection: Collection[ExperimentDoc] | None,
+    documents: Sequence[ExperimentDoc],
+    use_hash: bool = True,
+):
+    """
+    Returns a new list of documents that do not contain duplicates in the database or within the input list.
+
+    Parameters
+    ----------
+    collection: pymongo.collection.Collection
+        The MongoDB collection containing the experiments.
+    documents: Sequence[ExperimentDoc]
+        The documents to filter.
+    use_hash : bool
+        Whether to use hashes (faster)
+
+    Returns
+    -------
+    filtered_configs: list of ExperimentDoc
+        No longer contains configurations that are already in the database collection.
+    """
+    if len(documents) == 0:
+        return list(documents)
+    n_total = len(documents)
+
+    # First, check for duplicates withing the experiment configurations from the file.
+    documents = remove_duplicates_in_list(documents, use_hash)
+    n_unique = len(documents)
+    if n_unique != n_total:
+        logging.info(
+            f'{n_total - n_unique} of {n_total} experiment{s_if(n_total)} were '
+            f'duplicates. Adding only the {n_unique} unique configurations.'
+        )
+    # Now, check for duplicate configurations in the database.
+    if collection is not None:
+        documents = remove_duplicates_in_db(collection, documents, use_hash)
+        n_unique_and_not_in_db = len(documents)
+        if n_unique_and_not_in_db != n_unique:
+            logging.info(
+                f'{n_unique - n_unique_and_not_in_db} of {n_unique} '
+                f'experiment{s_if(n_unique)} were already found in the database. They were not added again.'
+            )
+    return documents

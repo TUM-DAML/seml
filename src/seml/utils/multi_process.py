@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import functools
 import os
 import sys
-from typing import Callable, Optional, TypeVar, Union, overload
+from typing import Callable, TypeVar, overload
 
 from typing_extensions import ParamSpec
 
@@ -59,7 +61,7 @@ R = TypeVar('R')
 
 
 @overload
-def only_on_main_process(func: Callable[P, R]) -> Callable[P, Optional[R]]: ...
+def only_on_main_process(func: Callable[P, R]) -> Callable[P, R | None]: ...
 
 
 @overload
@@ -67,8 +69,8 @@ def only_on_main_process(func: None = None) -> MainProcessExecuteContext: ...
 
 
 def only_on_main_process(
-    func: Optional[Callable[P, R]] = None,
-) -> Union[Callable[P, Optional[R]], MainProcessExecuteContext]:
+    func: Callable[P, R] | None = None,
+) -> Callable[P, R | None] | MainProcessExecuteContext:
     if callable(func):
 
         @functools.wraps(func)

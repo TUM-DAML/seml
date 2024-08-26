@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import logging
 import os
-from typing import Dict, List, Optional
 
 from seml.database import build_filter_dict, get_collection
 from seml.experiment.sources import load_sources_from_db
@@ -12,10 +13,10 @@ States = SETTINGS.STATES
 def download_sources(
     target_directory: str,
     collection_name: str,
-    sacred_id: Optional[int] = None,
-    filter_states: Optional[List[str]] = None,
-    batch_id: Optional[int] = None,
-    filter_dict: Optional[Dict] = None,
+    sacred_id: int | None = None,
+    filter_states: list[str] | None = None,
+    batch_id: int | None = None,
+    filter_dict: dict | None = None,
 ):
     """
     Restore source files from the database to the provided path. This is a helper function for the CLI.

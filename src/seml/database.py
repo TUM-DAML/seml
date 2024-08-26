@@ -1,28 +1,40 @@
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, Any, Iterable, Sequence, TypeVar, overload
 
+from seml.document import ExperimentDoc
 from seml.settings import SETTINGS
 from seml.utils import s_if
 from seml.utils.errors import MongoDBError
 from seml.utils.ssh_forward import get_forwarded_mongo_client
 
+if TYPE_CHECKING:
+    import pymongo
+    import pymongo.collection
+    import pymongo.database
+    from bson import ObjectId
+
 States = SETTINGS.STATES
 
 
-def get_collection(collection_name, mongodb_config=None, suffix=None):
+def get_collection(collection_name: str, mongodb_config: dict[str, Any] | None = None):
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()
     db = get_database(**mongodb_config)
-    if suffix is not None and not collection_name.endswith(suffix):
-        collection_name = f'{collection_name}{suffix}'
-
     return db[collection_name]
 
 
 def get_mongo_client(
-    db_name, host, port, username, password, ssh_config=None, **kwargs
-):
+    db_name: str,
+    host: str,
+    port: int,
+    username: str,
+    password: str,
+    ssh_config: dict[str, Any] | None = None,
+    **kwargs,
+) -> pymongo.MongoClient[ExperimentDoc]:
     import pymongo
 
     if ssh_config is not None:
@@ -30,7 +42,7 @@ def get_mongo_client(
             db_name, username, password, ssh_config, **kwargs
         )
     else:
-        client = pymongo.MongoClient(
+        client = pymongo.MongoClient[ExperimentDoc](
             host,
             int(port),
             username=username,
@@ -41,14 +53,16 @@ def get_mongo_client(
     return client
 
 
-def get_database(db_name, host, port, username, password, **kwargs):
+def get_database(
+    db_name: str, host: str, port: int, username: str, password: str, **kwargs
+):
     db = get_mongo_client(db_name, host, port, username, password, **kwargs)[db_name]
     return db
 
 
 def get_collections_from_mongo_shell_or_pymongo(
     db_name: str, host: str, port: int, username: str, password: str, **kwargs
-) -> List[str]:
+) -> list[str]:
     """Gets all collections in the database by first using the mongo shell and if that fails uses pymongo.
 
     Args:
@@ -76,7 +90,7 @@ def get_collections_from_mongo_shell_or_pymongo(
     return [name for name in collection_names if name not in ('fs.chunks', 'fs.files')]
 
 
-def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
+def get_mongodb_config(path: str | Path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     """Read the MongoDB connection configuration.
 
     Reads the file at the provided path or otherwise {SETTINGS.DATABASE.MONGODB_CONFIG_PATH} to get
@@ -117,13 +131,14 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
 
     access_dict = {}
     config_str = '\nPlease run `seml configure` to provide your credentials.'
+    path = Path(path)
 
     if not path.exists():
         raise MongoDBError(
             f"MongoDB credentials could not be read at '{path}'.{config_str}"
         )
 
-    with open(path) as conf:
+    with open(str(path)) as conf:
         access_dict = yaml.safe_load(conf)
 
     required_entries = ['username', 'password', 'port', 'host', 'database']
@@ -162,7 +177,12 @@ def get_mongodb_config(path=SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     return cfg
 
 
-def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
+def build_filter_dict(
+    filter_states: Sequence[str] | None,
+    batch_id: int | None,
+    filter_dict: dict[str, Any] | None,
+    sacred_id: int | None = None,
+):
     """
     Construct a dictionary to be used for filtering a MongoDB collection.
 
@@ -211,7 +231,30 @@ def build_filter_dict(filter_states, batch_id, filter_dict, sacred_id=None):
     return filter_dict
 
 
-def get_max_in_collection(collection, field: str):
+T = TypeVar('T')
+
+
+@overload
+def get_max_in_collection(
+    collection: pymongo.collection.Collection[ExperimentDoc],
+    field: str,
+    cls: type[T],
+) -> T | None: ...
+
+
+@overload
+def get_max_in_collection(
+    collection: pymongo.collection.Collection[ExperimentDoc],
+    field: str,
+    cls: None = None,
+) -> Any | None: ...
+
+
+def get_max_in_collection(
+    collection: pymongo.collection.Collection[ExperimentDoc],
+    field: str,
+    cls: type[T] | None = None,
+) -> T | Any | None:
     """
     Find the maximum value in the input collection for the input field.
     Parameters
@@ -225,22 +268,22 @@ def get_max_in_collection(collection, field: str):
     """
     import pymongo
 
-    ndocs = collection.count_documents({})
-    if field == '_id':
-        c = collection.find({}, {'_id': 1})
-    else:
-        c = collection.find({}, {'_id': 1, field: 1})
-    b = c.sort(field, pymongo.DESCENDING).limit(1)
-    if ndocs != 0:
-        b_next = b.next()
-        max_val = b_next.get(field)
-    else:
-        max_val = None
-
-    return max_val
+    if result := collection.find_one(
+        projection={field: 1}, sort=[(field, pymongo.DESCENDING)], limit=1
+    ):
+        var = result.get(field)
+        if cls is not None and not isinstance(var, cls):
+            raise ValueError(f'Expected {cls}, got {type(var)}')
+        return var
+    return None
 
 
-def upload_file(filename, db_collection, batch_id, filetype):
+def upload_file(
+    filename: str,
+    db_collection: pymongo.collection.Collection[ExperimentDoc],
+    batch_id: int,
+    filetype: str,
+):
     """
     Upload a source file to the MongoDB.
     Parameters
@@ -276,7 +319,11 @@ def upload_file(filename, db_collection, batch_id, filetype):
     return None
 
 
-def delete_files(database, file_ids, progress=False):
+def delete_files(
+    database: pymongo.database.Database[ExperimentDoc],
+    file_ids: Iterable[ObjectId],
+    progress: bool = False,
+):
     import gridfs
 
     from seml.console import track
@@ -287,7 +334,9 @@ def delete_files(database, file_ids, progress=False):
         fs.delete(to_delete)
 
 
-def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
+def clean_unreferenced_artifacts(
+    db_collection_name: str | None = None, yes: bool = False
+):
     """
     Delete orphaned artifacts from the database. That is, artifacts that were generated by experiments, but whose
     experiment's database entry has been removed. This leads to storage accumulation, and this function cleans this
@@ -317,14 +366,14 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
     collection_blacklist = {'fs.chunks', 'fs.files'}
     collection_names = collection_names - collection_blacklist
 
-    referenced_files = set()
+    referenced_files: set[ObjectId] = set()
     tq = track(collection_names)
     logging.info('Scanning collections for orphaned artifacts...')
     for collection_name in tq:
         collection = db[collection_name]
         experiments = list(
             collection.find(
-                {}, {'artifacts': 1, 'experiment.sources': 1, 'source_files': 1}
+                {}, {'artifacts': 1, 'experiment.sources': 1, 'seml.source_files': 1}
             )
         )
         for exp in experiments:
@@ -335,13 +384,13 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
                     referenced_files.update({x['file_id'] for x in exp['artifacts']})
             if 'experiment' in exp and 'sources' in exp['experiment']:
                 referenced_files.update({x[1] for x in exp['experiment']['sources']})
-            if 'source_files' in exp:
-                referenced_files.update({x[1] for x in exp['source_files']})
+            if 'seml' in exp and 'source_files' in exp['seml']:
+                referenced_files.update({x[1] for x in exp['seml']['source_files']})
 
     all_files_in_db = list(
         db['fs.files'].find({}, {'_id': 1, 'filename': 1, 'metadata': 1})
     )
-    filtered_file_ids = set()
+    filtered_file_ids: set[ObjectId] = set()
     for file in all_files_in_db:
         if 'filename' in file:
             filename = file['filename']
@@ -385,7 +434,7 @@ def clean_unreferenced_artifacts(db_collection_name=None, yes=False):
 def update_working_dir(
     db_collection_name: str,
     working_directory: str,
-    batch_ids: Optional[List[int]] = None,
+    batch_ids: list[int] | None = None,
 ):
     """Changes the working directory of experiments in the database.
 

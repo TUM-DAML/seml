@@ -1,4 +1,11 @@
 repos:
+  - repo: local
+    hooks:
+      - id: sync-dependencies
+        name: update pre-commit-config
+        entry: uv run scripts/pre_commit_sync_pyright_deps.py
+        language: system
+        files: "(pyproject.toml|scripts/.pre-commit-config.yaml.template|.pre-commit.config.yaml)" # the quotes are here to make sure that this stay in line for the formatter.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
@@ -12,28 +19,50 @@ repos:
           )$
       - id: check-added-large-files
       - id: trailing-whitespace
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Ruff version.
-    rev: v0.5.0
-    hooks:
-      # Run the linter.
-      - id: ruff
-        args: [--fix]
-      # Sort improts
-      - id: ruff
-        name: sort imports with ruff
-        args: [--select, I, --fix]
-      # Run the formatter.
-      - id: ruff-format
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.16.0
+    rev: v3.17.0
     hooks:
       - id: pyupgrade
         name: pyupgrade
         args: [--py38-plus]
-        exclude: .*\/__main__.py
-      # typer doesn't supper PEP604 yet, so let's stick to the old typing
+        exclude: .*\/__main__.py # typer doesn't supper PEP604 yet, so let's stick to the old typing
       - id: pyupgrade
         name: pyupgrade (__main__.py)
         args: [--py38-plus, --keep-runtime-typing]
-        files: .*\/__main__.py
+        files: .*\/__main__.py # We run ruff after pyugprade to remove unused imports
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.1
+    hooks:
+      - id: ruff # Run the linter.
+        args: [--fix]
+      - id: ruff # Sort improts
+        name: sort imports with ruff
+        args: [--select, I, --fix]
+      - id: ruff-format # Run the formatter.
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.377
+    hooks:
+      - id: pyright
+        additional_dependencies: # these dependencies are synced via the first hook
+          - numpy>=1.15
+          - pymongo>=4.1
+          - pandas>=2.2
+          - sacred>=0.8.4
+          - pyyaml>=5.1
+          - jsonpickle>=2.2
+          - munch>=4.0
+          - debugpy>=1.2.1
+          - requests>=2.28.1
+          - typer>=0.12
+          - rich>=13.0
+          - omegaconf>=2.3.0
+          - gitignore_parser>=0.1.11
+          - setuptools>=69.2.0
+          - importlib_resources>=5.7.0
+          - typing_extensions>=4.10
+          - ruff>=0.6.1
+          - pytest>=8.3.2
+          - pre-commit>=3.8.0
+          - filelock>=3.15.4
+          - sshtunnel>=0.4.0
+        files: src/seml/.*\.py

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import logging
 import math
@@ -8,10 +10,11 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
 from seml.commands.manage import cancel_experiment_by_id, reset_slurm_dict
 from seml.database import build_filter_dict, get_collection
+from seml.document import ExecutionDoc, ExperimentDoc, SBatchOptions
 from seml.experiment.command import (
     get_command_from_exp,
     get_environment_variables,
@@ -24,6 +27,7 @@ from seml.utils import (
     find_jupyter_host,
     load_text_resource,
     s_if,
+    working_directory,
 )
 from seml.utils.errors import ArgumentError, ConfigError
 from seml.utils.slurm import (
@@ -40,26 +44,28 @@ States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
 
 
-def get_output_dir_path(config):
-    output_dir = config['seml'].get('output_dir', '.')
-    output_dir_path = str(Path(output_dir).expanduser().resolve())
-    if not os.path.isdir(output_dir_path):
-        raise ConfigError(f"Output directory '{output_dir_path}' does not exist.")
-    return output_dir_path
+def get_and_make_output_dir_path(config: ExperimentDoc):
+    with working_directory(config['seml']['working_dir']):
+        output_dir = config['seml'].get('output_dir', '.')
+        output_dir_path = Path(output_dir).expanduser().resolve()
+        try:
+            output_dir_path.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            raise ConfigError(
+                f"Output directory '{output_dir_path}' is not writable. "
+                'Please choose a different directory.'
+            )
+    return str(output_dir_path)
 
 
-def get_exp_name(exp_config, db_collection_name):
-    if 'name' in exp_config['seml']:
-        name = exp_config['seml']['name']
-    else:
-        name = db_collection_name
-    return name
+def get_exp_name(exp_config: ExperimentDoc, db_collection_name: str):
+    return exp_config['seml'].get('name', db_collection_name)
 
 
 def set_slurm_job_name(
-    sbatch_options: Dict[str, Any],
+    sbatch_options: SBatchOptions,
     name: str,
-    exp: Dict,
+    exp: ExperimentDoc,
     db_collection_name: str,
 ):
     if 'job-name' in sbatch_options:
@@ -77,7 +83,7 @@ def set_slurm_job_name(
     sbatch_options['comment'] = db_collection_name
 
 
-def create_slurm_options_string(slurm_options: dict, srun: bool = False):
+def create_slurm_options_string(slurm_options: SBatchOptions, srun: bool = False):
     """
     Convert a dictionary with sbatch_options into a string that can be used in a bash script.
 
@@ -109,14 +115,14 @@ def create_slurm_options_string(slurm_options: dict, srun: bool = False):
 
 
 def start_sbatch_job(
-    collection: 'Collection',
-    exp_array: Sequence[Dict],
+    collection: Collection[ExperimentDoc],
+    exp_array: Sequence[ExperimentDoc],
     slurm_options_id: int,
-    sbatch_options: Dict,
+    sbatch_options: SBatchOptions,
     unobserved: bool = False,
-    name: Optional[str] = None,
+    name: str | None = None,
     output_dir_path: str = '.',
-    max_simultaneous_jobs: Optional[int] = None,
+    max_simultaneous_jobs: int | None = None,
     experiments_per_job: int = 1,
     debug_server: bool = False,
 ):
@@ -183,7 +189,7 @@ def start_sbatch_job(
     prepare_args = ''
     if with_sources:
         prepare_args += ' --stored-sources-dir $tmpdir'
-    if logging.root.level <= logging.VERBOSE:
+    if logging.root.level <= logging.DEBUG:
         prepare_args += ' --verbose'
     if unobserved:
         prepare_args += ' --unobserved'
@@ -194,13 +200,13 @@ def start_sbatch_job(
         'sbatch_options': sbatch_options_str,
         'working_dir': working_dir,
         'use_conda_env': str(use_conda_env is not None).lower(),
-        'conda_env': seml_conf['conda_environment'] if use_conda_env else '',
+        'conda_env': seml_conf.get('conda_environment', '') if use_conda_env else '',
         'exp_ids': expid_strings,
         'with_sources': str(with_sources).lower(),
         'db_collection_name': collection.name,
         'prepare_args': prepare_args,
         'tmp_directory': SETTINGS.TMP_DIRECTORY,
-        'experiments_per_job': experiments_per_job,
+        'experiments_per_job': str(experiments_per_job),
     }
     variables = {
         **variables,
@@ -251,7 +257,12 @@ def start_sbatch_job(
     return slurm_array_job_id
 
 
-def start_srun_job(collection, exp, srun_options=None, seml_arguments=None):
+def start_srun_job(
+    collection: Collection[ExperimentDoc],
+    exp: ExperimentDoc,
+    srun_options: SBatchOptions,
+    seml_arguments: Sequence[str],
+):
     """Run a list of experiments as a job on the Slurm cluster.
 
     Parameters
@@ -296,13 +307,13 @@ def start_srun_job(collection, exp, srun_options=None, seml_arguments=None):
 
 
 def start_local_job(
-    collection,
-    exp,
-    unobserved=False,
-    post_mortem=False,
-    output_dir_path='.',
-    output_to_console=False,
-    debug_server=False,
+    collection: Collection[ExperimentDoc],
+    exp: ExperimentDoc,
+    unobserved: bool = False,
+    post_mortem: bool = False,
+    output_dir_path: str = '.',
+    output_to_console: bool = False,
+    debug_server: bool = False,
 ):
     """Run an experiment locally.
 
@@ -335,99 +346,100 @@ def start_local_job(
     interpreter, exe, config = get_command_from_exp(
         exp,
         collection.name,
-        verbose=logging.root.level <= logging.VERBOSE,
+        verbose=logging.root.level <= logging.DEBUG,
         unobserved=unobserved,
         post_mortem=post_mortem,
         debug_server=debug_server,
     )
     cmd = get_shell_command(interpreter, exe, config)
 
-    if not use_stored_sources:
-        origin = Path().absolute()
-        os.chdir(exp['seml']['working_dir'])
+    wd_path = exp['seml']['working_dir'] if use_stored_sources else '.'
+    with working_directory(wd_path):
+        success = True
+        temp_dir = None
+        output_file = ''
+        try:
+            seml_config = exp['seml']
 
-    success = True
-    try:
-        seml_config = exp['seml']
-        slurm_config = exp['slurm']
+            if use_stored_sources:
+                temp_dir = os.path.join(SETTINGS.TMP_DIRECTORY, str(uuid.uuid4()))
+                os.mkdir(temp_dir, mode=0o700)
+                load_sources_from_db(exp, collection, to_directory=temp_dir)
+                env = {'PYTHONPATH': f'{temp_dir}:$PYTHONPATH'}
+                temp_exe = os.path.join(temp_dir, exe)
+                # update the command to use the temp dir
+                cmd = get_shell_command(interpreter, temp_exe, config, env=env)
 
-        if use_stored_sources:
-            temp_dir = os.path.join(SETTINGS.TMP_DIRECTORY, str(uuid.uuid4()))
-            os.mkdir(temp_dir, mode=0o700)
-            load_sources_from_db(exp, collection, to_directory=temp_dir)
-            env = {'PYTHONPATH': f'{temp_dir}:$PYTHONPATH'}
-            temp_exe = os.path.join(temp_dir, exe)
-            # update the command to use the temp dir
-            cmd = get_shell_command(interpreter, temp_exe, config, env=env)
+            if output_dir_path:
+                exp_name = get_exp_name(exp, collection.name)
+                output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
+                if not unobserved:
+                    collection.update_one(
+                        {'_id': exp['_id']}, {'$set': {'seml.output_file': output_file}}
+                    )
+                if output_to_console:
+                    # redirect output to logfile AND output to console. See https://stackoverflow.com/a/34604684.
+                    # Alternatively, we could go with subprocess.Popen, but this could conflict with pdb.
+                    cmd = f'{cmd} 2>&1 | tee -a {output_file}'
 
-        if output_dir_path:
-            exp_name = get_exp_name(exp, collection.name)
-            output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
-            if not unobserved:
-                collection.update_one(
-                    {'_id': exp['_id']}, {'$set': {'seml.output_file': output_file}}
+            if seml_config.get('conda_environment') is not None:
+                cmd = (
+                    f". $(conda info --base)/etc/profile.d/conda.sh "
+                    f"&& conda activate {seml_config['conda_environment']} "
+                    f"&& {cmd} "
+                    f"&& conda deactivate"
                 )
-            if output_to_console:
-                # redirect output to logfile AND output to console. See https://stackoverflow.com/a/34604684.
-                # Alternatively, we could go with subprocess.Popen, but this could conflict with pdb.
-                cmd = f'{cmd} 2>&1 | tee -a {output_file}'
 
-        if seml_config.get('conda_environment') is not None:
-            cmd = (
-                f". $(conda info --base)/etc/profile.d/conda.sh "
-                f"&& conda activate {seml_config['conda_environment']} "
-                f"&& {cmd} "
-                f"&& conda deactivate"
-            )
+            if not unobserved:
+                execution = ExecutionDoc(cluster='local')  # type: ignore
+                if 'SLURM_JOBID' in os.environ:
+                    execution['array_id'] = int(os.environ['SLURM_JOBID'])
+                    execution['task_id'] = 0
+                collection.update_one(
+                    {'_id': exp['_id']},
+                    {'$set': {'execution': execution}},
+                )
 
-        if not unobserved:
-            execution = {'cluster': 'local'}
-            if 'SLURM_JOBID' in os.environ:
-                execution['array_id'] = os.environ['SLURM_JOBID']
-                execution['task_id'] = 0
-            collection.update_one(
-                {'_id': exp['_id']},
-                {'$set': {'execution': execution}},
-            )
+            logging.debug(f'Running the following command:\n {cmd}')
 
-        logging.verbose(f'Running the following command:\n {cmd}')
-
-        if output_dir_path:
-            if output_to_console:
-                # Let's pause the live widget so we can actually see the output.
+            if output_dir_path:
+                if output_to_console:
+                    # Let's pause the live widget so we can actually see the output.
+                    with pause_live_widget():
+                        subprocess.run(cmd, shell=True, check=True)
+                else:  # redirect output to logfile
+                    with open(output_file, 'w') as log_file:
+                        subprocess.run(
+                            cmd,
+                            shell=True,
+                            stderr=log_file,
+                            stdout=log_file,
+                            check=True,
+                        )
+            else:
                 with pause_live_widget():
                     subprocess.run(cmd, shell=True, check=True)
-            else:  # redirect output to logfile
-                with open(output_file, 'w') as log_file:
-                    subprocess.run(
-                        cmd, shell=True, stderr=log_file, stdout=log_file, check=True
-                    )
-        else:
-            with pause_live_widget():
-                subprocess.run(cmd, shell=True, check=True)
 
-    except subprocess.CalledProcessError:
-        success = False
-    except OSError:
-        logging.error(f'Log file {output_file} could not be written.')
-        # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
-        if not unobserved:
-            collection.update_one(
-                filter={'_id': exp['_id']},
-                update={'$set': {'status': States.FAILED[0]}},
-            )
-        success = False
-    finally:
-        if use_stored_sources and 'temp_dir' in locals():
-            # clean up temp directory
-            shutil.rmtree(temp_dir)
-        if not use_stored_sources:
-            os.chdir(origin)
+        except subprocess.CalledProcessError:
+            success = False
+        except OSError:
+            logging.error(f'Log file {output_file} could not be written.')
+            # Since Sacred is never called in case of I/O error, we need to set the experiment state manually.
+            if not unobserved:
+                collection.update_one(
+                    filter={'_id': exp['_id']},
+                    update={'$set': {'status': States.FAILED[0]}},
+                )
+            success = False
+        finally:
+            if use_stored_sources and temp_dir is not None:
+                # clean up temp directory
+                shutil.rmtree(temp_dir)
 
     return success
 
 
-def chunk_list(exps):
+def chunk_list(exps: Sequence[ExperimentDoc]):
     """
     Divide experiments by batch id as these will be submitted jointly.
     This assumes constant Slurm settings per batch (which should be the case if MongoDB wasn't edited manually).
@@ -443,14 +455,17 @@ def chunk_list(exps):
     """
     from collections import defaultdict
 
-    exp_chunks = defaultdict(list)
+    exp_chunks: dict[int, list[ExperimentDoc]] = defaultdict(list)
     for exp in exps:
         exp_chunks[exp['batch_id']].append(exp)
     return list(exp_chunks.values())
 
 
 def prepare_staged_experiments(
-    collection, filter_dict=None, num_exps=0, set_to_pending=True
+    collection: Collection[ExperimentDoc],
+    filter_dict: dict[str, Any] | None = None,
+    num_exps: int = 0,
+    set_to_pending: bool = True,
 ):
     """
     Load experiments from the input MongoDB collection, and prepare them for running.
@@ -479,7 +494,7 @@ def prepare_staged_experiments(
     if '_id' not in query_dict and 'status' not in query_dict:
         query_dict['status'] = {'$in': States.STAGED}
 
-    experiments = list(collection.find(query_dict, limit=num_exps))
+    experiments: list[ExperimentDoc] = list(collection.find(query_dict, limit=num_exps))
 
     if set_to_pending:
         update_dict = {'$set': {'status': States.PENDING[0]}}
@@ -499,14 +514,14 @@ def prepare_staged_experiments(
 
 
 def add_to_slurm_queue(
-    collection,
-    exps_list,
-    unobserved=False,
-    post_mortem=False,
-    output_to_file=True,
-    output_to_console=False,
-    srun=False,
-    debug_server=False,
+    collection: Collection[ExperimentDoc],
+    exps_list: Sequence[ExperimentDoc],
+    unobserved: bool = False,
+    post_mortem: bool = False,
+    output_to_file: bool = True,
+    output_to_console: bool = False,
+    srun: bool = False,
+    debug_server: bool = False,
 ):
     """
     Send the input list of experiments to the Slurm system for execution.
@@ -572,7 +587,7 @@ def add_to_slurm_queue(
             narrays += 1
         else:
             if output_to_file:
-                output_dir_path = get_output_dir_path(exp_array[0])
+                output_dir_path = get_and_make_output_dir_path(exp_array[0])
             else:
                 output_dir_path = '/dev/null'
             assert not post_mortem
@@ -612,18 +627,18 @@ def check_compute_node():
 
 
 def start_local_worker(
-    collection,
-    num_exps=0,
-    filter_dict=None,
-    unobserved=False,
-    post_mortem=False,
-    steal_slurm=False,
-    output_to_console=False,
-    output_to_file=True,
-    gpus=None,
-    cpus=None,
-    environment_variables=None,
-    debug_server=False,
+    collection: Collection[ExperimentDoc],
+    num_exps: int = 0,
+    filter_dict: dict[str, Any] | None = None,
+    unobserved: bool = False,
+    post_mortem: bool = False,
+    steal_slurm: bool = False,
+    output_to_console: bool = False,
+    output_to_file: bool = True,
+    gpus: str | None = None,
+    cpus: int | None = None,
+    environment_variables: dict[str, str] | None = None,
+    debug_server: bool = False,
 ):
     """
     Start a local worker on the current machine that pulls PENDING experiments from the database and executes them.
@@ -691,13 +706,14 @@ def start_local_worker(
     num_exceptions = 0
     jobs_counter = 0
 
-    exp_query = {}
+    exp_query: dict[str, Any] = {}
     if not unobserved:
         exp_query['status'] = {'$in': States.PENDING}
     if not steal_slurm:
         exp_query['slurm'] = {'$elemMatch': {'array_id': {'$exists': False}}}
 
-    exp_query.update(filter_dict)
+    if filter_dict:
+        exp_query.update(filter_dict)
 
     with pause_live_widget():
         with Progress(auto_refresh=False) as progress:
@@ -746,12 +762,12 @@ def start_local_worker(
                 if (
                     debug_server
                     or output_to_console
-                    or logging.root.level <= logging.VERBOSE
+                    or logging.root.level <= logging.DEBUG
                 ):
                     print(file=sys.stderr)
 
                 if output_to_file:
-                    output_dir_path = get_output_dir_path(exp)
+                    output_dir_path = get_and_make_output_dir_path(exp)
                 else:
                     output_dir_path = None
                 try:
@@ -760,7 +776,7 @@ def start_local_worker(
                         exp=exp,
                         unobserved=unobserved,
                         post_mortem=post_mortem,
-                        output_dir_path=output_dir_path,
+                        output_dir_path=str(output_dir_path),
                         output_to_console=output_to_console,
                         debug_server=debug_server,
                     )
@@ -775,23 +791,23 @@ def start_local_worker(
 
 
 def start_experiments(
-    db_collection_name,
-    local,
-    sacred_id,
-    batch_id,
-    filter_dict,
-    num_exps,
-    post_mortem,
-    debug,
-    debug_server,
-    output_to_console,
-    no_file_output,
-    steal_slurm,
-    no_worker,
-    set_to_pending=True,
-    worker_gpus=None,
-    worker_cpus=None,
-    worker_environment_vars=None,
+    db_collection_name: str,
+    local: bool,
+    sacred_id: int | None,
+    batch_id: int | None,
+    filter_dict: dict[str, Any] | None,
+    num_exps: int,
+    post_mortem: bool,
+    debug: bool,
+    debug_server: bool,
+    output_to_console: bool,
+    no_file_output: bool,
+    steal_slurm: bool,
+    no_worker: bool,
+    set_to_pending: bool = True,
+    worker_gpus: str | None = None,
+    worker_cpus: int | None = None,
+    worker_environment_vars: dict[str, str] | None = None,
 ):
     output_to_file = not no_file_output
     launch_worker = not no_worker
@@ -802,7 +818,7 @@ def start_experiments(
         post_mortem = True
         output_to_console = True
         srun = True
-        logging.root.setLevel(logging.VERBOSE)
+        logging.root.setLevel(logging.DEBUG)
     else:
         unobserved = False
         srun = False
@@ -886,8 +902,8 @@ def start_experiments(
 
 
 def start_jupyter_job(
-    sbatch_options: Optional[dict] = None,
-    conda_env: Optional[str] = None,
+    sbatch_options: SBatchOptions | None = None,
+    conda_env: str | None = None,
     lab: bool = False,
 ):
     if lab:
@@ -990,7 +1006,7 @@ def start_jupyter_job(
 
 
 def get_experiment_to_prepare(
-    collection: 'Collection',
+    collection: Collection[ExperimentDoc],
     exp_id: int,
     unobserved: bool,
 ):
@@ -1097,7 +1113,7 @@ def prepare_experiment(
     verbose: bool,
     unobserved: bool,
     post_mortem: bool,
-    stored_sources_dir: Optional[str],
+    stored_sources_dir: str | None,
     debug_server: bool,
 ):
     """
@@ -1174,9 +1190,11 @@ def prepare_experiment(
             exp['config'][SETTINGS.CONFIG_KEY_SEED] = get_seed()
 
     # Let's generate a output file
-    output_dir = get_output_dir_path(exp)
+    output_dir = get_and_make_output_dir_path(exp)
     try:
-        job_info = get_slurm_jobs(get_current_slurm_job_id())[0]
+        slurm_id = get_current_slurm_job_id()
+        assert slurm_id is not None, 'No SLURM job ID found.'
+        job_info = get_slurm_jobs(slurm_id)[0]
         name = job_info['JobName']
         array_id, task_id = get_current_slurm_array_id()
         name = f'{name}_{array_id}_{task_id}'

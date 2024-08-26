@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import functools
 import os
 import subprocess
 import time
-from typing import Dict, Optional, Union
 
 from seml.settings import SETTINGS
 
@@ -83,7 +84,7 @@ def parse_scontrol_job_info(job_info: str):
     dict
         The job information as a dictionary
     """
-    job_info_dict: Dict[str, str] = {}
+    job_info_dict: dict[str, str] = {}
     # we may split to many times, e.g., if a value contains a space
     unfiltered_lines = job_info.split()
     filtered_lines = []
@@ -103,7 +104,9 @@ def parse_scontrol_job_info(job_info: str):
     return job_info_dict
 
 
-def get_slurm_arrays_tasks(filter_by_user: bool = False):
+def get_slurm_arrays_tasks(
+    filter_by_user: bool = False,
+) -> dict[int, tuple[list[range], list[int]]]:
     """Get a dictionary of running/pending Slurm job arrays (as keys) and tasks (as values)
 
     Parameters:
@@ -123,11 +126,11 @@ def get_slurm_arrays_tasks(filter_by_user: bool = False):
             array_ids_str, task_ids = zip(*[job_str.split(b'_') for job_str in jobs])
             # `job_dict`: This dictionary has the job array IDs as keys and the values are
             # a list of 1) the pending job task range and 2) a list of running job task IDs.
-            job_dict = {}
+            job_dict: dict[int, tuple[list[range], list[int]]] = {}
             for i, task_range_str in enumerate(task_ids):
                 array_id = int(array_ids_str[i])
                 if array_id not in job_dict:
-                    job_dict[array_id] = [[range(0)], []]
+                    job_dict[array_id] = ([range(0)], [])
 
                 if b'[' in task_range_str:
                     # Remove brackets and maximum number of simultaneous jobs
@@ -162,7 +165,7 @@ def get_current_slurm_job_id():
     return os.environ.get('SLURM_JOB_ID', None)
 
 
-def cancel_slurm_jobs(*job_ids: str, state: Optional[str] = None):
+def cancel_slurm_jobs(*job_ids: str | int, state: str | None = None):
     """
     Cancels the Slurm jobs with the given job IDs.
 
@@ -205,7 +208,7 @@ def are_slurm_jobs_running(*job_ids: str):
     )
 
 
-def wait_until_slurm_jobs_finished(*job_ids: str, timeout: Union[int, float]):
+def wait_until_slurm_jobs_finished(*job_ids: str, timeout: int | float):
     """
     Waits until all jobs are finished or until the timeout is reached.
 

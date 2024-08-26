@@ -29,3 +29,10 @@ YamlUniqueLoader.add_constructor(
     yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
     construct_mapping,
 )
+
+
+class YamlDumper(yaml.Dumper):
+    def represent_mapping(self, tag, mapping, flow_style=None):
+        if flow_style is None:
+            flow_style = False
+        return super().represent_mapping(tag, mapping, flow_style)

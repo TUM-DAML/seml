@@ -4,53 +4,21 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple, TypeVar
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
+)
 
 from typing_extensions import Annotated, ParamSpec
 
 import seml.utils.typer as typer
-from seml.commands.add import add_config_files
-from seml.commands.configure import configure
-from seml.commands.description import (
-    collection_delete_description,
-    collection_list_descriptions,
-    collection_set_description,
-)
-from seml.commands.manage import (
-    cancel_empty_pending_jobs,
-    cancel_experiments,
-    delete_experiments,
-    detect_killed,
-    drop_collections,
-    reload_sources,
-    reset_experiments,
-)
-from seml.commands.migration import migrate_collection
-from seml.commands.print import (
-    print_collections,
-    print_command,
-    print_duplicates,
-    print_experiment,
-    print_fail_trace,
-    print_output,
-    print_queue,
-    print_status,
-)
-from seml.commands.project import init_project, print_available_templates
-from seml.commands.slurm import hold_or_release_experiments
-from seml.commands.sources import download_sources
-from seml.commands.start import (
-    claim_experiment,
-    prepare_experiment,
-    start_experiments,
-    start_jupyter_job,
-)
-from seml.database import (
-    clean_unreferenced_artifacts,
-    get_collections_from_mongo_shell_or_pymongo,
-    get_mongodb_config,
-    update_working_dir,
-)
+from seml.document import SBatchOptions
 from seml.settings import SETTINGS
 from seml.utils import cache_to_disk
 from seml.utils.module_hider import AUTOCOMPLETING
@@ -65,14 +33,21 @@ R = TypeVar('R')
 # numexpr will log unnecessary info we don't want in our CLI
 logging.getLogger('numexpr').setLevel(logging.ERROR)
 
-# Let's not import json if we are only autocompleting
-if not AUTOCOMPLETING:
-    import json
 
-JsonOption = functools.partial(
+def parse_dict(x: str):
+    import ast
+
+    try:
+        return ast.literal_eval(x)
+    except Exception as e:
+        logging.error(f'Could not parse dictionary: {e}\n{x}')
+        exit(1)
+
+
+DictOption = functools.partial(
     typer.Option,
-    metavar='JSON',
-    parser=json.loads if not AUTOCOMPLETING else lambda s: None,  # type: ignore
+    metavar='DICT',
+    parser=parse_dict,
 )
 
 
@@ -114,6 +89,11 @@ def collection_free_commands(app: typer.Typer) -> List[str]:
 @cache_to_disk('db_config', SETTINGS.AUTOCOMPLETE_CACHE_ALIVE_TIME)
 def get_db_collections():
     """CLI completion for db collections."""
+    from seml.database import (
+        get_collections_from_mongo_shell_or_pymongo,
+        get_mongodb_config,
+    )
+
     config = get_mongodb_config()
     return list(get_collections_from_mongo_shell_or_pymongo(**config))
 
@@ -151,8 +131,8 @@ SacredIdAnnotation = Annotated[
 ]
 FilterDictAnnotation = Annotated[
     Optional[Dict],
-    JsonOption(
-        '-f',
+    DictOption(
+        '-fd',
         '--filter-dict',
         help='Dictionary (passed as a string, e.g. \'{"config.dataset": "cora_ml"}\') to filter '
         'the experiments by.',
@@ -205,8 +185,8 @@ FilterStatesAnnotation = Annotated[
     ),
 ]
 SBatchOptionsAnnotation = Annotated[
-    Optional[Dict],
-    JsonOption(
+    Optional[SBatchOptions],
+    DictOption(
         '-sb',
         '--sbatch-options',
         help='Dictionary (passed as a string, e.g. \'{"gres": "gpu:2"}\') to request two GPUs.',
@@ -275,7 +255,7 @@ WorkerCPUsAnnotation = Annotated[
 ]
 WorkerEnvAnnotation = Annotated[
     Optional[Dict],
-    JsonOption(
+    DictOption(
         '-we',
         '--worker-env',
         help='Further environment variables to be set for the local worker.',
@@ -388,6 +368,7 @@ def callback(
     """SEML - Slurm Experiment Management Library."""
     from rich.logging import RichHandler
 
+    from seml.commands.migration import migrate_collection
     from seml.console import console
 
     if len(logging.root.handlers) == 0:
@@ -429,6 +410,8 @@ def list_command(
     full_description: PrintFullDescriptionAnnotation = False,
 ):
     """Lists all collections in the database."""
+    from seml.commands.print import print_collections
+
     print_collections(
         pattern,
         progress=progress,
@@ -440,6 +423,8 @@ def list_command(
 @app.command('clean-db', rich_help_panel=_DATABASE)
 def clean_db_command(ctx: typer.Context, yes: YesAnnotation = False):
     """Remove orphaned artifacts in the DB from runs which have been deleted.."""
+    from seml.database import clean_unreferenced_artifacts
+
     clean_unreferenced_artifacts(ctx.obj['collection'], yes=yes)
 
 
@@ -460,6 +445,8 @@ def configure_command(
     """
     Configure SEML (database, argument completion, ...).
     """
+    from seml.commands.configure import configure
+
     configure(all=False, mongodb=True, setup_ssh_forward=ssh_forward)
 
 
@@ -489,6 +476,8 @@ def start_jupyter_command(
     Start a Jupyter slurm job. Uses SBATCH options defined in settings.py under
     SBATCH_OPTIONS_TEMPLATES.JUPYTER
     """
+    from seml.commands.start import start_jupyter_job
+
     start_jupyter_job(lab=lab, conda_env=conda_env, sbatch_options=sbatch_options)
 
 
@@ -514,6 +503,8 @@ def cancel_command(
     """
     Cancel the Slurm job/job step corresponding to experiments, filtered by ID or state.
     """
+    from seml.commands.manage import cancel_experiments
+
     wait |= (
         len(
             [
@@ -589,7 +580,7 @@ def add_command(
     ] = False,
     overwrite_params: Annotated[
         Optional[Dict],
-        JsonOption(
+        DictOption(
             '-o',
             '--overwrite-params',
             help='Dictionary (passed as a string, e.g. \'{"epochs": 100}\') to overwrite parameters in the config.',
@@ -608,6 +599,8 @@ def add_command(
     """
     Add experiments to the database as defined in the configuration.
     """
+    from seml.commands.add import add_config_files
+
     add_config_files(
         ctx.obj['collection'],
         config_files,
@@ -661,6 +654,8 @@ def start_command(
     """
     Fetch staged experiments from the database and run them (by default via Slurm).
     """
+    from seml.commands.start import start_experiments
+
     start_experiments(
         ctx.obj['collection'],
         local=local,
@@ -696,6 +691,8 @@ def clean_jobs_command(
     """
     Cancel empty pending jobs.
     """
+    from seml.commands.manage import cancel_empty_pending_jobs
+
     cancel_empty_pending_jobs(ctx.obj['collection'], *sacred_ids)
 
 
@@ -744,6 +741,8 @@ def prepare_experiment_command(
     """
     Fetch experiment from database, prepare it and print the command to execute it.
     """
+    from seml.commands.start import prepare_experiment
+
     prepare_experiment(
         ctx.obj['collection'],
         sacred_id,
@@ -769,6 +768,8 @@ def claim_experiment_command(
     """
     Claim an experiment from the database.
     """
+    from seml.commands.start import claim_experiment
+
     claim_experiment(ctx.obj['collection'], sacred_ids)
 
 
@@ -793,6 +794,8 @@ def launch_worker_command(
     """
     Launch a local worker that runs PENDING jobs.
     """
+    from seml.commands.start import start_experiments
+
     start_experiments(
         ctx.obj['collection'],
         local=True,
@@ -831,6 +834,8 @@ def print_fail_trace_command(
     """
     Prints fail traces of all failed experiments.
     """
+    from seml.commands.print import print_fail_trace
+
     print_fail_trace(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -868,6 +873,8 @@ def reload_sources_command(
     """
     Reload stashed source files.
     """
+    from seml.commands.manage import reload_sources
+
     reload_sources(
         ctx.obj['collection'],
         batch_ids=batch_ids,
@@ -902,6 +909,8 @@ def update_working_dir_command(
     """
     Change the working directory of experiments in case you moved the source code to a different location.
     """
+    from seml.database import update_working_dir
+
     update_working_dir(
         ctx.obj['collection'],
         working_directory=working_dir,
@@ -941,6 +950,8 @@ def print_command_command(
     """
     Print the commands that would be executed by `start`.
     """
+    from seml.commands.print import print_command
+
     print_command(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -971,10 +982,21 @@ def print_experiment_command(
     filter_dict: FilterDictAnnotation = None,
     batch_id: BatchIdAnnotation = None,
     projection: ProjectionAnnotation = [],
+    format: Annotated[
+        str,
+        typer.Option(
+            '-F',
+            '--format',
+            help='The format in which to print the experiment document.',
+            case_sensitive=False,
+        ),
+    ] = 'yaml',
 ):
     """
     Print the experiment document.
     """
+    from seml.commands.print import print_experiment
+
     print_experiment(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -982,6 +1004,7 @@ def print_experiment_command(
         batch_id=batch_id,
         filter_dict=filter_dict,
         projection=projection,
+        format=format,
     )
 
 
@@ -1026,6 +1049,8 @@ def print_output_command(
     """
     Print the output of experiments.
     """
+    from seml.commands.print import print_output
+
     print_output(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -1056,6 +1081,8 @@ def reset_command(
     Reset the state of experiments by setting their state to STAGED and cleaning their database entry.
     Does not cancel Slurm jobs.
     """
+    from seml.commands.manage import reset_experiments
+
     reset_experiments(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -1093,6 +1120,8 @@ def delete_command(
     """
     Delete experiments by ID or state (cancels Slurm jobs first if not --no-cancel).
     """
+    from seml.commands.manage import delete_experiments
+
     delete_experiments(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -1119,6 +1148,8 @@ def drop_command(
 
     Note: This is a dangerous operation and should only be used if you know what you are doing.
     """
+    from seml.commands.manage import drop_collections
+
     drop_collections(pattern=pattern, yes=yes)
     get_db_collections.recompute_cache()
 
@@ -1131,6 +1162,8 @@ def detect_killed_command(
     """
     Detect experiments where the corresponding Slurm jobs were killed externally.
     """
+    from seml.commands.manage import detect_killed
+
     detect_killed(ctx.obj['collection'])
 
 
@@ -1144,6 +1177,8 @@ def status_command(
     """
     Report status of experiments in the database collection.
     """
+    from seml.commands.print import print_status
+
     print_status(
         ctx.obj['collection'], update_status=update_status, projection=projection
     )
@@ -1170,6 +1205,8 @@ def download_sources_command(
     """
     Download source files from the database to the provided path.
     """
+    from seml.commands.sources import download_sources
+
     download_sources(
         target_directory,
         ctx.obj['collection'],
@@ -1189,6 +1226,8 @@ def hold_command(
     """
     Hold queued experiments via SLURM.
     """
+    from seml.commands.slurm import hold_or_release_experiments
+
     hold_or_release_experiments(
         True,
         ctx.obj['collection'],
@@ -1205,6 +1244,8 @@ def release_command(
     """
     Release holded experiments via SLURM.
     """
+    from seml.commands.slurm import hold_or_release_experiments
+
     hold_or_release_experiments(
         False,
         ctx.obj['collection'],
@@ -1243,6 +1284,8 @@ def queue_command(
     """
     Prints the collections of the given job IDs. If none is specified, all jobs are considered.
     """
+    from seml.commands.print import print_queue
+
     print_queue(
         job_ids,
         filter_by_user=not check_all,
@@ -1275,6 +1318,8 @@ def detect_duplicates_command(
     """
     Prints duplicate experiment configurations.
     """
+    from seml.commands.print import print_duplicates
+
     print_duplicates(
         ctx.obj['collection'],
         filter_states=filter_states,
@@ -1303,6 +1348,8 @@ def description_set_command(
     """
     Sets the description of experiment(s).
     """
+    from seml.commands.description import collection_set_description
+
     collection_set_description(
         ctx.obj['collection'],
         description,
@@ -1328,6 +1375,8 @@ def description_delete_command(
     """
     Deletes the description of experiment(s).
     """
+    from seml.commands.description import collection_delete_description
+
     collection_delete_description(
         ctx.obj['collection'],
         sacred_id=sacred_id,
@@ -1346,6 +1395,8 @@ def description_list_command(
     """
     Lists the descriptions of all experiments.
     """
+    from seml.commands.description import collection_list_descriptions
+
     collection_list_descriptions(ctx.obj['collection'], update_status=update_status)
 
 
@@ -1422,6 +1473,8 @@ def init_project_command(
     """
     Initialize a new project in the given directory.
     """
+    from seml.commands.project import init_project
+
     init_project(
         directory,
         project_name,
@@ -1458,6 +1511,8 @@ def list_templates_command(
     """
     List available project templates.
     """
+    from seml.commands.project import print_available_templates
+
     print_available_templates(git_remote, git_commit)
 
 
@@ -1563,6 +1618,7 @@ if AUTOCOMPLETING and os.environ.get('COMP_WORDS'):
         os.environ['COMP_WORDS'].split('\n'), command_tree(app)
     )
     cword = int(os.environ['COMP_CWORD'])
+    cmd = commands[0]
     if cword > 1:
         # Case where we complete a command
         # To find the right command, we must subtract the length of all previous commands
@@ -1575,9 +1631,6 @@ if AUTOCOMPLETING and os.environ.get('COMP_WORDS'):
                 break
             cword -= cmd_length
         cword += 2  # add back the -2 we subtracted above
-    else:
-        # If we complete collection names
-        cmd = commands[0]
     os.environ['COMP_WORDS'] = '\n'.join(cmd)
     os.environ['COMP_CWORD'] = str(cword)
     # If we are not at the top level typer, we must not suggest top level commands

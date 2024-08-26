@@ -25,10 +25,6 @@ To get started, install **`SEML`** either via `pip`:
 ```bash
 pip install seml
 ```
-or `conda` (the conda version may be outdated, we highly recommend the pypi version!):
-```bash
-conda install -c conda-forge seml
-```
 Then configure your MongoDB via:
 ```bash
 seml configure
@@ -52,11 +48,22 @@ seml configure --ssh_forward
 ```
 
 ### Development
-If you want to develop `seml` please clone the repository and install it via
+For development, we recommend [`uv`](https://docs.astral.sh/uv/) which you can install via
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+Setup the right environment use and activate it:
+```bash
+uv sync --locked
+source .venv/bin/activate
+```
+Alternatively, you can install the repository in any Python environment via:
 ```bash
 pip install -e .[dev]
 ```
-and install pre-commit hooks via
+
+#### Pre-commit hooks
+Make sure to install the pre-commit hooks via
 ```bash
 pre-commit install
 ```
