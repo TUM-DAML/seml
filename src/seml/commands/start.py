@@ -44,12 +44,18 @@ States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
 
 
-def get_output_dir_path(config: ExperimentDoc):
-    output_dir = config['seml'].get('output_dir', '.')
-    output_dir_path = str(Path(output_dir).expanduser().resolve())
-    if not os.path.isdir(output_dir_path):
-        raise ConfigError(f"Output directory '{output_dir_path}' does not exist.")
-    return output_dir_path
+def get_and_make_output_dir_path(config: ExperimentDoc):
+    with working_directory(config['seml']['working_dir']):
+        output_dir = config['seml'].get('output_dir', '.')
+        output_dir_path = Path(output_dir).expanduser().resolve()
+        try:
+            output_dir_path.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            raise ConfigError(
+                f"Output directory '{output_dir_path}' is not writable. "
+                'Please choose a different directory.'
+            )
+    return str(output_dir_path)
 
 
 def get_exp_name(exp_config: ExperimentDoc, db_collection_name: str):
@@ -581,7 +587,7 @@ def add_to_slurm_queue(
             narrays += 1
         else:
             if output_to_file:
-                output_dir_path = get_output_dir_path(exp_array[0])
+                output_dir_path = get_and_make_output_dir_path(exp_array[0])
             else:
                 output_dir_path = '/dev/null'
             assert not post_mortem
@@ -761,7 +767,7 @@ def start_local_worker(
                     print(file=sys.stderr)
 
                 if output_to_file:
-                    output_dir_path = get_output_dir_path(exp)
+                    output_dir_path = get_and_make_output_dir_path(exp)
                 else:
                     output_dir_path = None
                 try:
@@ -1184,7 +1190,7 @@ def prepare_experiment(
             exp['config'][SETTINGS.CONFIG_KEY_SEED] = get_seed()
 
     # Let's generate a output file
-    output_dir = get_output_dir_path(exp)
+    output_dir = get_and_make_output_dir_path(exp)
     try:
         slurm_id = get_current_slurm_job_id()
         assert slurm_id is not None, 'No SLURM job ID found.'
