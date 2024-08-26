@@ -834,6 +834,13 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+dev = [
+    { name = "filelock" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "sshtunnel" },
+]
 ssh-forward = [
     { name = "filelock" },
     { name = "sshtunnel" },
@@ -851,6 +858,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "debugpy", specifier = ">=1.2.1" },
+    { name = "filelock", marker = "extra == 'dev'", specifier = ">=3.15.4" },
     { name = "filelock", marker = "extra == 'ssh-forward'", specifier = ">=3.13.3" },
     { name = "gitignore-parser", specifier = ">=0.1.11" },
     { name = "importlib-resources", specifier = ">=5.7.0" },
@@ -859,12 +867,16 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.15" },
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pandas", specifier = ">=2.2" },
+    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.8.0" },
     { name = "pymongo", specifier = ">=4.1" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.2" },
     { name = "pyyaml", specifier = ">=5.1" },
     { name = "requests", specifier = ">=2.28.1" },
     { name = "rich", specifier = ">=13.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6.1" },
     { name = "sacred", specifier = ">=0.8.4" },
     { name = "setuptools", specifier = ">=69.2.0" },
+    { name = "sshtunnel", marker = "extra == 'dev'", specifier = ">=0.4.0" },
     { name = "sshtunnel", marker = "extra == 'ssh-forward'", specifier = ">=0.4.0" },
     { name = "typer", specifier = ">=0.12" },
     { name = "typing-extensions", specifier = ">=4.10" },
