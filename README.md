@@ -48,7 +48,7 @@ seml configure --ssh_forward
 ```
 
 ### Development
-For development, please use [`uv`](https://docs.astral.sh/uv/) which you can install via
+For development, we recommend [`uv`](https://docs.astral.sh/uv/) which you can install via
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
@@ -57,7 +57,13 @@ Setup the right environment use and activate it:
 uv sync --locked
 source .venv/bin/activate
 ```
-Install pre-commit hooks via
+Alternatively, you can install the repository in any Python environment via:
+```bash
+pip install -e .[dev]
+```
+
+#### Pre-commit hooks
+Make sure to install the pre-commit hooks via
 ```bash
 pre-commit install
 ```
