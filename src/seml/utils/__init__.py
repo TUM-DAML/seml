@@ -728,7 +728,11 @@ def find_jupyter_host(
     return url_str, known_host
 
 
-def is_local_file(filename, root_dir):
+def is_local_file(
+    filename: str | Path,
+    root_dir: str | Path,
+    ignore_site_packages_folder: bool = True,
+):
     """
     See https://github.com/IDSIA/sacred/blob/master/sacred/dependencies.py
     Parameters
@@ -738,11 +742,25 @@ def is_local_file(filename, root_dir):
 
     Returns
     -------
-
+    bool
     """
+    import site
+
     file_path = Path(filename).expanduser().resolve()
     root_path = Path(root_dir).expanduser().resolve()
-    return root_path in file_path.parents
+    # We do the simple check first to avoid the expensive loop check
+    # Check if file lies within the root directory
+    if not file_path.is_relative_to(root_path):
+        return False
+    # Reject all files that are in some-diretory called `site-packages`
+    if not ignore_site_packages_folder and 'site-packages' in str(file_path):
+        return False
+    # Check if the file is in any environment site-packages
+    for site_dir in map(Path, site.getsitepackages()):
+        if file_path.is_relative_to(site_dir):
+            return False
+    # We are in the root_dir and not in any site-packages
+    return True
 
 
 def smaller_than_version_filter(version: tuple[int, int, int]):

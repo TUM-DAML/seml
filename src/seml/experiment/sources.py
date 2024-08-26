@@ -88,7 +88,7 @@ def get_imported_sources(
         List[str]: The sources imported by the given executable.
     """
     import_exe(executable, conda_env, working_dir)
-    root_path = str(Path(root_dir).expanduser().resolve())
+    root_path = Path(root_dir).expanduser().resolve()
 
     sources = set()
     source_added = True
@@ -102,17 +102,14 @@ def get_imported_sources(
                 continue
             filename = os.path.abspath(filename)
             # Check if the file is a local file and not in site-packages (i.e., an installed package)
-            if (
-                filename not in sources
-                and is_local_file(filename, root_path)
-                and 'site-packages' not in filename
-            ):
+            if filename not in sources and is_local_file(filename, root_path):
                 sources.add(filename)
                 source_added = True
 
     if stash_all_py_files:
         for file in Path(working_dir).glob('**/*.py'):
-            if 'site-packages' not in str(file):
+            # This check ensures that we don't add files from site-packages.
+            if is_local_file(file, root_path):
                 sources.add(str(file))
 
     return sources
