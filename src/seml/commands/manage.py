@@ -528,16 +528,22 @@ def reset_slurm_dict(exp: ExperimentDoc):
             del sub_conf['sbatch_options'][key]
 
 
-def reset_single_experiment(collection: Collection[ExperimentDoc], exp: ExperimentDoc):
-    """Resets a single experiment
+def get_experiment_reset_op(exp: ExperimentDoc):
+    """
+    Returns a MongoDB operation to reset an experiment.
 
     Parameters
     ----------
-    collection : pymongo.collection.Collection
-        The collection to which the experiment belongs to
     exp : Dict
-        The experiment dict
+        The experiment to reset
+
+    Returns
+    -------
+    pymongo.operations.ReplaceOne
+        The operation to reset the experiment
     """
+    from pymongo import ReplaceOne
+
     exp['status'] = States.STAGED[0]
     # queue_time for backward compatibility.
     keep_entries = [
@@ -562,11 +568,26 @@ def reset_single_experiment(collection: Collection[ExperimentDoc], exp: Experime
 
     reset_slurm_dict(exp)
 
-    collection.replace_one(
+    op = ReplaceOne(
         {'_id': exp['_id']},
         {entry: exp[entry] for entry in keep_entries if entry in exp},
         upsert=False,
     )
+    op = cast(ReplaceOne[ExperimentDoc], op)
+    return op
+
+
+def reset_single_experiment(collection: Collection[ExperimentDoc], exp: ExperimentDoc):
+    """Resets a single experiment
+
+    Parameters
+    ----------
+    collection : pymongo.collection.Collection
+        The collection to which the experiment belongs to
+    exp : Dict
+        The experiment dict
+    """
+    collection.bulk_write([get_experiment_reset_op(exp)])
 
 
 def reset_experiments(
@@ -611,8 +632,7 @@ def reset_experiments(
     if nreset >= SETTINGS.CONFIRM_THRESHOLD.RESET:
         if not yes and not prompt('Are you sure? (y/n)', type=bool):
             exit(1)
-    for exp in exps:
-        reset_single_experiment(collection, exp)
+    collection.bulk_write(list(map(get_experiment_reset_op, exps)))
 
 
 def detect_killed(db_collection_name: str, print_detected: bool = True):
@@ -625,6 +645,8 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
     print_detected : bool, optional
         Whether to print how many killed experiments have been detected, by default True
     """
+    from pymongo import UpdateMany, UpdateOne
+
     collection = get_collection(db_collection_name)
     cluster = get_cluster_name()
     exps = collection.find(
@@ -638,8 +660,11 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
             # resolves the issue around manually canceled jobs.
         }
     )
-    running_jobs = get_slurm_arrays_tasks()
+    running_jobs = get_slurm_arrays_tasks(True)
     nkilled = 0
+    trace_updates = []
+    interrupted_exps = []
+    killed_exps = []
     for exp in exps:
         # detect whether the experiment is running in slurm
         arr_id = exp['execution'].get('array_id', -1)
@@ -649,34 +674,43 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
             or task_id in running_jobs[arr_id][1]
         )
         # detect whether any job that could execute it is pending
-        array_ids = [conf.get('array_id') for conf in exp['slurm']]
+        array_ids = {conf.get('array_id') for conf in exp['slurm']}
         # Any of these jobs may still pull the experiment and run it
         exp_pending = any(array_id in running_jobs for array_id in array_ids)
 
         if not exp_running and not exp_pending:
             if 'stop_time' in exp:
                 # the experiment is already over but failed to report properly
-                collection.update_one(
-                    {'_id': exp['_id']}, {'$set': {'status': States.INTERRUPTED[0]}}
-                )
+                interrupted_exps.append(exp['_id'])
             else:
                 # the experiment was externally killed
                 nkilled += 1
-                collection.update_one(
-                    {'_id': exp['_id']}, {'$set': {'status': States.KILLED[0]}}
-                )
+                killed_exps.append(exp['_id'])
                 if output_file := exp['seml'].get('output_file'):
                     try:
                         fail_trace = tail_file(output_file, n=4)
-                        collection.update_one(
-                            {'_id': exp['_id']},
-                            {'$set': {'fail_trace': fail_trace}},
+                        trace_updates.append(
+                            UpdateOne(
+                                {'_id': exp['_id']},
+                                {'$set': {'fail_trace': fail_trace}},
+                            )
                         )
                     except OSError:
                         # If the experiment is canceled before starting (e.g. when still queued), there is not output file.
                         logging.debug(f'File {output_file} could not be read.')
                 else:
                     logging.debug(f"Output file not found in experiment {exp['_id']}.")
+    updates = [
+        UpdateMany(
+            {'_id': {'$in': interrupted_exps}},
+            {'$set': {'status': States.INTERRUPTED[0]}},
+        ),
+        UpdateMany(
+            {'_id': {'$in': killed_exps}},
+            {'$set': {'status': States.KILLED[0]}},
+        ),
+    ] + trace_updates
+    collection.bulk_write(updates)
     if print_detected:
         logging.info(f'Detected {nkilled} externally killed experiment{s_if(nkilled)}.')
 
