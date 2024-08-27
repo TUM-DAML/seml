@@ -93,6 +93,7 @@ def get_collections_from_mongo_shell_or_pymongo(
     return [name for name in collection_names if name not in ('fs.chunks', 'fs.files')]
 
 
+@functools.cache
 def get_mongodb_config(path: str | Path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     """Read the MongoDB connection configuration.
 
