@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Iterable, TypeVar, overload
 
 from seml.document import ExperimentDoc
 from seml.settings import SETTINGS
-from seml.utils import s_if
+from seml.utils import Hashabledict, s_if
 from seml.utils.errors import MongoDBError
 from seml.utils.ssh_forward import get_forwarded_mongo_client
 
@@ -20,13 +20,21 @@ if TYPE_CHECKING:
 States = SETTINGS.STATES
 
 
-# We cache the current collection to avoid reading the config file multiple times
+# The private method only accepts hashable dicts such that we can use it as a cache key.
 @functools.lru_cache(1)
-def get_collection(collection_name: str, mongodb_config: dict[str, Any] | None = None):
+def _get_collection(collection_name: str, mongodb_config: Hashabledict | None = None):
     if mongodb_config is None:
-        mongodb_config = get_mongodb_config()
-    db = get_database(**mongodb_config)
+        config = get_mongodb_config()
+    else:
+        config = dict(mongodb_config)
+    db = get_database(**config)
     return db[collection_name]
+
+
+def get_collection(collection_name: str, mongodb_config: dict[str, Any] | None = None):
+    if mongodb_config is not None:
+        mongodb_config = Hashabledict(mongodb_config)
+    return _get_collection(collection_name, mongodb_config)
 
 
 def get_mongo_client(
