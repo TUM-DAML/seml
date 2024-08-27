@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, TypeVar, overload
@@ -19,6 +20,8 @@ if TYPE_CHECKING:
 States = SETTINGS.STATES
 
 
+# We cache the current collection to avoid reading the config file multiple times
+@functools.lru_cache(1)
 def get_collection(collection_name: str, mongodb_config: dict[str, Any] | None = None):
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()

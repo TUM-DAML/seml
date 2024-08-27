@@ -121,7 +121,7 @@ def get_imported_sources(
 def upload_sources(
     seml_config: SemlDoc, collection: Collection[ExperimentDoc], batch_id: int
 ):
-    from multiprocessing import Pool
+    from concurrent.futures import ThreadPoolExecutor as Pool
 
     with working_directory(seml_config['working_dir']):
         root_dir = str(Path(seml_config['working_dir']).expanduser().resolve())
@@ -147,9 +147,9 @@ def upload_sources(
                 upload_file_mt,
                 [(s, collection.name, batch_id, 'source_file') for s in sources],
             )
-        for s, file_id in zip(sources, file_ids):
-            source_path = Path(s)
-            uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
+            for s, file_id in zip(sources, file_ids):
+                source_path = Path(s)
+                uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
     return uploaded_files
 
 
