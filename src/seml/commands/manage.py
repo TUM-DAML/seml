@@ -770,6 +770,7 @@ def reload_sources(
     from importlib.metadata import version
 
     from bson import ObjectId
+    from deepdiff import DeepDiff
     from pymongo import UpdateOne
 
     from seml.console import prompt
@@ -782,7 +783,15 @@ def reload_sources(
         filter_dict = {}
     db_results = list(
         collection.find(
-            filter_dict, {'batch_id', 'seml', 'config', 'status', 'config_unresolved'}
+            filter_dict,
+            {
+                'batch_id',
+                'seml',
+                'config',
+                'status',
+                'config_unresolved',
+                'config_hash',
+            },
         )
     )
     id_to_document: dict[int, list[ExperimentDoc]] = {}
@@ -853,29 +862,40 @@ def reload_sources(
             )
         ]
 
-        result = collection.bulk_write(
-            [
-                UpdateOne(
-                    {'_id': document['_id']},
-                    {
-                        '$set': {
-                            'config': document['config'],
-                            'config_unresolved': document['config_unresolved'],
-                            'config_hash': make_hash(
-                                document['config'],
-                                config_get_exclude_keys(
-                                    document['config'], document['config_unresolved']
-                                ),
-                            ),
-                        }
-                    },
+        # determine which documents to udpate
+        updates = []
+        for old_doc, new_doc in zip(documents, new_documents):
+            use_hash = 'config_hash' in old_doc
+            # these config fields are populated if the experiment ran
+            runtime_fields = {
+                k: old_doc['config'][k]
+                for k in ['db_collection', 'overwrite', 'seed']
+                if k in old_doc['config']
+            }
+            new = dict(
+                config=new_doc['config'] | runtime_fields,
+                config_unresolved=new_doc['config_unresolved'],
+            )
+            # compare new to old config
+            if use_hash:
+                new['config_hash'] = make_hash(
+                    new_doc['config'],
+                    config_get_exclude_keys(new_doc['config_unresolved']),
                 )
-                for document in new_documents
-            ]
-        )
-        logging.info(
-            f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).'
-        )
+                update = new['config_hash'] != old_doc['config_hash']
+            else:
+                diff = DeepDiff(new['config'], old_doc['config'], ignore_order=True)
+                update = bool(diff)
+            # Create mongodb update
+            if update:
+                updates.append(UpdateOne({'_id': old_doc['_id']}, {'$set': new}))
+        if len(updates) > 0:
+            result = collection.bulk_write(updates)
+            logging.info(
+                f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).'
+            )
+        else:
+            logging.info(f'Batch {batch_id}: No experiment configurations changed.')
 
         # Check whether the configurations aligns with the current source code
         check_config(

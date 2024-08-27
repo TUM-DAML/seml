@@ -344,7 +344,7 @@ def add_config_file(
     for document in documents:
         document['config_hash'] = make_hash(
             document['config'],
-            config_get_exclude_keys(document['config'], document['config_unresolved']),
+            config_get_exclude_keys(document['config_unresolved']),
         )
 
     if not force_duplicates:

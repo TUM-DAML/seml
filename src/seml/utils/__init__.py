@@ -316,7 +316,7 @@ def merge_dicts(dict1: Mapping, dict2: Mapping) -> Mapping:
     return return_dict
 
 
-def remove_keys_from_nested(d: dict, keys: Iterable[str] = []) -> dict:
+def remove_keys_from_nested(d: dict, keys: Iterable[str] = ()) -> dict:
     """Removes keys from a nested dictionary
 
     Parameters
@@ -340,12 +340,7 @@ def remove_keys_from_nested(d: dict, keys: Iterable[str] = []) -> dict:
     )
 
 
-def make_hash(
-    d: dict,
-    exclude_keys: list[str] = [
-        'seed',
-    ],
-):
+def make_hash(d: dict, exclude_keys: Sequence[str] = ()):
     """
     Generate a hash for the input dictionary.
     From: https://stackoverflow.com/a/22003440

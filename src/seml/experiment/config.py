@@ -597,9 +597,7 @@ def _sacred_create_configs(
 
         config_resolved = get_configuration(scaffolding)
         configs_resolved.append(
-            remove_keys_from_nested(
-                config_resolved, config_get_exclude_keys(config_resolved, config)
-            )
+            remove_keys_from_nested(config_resolved, config_get_exclude_keys(config))
         )
     return configs_resolved
 
@@ -921,14 +919,12 @@ def remove_prepended_dashes(param_dict: dict[str, Any]) -> dict[str, Any]:
     return new_dict
 
 
-def config_get_exclude_keys(config: dict, config_unresolved: dict) -> list[str]:
+def config_get_exclude_keys(config_unresolved: dict | None = None) -> list[str]:
     """Gets the key that should be excluded from identifying a config. These should
     e.g. not be used in hashing
 
     Parameters
     ----------
-    config : Dict
-        the configuration after resolution by sacred
     config_unresolved : Dict
         the configuration before resolution by sacred
 
@@ -937,7 +933,9 @@ def config_get_exclude_keys(config: dict, config_unresolved: dict) -> list[str]:
     List[str]
         keys that do not identify the config
     """
-    exclude_keys = SETTINGS.CONFIG_EXCLUDE_KEYS
+    exclude_keys = list(SETTINGS.CONFIG_EXCLUDE_KEYS)
+    if config_unresolved is None:
+        return exclude_keys
     if SETTINGS.CONFIG_KEY_SEED not in config_unresolved:
         # The seed will only be included (e.g. for hashing) if explicited in the unresolved configuration
         exclude_keys.append(SETTINGS.CONFIG_KEY_SEED)
@@ -1111,9 +1109,7 @@ def remove_duplicates_in_list(documents: Sequence[ExperimentDoc], use_hash: bool
             key = Hashabledict(
                 **remove_keys_from_nested(
                     document['config'],
-                    config_get_exclude_keys(
-                        document['config'], document['config_unresolved']
-                    ),
+                    config_get_exclude_keys(document['config_unresolved']),
                 )
             )
             if key not in unique_keys:
