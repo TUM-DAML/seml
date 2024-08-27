@@ -283,7 +283,7 @@ def get_max_in_collection(
 
 def upload_file(
     filename: str,
-    db_collection: pymongo.collection.Collection[ExperimentDoc],
+    db_collection: pymongo.collection.Collection[ExperimentDoc] | str,
     batch_id: int,
     filetype: str,
 ):
@@ -301,6 +301,9 @@ def upload_file(
     file_id: ID of the inserted file, or None if there was an error.
     """
     import gridfs
+
+    if isinstance(db_collection, str):
+        db_collection = get_collection(db_collection)
 
     db = db_collection.database
     fs = gridfs.GridFS(db)
@@ -320,6 +323,13 @@ def upload_file(
     except OSError:
         logging.error(f'IOError: could not read {filename}')
     return None
+
+
+def upload_file_mt(x: tuple[str, str, int, str]) -> ObjectId | None:
+    """
+    A multithreading wrapper for upload_file.
+    """
+    return upload_file(*x)
 
 
 def delete_files(

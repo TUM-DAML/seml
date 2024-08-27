@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import importlib
 import logging
 import os
@@ -7,8 +8,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
 
-from seml.database import delete_files, upload_file
-from seml.document import ExperimentDoc, GitDoc
+from seml.database import delete_files, upload_file_mt
+from seml.document import ExperimentDoc, GitDoc, SemlDoc
 from seml.settings import SETTINGS
 from seml.utils import (
     assert_package_installed,
@@ -25,7 +26,8 @@ if TYPE_CHECKING:
 States = SETTINGS.STATES
 
 
-def import_exe(executable, conda_env, working_dir):
+@functools.lru_cache(maxsize=1)
+def import_exe(executable: str, conda_env: str | None, working_dir: str):
     """Import the given executable file.
 
     Parameters
@@ -116,7 +118,11 @@ def get_imported_sources(
     return sources
 
 
-def upload_sources(seml_config, collection, batch_id):
+def upload_sources(
+    seml_config: SemlDoc, collection: Collection[ExperimentDoc], batch_id: int
+):
+    from multiprocessing import Pool
+
     with working_directory(seml_config['working_dir']):
         root_dir = str(Path(seml_config['working_dir']).expanduser().resolve())
 
@@ -135,8 +141,13 @@ def upload_sources(seml_config, collection, batch_id):
             )
 
         uploaded_files = []
-        for s in sources:
-            file_id = upload_file(s, collection, batch_id, 'source_file')
+
+        with Pool() as p:
+            file_ids = p.map(
+                upload_file_mt,
+                [(s, collection.name, batch_id, 'source_file') for s in sources],
+            )
+        for s, file_id in zip(sources, file_ids):
             source_path = Path(s)
             uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
     return uploaded_files

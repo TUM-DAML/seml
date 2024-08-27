@@ -1153,21 +1153,23 @@ def remove_duplicates_in_db(
         No longer contains configurations that are already in the database collection.
 
     """
+    if use_hash:
+        hashes = [document['config_hash'] for document in documents]
+        db_hashes = set(
+            collection.find({'config_hash': {'$in': hashes}}).distinct('config_hash')
+        )
+        return [doc for doc in documents if doc['config_hash'] not in db_hashes]
+
     filtered_documents: list[ExperimentDoc] = []
     for document in documents:
-        if use_hash:
-            lookup_result = collection.find_one(
-                {'config_hash': document['config_hash']}
-            )
-        else:
-            lookup_dict = flatten(
-                {
-                    'config': remove_keys_from_nested(
-                        document['config'], document['config_unresolved'].keys()
-                    )
-                }
-            )
-            lookup_result = collection.find_one(unflatten(lookup_dict))
+        lookup_dict = flatten(
+            {
+                'config': remove_keys_from_nested(
+                    document['config'], document['config_unresolved'].keys()
+                )
+            }
+        )
+        lookup_result = collection.find_one(unflatten(lookup_dict))
         if lookup_result is None:
             filtered_documents.append(document)
     return filtered_documents
