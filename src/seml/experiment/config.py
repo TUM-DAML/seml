@@ -958,6 +958,10 @@ def create_starts_with_regex(*strings: str):
     """
     import re
 
+    if len(strings) == 0:
+        # Match not x and x -> always False
+        return re.compile(r'^(?!x)x$')
+
     # Escape special characters in each string
     escaped_strings = [re.escape(s) for s in set(strings)]
     # Join the strings with '|' to create an OR pattern
