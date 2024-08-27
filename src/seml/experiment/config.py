@@ -13,6 +13,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
+    Iterable,
     Mapping,
     Sequence,
     TypeVar,
@@ -806,6 +807,7 @@ def read_config(config_path: str | Path):
         version=version_array,
         working_dir=working_dir,
         use_uploaded_sources=use_uploaded_sources,
+        env=dict(os.environ),
     )
     if output_dir is not None:
         seml['output_dir'] = output_dir
@@ -942,13 +944,38 @@ def config_get_exclude_keys(config: dict, config_unresolved: dict) -> list[str]:
     return exclude_keys
 
 
+def create_starts_with_regex(*strings: str):
+    """
+    Creates a regex pattern that matches the start of a string with any of the given strings.
+
+    Parameters
+    ----------
+    strings : List[str]
+        The strings to match the start of.
+
+    Returns
+    -------
+    re.Pattern
+        The compiled regex pattern.
+    """
+    import re
+
+    # Escape special characters in each string
+    escaped_strings = [re.escape(s) for s in set(strings)]
+    # Join the strings with '|' to create an OR pattern
+    pattern = '|'.join(escaped_strings)
+    # Add '^' to ensure the match is at the start of the string
+    regex = f'^({pattern})'
+    return re.compile(regex)
+
+
 def requires_interpolation(
     document: Mapping[str, Any],
-    allow_interpolation_keys: list[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
+    allow_interpolation_keys: Iterable[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
 ) -> bool:
     r"""
     Check if a document requires variable interpolation. This is done by checking if
-    any value matches the regex: .*\${.+}.*
+    any value matches the regex: .*(?<!\\)\${.+}.*
 
     Parameters
     ----------
@@ -965,16 +992,47 @@ def requires_interpolation(
     import re
 
     flat_dict = flatten(document)
-    pattern = re.compile(r'.*\${.+}.*')
+    # Find a ${...} pattern that is not preceded by a backslash
+    pattern = re.compile(r'.*(?<!\\)\${.+}.*')
+    key_pattern = create_starts_with_regex(*allow_interpolation_keys)
 
     def check_interpolation(key, value):
-        if not any(
-            key.startswith(allowed_key) for allowed_key in allow_interpolation_keys
-        ):
+        # These instructions are ordered by cost
+        if not isinstance(value, str):
             return False
-        return isinstance(value, str) and pattern.match(value) is not None
+        if not pattern.match(value):
+            return False
+        return key_pattern.match(key)
 
     return any(map(check_interpolation, flat_dict.keys(), flat_dict.values()))
+
+
+def escape_non_interpolated_dollars(
+    document: Mapping[str, Any],
+    allow_interpolation_keys: Iterable[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
+) -> dict[str, Any]:
+    r"""
+    Escapes all dollar signs that are not part of a variable interpolation.
+
+    Parameters
+    ----------
+    document : Dict
+        The document to escape.
+
+    Returns
+    -------
+    Dict
+        The escaped document
+    """
+    from seml.utils import unflatten
+
+    flat_doc = flatten(document)
+    key_pattern = create_starts_with_regex(*allow_interpolation_keys)
+    for key, value in flat_doc.items():
+        if isinstance(value, str) and not key_pattern.match(key):
+            value = value.replace(r'${', r'\${')
+            flat_doc[key] = value
+    return unflatten(flat_doc)
 
 
 T = TypeVar('T', bound=Mapping[str, Any])
@@ -982,7 +1040,7 @@ T = TypeVar('T', bound=Mapping[str, Any])
 
 def resolve_interpolations(
     document: T,
-    allow_interpolation_keys: list[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
+    allow_interpolation_keys: Iterable[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
 ) -> T:
     """Resolves variable interpolation using `OmegaConf`
 
@@ -998,29 +1056,28 @@ def resolve_interpolations(
     Dict
         The resolved document
     """
+    allow_interpolation_keys = set(allow_interpolation_keys)
     if not requires_interpolation(document, allow_interpolation_keys):
         return document
 
     from omegaconf import OmegaConf
 
+    to_resolve_doc = escape_non_interpolated_dollars(document, allow_interpolation_keys)
+    key_pattern = create_starts_with_regex(*allow_interpolation_keys)
     resolved = cast(
         T,
         OmegaConf.to_container(
-            OmegaConf.create(dict(document), flags={'allow_objects': True}),
+            OmegaConf.create(to_resolve_doc, flags={'allow_objects': True}),
             resolve=True,
         ),
     )
     resolved_flat = {
-        key: value
-        for key, value in flatten(resolved, sep='.').items()
-        if any(key.startswith(allowed_key) for allowed_key in allow_interpolation_keys)
+        key: value for key, value in flatten(resolved).items() if key_pattern.match(key)
     }
     unresolved_flat = {
         key: value
-        for key, value in flatten(document, sep='.').items()
-        if not any(
-            key.startswith(allowed_key) for allowed_key in allow_interpolation_keys
-        )
+        for key, value in flatten(document).items()
+        if not key_pattern.match(key)
     }
     resolved_keys = set(resolved_flat.keys())
     unresolved_keys = set(unresolved_flat.keys())

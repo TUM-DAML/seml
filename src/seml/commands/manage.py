@@ -402,13 +402,16 @@ def delete_experiments(
     """
     from seml.console import prompt
 
+    collection = get_collection(db_collection_name)
     # Before deleting, we should first cancel the experiments that are still running.
     if cancel:
         cancel_states = set(States.PENDING + States.RUNNING)
         if filter_states is not None and len(filter_states) > 0:
             cancel_states = cancel_states.intersection(filter_states)
 
-        if len(cancel_states) > 0:
+        if len(cancel_states) > 0 and collection.find_one(
+            build_filter_dict(cancel_states, batch_id, filter_dict, sacred_id)
+        ):
             cancel_experiments(
                 db_collection_name,
                 sacred_id,
@@ -420,12 +423,9 @@ def delete_experiments(
                 wait=True,
             )
 
-    collection = get_collection(db_collection_name)
     experiment_files_to_delete = []
 
-    filter_dict = build_filter_dict(
-        filter_states, batch_id, filter_dict, sacred_id=sacred_id
-    )
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id)
     ndelete = collection.count_documents(filter_dict)
     if sacred_id is not None and ndelete == 0:
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
@@ -560,7 +560,12 @@ def get_experiment_reset_op(exp: ExperimentDoc):
     ]
 
     # Clean up SEML dictionary
-    keep_seml = {'source_files', 'working_dir', SETTINGS.SEML_CONFIG_VALUE_VERSION}
+    keep_seml = {
+        'source_files',
+        'working_dir',
+        'env',
+        SETTINGS.SEML_CONFIG_VALUE_VERSION,
+    }
     keep_seml.update(SETTINGS.VALID_SEML_CONFIG_VALUES)
     seml_keys = set(exp['seml'].keys())
     for key in seml_keys - keep_seml:
@@ -627,6 +632,9 @@ def reset_experiments(
     exps = collection.find(filter_dict)
     if sacred_id is not None and nreset == 0:
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
+    if nreset == 0:
+        logging.info('No experiments to reset.')
+        return
 
     logging.info(f'Resetting the state of {nreset} experiment{s_if(nreset)}.')
     if nreset >= SETTINGS.CONFIRM_THRESHOLD.RESET:
@@ -761,7 +769,7 @@ def reload_sources(
     """
     from importlib.metadata import version
 
-    import gridfs
+    from bson import ObjectId
     from pymongo import UpdateOne
 
     from seml.console import prompt
@@ -879,7 +887,6 @@ def reload_sources(
 
         # Find the currently used source files
         db = collection.database
-        fs = gridfs.GridFS(db)
         fs_filter_dict = {
             'metadata.batch_id': batch_id,
             'metadata.collection_name': f'{collection.name}',
@@ -915,8 +922,7 @@ def reload_sources(
         except Exception as e:
             logging.error(f'Batch {batch_id}: Failed to set new source files.')
             # Delete new source files from DB
-            for to_delete in source_files:
-                fs.delete(to_delete[1])
+            delete_files(db, [x[1] for x in source_files])
             raise e
 
         # Delete the old source files
@@ -927,10 +933,10 @@ def reload_sources(
                 'metadata.deprecated': True,
             }
             source_files_old = [
-                x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})
+                cast(ObjectId, x['_id'])
+                for x in db['fs.files'].find(fs_filter_dict, {'_id'})
             ]
-            for to_delete in source_files_old:
-                fs.delete(to_delete)
+            delete_files(db, source_files_old)
 
 
 def detect_duplicates(

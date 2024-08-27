@@ -4,6 +4,7 @@ import copy
 import logging
 import math
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -83,7 +84,9 @@ def set_slurm_job_name(
     sbatch_options['comment'] = db_collection_name
 
 
-def create_slurm_options_string(slurm_options: SBatchOptions, srun: bool = False):
+def create_slurm_options_string(
+    slurm_options: SBatchOptions, env: dict[str, str] | None = None, srun: bool = False
+):
     """
     Convert a dictionary with sbatch_options into a string that can be used in a bash script.
 
@@ -110,6 +113,11 @@ def create_slurm_options_string(slurm_options: SBatchOptions, srun: bool = False
             value = value_raw
         slurm_options_str += option_structure.format(
             prepend=prepend, key=key, value=value
+        )
+    if env is not None:
+        env_kv = shlex.quote(','.join(f'{key}={value}' for key, value in env.items()))
+        slurm_options_str += option_structure.format(
+            prepend='--', key='export', value=env_kv
         )
     return slurm_options_str
 
@@ -176,7 +184,9 @@ def start_sbatch_job(
     sbatch_options['job-name'] = name
 
     # Construct sbatch options string
-    sbatch_options_str = create_slurm_options_string(sbatch_options, False)
+    sbatch_options_str = create_slurm_options_string(
+        sbatch_options, exp_array[0]['seml'].get('env'), False
+    )
 
     # Construct list with all experiment IDs
     expid_strings = f"{' '.join([str(exp['_id']) for exp in exp_array])}"
@@ -289,7 +299,9 @@ def start_srun_job(
         # srun will run 2 processes in parallel when ntasks is not specified. Probably because of hyperthreading.
         if 'ntasks' not in srun_options:
             srun_options['ntasks'] = 1
-        srun_options_str = create_slurm_options_string(srun_options, True)
+        srun_options_str = create_slurm_options_string(
+            srun_options, exp['seml'].get('env'), True
+        )
 
         # Set command args for job inside Slurm
         cmd_args = f"--local --sacred-id {exp['_id']} "
@@ -299,10 +311,13 @@ def start_srun_job(
         try:
             subprocess.run(cmd, shell=True, check=True)
         except subprocess.CalledProcessError as e:
-            logging.error(
-                f"Could not start Slurm job via srun. Here's the sbatch error message:\n"
-                f"{e.stderr.decode('utf-8')}"
-            )
+            if e.stderr:
+                logging.error(
+                    f"Could not start Slurm job via srun. Here's the sbatch error message:\n"
+                    f"{e.stderr.decode('utf-8')}"
+                )
+            else:
+                logging.error('Could not start Slurm job via srun.')
             exit(1)
 
 
@@ -612,10 +627,13 @@ def add_to_slurm_queue(
                 )
                 array_ids.append(array_id)
                 narrays += 1
-    logging.info(
-        f'Started {nexps} experiment{s_if(nexps)} in '
-        f'{narrays} Slurm job array{s_if(narrays)}: {", ".join(map(str, array_ids))}'
-    )
+    if nexps == 0:
+        logging.info('No experiments to run.')
+    else:
+        logging.info(
+            f'Started {nexps} experiment{s_if(nexps)} in '
+            f'{narrays} Slurm job array{s_if(narrays)}: {", ".join(map(str, array_ids))}'
+        )
 
 
 def check_compute_node():
@@ -1085,6 +1103,8 @@ def claim_experiment(db_collection_name: str, exp_ids: Sequence[int]):
             {'$set': {'status': States.RUNNING[0], **update}},
             {'_id': 1, 'slurm': 1},
         )
+        if exp is None:
+            exit(3)
         # Set slurm output file
         for s_conf in exp['slurm']:
             if s_conf['array_id'] == array_id:
@@ -1101,8 +1121,8 @@ def claim_experiment(db_collection_name: str, exp_ids: Sequence[int]):
             {'$set': {'status': States.RUNNING[0], 'execution.cluster': 'local'}},
             {'_id': 1},
         )
-    if exp is None:
-        exit(3)
+        if exp is None:
+            exit(3)
     print(exp['_id'])
     exit(0)
 

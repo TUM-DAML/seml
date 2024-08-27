@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, cast
+from typing import TYPE_CHECKING, Iterable
 
 from seml.database import delete_files, upload_file
 from seml.document import ExperimentDoc, GitDoc
@@ -13,6 +13,7 @@ from seml.settings import SETTINGS
 from seml.utils import (
     assert_package_installed,
     is_local_file,
+    s_if,
     src_layout_to_flat_layout,
     working_directory,
 )
@@ -218,13 +219,14 @@ def delete_batch_sources(collection: Collection[ExperimentDoc], batch_id: int):
     db = collection.database
     filter_dict = {
         'metadata.batch_id': batch_id,
-        'metadata.collection_name': f'{collection.name}',
+        'metadata.collection_name': collection.name,
     }
-    source_files = list(db['fs.files'].find(filter_dict, {'_id'}))
-    source_files = [cast(ObjectId, x['_id']) for x in source_files]
+    source_files = list(
+        map(ObjectId, db['fs.files'].find(filter_dict, {'_id'}).distinct('_id'))
+    )
     if len(source_files) > 0:
         logging.info(
-            f'Deleting {len(source_files)} source files corresponding '
+            f'Deleting {len(source_files)} source file{s_if(len(source_files))} corresponding '
             f'to batch {batch_id} in collection {collection.name}.'
         )
         delete_files(db, source_files)

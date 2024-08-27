@@ -178,7 +178,7 @@ def get_mongodb_config(path: str | Path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH)
 
 
 def build_filter_dict(
-    filter_states: Sequence[str] | None,
+    filter_states: Sequence[str] | Iterable[str] | None,
     batch_id: int | None,
     filter_dict: dict[str, Any] | None,
     sacred_id: int | None = None,
@@ -208,6 +208,9 @@ def build_filter_dict(
 
     if filter_dict is None:
         filter_dict = {}
+
+    if filter_states is not None:
+        filter_states = list(filter_states)
 
     if filter_states is not None and len(filter_states) > 0:
         if 'status' not in filter_dict:
@@ -321,17 +324,14 @@ def upload_file(
 
 def delete_files(
     database: pymongo.database.Database[ExperimentDoc],
-    file_ids: Iterable[ObjectId],
-    progress: bool = False,
+    file_ids: Iterable[ObjectId | str],
 ):
-    import gridfs
-
-    from seml.console import track
-
-    fs = gridfs.GridFS(database)
-    it = track(file_ids, disable=not progress)
-    for to_delete in it:
-        fs.delete(to_delete)
+    file_ids = list(file_ids)
+    if len(file_ids) == 0:
+        return
+    # This does the same as GridFs(database).delete(file_id), but for multiple files
+    database.fs.files.delete_many({'_id': {'$in': file_ids}})
+    database.fs.chunks.delete_many({'files_id': {'$in': file_ids}})
 
 
 def clean_unreferenced_artifacts(
@@ -425,7 +425,7 @@ def clean_unreferenced_artifacts(
     if not yes and not prompt('Are you sure? (y/n)', type=bool):
         exit(1)
     logging.info('Deleting not referenced artifacts...')
-    delete_files(db, not_referenced_artifacts, progress=True)
+    delete_files(db, not_referenced_artifacts)
     logging.info(
         f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.'
     )
