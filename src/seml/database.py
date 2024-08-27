@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Sequence, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Iterable, TypeVar, overload
 
 from seml.document import ExperimentDoc
 from seml.settings import SETTINGS
@@ -178,7 +178,7 @@ def get_mongodb_config(path: str | Path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH)
 
 
 def build_filter_dict(
-    filter_states: Sequence[str] | Iterable[str] | None,
+    filter_states: Iterable[str] | None,
     batch_id: int | None,
     filter_dict: dict[str, Any] | None,
     sacred_id: int | None = None,
