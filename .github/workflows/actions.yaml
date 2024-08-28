@@ -60,7 +60,7 @@ jobs:
       - name: Setup virtual env
         run: uv sync
       - name: Setup seml config
-        run: seml configure --host=localhost --port=27017 --database=seml --username=seml --password=seml
+        run: uv run seml configure --host=localhost --port=27017 --database=seml --username=seml --password=seml
       - name: Add
         run: uv run seml test_collection add examples/example_config.yaml
       - name: Start
