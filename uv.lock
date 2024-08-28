@@ -1086,6 +1086,7 @@ ssh-forward = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "backports-tarfile" },
     { name = "build" },
     { name = "filelock" },
     { name = "pre-commit" },
@@ -1125,6 +1126,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "backports-tarfile", specifier = ">=1.2.0" },
     { name = "build", specifier = ">=1.2.1" },
     { name = "filelock", specifier = ">=3.15.4" },
     { name = "pre-commit", specifier = ">=3.8.0" },
