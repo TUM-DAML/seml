@@ -28,7 +28,7 @@ jobs:
 
   # Test commands in a dummy environment
   commands:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
@@ -47,10 +47,23 @@ jobs:
       - name: Start MongoDB
         uses: supercharge/mongodb-github-action@1.11.0
         with:
-          mongodb-username: seml
-          mongodb-password: seml
-          mongodb-db: seml
+          mongodb-username: admin
+          mongodb-password: admin
           mongodb-port: 27017
+      - name: Install mongosh
+        run: |
+          sudo apt-get install gnupg
+          wget -qO- https://www.mongodb.org/static/pgp/server-7.0.asc | sudo tee /etc/apt/trusted.gpg.d/server-7.0.asc
+          echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+          sudo apt-get update
+          sudo apt-get install -y mongodb-mongosh
+          mongosh --version
+      - name: Create seml MongoDB user
+        run: |
+          mongosh --host localhost:27017 -u admin -p admin --authenticationDatabase admin <<EOF
+            db = db.getSiblingDB('seml');
+            db.createUser({ user: 'seml', pwd: 'seml', roles: [{ role: 'readWrite', db: 'seml' }] });
+          EOF
       - name: Setup Slurm Cluster
         uses: koesterlab/setup-slurm-action@v1
       # Checkout the code
