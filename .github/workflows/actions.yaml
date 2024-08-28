@@ -91,9 +91,9 @@ jobs:
       - name: Delete
         run: uv run seml test_collection delete -y
       - name: Reload sources
-        run: uv run seml test_collection add examples/example_config.yaml reload-sources
+        run: uv run seml test_collection add examples/example_config.yaml reload-sources -y
       - name: Set description
-        run: uv run seml test_collection description set "Hello World!"
+        run: uv run seml test_collection description set -y "Hello World!"
       - name: List description
         run: uv run seml test_collection description list
       - name: Delete description
