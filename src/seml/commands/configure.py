@@ -25,7 +25,14 @@ def prompt_ssh_forward():
     )
 
 
-def mongodb_configure(setup_ssh_forward: bool = False):
+def mongodb_configure(
+    host: str | None = None,
+    port: int | None = None,
+    database: str | None = None,
+    username: str | None = None,
+    password: str | None = None,
+    setup_ssh_forward: bool = False,
+):
     import yaml
 
     from seml.console import prompt
@@ -36,13 +43,18 @@ def mongodb_configure(setup_ssh_forward: bool = False):
     ):
         return
     logging.info('Configuring MongoDB. Warning: Password will be stored in plain text.')
-    host = prompt('MongoDB host')
-    port = prompt('Port', default=27017, type=int)
-    database = prompt('Database name')
-    username = prompt('User name')
-    password = prompt('Password', hide_input=True)
+    if host is None:
+        host = prompt('MongoDB host')
+    if port is None:
+        port = prompt('Port', default=27017, type=int)
+    if database is None:
+        database = prompt('Database name')
+    if username is None:
+        username = prompt('User name')
+    if password is None:
+        password = prompt('Password', hide_input=True)
     file_path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH
-    config = dict(
+    config: dict = dict(
         host=host,
         port=port,
         database=database,
@@ -59,14 +71,3 @@ def mongodb_configure(setup_ssh_forward: bool = False):
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, 'w') as f:
         f.write(config_string)
-
-
-def configure(
-    all: bool = False, mongodb: bool = False, setup_ssh_forward: bool = False
-):
-    configured_any = False
-    if mongodb or all:
-        mongodb_configure(setup_ssh_forward=setup_ssh_forward)
-        configured_any = True
-    if not configured_any:
-        logging.info('Did not specify any configuration to configure')
