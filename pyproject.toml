@@ -48,10 +48,6 @@ dev = [
 ]
 ssh_forward = ["sshtunnel>=0.4.0", "filelock>=3.13.3"]
 
-[tool.ruff.format]
-quote-style = "single"
-line-ending = "lf"
-
 [project.urls]
 Homepage = "https://github.com/TUM-DAML/seml"
 Documentation = "https://github.com/TUM-DAML/seml/blob/master/docs.md"
@@ -61,8 +57,9 @@ Changelog = "https://github.com/TUM-DAML/seml/releases/latest"
 [project.scripts]
 seml = "seml.__main__:main"
 
-[tool.pyright]
-typeCheckingMode = "standard"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.uv]
 dev-dependencies = [
@@ -75,3 +72,11 @@ dev-dependencies = [
     "twine>=5.1.1",
     "backports-tarfile>=1.2.0",
 ]
+
+
+[tool.ruff.format]
+quote-style = "single"
+line-ending = "lf"
+
+[tool.pyright]
+typeCheckingMode = "standard"
