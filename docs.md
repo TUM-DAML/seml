@@ -74,7 +74,7 @@ $ seml add [OPTIONS] CONFIG_FILES...
 * `-ncs, --no-sanity-check`: Disable this if the check fails unexpectedly when using advanced Sacred features or to accelerate adding.
 * `-ncc, --no-code-checkpoint`: Disable this if you want your experiments to use the current codeinstead of the code at the time of adding.
 * `-f, --force`: Force adding the experiment even if it already exists in the database.
-* `-o, --overwrite-params JSON`: Dictionary (passed as a string, e.g. '{"epochs": 100}') to overwrite parameters in the config.
+* `-o, --overwrite-params DICT`: Dictionary (passed as a string, e.g. '{"epochs": 100}') to overwrite parameters in the config.
 * `-d, --description TEXT`: A description for the experiment.
 * `--no-resolve-descriptions`: Whether to prevent using omegaconf to resolve experiment descriptions
 * `--help`: Show this message and exit.
@@ -92,7 +92,7 @@ $ seml cancel [OPTIONS]
 **Options**:
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: PENDING, RUNNING]
 * `-w, --wait`: Wait until all jobs are properly cancelled.
@@ -179,7 +179,7 @@ $ seml delete [OPTIONS]
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: STAGED, QUEUED, FAILED, KILLED, INTERRUPTED]
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-nc, --no-cancel`: Do not cancel the experiments before deleting them.
 * `-y, --yes`: Automatically confirm all dialogues with yes.
@@ -219,7 +219,7 @@ $ seml description delete [OPTIONS]
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-y, --yes`: Automatically confirm all dialogues with yes.
 * `--help`: Show this message and exit.
@@ -257,7 +257,7 @@ $ seml description set [OPTIONS] DESCRIPTION
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-y, --yes`: Automatically confirm all dialogues with yes.
 * `--no-resolve-descriptions`: Whether to prevent using omegaconf to resolve experiment descriptions
@@ -276,7 +276,7 @@ $ seml detect-duplicates [OPTIONS]
 **Options**:
 
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: STAGED, QUEUED, FAILED, KILLED, INTERRUPTED]
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `--help`: Show this message and exit.
 
@@ -312,7 +312,7 @@ $ seml download-sources [OPTIONS] TARGET_DIRECTORY
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `--help`: Show this message and exit.
 
@@ -373,9 +373,9 @@ $ seml launch-worker [OPTIONS]
 * `-o, --output-to-console`: Write the experiment's output to the console.
 * `-wg, --worker-gpus TEXT`: The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.
 * `-wc, --worker-cpus INTEGER`: The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.
-* `-we, --worker-env JSON`: Further environment variables to be set for the local worker.
+* `-we, --worker-env DICT`: Further environment variables to be set for the local worker.
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `--help`: Show this message and exit.
 
@@ -434,12 +434,12 @@ $ seml print-command [OPTIONS]
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: STAGED, QUEUED]
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-n, --num-experiments INTEGER`: Number of experiments to start. 0: all (staged) experiments   [default: 0]
 * `-wg, --worker-gpus TEXT`: The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.
 * `-wc, --worker-cpus INTEGER`: The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.
-* `-we, --worker-env JSON`: Further environment variables to be set for the local worker.
+* `-we, --worker-env DICT`: Further environment variables to be set for the local worker.
 * `--unresolved`: Whether to print the unresolved command.
 * `--no-interpolation`: Whether disable variable interpolation. Only compatible with --unresolved.
 * `--help`: Show this message and exit.
@@ -458,9 +458,10 @@ $ seml print-experiment [OPTIONS]
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: PENDING, STAGED, QUEUED, RUNNING, FAILED, KILLED, INTERRUPTED, COMPLETED]
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-p, --projection KEY`: List of configuration keys, e.g., `config.model`, to additionally print.
+* `-F, --format TEXT`: The format in which to print the experiment document.  [default: yaml]
 * `--help`: Show this message and exit.
 
 ## `seml print-fail-trace`
@@ -476,7 +477,7 @@ $ seml print-fail-trace [OPTIONS]
 **Options**:
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: FAILED, KILLED, INTERRUPTED]
 * `-p, --projection KEY`: List of configuration keys, e.g., `config.model`, to additionally print.
@@ -496,7 +497,7 @@ $ seml print-output [OPTIONS]
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: RUNNING, FAILED, KILLED, INTERRUPTED, COMPLETED]
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-sl, --slurm`: Whether to print the Slurm output instead of the experiment output.
 * `-h, --head INTEGER`: Print the first n lines of the output.
@@ -631,7 +632,7 @@ $ seml reset [OPTIONS]
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
 * `-s, --filter-states [STAGED|QUEUED|PENDING|RUNNING|FAILED|KILLED|INTERRUPTED|COMPLETED]`: List of states to filter the experiments by. If empty (""), all states are considered.  [default: FAILED, KILLED, INTERRUPTED]
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-y, --yes`: Automatically confirm all dialogues with yes.
 * `--help`: Show this message and exit.
@@ -649,7 +650,7 @@ $ seml start [OPTIONS]
 **Options**:
 
 * `-id, --sacred-id INTEGER`: Sacred ID (_id in the database collection) of the experiment. Takes precedence over other filters.
-* `-f, --filter-dict JSON`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
+* `-fd, --filter-dict DICT`: Dictionary (passed as a string, e.g. '{"config.dataset": "cora_ml"}') to filter the experiments by.
 * `-b, --batch-id INTEGER`: Batch ID (batch_id in the database collection) of the experiments. Experiments that were staged together have the same batch_id.
 * `-d, --debug`: Run a single interactive experiment without Sacred observers and with post-mortem debugging. Implies `--verbose --num-exps 1 --post-mortem --output-to-console`.
 * `-ds, --debug-server`: Run the experiment with a debug server, to which you can remotely connect with e.g. VS Code. Implies `--debug`.
@@ -662,7 +663,7 @@ $ seml start [OPTIONS]
 * `-o, --output-to-console`: Write the experiment's output to the console.
 * `-wg, --worker-gpus TEXT`: The IDs of the GPUs used by the local worker. Will be directly passed to CUDA_VISIBLE_DEVICES.
 * `-wc, --worker-cpus INTEGER`: The number of CPUs used by the local worker. Will be directly passed to OMP_NUM_THREADS.
-* `-we, --worker-env JSON`: Further environment variables to be set for the local worker.
+* `-we, --worker-env DICT`: Further environment variables to be set for the local worker.
 * `--help`: Show this message and exit.
 
 ## `seml start-jupyter`
@@ -680,7 +681,7 @@ $ seml start-jupyter [OPTIONS]
 
 * `-l, --lab`: Start a jupyter-lab instance instead of jupyter notebook.
 * `-c, --conda-env TEXT`: Start the Jupyter instance in a Conda environment.
-* `-sb, --sbatch-options JSON`: Dictionary (passed as a string, e.g. '{"gres": "gpu:2"}') to request two GPUs.
+* `-sb, --sbatch-options DICT`: Dictionary (passed as a string, e.g. '{"gres": "gpu:2"}') to request two GPUs.
 * `--help`: Show this message and exit.
 
 ## `seml status`
