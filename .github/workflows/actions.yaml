@@ -25,3 +25,65 @@ jobs:
         run: |
           cd test
           uv run -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }} pytest
+
+  # Test commands in a dummy environment
+  commands:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+        resolution: ["highest", "lowest-direct"]
+    # MySQL for Slurm
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - "8888:3306"
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - name: Start MongoDB
+        uses: supercharge/mongodb-github-action@1.11.0
+        with:
+          mongodb-username: seml
+          mongodb-password: seml
+          mongodb-db: seml
+          mongodb-port: 27017
+      - name: Setup Slurm Cluster
+        uses: koesterlab/setup-slurm-action@v1
+      # Checkout the code
+      - uses: actions/checkout@v4
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Setup virtual env
+        run: uv sync
+      - name: Setup seml config
+        run: seml configure --host=localhost --port=27017 --database=seml --username=seml --password=seml
+      - name: Add
+        run: uv run seml test_collection add examples/example_config.yaml
+      - name: Start
+        run: uv run seml test_collection start
+      - name: Hold
+        run: uv run seml test_collection hold
+      - name: Release
+        run: uv run seml test_collection release
+      - name: Status
+        run: uv run seml test_collection status
+      - name: Queue
+        run: uv run seml queue
+      - name: Cancel
+        run: uv run seml test_collection cancel -y
+      - name: Delete
+        run: uv run seml test_collection delete -y
+      - name: Reload sources
+        run: uv run seml test_collection add examples/example_config.yaml reload-sources
+      - name: Set description
+        run: uv run seml test_collection description set "Hello World!"
+      - name: List description
+        run: uv run seml test_collection description list
+      - name: Delete description
+        run: uv run seml test_collection description delete -y
+      - name: List
+        run: uv run seml list

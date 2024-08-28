@@ -432,6 +432,41 @@ def clean_db_command(ctx: typer.Context, yes: YesAnnotation = False):
 @restrict_collection(False)
 def configure_command(
     ctx: typer.Context,
+    host: Annotated[
+        Optional[str],
+        typer.Option(
+            '--host',
+            help='The host of the MongoDB server.',
+        ),
+    ] = None,
+    port: Annotated[
+        Optional[int],
+        typer.Option(
+            '--port',
+            help='The port of the MongoDB server.',
+        ),
+    ] = None,
+    database: Annotated[
+        Optional[str],
+        typer.Option(
+            '--database',
+            help='The name of the MongoDB database to use.',
+        ),
+    ] = None,
+    username: Annotated[
+        Optional[str],
+        typer.Option(
+            '--username',
+            help='The username for the MongoDB server.',
+        ),
+    ] = None,
+    password: Annotated[
+        Optional[str],
+        typer.Option(
+            '--password',
+            help='The password for the MongoDB server.',
+        ),
+    ] = None,
     ssh_forward: Annotated[
         bool,
         typer.Option(
@@ -445,9 +480,16 @@ def configure_command(
     """
     Configure SEML (database, argument completion, ...).
     """
-    from seml.commands.configure import configure
+    from seml.commands.configure import mongodb_configure
 
-    configure(all=False, mongodb=True, setup_ssh_forward=ssh_forward)
+    mongodb_configure(
+        host=host,
+        port=port,
+        database=database,
+        username=username,
+        password=password,
+        setup_ssh_forward=ssh_forward,
+    )
 
 
 @app.command('start-jupyter', rich_help_panel=_SLURM)
