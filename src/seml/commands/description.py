@@ -86,13 +86,18 @@ def collection_set_description(
             f'Updating the description of {States.RUNNING[0]} experiments: This may not have an'
             ' effect, as sacred overwrites experiments with each tick.'
         )
-    result = collection.bulk_write(
-        [
-            UpdateOne({'_id': _id}, {'$set': {'seml.description': description}})
-            for _id, description in descriptions_resolved.items()
-        ]
-    )
-    logging.info(f'Updated the descriptions of {result.modified_count} experiments.')
+    if len(descriptions_resolved) > 0:
+        result = collection.bulk_write(
+            [
+                UpdateOne({'_id': _id}, {'$set': {'seml.description': description}})
+                for _id, description in descriptions_resolved.items()
+            ]
+        )
+        logging.info(
+            f'Updated the descriptions of {result.modified_count} experiments.'
+        )
+    else:
+        logging.info('No experiments to update.')
 
 
 def collection_delete_description(
