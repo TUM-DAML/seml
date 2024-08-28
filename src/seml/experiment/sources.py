@@ -1,18 +1,20 @@
 from __future__ import annotations
 
+import functools
 import importlib
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, cast
+from typing import TYPE_CHECKING, Iterable
 
-from seml.database import delete_files, upload_file
-from seml.document import ExperimentDoc, GitDoc
+from seml.database import delete_files, upload_file_mt
+from seml.document import ExperimentDoc, GitDoc, SemlDoc
 from seml.settings import SETTINGS
 from seml.utils import (
     assert_package_installed,
     is_local_file,
+    s_if,
     src_layout_to_flat_layout,
     working_directory,
 )
@@ -24,7 +26,8 @@ if TYPE_CHECKING:
 States = SETTINGS.STATES
 
 
-def import_exe(executable, conda_env, working_dir):
+@functools.lru_cache(maxsize=1)
+def import_exe(executable: str, conda_env: str | None, working_dir: str):
     """Import the given executable file.
 
     Parameters
@@ -115,7 +118,11 @@ def get_imported_sources(
     return sources
 
 
-def upload_sources(seml_config, collection, batch_id):
+def upload_sources(
+    seml_config: SemlDoc, collection: Collection[ExperimentDoc], batch_id: int
+):
+    from concurrent.futures import ThreadPoolExecutor as Pool
+
     with working_directory(seml_config['working_dir']):
         root_dir = str(Path(seml_config['working_dir']).expanduser().resolve())
 
@@ -134,10 +141,15 @@ def upload_sources(seml_config, collection, batch_id):
             )
 
         uploaded_files = []
-        for s in sources:
-            file_id = upload_file(s, collection, batch_id, 'source_file')
-            source_path = Path(s)
-            uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
+
+        with Pool() as p:
+            file_ids = p.map(
+                upload_file_mt,
+                [(s, collection.name, batch_id, 'source_file') for s in sources],
+            )
+            for s, file_id in zip(sources, file_ids):
+                source_path = Path(s)
+                uploaded_files.append((str(source_path.relative_to(root_dir)), file_id))
     return uploaded_files
 
 
@@ -218,13 +230,14 @@ def delete_batch_sources(collection: Collection[ExperimentDoc], batch_id: int):
     db = collection.database
     filter_dict = {
         'metadata.batch_id': batch_id,
-        'metadata.collection_name': f'{collection.name}',
+        'metadata.collection_name': collection.name,
     }
-    source_files = list(db['fs.files'].find(filter_dict, {'_id'}))
-    source_files = [cast(ObjectId, x['_id']) for x in source_files]
+    source_files = list(
+        map(ObjectId, db['fs.files'].find(filter_dict, {'_id'}).distinct('_id'))
+    )
     if len(source_files) > 0:
         logging.info(
-            f'Deleting {len(source_files)} source files corresponding '
+            f'Deleting {len(source_files)} source file{s_if(len(source_files))} corresponding '
             f'to batch {batch_id} in collection {collection.name}.'
         )
         delete_files(db, source_files)

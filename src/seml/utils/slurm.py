@@ -174,6 +174,8 @@ def cancel_slurm_jobs(*job_ids: str | int, state: str | None = None):
     job_ids : Sequence[str]
         The job IDs of the jobs to cancel
     """
+    if len(job_ids) == 0:
+        return
     job_str = ' '.join(map(str, job_ids))
     if state is not None:
         subprocess.run(f'scancel -t {state} {job_str}', shell=True, check=False)

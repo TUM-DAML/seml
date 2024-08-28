@@ -60,18 +60,25 @@ seml:
   description: An example configuration.
 
 slurm:
+  - experiments_per_job: 1
+    sbatch_options:
+      gres: gpu:0
+      mem: 1G
+      cpus-per-task: 1
+      time: 0-08:00
+      partition: cpu_all,cpu_large
   - experiments_per_job: 4
     sbatch_options:
       gres: gpu:1 # num GPUs
-      mem: 16G # memory
-      cpus-per-task: 2 # num cores
+      mem: 1G # memory
+      cpus-per-task: 1 # num cores
       time: 0-08:00 # max time, D-HH:MM
       partition: gpu_gtx1080
   - experiments_per_job: 16
     sbatch_options:
       gres: gpu:1 # num GPUs
-      mem: 16G # memory
-      cpus-per-task: 2 # num cores
+      mem: 1G # memory
+      cpus-per-task: 1 # num cores
       time: 0-08:00 # max time, D-HH:MM
       partition: gpu_a100
 

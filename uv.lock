@@ -249,6 +249,18 @@ wheels = [
 ]
 
 [[package]]
+name = "deepdiff"
+version = "7.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ordered-set" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/70/10/6f4b0bd0627d542f63a24f38e29d77095dc63d5f45bc1a7b4a6ca8750fa9/deepdiff-7.0.1.tar.gz", hash = "sha256:260c16f052d4badbf60351b4f77e8390bee03a0b516246f6839bc813fb429ddf", size = 421718 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/18/e6/d27d37dc55dbf40cdbd665aa52844b065ac760c9a02a02265f97ea7a4256/deepdiff-7.0.1-py3-none-any.whl", hash = "sha256:447760081918216aa4fd4ca78a4b6a848b81307b2ea94c810255334b759e1dc3", size = 80825 },
+]
+
+[[package]]
 name = "distlib"
 version = "0.3.8"
 source = { registry = "https://pypi.org/simple" }
@@ -477,6 +489,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/09/48/6388f1bb9da707110532cb70ec4d2822858ddfb44f1cdf1233c20a80ea4b/omegaconf-2.3.0.tar.gz", hash = "sha256:d5d4b6d29955cc50ad50c46dc269bcd92c6e00f5f90d23ab5fee7bfca4ba4cc7", size = 3298120 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e3/94/1843518e420fa3ed6919835845df698c7e27e183cb997394e4a670973a65/omegaconf-2.3.0-py3-none-any.whl", hash = "sha256:7b4df175cdb08ba400f45cae3bdcae7ba8365db4d165fc65fd04b050ab63b46b", size = 79500 },
+]
+
+[[package]]
+name = "ordered-set"
+version = "4.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/ca/bfac8bc689799bcca4157e0e0ced07e70ce125193fc2e166d2e685b7e2fe/ordered-set-4.1.0.tar.gz", hash = "sha256:694a8e44c87657c59292ede72891eb91d34131f6531463aab3009191c77364a8", size = 12826 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/55/af02708f230eb77084a299d7b08175cff006dea4f2721074b92cdb0296c0/ordered_set-4.1.0-py3-none-any.whl", hash = "sha256:046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562", size = 7634 },
 ]
 
 [[package]]
@@ -816,6 +837,7 @@ version = "0.5.1"
 source = { editable = "." }
 dependencies = [
     { name = "debugpy" },
+    { name = "deepdiff" },
     { name = "gitignore-parser" },
     { name = "importlib-resources" },
     { name = "jsonpickle" },
@@ -858,6 +880,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "debugpy", specifier = ">=1.2.1" },
+    { name = "deepdiff" },
     { name = "filelock", marker = "extra == 'dev'", specifier = ">=3.15.4" },
     { name = "filelock", marker = "extra == 'ssh-forward'", specifier = ">=3.13.3" },
     { name = "gitignore-parser", specifier = ">=0.1.11" },

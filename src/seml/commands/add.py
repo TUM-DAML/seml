@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import datetime
 import logging
 import os
 from typing import TYPE_CHECKING, Any, Dict, cast
@@ -16,6 +15,7 @@ from seml.experiment.config import (
     read_config,
     remove_duplicates,
     remove_prepended_dashes,
+    requires_interpolation,
     resolve_configs,
     resolve_interpolations,
 )
@@ -29,6 +29,7 @@ from seml.utils import (
     remove_keys_from_nested,
     to_typeddict,
     unflatten,
+    utcnow,
 )
 from seml.utils.errors import ConfigError
 
@@ -125,7 +126,7 @@ def add_configs(
                 **{
                     '_id': start_id + idx,
                     'status': States.STAGED[0],
-                    'add_time': datetime.datetime.utcnow(),
+                    'add_time': utcnow(),
                 },
             },
         )
@@ -134,11 +135,13 @@ def add_configs(
     if description is not None:
         for db_dict in documents:
             db_dict['seml']['description'] = description
-    if resolve_descriptions:
-        for db_dict in documents:
-            if 'description' in db_dict['seml']:
+        # If description is not supplied via CLI, it will already be resolved.
+        if resolve_descriptions and requires_interpolation(
+            {'description': description}, ['description']
+        ):
+            for db_dict in documents:
                 db_dict['seml']['description'] = resolve_description(
-                    db_dict['seml']['description'], db_dict
+                    db_dict['seml'].get('description', ''), db_dict
                 )
 
     collection.insert_many(documents)
@@ -324,7 +327,6 @@ def add_config_file(
                     }
                 ),
                 'config_unresolved': config_unresolved,
-                'seml': seml_config,
             },
         )
         for config, config_unresolved in zip(configs, configs_unresolved)
@@ -342,7 +344,7 @@ def add_config_file(
     for document in documents:
         document['config_hash'] = make_hash(
             document['config'],
-            config_get_exclude_keys(document['config'], document['config_unresolved']),
+            config_get_exclude_keys(document['config_unresolved']),
         )
 
     if not force_duplicates:

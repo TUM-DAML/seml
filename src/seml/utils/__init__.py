@@ -316,7 +316,7 @@ def merge_dicts(dict1: Mapping, dict2: Mapping) -> Mapping:
     return return_dict
 
 
-def remove_keys_from_nested(d: dict, keys: Iterable[str] = []) -> dict:
+def remove_keys_from_nested(d: dict, keys: Iterable[str] = ()) -> dict:
     """Removes keys from a nested dictionary
 
     Parameters
@@ -340,12 +340,7 @@ def remove_keys_from_nested(d: dict, keys: Iterable[str] = []) -> dict:
     )
 
 
-def make_hash(
-    d: dict,
-    exclude_keys: list[str] = [
-        'seed',
-    ],
-):
+def make_hash(d: dict, exclude_keys: Sequence[str] = ()):
     """
     Generate a hash for the input dictionary.
     From: https://stackoverflow.com/a/22003440
@@ -728,6 +723,21 @@ def find_jupyter_host(
     return url_str, known_host
 
 
+@functools.cache
+def get_virtual_env_path():
+    """
+    Get the path to the virtual environment.
+
+    Returns
+    -------
+    str
+        The path to the virtual environment.
+    """
+    if path := os.environ.get('VIRTUAL_ENV', os.environ.get('CONDA_PREFIX')):
+        return Path(path).expanduser().resolve()
+    return None
+
+
 def is_local_file(
     filename: str | Path,
     root_dir: str | Path,
@@ -754,6 +764,8 @@ def is_local_file(
         return False
     # Reject all files that are in some-diretory called `site-packages`
     if not ignore_site_packages_folder and 'site-packages' in str(file_path):
+        return False
+    if (venv := get_virtual_env_path()) and file_path.is_relative_to(venv):
         return False
     # Check if the file is in any environment site-packages
     for site_dir in map(Path, site.getsitepackages()):

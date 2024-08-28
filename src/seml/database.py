@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import functools
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Sequence, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Iterable, TypeVar, overload
 
 from seml.document import ExperimentDoc
 from seml.settings import SETTINGS
-from seml.utils import s_if
+from seml.utils import Hashabledict, s_if
 from seml.utils.errors import MongoDBError
 from seml.utils.ssh_forward import get_forwarded_mongo_client
 
@@ -19,11 +20,21 @@ if TYPE_CHECKING:
 States = SETTINGS.STATES
 
 
-def get_collection(collection_name: str, mongodb_config: dict[str, Any] | None = None):
+# The private method only accepts hashable dicts such that we can use it as a cache key.
+@functools.lru_cache(1)
+def _get_collection(collection_name: str, mongodb_config: Hashabledict | None = None):
     if mongodb_config is None:
-        mongodb_config = get_mongodb_config()
-    db = get_database(**mongodb_config)
+        config = get_mongodb_config()
+    else:
+        config = dict(mongodb_config)
+    db = get_database(**config)
     return db[collection_name]
+
+
+def get_collection(collection_name: str, mongodb_config: dict[str, Any] | None = None):
+    if mongodb_config is not None:
+        mongodb_config = Hashabledict(mongodb_config)
+    return _get_collection(collection_name, mongodb_config)
 
 
 def get_mongo_client(
@@ -90,6 +101,7 @@ def get_collections_from_mongo_shell_or_pymongo(
     return [name for name in collection_names if name not in ('fs.chunks', 'fs.files')]
 
 
+@functools.cache
 def get_mongodb_config(path: str | Path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH):
     """Read the MongoDB connection configuration.
 
@@ -178,7 +190,7 @@ def get_mongodb_config(path: str | Path = SETTINGS.DATABASE.MONGODB_CONFIG_PATH)
 
 
 def build_filter_dict(
-    filter_states: Sequence[str] | None,
+    filter_states: Iterable[str] | None,
     batch_id: int | None,
     filter_dict: dict[str, Any] | None,
     sacred_id: int | None = None,
@@ -208,6 +220,9 @@ def build_filter_dict(
 
     if filter_dict is None:
         filter_dict = {}
+
+    if filter_states is not None:
+        filter_states = list(filter_states)
 
     if filter_states is not None and len(filter_states) > 0:
         if 'status' not in filter_dict:
@@ -280,7 +295,7 @@ def get_max_in_collection(
 
 def upload_file(
     filename: str,
-    db_collection: pymongo.collection.Collection[ExperimentDoc],
+    db_collection: pymongo.collection.Collection[ExperimentDoc] | str,
     batch_id: int,
     filetype: str,
 ):
@@ -298,6 +313,9 @@ def upload_file(
     file_id: ID of the inserted file, or None if there was an error.
     """
     import gridfs
+
+    if isinstance(db_collection, str):
+        db_collection = get_collection(db_collection)
 
     db = db_collection.database
     fs = gridfs.GridFS(db)
@@ -319,19 +337,23 @@ def upload_file(
     return None
 
 
+def upload_file_mt(x: tuple[str, str, int, str]) -> ObjectId | None:
+    """
+    A multithreading wrapper for upload_file.
+    """
+    return upload_file(*x)
+
+
 def delete_files(
     database: pymongo.database.Database[ExperimentDoc],
-    file_ids: Iterable[ObjectId],
-    progress: bool = False,
+    file_ids: Iterable[ObjectId | str],
 ):
-    import gridfs
-
-    from seml.console import track
-
-    fs = gridfs.GridFS(database)
-    it = track(file_ids, disable=not progress)
-    for to_delete in it:
-        fs.delete(to_delete)
+    file_ids = list(file_ids)
+    if len(file_ids) == 0:
+        return
+    # This does the same as GridFs(database).delete(file_id), but for multiple files
+    database.fs.files.delete_many({'_id': {'$in': file_ids}})
+    database.fs.chunks.delete_many({'files_id': {'$in': file_ids}})
 
 
 def clean_unreferenced_artifacts(
@@ -425,7 +447,7 @@ def clean_unreferenced_artifacts(
     if not yes and not prompt('Are you sure? (y/n)', type=bool):
         exit(1)
     logging.info('Deleting not referenced artifacts...')
-    delete_files(db, not_referenced_artifacts, progress=True)
+    delete_files(db, not_referenced_artifacts)
     logging.info(
         f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.'
     )

@@ -257,7 +257,9 @@ SETTINGS = cast(
                 },
             },
             'CONFIG_EXCLUDE_KEYS': [
-                '__doc__'
+                '__doc__',
+                'db_collection',
+                'overwrite',
             ],  # keys that will be excluded from resolved configurations, sacred for some reason captures the docstring attribute
             # Which key is treated as the experiment seed
             'CONFIG_KEY_SEED': 'seed',

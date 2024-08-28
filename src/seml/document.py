@@ -73,6 +73,8 @@ class SemlDoc(SemlDocBase, total=False):
         The CLI command with unresolved named configurations that runs the experiment.
     temp_dir: str
         The temporary directory which has been used to restore source files from the DB.
+    env: dict[str, str]
+        The environment variables that were used to run the experiment.
     """
 
     output_file: str
@@ -83,6 +85,7 @@ class SemlDoc(SemlDocBase, total=False):
     command: str | None
     command_unresolved: str | None
     temp_dir: str | None
+    env: dict[str, str] | None
 
 
 class SemlConfig(SemlDoc, total=False):

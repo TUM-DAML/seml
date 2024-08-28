@@ -13,6 +13,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
+    Iterable,
     Mapping,
     Sequence,
     TypeVar,
@@ -596,9 +597,7 @@ def _sacred_create_configs(
 
         config_resolved = get_configuration(scaffolding)
         configs_resolved.append(
-            remove_keys_from_nested(
-                config_resolved, config_get_exclude_keys(config_resolved, config)
-            )
+            remove_keys_from_nested(config_resolved, config_get_exclude_keys(config))
         )
     return configs_resolved
 
@@ -806,6 +805,7 @@ def read_config(config_path: str | Path):
         version=version_array,
         working_dir=working_dir,
         use_uploaded_sources=use_uploaded_sources,
+        env=dict(os.environ),
     )
     if output_dir is not None:
         seml['output_dir'] = output_dir
@@ -919,14 +919,12 @@ def remove_prepended_dashes(param_dict: dict[str, Any]) -> dict[str, Any]:
     return new_dict
 
 
-def config_get_exclude_keys(config: dict, config_unresolved: dict) -> list[str]:
+def config_get_exclude_keys(config_unresolved: dict | None = None) -> list[str]:
     """Gets the key that should be excluded from identifying a config. These should
     e.g. not be used in hashing
 
     Parameters
     ----------
-    config : Dict
-        the configuration after resolution by sacred
     config_unresolved : Dict
         the configuration before resolution by sacred
 
@@ -935,20 +933,51 @@ def config_get_exclude_keys(config: dict, config_unresolved: dict) -> list[str]:
     List[str]
         keys that do not identify the config
     """
-    exclude_keys = SETTINGS.CONFIG_EXCLUDE_KEYS
+    exclude_keys = list(SETTINGS.CONFIG_EXCLUDE_KEYS)
+    if config_unresolved is None:
+        return exclude_keys
     if SETTINGS.CONFIG_KEY_SEED not in config_unresolved:
         # The seed will only be included (e.g. for hashing) if explicited in the unresolved configuration
         exclude_keys.append(SETTINGS.CONFIG_KEY_SEED)
     return exclude_keys
 
 
+def create_starts_with_regex(*strings: str):
+    """
+    Creates a regex pattern that matches the start of a string with any of the given strings.
+
+    Parameters
+    ----------
+    strings : List[str]
+        The strings to match the start of.
+
+    Returns
+    -------
+    re.Pattern
+        The compiled regex pattern.
+    """
+    import re
+
+    if len(strings) == 0:
+        # Match not x and x -> always False
+        return re.compile(r'^(?!x)x$')
+
+    # Escape special characters in each string
+    escaped_strings = [re.escape(s) for s in set(strings)]
+    # Join the strings with '|' to create an OR pattern
+    pattern = '|'.join(escaped_strings)
+    # Add '^' to ensure the match is at the start of the string
+    regex = f'^({pattern})'
+    return re.compile(regex)
+
+
 def requires_interpolation(
     document: Mapping[str, Any],
-    allow_interpolation_keys: list[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
+    allow_interpolation_keys: Iterable[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
 ) -> bool:
     r"""
     Check if a document requires variable interpolation. This is done by checking if
-    any value matches the regex: .*\${.+}.*
+    any value matches the regex: .*(?<!\\)\${.+}.*
 
     Parameters
     ----------
@@ -965,16 +994,47 @@ def requires_interpolation(
     import re
 
     flat_dict = flatten(document)
-    pattern = re.compile(r'.*\${.+}.*')
+    # Find a ${...} pattern that is not preceded by a backslash
+    pattern = re.compile(r'.*(?<!\\)\${.+}.*')
+    key_pattern = create_starts_with_regex(*allow_interpolation_keys)
 
     def check_interpolation(key, value):
-        if not any(
-            key.startswith(allowed_key) for allowed_key in allow_interpolation_keys
-        ):
+        # These instructions are ordered by cost
+        if not isinstance(value, str):
             return False
-        return isinstance(value, str) and pattern.match(value) is not None
+        if not pattern.match(value):
+            return False
+        return key_pattern.match(key)
 
     return any(map(check_interpolation, flat_dict.keys(), flat_dict.values()))
+
+
+def escape_non_interpolated_dollars(
+    document: Mapping[str, Any],
+    allow_interpolation_keys: Iterable[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
+) -> dict[str, Any]:
+    r"""
+    Escapes all dollar signs that are not part of a variable interpolation.
+
+    Parameters
+    ----------
+    document : Dict
+        The document to escape.
+
+    Returns
+    -------
+    Dict
+        The escaped document
+    """
+    from seml.utils import unflatten
+
+    flat_doc = flatten(document)
+    key_pattern = create_starts_with_regex(*allow_interpolation_keys)
+    for key, value in flat_doc.items():
+        if isinstance(value, str) and not key_pattern.match(key):
+            value = value.replace(r'${', r'\${')
+            flat_doc[key] = value
+    return unflatten(flat_doc)
 
 
 T = TypeVar('T', bound=Mapping[str, Any])
@@ -982,7 +1042,7 @@ T = TypeVar('T', bound=Mapping[str, Any])
 
 def resolve_interpolations(
     document: T,
-    allow_interpolation_keys: list[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
+    allow_interpolation_keys: Iterable[str] = SETTINGS.ALLOW_INTERPOLATION_IN,
 ) -> T:
     """Resolves variable interpolation using `OmegaConf`
 
@@ -998,29 +1058,28 @@ def resolve_interpolations(
     Dict
         The resolved document
     """
+    allow_interpolation_keys = set(allow_interpolation_keys)
     if not requires_interpolation(document, allow_interpolation_keys):
         return document
 
     from omegaconf import OmegaConf
 
+    to_resolve_doc = escape_non_interpolated_dollars(document, allow_interpolation_keys)
+    key_pattern = create_starts_with_regex(*allow_interpolation_keys)
     resolved = cast(
         T,
         OmegaConf.to_container(
-            OmegaConf.create(dict(document), flags={'allow_objects': True}),
+            OmegaConf.create(to_resolve_doc, flags={'allow_objects': True}),
             resolve=True,
         ),
     )
     resolved_flat = {
-        key: value
-        for key, value in flatten(resolved, sep='.').items()
-        if any(key.startswith(allowed_key) for allowed_key in allow_interpolation_keys)
+        key: value for key, value in flatten(resolved).items() if key_pattern.match(key)
     }
     unresolved_flat = {
         key: value
-        for key, value in flatten(document, sep='.').items()
-        if not any(
-            key.startswith(allowed_key) for allowed_key in allow_interpolation_keys
-        )
+        for key, value in flatten(document).items()
+        if not key_pattern.match(key)
     }
     resolved_keys = set(resolved_flat.keys())
     unresolved_keys = set(unresolved_flat.keys())
@@ -1054,9 +1113,7 @@ def remove_duplicates_in_list(documents: Sequence[ExperimentDoc], use_hash: bool
             key = Hashabledict(
                 **remove_keys_from_nested(
                     document['config'],
-                    config_get_exclude_keys(
-                        document['config'], document['config_unresolved']
-                    ),
+                    config_get_exclude_keys(document['config_unresolved']),
                 )
             )
             if key not in unique_keys:
@@ -1096,21 +1153,23 @@ def remove_duplicates_in_db(
         No longer contains configurations that are already in the database collection.
 
     """
+    if use_hash:
+        hashes = [document['config_hash'] for document in documents]
+        db_hashes = set(
+            collection.find({'config_hash': {'$in': hashes}}).distinct('config_hash')
+        )
+        return [doc for doc in documents if doc['config_hash'] not in db_hashes]
+
     filtered_documents: list[ExperimentDoc] = []
     for document in documents:
-        if use_hash:
-            lookup_result = collection.find_one(
-                {'config_hash': document['config_hash']}
-            )
-        else:
-            lookup_dict = flatten(
-                {
-                    'config': remove_keys_from_nested(
-                        document['config'], document['config_unresolved'].keys()
-                    )
-                }
-            )
-            lookup_result = collection.find_one(unflatten(lookup_dict))
+        lookup_dict = flatten(
+            {
+                'config': remove_keys_from_nested(
+                    document['config'], document['config_unresolved'].keys()
+                )
+            }
+        )
+        lookup_result = collection.find_one(unflatten(lookup_dict))
         if lookup_result is None:
             filtered_documents.append(document)
     return filtered_documents

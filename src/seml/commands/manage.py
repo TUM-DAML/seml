@@ -402,13 +402,16 @@ def delete_experiments(
     """
     from seml.console import prompt
 
+    collection = get_collection(db_collection_name)
     # Before deleting, we should first cancel the experiments that are still running.
     if cancel:
         cancel_states = set(States.PENDING + States.RUNNING)
         if filter_states is not None and len(filter_states) > 0:
             cancel_states = cancel_states.intersection(filter_states)
 
-        if len(cancel_states) > 0:
+        if len(cancel_states) > 0 and collection.find_one(
+            build_filter_dict(cancel_states, batch_id, filter_dict, sacred_id)
+        ):
             cancel_experiments(
                 db_collection_name,
                 sacred_id,
@@ -420,12 +423,9 @@ def delete_experiments(
                 wait=True,
             )
 
-    collection = get_collection(db_collection_name)
     experiment_files_to_delete = []
 
-    filter_dict = build_filter_dict(
-        filter_states, batch_id, filter_dict, sacred_id=sacred_id
-    )
+    filter_dict = build_filter_dict(filter_states, batch_id, filter_dict, sacred_id)
     ndelete = collection.count_documents(filter_dict)
     if sacred_id is not None and ndelete == 0:
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
@@ -560,7 +560,12 @@ def get_experiment_reset_op(exp: ExperimentDoc):
     ]
 
     # Clean up SEML dictionary
-    keep_seml = {'source_files', 'working_dir', SETTINGS.SEML_CONFIG_VALUE_VERSION}
+    keep_seml = {
+        'source_files',
+        'working_dir',
+        'env',
+        SETTINGS.SEML_CONFIG_VALUE_VERSION,
+    }
     keep_seml.update(SETTINGS.VALID_SEML_CONFIG_VALUES)
     seml_keys = set(exp['seml'].keys())
     for key in seml_keys - keep_seml:
@@ -627,6 +632,9 @@ def reset_experiments(
     exps = collection.find(filter_dict)
     if sacred_id is not None and nreset == 0:
         raise MongoDBError(f'No experiment found with ID {sacred_id}.')
+    if nreset == 0:
+        logging.info('No experiments to reset.')
+        return
 
     logging.info(f'Resetting the state of {nreset} experiment{s_if(nreset)}.')
     if nreset >= SETTINGS.CONFIRM_THRESHOLD.RESET:
@@ -761,7 +769,8 @@ def reload_sources(
     """
     from importlib.metadata import version
 
-    import gridfs
+    from bson import ObjectId
+    from deepdiff import DeepDiff
     from pymongo import UpdateOne
 
     from seml.console import prompt
@@ -774,7 +783,15 @@ def reload_sources(
         filter_dict = {}
     db_results = list(
         collection.find(
-            filter_dict, {'batch_id', 'seml', 'config', 'status', 'config_unresolved'}
+            filter_dict,
+            {
+                'batch_id',
+                'seml',
+                'config',
+                'status',
+                'config_unresolved',
+                'config_hash',
+            },
         )
     )
     id_to_document: dict[int, list[ExperimentDoc]] = {}
@@ -845,29 +862,40 @@ def reload_sources(
             )
         ]
 
-        result = collection.bulk_write(
-            [
-                UpdateOne(
-                    {'_id': document['_id']},
-                    {
-                        '$set': {
-                            'config': document['config'],
-                            'config_unresolved': document['config_unresolved'],
-                            'config_hash': make_hash(
-                                document['config'],
-                                config_get_exclude_keys(
-                                    document['config'], document['config_unresolved']
-                                ),
-                            ),
-                        }
-                    },
+        # determine which documents to udpate
+        updates = []
+        for old_doc, new_doc in zip(documents, new_documents):
+            use_hash = 'config_hash' in old_doc
+            # these config fields are populated if the experiment ran
+            runtime_fields = {
+                k: old_doc['config'][k]
+                for k in ['db_collection', 'overwrite', 'seed']
+                if k in old_doc['config']
+            }
+            new = dict(
+                config=new_doc['config'] | runtime_fields,
+                config_unresolved=new_doc['config_unresolved'],
+            )
+            # compare new to old config
+            if use_hash:
+                new['config_hash'] = make_hash(
+                    new_doc['config'],
+                    config_get_exclude_keys(new_doc['config_unresolved']),
                 )
-                for document in new_documents
-            ]
-        )
-        logging.info(
-            f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).'
-        )
+                update = new['config_hash'] != old_doc['config_hash']
+            else:
+                diff = DeepDiff(new['config'], old_doc['config'], ignore_order=True)
+                update = bool(diff)
+            # Create mongodb update
+            if update:
+                updates.append(UpdateOne({'_id': old_doc['_id']}, {'$set': new}))
+        if len(updates) > 0:
+            result = collection.bulk_write(updates)
+            logging.info(
+                f'Batch {batch_id}: Resolved configurations of {result.matched_count} experiments against new source files ({result.modified_count} changed).'
+            )
+        else:
+            logging.info(f'Batch {batch_id}: No experiment configurations changed.')
 
         # Check whether the configurations aligns with the current source code
         check_config(
@@ -879,7 +907,6 @@ def reload_sources(
 
         # Find the currently used source files
         db = collection.database
-        fs = gridfs.GridFS(db)
         fs_filter_dict = {
             'metadata.batch_id': batch_id,
             'metadata.collection_name': f'{collection.name}',
@@ -915,8 +942,7 @@ def reload_sources(
         except Exception as e:
             logging.error(f'Batch {batch_id}: Failed to set new source files.')
             # Delete new source files from DB
-            for to_delete in source_files:
-                fs.delete(to_delete[1])
+            delete_files(db, [x[1] for x in source_files])
             raise e
 
         # Delete the old source files
@@ -927,10 +953,10 @@ def reload_sources(
                 'metadata.deprecated': True,
             }
             source_files_old = [
-                x['_id'] for x in db['fs.files'].find(fs_filter_dict, {'_id'})
+                cast(ObjectId, x['_id'])
+                for x in db['fs.files'].find(fs_filter_dict, {'_id'})
             ]
-            for to_delete in source_files_old:
-                fs.delete(to_delete)
+            delete_files(db, source_files_old)
 
 
 def detect_duplicates(
