@@ -77,7 +77,7 @@ jobs:
       - name: Setup seml config
         run: uv run seml configure --host=localhost --port=27017 --database=seml --username=seml --password=seml
       - name: Add
-        run: uv run seml test_collection add examples/example_config.yaml
+        run: uv run seml test_collection add ci/examples/example_config.yaml
       - name: Start
         run: uv run seml test_collection start
       - name: Hold
@@ -93,7 +93,7 @@ jobs:
       - name: Delete
         run: uv run seml test_collection delete -y
       - name: Reload sources
-        run: uv run seml test_collection add examples/example_config.yaml reload-sources -y
+        run: uv run seml test_collection add ci/examples/example_config.yaml reload-sources -y
       - name: Set description
         run: uv run seml test_collection description set -y "Hello World!"
       - name: List description

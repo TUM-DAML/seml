@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: sync-dependencies
         name: update pre-commit-config
-        entry: uv run scripts/pre_commit_sync_pyright_deps.py
+        entry: uv run ci/scripts/pre_commit_sync_pyright_deps.py
         language: system
         files: "(pyproject.toml|scripts/.pre-commit-config.yaml.template|.pre-commit.config.yaml)" # the quotes are here to make sure that this stay in line for the formatter.
   - repo: https://github.com/pre-commit/pre-commit-hooks

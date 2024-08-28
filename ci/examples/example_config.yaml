@@ -1,0 +1,83 @@
+# Experiment configuration file for CI
+
+seml:
+  executable: example_experiment.py
+  name: example_experiment
+  output_dir: logs
+  project_root_dir: .
+  description: An example configuration.
+
+slurm:
+  - experiments_per_job: 1
+    sbatch_options:
+      mem: 1G
+      cpus-per-task: 1
+      time: 0-08:00
+
+###### BEGIN PARAMETER CONFIGURATION ######
+
+fixed:
+  max_epochs: 500
+
+grid:
+  learning_rate:
+    type: loguniform
+    min: 1e-5
+    max: 1e-1
+    num: 1
+
+random:
+  samples: 1
+  seed: 821
+
+  # SEML supports dot-notation for nested dictionaries.
+  regularization_params.dropout:
+    type: uniform
+    min: 0.0
+    max: 0.7
+    seed: 222
+
+small_datasets:
+  grid:
+    dataset:
+      type: choice
+      options:
+        - small_dataset_1
+        - small_dataset_2
+
+    hidden_sizes:
+      type: choice
+      options:
+        - [16]
+        - [32, 16] # this will be parsed into a Python list.
+
+  random:
+    samples: 3
+    seed: 2223
+
+    max_epochs:
+      type: randint
+      min: 200
+      max: 1000
+
+large_datasets:
+  fixed:
+    max_epochs: 1000
+
+  grid:
+    learning_rate:
+      type: choice
+      options:
+        - 0.001
+
+    dataset:
+      type: choice
+      options:
+        - large_dataset_1
+        - large_dataset_2
+
+    hidden_sizes:
+      type: choice
+      options:
+        - [64]
+        - [64, 32]
