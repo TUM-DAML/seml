@@ -99,7 +99,7 @@ jobs:
       - name: Reload sources
         run: uv run seml test_collection add ci/examples/example_config.yaml reload-sources -y
       - name: Set description
-        run: uv run seml test_collection description set -y 'Hello World ${dataset}!'
+        run: uv run seml test_collection description set -y 'Hello World ${config.dataset}!'
       - name: List description
         run: uv run seml test_collection description list
       - name: Delete description
