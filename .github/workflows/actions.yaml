@@ -7,6 +7,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
         resolution: ["highest", "lowest-direct"]
@@ -28,8 +29,9 @@ jobs:
 
   # Test commands in a dummy environment
   commands:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-22.04 # this is the lastest release supported by MongoDB
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
         resolution: ["highest", "lowest-direct"]
