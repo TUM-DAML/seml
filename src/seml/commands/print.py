@@ -712,7 +712,9 @@ def generate_queue_table(
             job_id = f'{array_id}_{task_id}'
         else:
             job_id = array_id
-        if nodelist:
+        # In some SLURM versions, the NodeList is '(null)' when the job is not running
+        # in other it's simply not set.
+        if nodelist and nodelist != '(null)':
             # Running
             collection = get_collection(db_col_name)
             experiments = collection.find(
