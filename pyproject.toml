@@ -74,10 +74,6 @@ dev-dependencies = [
     "tuna>=0.5.11",
 ]
 
-[tool.uv.workspace]
-members = ["new_stuff"]
-
-
 [tool.ruff.format]
 quote-style = "single"
 line-ending = "lf"
