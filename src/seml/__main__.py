@@ -19,7 +19,7 @@ from typing_extensions import Annotated, ParamSpec
 
 import seml.cli_utils.typer as typer
 from seml.cli_utils import AUTOCOMPLETING, cache_to_disk
-from seml.cli_utils import CliStates as States
+from seml.cli_utils.cli_states import CliStates as States
 from seml.document import SBatchOptions
 
 P = ParamSpec('P')
