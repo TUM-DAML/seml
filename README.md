@@ -21,7 +21,36 @@ In addition, **`SEML`** offers many more features to make your life easier, such
 * and keeping track of resource usage (experiment runtime, RAM, etc.).
 
 ## Get started
-To get started, install **`SEML`** either via `pip`:
+### New projects
+The fastest way to get started with `SEML` is via [`uv`](https://docs.astral.sh/uv/):
+1. Install `uv`:
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    ```
+2. Setup a new project
+    ```bash
+    # uvx will execute `SEML` in a temporary virtual environment
+    # and run it to setup your new project.
+    uvx seml project init my_new_project
+    ```
+3. Setup a virtual environment
+    ```bash
+    cd my_new_project
+    uv sync
+    ```
+4. Activate your virtual environment
+    ```bash
+    source .venv/bin/activate
+    ```
+5. Configure `SEML`:
+    ```bash
+    seml configure
+    ```
+
+When executing `SEML` make sure to always use the `seml` command from your project's virtual environment and only use `uvx seml` for high-level commands that do not affect experiments (like setting up new projects).
+
+### Existing projects
+If you want to include `SEML` into existing projects, you can install it via:
 ```bash
 pip install seml
 ```
@@ -29,12 +58,6 @@ Then configure your MongoDB via:
 ```bash
 seml configure
 ```
-For convenience, you may create your first **`SEML`** project via:
-```bash
-# initialize the default template in the 'new_project' folder.
-seml project init -t default new_project
-```
-in an empty directoy. **`SEML`** will automatically create a python package for you.
 
 
 ### SSH Port Forwarding
