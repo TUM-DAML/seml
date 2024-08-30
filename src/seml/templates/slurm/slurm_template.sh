@@ -44,13 +44,13 @@ for i in $(seq 1 {experiments_per_job}); do
     fi
 
     # Prepare the epxeriment
-    cmd=$(srun {srun_args} seml {db_collection_name} prepare-experiment -id ${{exp_id}}{prepare_args})
+    cmd=$({maybe_srun}seml {db_collection_name} prepare-experiment -id ${{exp_id}}{prepare_args})
 
     # Check if the preparation was successful
     ret=$?
     if [ $ret -eq 0 ]; then
         # This experiment works and will be started.
-        PYTHONPATH=$exp_pypath srun {srun_args} bash -c "$cmd" &
+        PYTHONPATH=$exp_pypath {maybe_srun}bash -c "$cmd" &
         process_ids+=($!)
     elif [ $ret -eq 3 ]; then
         echo "ERROR: Experiment with id ${{exp_id}} got claimed by this job but is not associated correctly."
