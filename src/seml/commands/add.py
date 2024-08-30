@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-import copy
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from seml.database import get_collection, get_max_in_collection
-from seml.document import ExperimentDoc, SBatchOptions, SemlDoc, SlurmConfig
+from seml.document import ExperimentDoc, SemlDoc
 from seml.experiment.config import (
+    assemble_slurm_config_dict,
     check_config,
-    check_slurm_config,
     config_get_exclude_keys,
     generate_configs,
     generate_named_configs,
     read_config,
     remove_duplicates,
-    remove_prepended_dashes,
     requires_interpolation,
     resolve_configs,
     resolve_interpolations,
@@ -26,7 +24,6 @@ from seml.settings import SETTINGS
 from seml.utils import (
     flatten,
     make_hash,
-    merge_dicts,
     remove_keys_from_nested,
     to_typeddict,
     unflatten,
@@ -195,53 +192,6 @@ def add_config_files(
             description=description,
             resolve_descriptions=resolve_descriptions,
         )
-
-
-def assemble_slurm_config_dict(experiment_slurm_config: SlurmConfig):
-    """
-    Realize inheritance for the slurm configuration, with the following relationship:
-    Default -> Template -> Experiment
-
-    Parameters
-    ----------
-    experiment_slurm_config: The slurm experiment configuration as returned by the function read_config
-
-    Returns
-    -------
-    slurm_config
-
-    """
-    # Rename
-    slurm_config = experiment_slurm_config
-    # Assemble the Slurm config:
-    # Basis config is the default config. This can be overridden by the sbatch_options_template.
-    # And this in turn can be overridden by the sbatch config defined in the experiment .yaml file.
-    slurm_config_base = copy.deepcopy(SETTINGS.SLURM_DEFAULT)
-
-    # Check for and use sbatch options template
-    sbatch_options_template = slurm_config.get('sbatch_options_template', None)
-    if sbatch_options_template is not None:
-        if sbatch_options_template not in SETTINGS.SBATCH_OPTIONS_TEMPLATES:
-            raise ConfigError(
-                f"sbatch options template '{sbatch_options_template}' not found in settings.py."
-            )
-        slurm_config_base['sbatch_options'] = merge_dicts(
-            slurm_config_base['sbatch_options'],
-            SETTINGS.SBATCH_OPTIONS_TEMPLATES[sbatch_options_template],
-        )
-
-    # Integrate experiment specific config
-    slurm_config = merge_dicts(slurm_config_base, slurm_config)
-
-    slurm_config['sbatch_options'] = cast(
-        SBatchOptions,
-        remove_prepended_dashes(cast(Dict[str, Any], slurm_config['sbatch_options'])),
-    )
-
-    # Check that ntasks and experiments_per_job are mutually exclusive
-    sbatch_options = slurm_config['sbatch_options']
-    check_slurm_config(slurm_config.get('experiments_per_job', 1), sbatch_options)
-    return slurm_config
 
 
 def add_config_file(

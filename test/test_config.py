@@ -4,9 +4,8 @@ import unittest
 import yaml
 from seml import utils
 from seml.commands import add
-from seml.commands.add import assemble_slurm_config_dict
 from seml.experiment import config
-from seml.experiment.config import read_config
+from seml.experiment.config import assemble_slurm_config_dict, read_config
 from seml.settings import SETTINGS
 from seml.utils import flatten, merge_dicts
 from seml.utils.errors import ConfigError
@@ -47,6 +46,9 @@ class TestParseConfigDicts(unittest.TestCase):
     )
     CONFIG_SLURM_TEMPLATE = "resources/config/config_slurm_template.yaml"
     CONFIG_SLURM_EXPERIMENT = "resources/config/config_slurm_experiment.yaml"
+    CONFIG_SLURM_EXPERIMENTS_AND_TASKS = (
+        "resources/config/config_slurm_experiments_and_tasks.yaml"
+    )
     CONFIG_RESOLVE_CONFIG = "resources/config/config_resolve_config.yaml"
     CONFIG_RESOLVE_INTERPOLATION = (
         "resources/config/config_resolve_with_interpolation.yaml"
@@ -404,3 +406,8 @@ class TestParseConfigDicts(unittest.TestCase):
         expected_config_hashes = sorted([utils.make_hash(x) for x in expected_configs])
         actual_config_hashes = sorted([utils.make_hash(x) for x in configs])
         assert expected_config_hashes == actual_config_hashes
+
+    def test_config_experiments_error(self):
+        slurm_conf = config.read_config(self.CONFIG_SLURM_EXPERIMENTS_AND_TASKS)[1]
+        with self.assertRaises(ConfigError):
+            assemble_slurm_config_dict(slurm_conf[0])
