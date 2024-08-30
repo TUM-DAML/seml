@@ -1,4 +1,4 @@
-from seml.utils.module_hider import AUTOCOMPLETING
+from seml.cli_utils.module_hider import AUTOCOMPLETING
 
 if AUTOCOMPLETING:
     __version__ = '0.0.0'

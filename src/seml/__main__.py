@@ -17,13 +17,28 @@ from typing import (
 
 from typing_extensions import Annotated, ParamSpec
 
-import seml.utils.typer as typer
+import seml.cli_utils.typer as typer
+from seml.cli_utils import AUTOCOMPLETING, cache_to_disk
 from seml.document import SBatchOptions
-from seml.settings import SETTINGS
-from seml.utils import cache_to_disk
-from seml.utils.module_hider import AUTOCOMPLETING
 
-States = SETTINGS.STATES
+if not AUTOCOMPLETING:
+    from seml.settings import SETTINGS
+
+    States = SETTINGS.STATES
+else:
+    # A dummy class to allow autocompletion without the settings module
+
+    class STATES:
+        def __getitem__(self, item):
+            return []
+
+        def __getattr__(self, item):
+            return []
+
+        def values(self):
+            return []
+
+    States = STATES()
 
 
 P = ParamSpec('P')
@@ -86,7 +101,7 @@ def collection_free_commands(app: typer.Typer) -> List[str]:
     ]
 
 
-@cache_to_disk('db_config', SETTINGS.AUTOCOMPLETE_CACHE_ALIVE_TIME)
+@cache_to_disk('db_config', 60 * 60 * 24)  # 1 day
 def get_db_collections():
     """CLI completion for db collections."""
     from seml.database import (

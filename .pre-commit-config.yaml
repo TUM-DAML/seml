@@ -69,4 +69,5 @@ repos:
           - build>=1.2.1
           - twine>=5.1.1
           - backports-tarfile>=1.2.0
+          - tuna>=0.5.11
         files: src/seml/.*\.py

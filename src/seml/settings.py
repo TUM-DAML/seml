@@ -6,10 +6,10 @@ from typing import Any, Dict, List, Mapping, cast
 
 from typing_extensions import TypeVar
 
-import seml.utils.typer as typer
+import seml.cli_utils.typer as typer
+from seml.cli_utils.module_hider import ModuleHider
 from seml.document import SBatchOptions, SlurmConfig
 from seml.utils import merge_dicts
-from seml.utils.module_hider import ModuleHider
 
 # The YAML, json import is rather slow
 with ModuleHider(
