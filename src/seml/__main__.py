@@ -19,27 +19,8 @@ from typing_extensions import Annotated, ParamSpec
 
 import seml.cli_utils.typer as typer
 from seml.cli_utils import AUTOCOMPLETING, cache_to_disk
+from seml.cli_utils import CliStates as States
 from seml.document import SBatchOptions
-
-if AUTOCOMPLETING:
-    # A dummy class to allow autocompletion without the settings module
-
-    class STATES:
-        def __getitem__(self, item):
-            return []
-
-        def __getattr__(self, item):
-            return []
-
-        def values(self):
-            return []
-
-    States = STATES()
-else:
-    from seml.settings import SETTINGS
-
-    States = SETTINGS.STATES
-
 
 P = ParamSpec('P')
 R = TypeVar('R')
