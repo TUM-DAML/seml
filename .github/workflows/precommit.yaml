@@ -1,9 +1,6 @@
 name: precommit
-on:
-  push:
-    branches:
-      - master
-  pull_request:
+on: [push, pull_request]
+
 jobs:
   precommit:
     runs-on: ubuntu-latest
