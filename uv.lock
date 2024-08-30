@@ -1093,6 +1093,7 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
     { name = "sshtunnel" },
+    { name = "tuna" },
     { name = "twine" },
 ]
 
@@ -1133,6 +1134,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3.2" },
     { name = "ruff", specifier = ">=0.6.1" },
     { name = "sshtunnel", specifier = ">=0.4.0" },
+    { name = "tuna", specifier = ">=0.5.11" },
     { name = "twine", specifier = ">=5.1.1" },
 ]
 
@@ -1191,6 +1193,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c0/3f/d7af728f075fb08564c5949a9c95e44352e23dee646869fa104a3b2060a3/tomli-2.0.1.tar.gz", hash = "sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f", size = 15164 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/97/75/10a9ebee3fd790d20926a90a2547f0bf78f371b2f13aa822c759680ca7b9/tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc", size = 12757 },
+]
+
+[[package]]
+name = "tuna"
+version = "0.5.11"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/88/fb/5bf0865b2fdb44c0c62af24e77b5fe1bcfae4282b982a954fe7984587595/tuna-0.5.11.tar.gz", hash = "sha256:d47f3e39e80af961c8df016ac97d1643c3c60b5eb451299da0ab5fe411d8866c", size = 150600 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d6/07/c115a27adb5228bdf78d0c2366637c5b1630427f879c674f7bab4e6eb637/tuna-0.5.11-py3-none-any.whl", hash = "sha256:ab352a6d836014ace585ecd882148f1f7c68be9ea4bf9e9298b7127594dab2ef", size = 149682 },
 ]
 
 [[package]]
