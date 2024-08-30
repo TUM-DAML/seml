@@ -21,6 +21,7 @@ from seml.experiment.command import (
     get_environment_variables,
     get_shell_command,
 )
+from seml.experiment.config import check_slurm_config
 from seml.experiment.sources import load_sources_from_db
 from seml.settings import SETTINGS
 from seml.utils import (
@@ -183,6 +184,15 @@ def start_sbatch_job(
     sbatch_options['output'] = output_file
     sbatch_options['job-name'] = name
 
+    # Construct srun options if experiments_per_job > 1
+    check_slurm_config(experiments_per_job, sbatch_options)
+    if experiments_per_job > 1:
+        # run multiple experiments in parallel
+        srun_args_str = '--ntasks=1 --mem=0'
+        sbatch_options['ntasks'] = experiments_per_job
+    else:
+        # We keep the default values for srun if we only run one experiment per job
+        srun_args_str = ''
     # Construct sbatch options string
     sbatch_options_str = create_slurm_options_string(
         sbatch_options, exp_array[0]['seml'].get('env'), False
@@ -217,6 +227,7 @@ def start_sbatch_job(
         'prepare_args': prepare_args,
         'tmp_directory': SETTINGS.TMP_DIRECTORY,
         'experiments_per_job': str(experiments_per_job),
+        'srun_args': srun_args_str,
     }
     variables = {
         **variables,
