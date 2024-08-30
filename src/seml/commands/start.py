@@ -186,13 +186,7 @@ def start_sbatch_job(
 
     # Construct srun options if experiments_per_job > 1
     check_slurm_config(experiments_per_job, sbatch_options)
-    if experiments_per_job > 1:
-        # run multiple experiments in parallel
-        srun_args_str = '--ntasks=1 --mem=0'
-        sbatch_options['ntasks'] = experiments_per_job
-    else:
-        # We keep the default values for srun if we only run one experiment per job
-        srun_args_str = ''
+    srun_str = '' if experiments_per_job > 1 else 'srun '
     # Construct sbatch options string
     sbatch_options_str = create_slurm_options_string(
         sbatch_options, exp_array[0]['seml'].get('env'), False
@@ -227,7 +221,7 @@ def start_sbatch_job(
         'prepare_args': prepare_args,
         'tmp_directory': SETTINGS.TMP_DIRECTORY,
         'experiments_per_job': str(experiments_per_job),
-        'srun_args': srun_args_str,
+        'maybe_srun': srun_str,
     }
     variables = {
         **variables,
