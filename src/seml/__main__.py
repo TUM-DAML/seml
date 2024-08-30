@@ -101,7 +101,7 @@ def collection_free_commands(app: typer.Typer) -> List[str]:
     ]
 
 
-@cache_to_disk('db_config', 60 * 60 * 24)  # 1 day
+@cache_to_disk('db_config')
 def get_db_collections():
     """CLI completion for db collections."""
     from seml.database import (

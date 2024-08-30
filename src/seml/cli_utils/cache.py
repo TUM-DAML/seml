@@ -8,7 +8,7 @@ class DiskCachedFunction(Generic[R]):
         self,
         fun: Callable[[], R],
         name: str,
-        time_to_live: float,
+        time_to_live: float | None,
     ):
         self.time_to_live = time_to_live
         self.fun = fun
@@ -31,6 +31,8 @@ class DiskCachedFunction(Generic[R]):
         import json
         import time
 
+        from seml.settings import SETTINGS
+
         # Load from cache
         # if it fails or is expired we will compute it again
         if self.cache_path.exists():
@@ -45,7 +47,8 @@ class DiskCachedFunction(Generic[R]):
                 pass
         # Compute and save to cache
         result = self.fun()
-        cache = {'result': result, 'expire': time.time() + self.time_to_live}
+        time_to_live = self.time_to_live or SETTINGS.AUTOCOMPLETE_CACHE_ALIVE_TIME
+        cache = {'result': result, 'expire': time.time() + time_to_live}
         try:
             with open(self.cache_path, 'w') as f:
                 json.dump(cache, f)
@@ -72,7 +75,7 @@ class DiskCachedFunction(Generic[R]):
         return False
 
 
-def cache_to_disk(name: str, time_to_live: float):
+def cache_to_disk(name: str, time_to_live: float | None = None):
     """
     Cache the result of a function to disk.
 
