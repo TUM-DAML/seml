@@ -23,6 +23,7 @@ from typing import (
 from seml.document import (
     ExperimentConfig,
     ExperimentDoc,
+    SBatchOptions,
     SemlConfig,
     SemlDocBase,
     SemlExperimentFile,
@@ -1219,3 +1220,21 @@ def remove_duplicates(
                 f'experiment{s_if(n_unique)} were already found in the database. They were not added again.'
             )
     return documents
+
+
+def check_slurm_config(experiments_per_job: int, sbatch_options: SBatchOptions):
+    if not (
+        (
+            sbatch_options.get('nodes', 1) == 1
+            and sbatch_options.get('N', 1) == 1  # short for --nodes
+            and sbatch_options.get('ntasks', 1) == 1
+            and sbatch_options.get('n', 1) == 1  # short for --ntasks
+            and sbatch_options.get('ntasks-per-node', 1) == 1
+            and sbatch_options.get('ntasks-per-gpu', 1) == 1
+            and sbatch_options.get('ntasks-per-socket', 1) == 1
+        )
+        or experiments_per_job == 1
+    ):
+        raise ConfigError(
+            'Cannot run multiple experiments per job with multiple nodes or tasks per node.'
+        )

@@ -9,6 +9,7 @@ from seml.database import get_collection, get_max_in_collection
 from seml.document import ExperimentDoc, SBatchOptions, SemlDoc, SlurmConfig
 from seml.experiment.config import (
     check_config,
+    check_slurm_config,
     config_get_exclude_keys,
     generate_configs,
     generate_named_configs,
@@ -236,6 +237,10 @@ def assemble_slurm_config_dict(experiment_slurm_config: SlurmConfig):
         SBatchOptions,
         remove_prepended_dashes(cast(Dict[str, Any], slurm_config['sbatch_options'])),
     )
+
+    # Check that ntasks and experiments_per_job are mutually exclusive
+    sbatch_options = slurm_config['sbatch_options']
+    check_slurm_config(slurm_config.get('experiments_per_job', 1), sbatch_options)
     return slurm_config
 
 
