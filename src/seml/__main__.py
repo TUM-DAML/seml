@@ -21,11 +21,7 @@ import seml.cli_utils.typer as typer
 from seml.cli_utils import AUTOCOMPLETING, cache_to_disk
 from seml.document import SBatchOptions
 
-if not AUTOCOMPLETING:
-    from seml.settings import SETTINGS
-
-    States = SETTINGS.STATES
-else:
+if AUTOCOMPLETING:
     # A dummy class to allow autocompletion without the settings module
 
     class STATES:
@@ -39,6 +35,10 @@ else:
             return []
 
     States = STATES()
+else:
+    from seml.settings import SETTINGS
+
+    States = SETTINGS.STATES
 
 
 P = ParamSpec('P')
