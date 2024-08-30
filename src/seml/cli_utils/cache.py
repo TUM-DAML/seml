@@ -20,10 +20,12 @@ class DiskCachedFunction(Generic[R]):
         import os
         from pathlib import Path
 
+        from seml.settings import SETTINGS
+
         user = os.environ.get('USER', 'unknown')
         install_hash = hashlib.md5(self.name.encode('utf-8')).hexdigest()
         file_name = f'seml_{user}_{self.name}_{install_hash}.json'
-        return Path('/tmp') / file_name
+        return Path(SETTINGS.TMP_DIRECTORY) / file_name
 
     def __call__(self) -> R:
         import json
