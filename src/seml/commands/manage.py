@@ -677,16 +677,19 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
         # detect whether the experiment is running in slurm
         arr_id = exp['execution'].get('array_id', -1)
         task_id = exp['execution'].get('task_id', -1)
-        exp_running = arr_id in running_jobs and (
+        is_running = arr_id in running_jobs and (
             any(task_id in r for r in running_jobs[arr_id][0])
             or task_id in running_jobs[arr_id][1]
         )
         # detect whether any job that could execute it is pending
         array_ids = {conf.get('array_id') for conf in exp['slurm']}
         # Any of these jobs may still pull the experiment and run it
-        exp_pending = any(array_id in running_jobs for array_id in array_ids)
+        is_pending = (
+            any(array_id in running_jobs for array_id in array_ids)
+            and 'array_id' not in exp['execution']
+        )
 
-        if not exp_running and not exp_pending:
+        if not is_running and not is_pending:
             if 'stop_time' in exp:
                 # the experiment is already over but failed to report properly
                 interrupted_exps.append(exp['_id'])
