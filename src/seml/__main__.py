@@ -25,6 +25,8 @@ from seml.document import SBatchOptions
 P = ParamSpec('P')
 R = TypeVar('R')
 
+_DOCS = bool(os.environ.get('_SEML_DOCS', False))
+
 
 # numexpr will log unnecessary info we don't want in our CLI
 logging.getLogger('numexpr').setLevel(logging.ERROR)
@@ -105,7 +107,7 @@ app = typer.Typer(
     # Note that this is not 100% the correct chaining autocompletition
     # but it is significantly better than nothing. Compared to the default
     # click chaining we greedly split the arguments by any command.
-    chain=AUTOCOMPLETING,
+    chain=_DOCS or AUTOCOMPLETING,
 )
 YesAnnotation = Annotated[
     bool,

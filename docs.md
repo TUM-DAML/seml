@@ -162,6 +162,11 @@ $ seml configure [OPTIONS]
 
 **Options**:
 
+* `--host TEXT`: The host of the MongoDB server.
+* `--port INTEGER`: The port of the MongoDB server.
+* `--database TEXT`: The name of the MongoDB database to use.
+* `--username TEXT`: The username for the MongoDB server.
+* `--password TEXT`: The password for the MongoDB server.
 * `-sf, --ssh-forward`: Configure SSH forwarding settings for MongoDB.
 * `--help`: Show this message and exit.
 
