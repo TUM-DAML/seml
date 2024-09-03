@@ -730,7 +730,13 @@ def check_config(
         options = empty_run.config.copy()
         options.update(config)
         options.update({k: None for k in sacred.utils.ConfigAddedError.SPECIAL_ARGS})
-        empty_run.main_function.signature.construct_arguments((), {}, options, False)
+        try:
+            empty_run.main_function.signature.construct_arguments(
+                (), {}, options, False
+            )
+        except sacred.utils.MissingConfigError as e:
+            logging.error(str(e))
+            exit(1)
 
 
 def restore(flat):
