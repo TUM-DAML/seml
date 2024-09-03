@@ -270,8 +270,8 @@ def generate_configs(experiment_config, overwrite_params=None):
 
         if len(redefined_parameters) > 0:
             logging.info(
-                f"Found redefined parameters in sub-config '{current_sub_name}': {redefined_parameters}. "
-                f'Definitions in sub-configs override more general ones.'
+                f"Parameters {redefined_parameters} are redefined in sub-config '{current_sub_name}'.\n"
+                'Definitions in sub-configs override more general ones.'
             )
             config_above = copy.deepcopy(config_above)
             for p in redefined_parameters:

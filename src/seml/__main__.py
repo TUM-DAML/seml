@@ -1636,7 +1636,7 @@ def main():
                 cmd = args[1]
             else:
                 cmd = None
-            with console.status(f'Running command: {cmd}'):
+            with console.status(f'Running command: [italic blue]{cmd}[/italic blue]'):
                 app(args)
         except SystemExit as e:
             if e.code == 0:
