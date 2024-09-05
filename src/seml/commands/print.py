@@ -658,6 +658,8 @@ def generate_queue_table(
 
     from seml.console import Table
 
+    _NO_COLLECTION = 'No collection found'
+
     if job_ids:
         job_infos = get_slurm_jobs(*job_ids)
     else:
@@ -680,7 +682,7 @@ def generate_queue_table(
 
         collection = job.get('Comment', None)
         if not (collection and collection in all_collections):
-            collection = 'No collection found'
+            collection = _NO_COLLECTION
             if job['JobName'] == 'jupyter':
                 collection = 'Jupyter'
                 url, known_host = find_jupyter_host(job['StdOut'], False)
@@ -714,24 +716,30 @@ def generate_queue_table(
             job_id = array_id
         # In some SLURM versions, the NodeList is '(null)' when the job is not running
         # in other it's simply not set.
-        if nodelist and nodelist != '(null)':
-            # Running
-            collection = get_collection(db_col_name)
-            experiments = collection.find(
-                {
-                    'execution.cluster': cluster_name,
-                    'execution.array_id': int(array_id),
-                    'execution.task_id': int(task_id),
-                },
-                {'_id': 1},
-            )
-            ids = [exp['_id'] for exp in experiments]
-            if len(ids) > 0:
-                return f"{job_id} ({job_info['RunTime']}, {nodelist}, Id{s_if(len(ids))}: {'|'.join(map(str, ids))})"
-            else:
-                return f"{job_id} ({job_info['RunTime']}, {nodelist})"
+        suffix = ''
+        is_running = nodelist and nodelist != '(null)'
+        if db_col_name == _NO_COLLECTION:
+            if job_name := job_info.get('JobName'):
+                suffix = f', [green]{job_name}[/green]'
         else:
-            return f"{job_id} ({job_info.get('Reason', '')})"
+            if is_running:
+                # Running
+                collection = get_collection(db_col_name)
+                experiments = collection.find(
+                    {
+                        'execution.cluster': cluster_name,
+                        'execution.array_id': int(array_id),
+                        'execution.task_id': int(task_id) if task_id else None,
+                    },
+                    {'_id': 1},
+                )
+                if ids := [exp['_id'] for exp in experiments]:
+                    suffix = f", Id{s_if(len(ids))}: {'|'.join(map(str, ids))}"
+
+        if is_running:
+            return f"[bright_blue]{job_id}[/bright_blue] ({job_info['RunTime']}, {nodelist}{suffix})"
+        else:
+            return f"[bright_blue]{job_id}[/bright_blue] ({job_info.get('Reason', '')}{suffix})"
 
     for col in sorted(collections):
         row = [col]
