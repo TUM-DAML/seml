@@ -385,7 +385,10 @@ def start_local_job(
                 temp_dir = os.path.join(SETTINGS.TMP_DIRECTORY, str(uuid.uuid4()))
                 os.mkdir(temp_dir, mode=0o700)
                 load_sources_from_db(exp, collection, to_directory=temp_dir)
-                env = {'PYTHONPATH': f'{temp_dir}:$PYTHONPATH'}
+                # To support `src` layouts we should add the src directory to the PYTHONPATH.
+                # https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
+                src_temp_dir = os.path.join(temp_dir, 'src')
+                env = {'PYTHONPATH': f'{temp_dir}:{src_temp_dir}:$PYTHONPATH'}
                 temp_exe = os.path.join(temp_dir, exe)
                 # update the command to use the temp dir
                 cmd = get_shell_command(interpreter, temp_exe, config, env=env)
