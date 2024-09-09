@@ -114,6 +114,9 @@ def print_fail_trace(
             text_description.append('Description: ', style='bold magenta')
             text_description.append(description)
             renderables += [text_description, Rule(Text('Fail-Trace', style='bold'))]
+
+        if isinstance(fail_trace, str):
+            fail_trace = fail_trace.splitlines()
         renderables.append(''.join(['\t' + line for line in fail_trace] + []).strip())
         if len(projection) > 0:
             table_projection = Table(show_header=False)
