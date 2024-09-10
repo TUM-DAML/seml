@@ -541,26 +541,6 @@ def assert_package_installed(package: str, error: str):
         exit(1)
 
 
-def src_layout_to_flat_layout(original_path: Path | str):
-    """
-    Removes the first "src" directory from the path, handling any position.
-    For the imports to prefer our loaded seml version, we need to convert the src-layout to the flat-layout.
-    https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
-
-    Parameters:
-    ----------
-    original_path: Path | str
-        The original path.
-
-    Returns:
-        A new path object with "src" removed.
-    """
-    path = Path(original_path)
-    if path.parts[0] == 'src':
-        return Path(*path.parts[1:])
-    return path
-
-
 def find_jupyter_host(
     log_file: str | Path, wait: bool
 ) -> tuple[str | None, bool | None]:

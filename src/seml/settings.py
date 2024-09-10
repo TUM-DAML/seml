@@ -114,7 +114,6 @@ class Settings(SettingsDict):
     USER_SETTINGS_PATH: Path
     TMP_DIRECTORY: str
     TEMPLATE_REMOTE: str
-    CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY: bool
     DATABASE: DatabaseSettings
     SLURM_DEFAULT: SlurmConfig
     SBATCH_OPTIONS_TEMPLATES: SettingsDict[SBatchOptions]
@@ -158,7 +157,6 @@ SETTINGS = cast(
             # Only change this if you know what you're doing.
             'TMP_DIRECTORY': '/tmp',
             'TEMPLATE_REMOTE': 'https://github.com/TUM-DAML/seml-templates.git',
-            'CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY': True,
             'DATABASE': {
                 # location of the MongoDB config. Default: $HOME/.config/seml/monogdb.config
                 'MONGODB_CONFIG_PATH': APP_DIR / 'mongodb.config'

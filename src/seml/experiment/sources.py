@@ -15,7 +15,6 @@ from seml.utils import (
     assert_package_installed,
     is_local_file,
     s_if,
-    src_layout_to_flat_layout,
     working_directory,
 )
 from seml.utils.errors import ExecutableError, MongoDBError
@@ -195,7 +194,6 @@ def load_sources_from_db(
     experiment: ExperimentDoc,
     collection: Collection[ExperimentDoc],
     to_directory: str | Path,
-    remove_src_directory: bool = SETTINGS.CODE_CHECKPOINT_REMOVE_SRC_DIRECTORY,
 ):
     import gridfs
 
@@ -208,10 +206,6 @@ def load_sources_from_db(
     source_files = experiment['seml']['source_files']
     target_directory = Path(to_directory)
     for path, _id in source_files:
-        # For the imports to prefer our loaded seml version, we need to convert the src-layout to the flat-layout.
-        # https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
-        if remove_src_directory:
-            path = src_layout_to_flat_layout(path)
         out_path = target_directory / path
         # only current user can read, write, or execute
         out_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
