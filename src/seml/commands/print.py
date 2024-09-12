@@ -603,9 +603,12 @@ def print_output(
             # Select output file
             out_file = exp['seml'].get('output_file')
             if out_file is None or slurm:
+                if 'execution' not in exp:
+                    logging.error(f'Experiment {exp["_id"]} has not been executed yet.')
+                    continue
                 if not slurm:
                     logging.info(
-                        f'No experiment output file found for experiment {exp["_id"]}.'
+                        f'No experiment output file found for experiment {exp["_id"]}. '
                         'Using Slurm output instead.'
                     )
                 if 'slurm_output_file' in exp['execution']:
