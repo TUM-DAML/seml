@@ -93,6 +93,7 @@ class ConfirmThresholdSettings(SettingsDict[int]):
 class ExperimentSettings(SettingsDict):
     CAPTURE_OUTPUT: bool
     TERMINAL_WIDTH: int
+    ENVIRONMENT: dict[str, str]
 
 
 class MigrationSettings(SettingsDict):
@@ -280,6 +281,7 @@ SETTINGS = cast(
             'EXPERIMENT': {
                 'CAPTURE_OUTPUT': False,  # whether to capture the output of the experiment in the database
                 'TERMINAL_WIDTH': 80,  # width of the terminal for rich output
+                'ENVIRONMENT': {},  # Additional environment variables to set for the experiment - these override existing ones
             },
             'MIGRATION': {
                 'SKIP': False,  # always ignore migrations, changing this most likely breaks compatibility!

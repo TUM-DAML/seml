@@ -3,6 +3,7 @@ import functools
 import logging
 import os
 import sys
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import (
     Callable,
@@ -1634,11 +1635,12 @@ def main():
         from seml.console import console
 
         try:
-            if len(args) >= 2:
-                cmd = args[1]
-            else:
-                cmd = None
-            with console.status(f'Running command: [italic]{cmd}[/italic]'):
+            cmd = args[1] if len(args) >= 2 else None
+            with (
+                console.status(f'Running command: [italic]{cmd}[/italic]')
+                if cmd
+                else nullcontext()
+            ):
                 app(args)
         except SystemExit as e:
             if e.code == 0:

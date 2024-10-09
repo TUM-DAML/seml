@@ -46,6 +46,14 @@ States = SETTINGS.STATES
 SlurmStates = SETTINGS.SLURM_STATES
 
 
+def get_experiment_environment(experiment: ExperimentDoc):
+    env = {}
+    if exp_env := experiment['seml'].get('env'):
+        env = dict(exp_env)
+    env = {**env, **SETTINGS.EXPERIMENT.ENVIRONMENT}
+    return env
+
+
 def get_and_make_output_dir_path(config: ExperimentDoc):
     with working_directory(config['seml']['working_dir']):
         output_dir = config['seml'].get('output_dir', '.')
@@ -188,9 +196,8 @@ def start_sbatch_job(
     check_slurm_config(experiments_per_job, sbatch_options)
     srun_str = '' if experiments_per_job > 1 else 'srun '
     # Construct sbatch options string
-    sbatch_options_str = create_slurm_options_string(
-        sbatch_options, exp_array[0]['seml'].get('env'), False
-    )
+    env = get_experiment_environment(exp_array[0])
+    sbatch_options_str = create_slurm_options_string(sbatch_options, env, False)
 
     # Construct list with all experiment IDs
     expid_strings = f"{' '.join([str(exp['_id']) for exp in exp_array])}"
@@ -304,9 +311,8 @@ def start_srun_job(
         # srun will run 2 processes in parallel when ntasks is not specified. Probably because of hyperthreading.
         if 'ntasks' not in srun_options:
             srun_options['ntasks'] = 1
-        srun_options_str = create_slurm_options_string(
-            srun_options, exp['seml'].get('env'), True
-        )
+        env = get_experiment_environment(exp)
+        srun_options_str = create_slurm_options_string(srun_options, env, True)
 
         # Set command args for job inside Slurm
         cmd_args = f"--local --sacred-id {exp['_id']} "
@@ -388,7 +394,8 @@ def start_local_job(
                 # To support `src` layouts we should add the src directory to the PYTHONPATH.
                 # https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/
                 src_temp_dir = os.path.join(temp_dir, 'src')
-                env = {'PYTHONPATH': f'{temp_dir}:{src_temp_dir}:$PYTHONPATH'}
+                env = get_experiment_environment(exp)
+                env = {**env, 'PYTHONPATH': f'{temp_dir}:{src_temp_dir}:$PYTHONPATH'}
                 temp_exe = os.path.join(temp_dir, exe)
                 # update the command to use the temp dir
                 cmd = get_shell_command(interpreter, temp_exe, config, env=env)
