@@ -442,14 +442,14 @@ def clean_unreferenced_artifacts(
         return
 
     logging.info(
-        f'Deleting {n_delete} not referenced artifact{s_if(n_delete)} from database {db.name}. WARNING: This cannot be undone! Artifacts/ files might have been inserted to MongoDB manually or by tools other than seml/ sacred. They will be deleted.'
+        f'Deleting {n_delete} unreferenced artifact{s_if(n_delete)} from database {db.name}. WARNING: This cannot be undone! Artifacts/files might have been inserted to MongoDB manually or by tools other than seml/sacred. They will be deleted.'
     )
     if not yes and not prompt('Are you sure? (y/n)', type=bool):
         exit(1)
-    logging.info('Deleting not referenced artifacts...')
+    logging.info('Deleting unreferenced artifacts...')
     delete_files(db, not_referenced_artifacts)
     logging.info(
-        f'Successfully deleted {n_delete} not referenced artifact{s_if(n_delete)}.'
+        f'Successfully deleted {n_delete} unreferenced artifact{s_if(n_delete)}.'
     )
 
 
