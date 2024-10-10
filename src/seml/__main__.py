@@ -1283,7 +1283,7 @@ def release_command(
     batch_id: BatchIdAnnotation = None,
 ):
     """
-    Release holded experiments via SLURM.
+    Release held experiments via SLURM.
     """
     from seml.commands.slurm import hold_or_release_experiments
 

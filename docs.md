@@ -46,7 +46,7 @@ $ seml [OPTIONS] COLLECTION COMMAND1 [ARGS]... [COMMAND2 [ARGS]...]...
 * `print-output`: Print the output of experiments.
 * `project`: Setting up new projects.
 * `queue`: Prints the collections of the given job IDs.
-* `release`: Release holded experiments via SLURM.
+* `release`: Release held experiments via SLURM.
 * `reload-sources`: Reload stashed source files.
 * `reset`: Reset the state of experiments by setting...
 * `start`: Fetch staged experiments from the database...
@@ -592,7 +592,7 @@ $ seml queue [OPTIONS] [JOB_IDS]...
 
 ## `seml release`
 
-Release holded experiments via SLURM.
+Release held experiments via SLURM.
 
 **Usage**:
 
