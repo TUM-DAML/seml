@@ -897,8 +897,11 @@ def start_experiments(
         num_exps=num_exps,
         set_to_pending=set_to_pending and local,
     )
-
-    if debug_server and staged_experiments:
+    
+    if not staged_experiments:
+        logging.info('No experiments to run.')
+        return
+    if debug_server:
         use_stored_sources = 'source_files' in staged_experiments[0]['seml']
         if use_stored_sources:
             raise ArgumentError(
