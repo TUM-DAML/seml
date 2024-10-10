@@ -898,7 +898,7 @@ def start_experiments(
         set_to_pending=set_to_pending and local,
     )
 
-    if debug_server:
+    if debug_server and staged_experiments:
         use_stored_sources = 'source_files' in staged_experiments[0]['seml']
         if use_stored_sources:
             raise ArgumentError(
