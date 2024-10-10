@@ -3,7 +3,8 @@ requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version < '3.11'",
     "python_full_version == '3.11.*'",
-    "python_full_version >= '3.12'",
+    "python_full_version == '3.12.*'",
+    "python_full_version >= '3.13'",
 ]
 
 [[package]]
@@ -1107,7 +1108,8 @@ requires-dist = [
     { name = "importlib-resources", specifier = ">=5.7.0" },
     { name = "jsonpickle", specifier = ">=2.2" },
     { name = "munch", specifier = ">=4.0" },
-    { name = "numpy", specifier = ">=1.15" },
+    { name = "numpy", marker = "python_full_version < '3.13'", specifier = ">=1.15" },
+    { name = "numpy", marker = "python_full_version >= '3.13'", specifier = ">=2.1" },
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.8.0" },

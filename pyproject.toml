@@ -19,7 +19,8 @@ maintainers = [
 classifiers = ["Programming Language :: Python"]
 
 dependencies = [
-    "numpy>=1.15",
+    "numpy>=1.15; python_version < '3.13'",
+    "numpy>=2.1; python_version >= '3.13'",
     "pymongo>=4.1",
     "pandas>=2.2",
     "sacred>=0.8.4",
