@@ -898,6 +898,9 @@ def start_experiments(
         set_to_pending=set_to_pending and local,
     )
 
+    if not staged_experiments:
+        logging.info('No experiments to run.')
+        return
     if debug_server:
         use_stored_sources = 'source_files' in staged_experiments[0]['seml']
         if use_stored_sources:
