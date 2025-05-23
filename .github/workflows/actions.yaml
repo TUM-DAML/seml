@@ -79,7 +79,7 @@ jobs:
           version: "0.4.20"
           enable-cache: true
       - name: Setup virtual env
-        run: uv sync -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }}
+        run: uv sync -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }} -U
       - name: Setup seml config
         run: uv run seml configure --host=localhost --port=27017 --database=seml --username=seml --password=seml
       - name: Add
