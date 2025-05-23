@@ -23,12 +23,12 @@ jobs:
           enable-cache: true
       # Test whether the CLI is working
       - name: Test CLI
-        run: uv run -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }}  seml
+        run: uv run -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }} -U seml
       # Test with pytest
       - name: Test with pytest
         run: |
           cd test
-          uv run -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }} pytest
+          uv run -p ${{ matrix.python-version }} --resolution ${{ matrix.resolution }} -U pytest
 
   # Test commands in a dummy environment
   commands:
