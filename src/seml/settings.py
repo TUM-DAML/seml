@@ -36,6 +36,7 @@ class States(SettingsDict[List[str]]):
     STAGED: list[str]
     PENDING: list[str]
     RUNNING: list[str]
+    RESCHEDULED: list[str]
     FAILED: list[str]
     KILLED: list[str]
     INTERRUPTED: list[str]
@@ -197,6 +198,7 @@ SETTINGS = cast(
                 'KILLED': ['KILLED'],
                 'INTERRUPTED': ['INTERRUPTED'],
                 'COMPLETED': ['COMPLETED'],
+                'RESCHEDULED': ['RESCHEDULED'],
             },
             'SLURM_STATES': {
                 'PENDING': [

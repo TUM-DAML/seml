@@ -28,6 +28,7 @@ from seml.utils import (
     assert_package_installed,
     find_jupyter_host,
     load_text_resource,
+    merge_dicts,
     s_if,
     working_directory,
 )
@@ -1128,7 +1129,10 @@ def claim_experiment(db_collection_name: str, exp_ids: Sequence[int]):
             'execution.cluster': cluster_name,
         }
         exp = collection.find_one_and_update(
-            {'_id': {'$in': list(exp_ids)}, 'status': {'$in': States.PENDING}},
+            {
+                '_id': {'$in': list(exp_ids)},
+                'status': {'$in': States.PENDING + States.RESCHEDULED},
+            },
             {'$set': {'status': States.RUNNING[0], **update}},
             {'_id': 1, 'slurm': 1},
         )
@@ -1258,6 +1262,14 @@ def prepare_experiment(
         name = str(uuid.uuid4())
     output_file = f'{output_dir}/{name}_{exp["_id"]}.out'
 
+    # Let's apply the reschedule updates, if we are rescheduling
+    if 'reschedule_config_update' in exp:
+        reschedule_update = exp['reschedule_config_update']
+        assert isinstance(
+            reschedule_update, dict
+        ), f'Encountered faulty type {type(reschedule_update)} for reschedule_update in database.'
+        exp['config'] = merge_dicts(exp['config'], reschedule_update)
+
     interpreter, exe, config = get_command_from_exp(
         exp,
         db_collection_name,
@@ -1294,6 +1306,6 @@ def prepare_experiment(
         collection.update_one({'_id': exp['_id']}, {'$set': updates})
 
     # Print the command to be ran.
-    print(f'{cmd} > {output_file} 2>&1')
+    print(f'{cmd} >> {output_file} 2>&1')
     # We exit with 0 to signal that the preparation was successful.
     exit(0)

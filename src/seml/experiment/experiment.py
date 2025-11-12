@@ -38,7 +38,7 @@ class LoggerOptions(Enum):
 
 
 class RescheduleInterrupt(SacredInterrupt):
-    STATUS = States.PENDING[0]
+    STATUS = States.RESCHEDULED[0]
 
 
 class Experiment(ExperimentBase):
@@ -163,19 +163,25 @@ class Experiment(ExperimentBase):
             )
             logging.info('Reschedule hook returned new configuration: ' f'{new_config}')
 
-            # Merge config update with experiment doc
-            exp = self._get_exp_document_from_db()
-            assert exp is not None, (
-                'Could not retrieve experiment document from database.'
-                ' Rescheduling not possible.'
-            )
-            collection = self._get_db_collection()
-            assert collection is not None
-            # TODO: TIGRU: Update config of experiment document in the database
+            # Add the new_config to the database
+            self._add_reschedule_config_to_db(new_config)
 
             raise RescheduleInterrupt
 
         return _reschedule_hook
+
+    def _add_reschedule_config_to_db(self, config: dict):
+        collection = self._get_db_collection()
+        assert collection is not None
+        exp_id = self._get_exp_id()
+        assert exp_id is not None
+
+        result = collection.update_one(
+            {'_id': exp_id},
+            {'$set': {'reschedule_config_update': config}},
+            upsert=True,
+        )
+        print(result)
 
     def _get_db_collection(self) -> Optional[Collection[ExperimentDoc]]:
         assert self.current_run is not None

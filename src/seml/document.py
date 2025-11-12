@@ -420,6 +420,9 @@ class ExperimentDoc(TypedDict, total=True):
         The statistics about runtime and memory consumption of the experiment.
     stop_time: datetime
         The time at which the experiment has been stopped.
+    reschedule_config_update: dict[str, Any] | None
+        If the experiment has been rescheduled, this contains the configuration update
+        that must be applied during rescheduling.
     """
 
     # Set at init
@@ -451,6 +454,7 @@ class ExperimentDoc(TypedDict, total=True):
     start_time: datetime
     stats: StatsDoc
     stop_time: datetime
+    reschedule_config_update: dict[str, Any] | None
 
 
 class ExperimentConfig(TypedDict, total=False, closed=True):
