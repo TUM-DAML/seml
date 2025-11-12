@@ -210,14 +210,14 @@ seml seml_example add example_config.yaml
 If you open your MongoDB (e.g. with the software `robo3t`), you should now find a collection `seml_example` with the staged experiments.
 Note that the collection name is specified _before_ the operation (`add`).
 
-To see what the option `--force-duplicates` does, run the above command again. The output should now read something like:
+To see what the option `--force` does, run the above command again. The output should now read something like:
 
 ```
 72 of 72 experiments were already found in the database. They were not added again.
 ```
 
 That is, the script checks whether experiments with the same configuration are already in the database collection.
-In this case, they are not added to the database to avoid redundant computations. In order to force add duplicates to the database, use the `--force-duplicates` argument.
+In this case, they are not added to the database to avoid redundant computations. In order to force add duplicates to the database, use the `--force` argument.
 
 All experiments are now already in the database collection you specified and in the STAGED state.
 
