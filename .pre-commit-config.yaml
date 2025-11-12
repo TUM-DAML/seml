@@ -47,7 +47,8 @@ repos:
           - numpy>=1.15; python_version < '3.13'
           - numpy>=2.1; python_version >= '3.13'
           - pymongo>=4.1
-          - pandas>=2.2
+          - pandas>=2.2; python_version < '3.13'
+          - pandas>=2.2.3; python_version >= '3.13'
           - sacred>=0.8.4
           - pyyaml>=5.1
           - jsonpickle>=2.2
@@ -55,7 +56,8 @@ repos:
           - debugpy>=1.2.1
           - requests>=2.28.1
           - typer>=0.12
-          - rich>=13.0
+          - rich>=13.0,<14.1
+          - click>=8.0
           - omegaconf>=2.3.0
           - gitignore_parser>=0.1.11
           - setuptools>=69.2.0
