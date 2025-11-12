@@ -1,5 +1,7 @@
 import copy
+import os
 import unittest
+from pathlib import Path
 
 import yaml
 from seml import utils
@@ -12,6 +14,15 @@ from seml.utils.errors import ConfigError
 
 
 class TestParseConfigDicts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls._orig_cwd = os.getcwd()
+        os.chdir(Path(__file__).parent)
+
+    @classmethod
+    def tearDownClass(cls):
+        os.chdir(cls._orig_cwd)
+
     SIMPLE_CONFIG_WITH_PARAMETER_COLLECTIONS = (
         "resources/config/config_with_parameter_collections.yaml"
     )
