@@ -138,7 +138,8 @@ def start_sbatch_job(
     sbatch_options: SBatchOptions,
     unobserved: bool = False,
     name: str | None = None,
-    output_dir_path: str = '.',
+    output_path: str = '.',
+    output_to_file: bool = True,
     max_simultaneous_jobs: int | None = None,
     experiments_per_job: int = 1,
     debug_server: bool = False,
@@ -183,13 +184,17 @@ def start_sbatch_job(
         raise ConfigError(
             "Can't set sbatch `output` Parameter explicitly. SEML will do that for you."
         )
-    elif output_dir_path == '/dev/null':
-        output_file = output_dir_path
+    elif not output_to_file:
+        slurm_output_file = '/dev/null'
     else:
-        output_file = f'{output_dir_path}/{name}_%A_%a.out'
+        slurm_output_file = f'{output_path}/{name}_%A_%a.out'
         # Ensure that the output path exists
-        Path(output_file).parent.mkdir(exist_ok=True)
-    sbatch_options['output'] = output_file
+        Path(slurm_output_file).parent.mkdir(exist_ok=True)
+
+    reschedule_output_file = f'{output_path}/{name}_%A_%a.reschedule'
+    Path(reschedule_output_file).parent.mkdir(exist_ok=True)
+
+    sbatch_options['output'] = slurm_output_file
     sbatch_options['job-name'] = name
 
     # Construct srun options if experiments_per_job > 1
@@ -229,6 +234,7 @@ def start_sbatch_job(
         'tmp_directory': SETTINGS.TMP_DIRECTORY,
         'experiments_per_job': str(experiments_per_job),
         'maybe_srun': srun_str,
+        'reschedule_file': reschedule_output_file,
     }
     variables = {
         **variables,
@@ -236,6 +242,9 @@ def start_sbatch_job(
         'end_command': SETTINGS.END_COMMAND.format(**variables),
     }
     # Construct Slurm script
+    # TODO: TIGRU: Make the time limit for rescheduling configurable
+    # TODO: TIGRU: Potentially remove requeuing from template and create a new experiment
+    # from the reschedule_hook
     template = load_text_resource('templates/slurm/slurm_template.sh')
     script = template.format(**variables)
 
@@ -261,7 +270,10 @@ def start_sbatch_job(
         return
 
     slurm_array_job_id = int(output.split(b' ')[-1])
-    output_file = output_file.replace('%A', str(slurm_array_job_id))
+    slurm_output_file = slurm_output_file.replace('%A', str(slurm_array_job_id))
+    reschedule_output_file = reschedule_output_file.replace(
+        '%A', str(slurm_array_job_id)
+    )
     cluster_name = get_cluster_name()
     collection.update_many(
         {'_id': {'$in': [exp['_id'] for exp in exp_array]}},
@@ -270,7 +282,8 @@ def start_sbatch_job(
                 'status': States.PENDING[0],
                 f'slurm.{slurm_options_id}.array_id': slurm_array_job_id,
                 f'slurm.{slurm_options_id}.num_tasks': num_tasks,
-                f'slurm.{slurm_options_id}.output_files_template': output_file,
+                f'slurm.{slurm_options_id}.output_files_template': slurm_output_file,
+                f'slurm.{slurm_options_id}.reschedule_file': reschedule_output_file,
                 f'slurm.{slurm_options_id}.sbatch_options': sbatch_options,
                 'execution.cluster': cluster_name,
             }
@@ -616,10 +629,7 @@ def add_to_slurm_queue(
             )
             narrays += 1
         else:
-            if output_to_file:
-                output_dir_path = get_and_make_output_dir_path(exp_array[0])
-            else:
-                output_dir_path = '/dev/null'
+            output_dir_path = get_and_make_output_dir_path(exp_array[0])
             assert not post_mortem
             for slurm_options_id, slurm_option in enumerate(slurm_options):
                 set_slurm_job_name(
@@ -635,7 +645,8 @@ def add_to_slurm_queue(
                     slurm_option['sbatch_options'],
                     unobserved,
                     name=job_name,
-                    output_dir_path=output_dir_path,
+                    output_path=output_dir_path,
+                    output_to_file=output_to_file,
                     max_simultaneous_jobs=slurm_option.get('max_simultaneous_jobs'),
                     experiments_per_job=slurm_option.get('experiments_per_job', 1),
                     debug_server=debug_server,
@@ -1128,9 +1139,16 @@ def claim_experiment(db_collection_name: str, exp_ids: Sequence[int]):
             if s_conf['array_id'] == array_id:
                 output_file = s_conf['output_files_template']
                 output_file = output_file.replace('%a', str(task_id))
+                reschedule_file = s_conf.get('reschedule_file', '')
+                reschedule_file = reschedule_file.replace('%a', str(task_id))
                 collection.update_one(
                     {'_id': exp['_id']},
-                    {'$set': {'execution.slurm_output_file': output_file}},
+                    {
+                        '$set': {
+                            'execution.slurm_output_file': output_file,
+                            'execution.reschedule_file': reschedule_file,
+                        }
+                    },
                 )
     else:
         # Steal slurm

@@ -1,0 +1,17 @@
+seml:
+  executable: example_reschedule.py
+  name: example_reschedule_experiment
+  output_dir: logs
+  project_root_dir: .
+  description: An example configuration with rescheduling.
+
+slurm:
+  - experiments_per_job: 1
+    sbatch_options:
+      mem: 1G
+      cpus-per-task: 1
+      time: 00:01:00
+      partition: cpu_all
+
+fixed:
+  n_steps: 1000

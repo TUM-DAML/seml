@@ -1,5 +1,7 @@
 #!/bin/bash
 {sbatch_options}
+#SBATCH --signal=B:USR1@20
+#SBATCH --open-mode=append
 
 # Execute optional bash commands
 {setup_command}
@@ -10,6 +12,13 @@ cd {working_dir}
 # Print job information
 echo "Starting job ${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}"
 echo "SLURM assigned me the node(s): ${{SLURM_NODELIST}}"
+
+# Process signal for rescheduling
+_res_template="{reschedule_file}"
+reschedule_file="${{_res_template//%A/${{SLURM_ARRAY_JOB_ID}}}}"
+reschedule_file="${{reschedule_file//%a/${{SLURM_ARRAY_TASK_ID}}}}"
+echo "Touching file ${{reschedule_file}} before timeout for rescheduling."
+trap "touch ${{reschedule_file}}" USR1
 
 # Activate Anaconda environment
 if {use_conda_env}; then
@@ -81,6 +90,12 @@ if {with_sources}; then
     done
 fi
 
-
 # Execute optional bash commands
 {end_command}
+
+# Delete reschedule signal file and requeue this job
+if [ -f ${{reschedule_file}} ]; then
+    rm ${{reschedule_file}}
+    echo "Rescheduling job ${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}"
+    scontrol requeue ${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}
+fi

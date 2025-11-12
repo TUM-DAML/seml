@@ -156,11 +156,15 @@ class SlurmDoc(SlurmConfig):
         The number of tasks in the SLURM job.
     output_files_template : str
         The template for the output files. The template must contain the placeholders {array_id} and {task_id}.
+    reschedule_file : str
+        The path to the reschedule file for this SLURM job. This is set regardless of whether an experiment
+        is actually executed by this SLURM job, i.e. whether the job manages to claim the experiment.
     """
 
     array_id: int
     num_tasks: int
     output_files_template: str
+    reschedule_file: str
 
 
 class GitDoc(TypedDict):
@@ -196,12 +200,16 @@ class ExecutionDoc(TypedDict):
         The task ID of the SLURM job.
     slurm_output_file: str
         The output file of the SLURM job.
+    reschedule_file: str
+        The reschedule file of the SLURM job. This is only set once an experiment is actually
+        executed by the SLURM job.
     """
 
     cluster: str
     array_id: int
     task_id: int
     slurm_output_file: str
+    reschedule_file: str
 
 
 class SacredExperimentDoc(TypedDict):
