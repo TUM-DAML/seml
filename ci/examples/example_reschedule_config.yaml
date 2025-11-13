@@ -4,6 +4,7 @@ seml:
   output_dir: logs
   project_root_dir: .
   description: An example configuration with rescheduling.
+  reschedule_timeout: 30 # seconds
 
 slurm:
   - experiments_per_job: 1

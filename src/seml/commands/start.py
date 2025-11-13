@@ -194,6 +194,11 @@ def start_sbatch_job(
 
     reschedule_output_file = f'{output_path}/{name}_%A_%a.reschedule'
     Path(reschedule_output_file).parent.mkdir(exist_ok=True)
+    reschedule_request_file = f'{reschedule_output_file}.request'
+    reschedule_timeout = seml_conf.get('reschedule_timeout')
+    reschedule_signal_directive = ''
+    if reschedule_timeout:
+        reschedule_signal_directive = f'#SBATCH --signal=B:USR1@{reschedule_timeout}'
 
     sbatch_options['output'] = slurm_output_file
     sbatch_options['job-name'] = name
@@ -236,6 +241,8 @@ def start_sbatch_job(
         'experiments_per_job': str(experiments_per_job),
         'maybe_srun': srun_str,
         'reschedule_file': reschedule_output_file,
+        'reschedule_request_file': reschedule_request_file,
+        'reschedule_signal_directive': reschedule_signal_directive,
     }
     variables = {
         **variables,
@@ -243,9 +250,6 @@ def start_sbatch_job(
         'end_command': SETTINGS.END_COMMAND.format(**variables),
     }
     # Construct Slurm script
-    # TODO: TIGRU: Make the time limit for rescheduling configurable
-    # TODO: TIGRU: Potentially remove requeuing from template and create a new experiment
-    # from the reschedule_hook
     template = load_text_resource('templates/slurm/slurm_template.sh')
     script = template.format(**variables)
 

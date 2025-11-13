@@ -236,6 +236,7 @@ SETTINGS = cast(
                 'project_root_dir',
                 'description',
                 'stash_all_py_files',
+                'reschedule_timeout',
             ],
             'SEML_CONFIG_VALUE_VERSION': 'version',
             'VALID_SLURM_CONFIG_VALUES': [

@@ -1,6 +1,6 @@
 #!/bin/bash
 {sbatch_options}
-#SBATCH --signal=B:USR1@20
+{reschedule_signal_directive}
 #SBATCH --open-mode=append
 
 # Execute optional bash commands
@@ -17,6 +17,9 @@ echo "SLURM assigned me the node(s): ${{SLURM_NODELIST}}"
 _res_template="{reschedule_file}"
 reschedule_file="${{_res_template//%A/${{SLURM_ARRAY_JOB_ID}}}}"
 reschedule_file="${{reschedule_file//%a/${{SLURM_ARRAY_TASK_ID}}}}"
+_req_template="{reschedule_request_file}"
+reschedule_request_file="${{_req_template//%A/${{SLURM_ARRAY_JOB_ID}}}}"
+reschedule_request_file="${{reschedule_request_file//%a/${{SLURM_ARRAY_TASK_ID}}}}"
 echo "Touching file ${{reschedule_file}} before timeout for rescheduling."
 trap "touch ${{reschedule_file}}" USR1
 
@@ -93,9 +96,12 @@ fi
 # Execute optional bash commands
 {end_command}
 
-# Delete reschedule signal file and requeue this job
-if [ -f ${{reschedule_file}} ]; then
-    rm ${{reschedule_file}}
+# Delete reschedule signal file and requeue this job if requested
+if [ -f ${{reschedule_file}} ] && [ -f ${{reschedule_request_file}} ]; then
+    rm -f ${{reschedule_file}} ${{reschedule_request_file}}
     echo "Rescheduling job ${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}"
     scontrol requeue ${{SLURM_ARRAY_JOB_ID}}_${{SLURM_ARRAY_TASK_ID}}
+else
+    rm -f ${{reschedule_file}} ${{reschedule_request_file}}
 fi
+
