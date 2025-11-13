@@ -4,14 +4,14 @@ seml:
   output_dir: logs
   project_root_dir: .
   description: An example configuration with rescheduling.
-  reschedule_timeout: 30 # seconds
+  reschedule_timeout: 120 # seconds
 
 slurm:
   - experiments_per_job: 1
     sbatch_options:
       mem: 1G
       cpus-per-task: 1
-      time: 00:01:00
+      time: 00:03:00
       partition: cpu_all
 
 fixed:

@@ -45,7 +45,18 @@ def create_mongodb_observer(
     -------
     observer: MongoObserver
     """
-    from sacred.observers import MongoObserver
+    from sacred.observers import MongoObserver as SacredMongoObserver
+
+    class MongoObserver(SacredMongoObserver):
+        def set_reschedule_config_update(self, reschedule_config_update: dict):
+            if not isinstance(getattr(self, 'run_entry', None), dict):
+                logging.debug(
+                    'MongoObserver.run_entry not initialized yet. '
+                    'Ignoring set_reschedule_config_update call.'
+                )
+                return
+            assert isinstance(self.run_entry, dict)
+            self.run_entry['reschedule_config_update'] = reschedule_config_update
 
     if mongodb_config is None:
         mongodb_config = get_mongodb_config()

@@ -214,16 +214,14 @@ class Experiment(ExperimentBase):
         return True
 
     def _add_reschedule_config_to_db(self, config: dict):
-        collection = self._get_db_collection()
-        assert collection is not None
-        exp_id = self._get_exp_id()
-        assert exp_id is not None
-
-        collection.update_one(
-            {'_id': exp_id},
-            {'$set': {'reschedule_config_update': config}},
-            upsert=True,
-        )
+        run = self.current_run
+        assert run is not None
+        for observer in run.observers:
+            if hasattr(observer, 'set_reschedule_config_update'):
+                logging.info(
+                    'Adding reschedule configuration update to the database observer.'
+                )
+                observer.set_reschedule_config_update(config)
 
     def _get_db_collection(self) -> Optional[Collection[ExperimentDoc]]:
         assert self.current_run is not None
