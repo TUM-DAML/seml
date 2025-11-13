@@ -4,7 +4,16 @@ import resource
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Sequence, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    List,
+    Optional,
+    ParamSpec,
+    Sequence,
+    Union,
+    cast,
+)
 
 from pymongo.collection import Collection
 
@@ -102,7 +111,9 @@ class Experiment(ExperimentBase):
             options=options,
         )
 
-    def reschedule_hook(self, f):
+    P = ParamSpec('P')
+
+    def reschedule_hook(self, f: Callable[P, dict]) -> Callable[P, None]:
         """Decorator to register the reschedule hook.
 
         In case of a required rescheduling, the decorated function will be called.
@@ -111,12 +122,12 @@ class Experiment(ExperimentBase):
 
         Parameters
         ----------
-        f: Callable[[..., dict]]
+        f: Callable[P, dict]
             User-defined function to be called when rescheduling is triggered.
 
         Returns
         -------
-        Callable
+        Callable[P, None]
             Wrapped function that checks for rescheduling and calls the user-defined function.
 
 
