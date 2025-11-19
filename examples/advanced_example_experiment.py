@@ -147,6 +147,9 @@ class ExperimentWrapper:
         # everything is set up
         for e in range(num_epochs):
             # simulate training
+
+            # calling reschedule hook
+            reschedule_hook(model_weights={}, step=e)
             continue
         results = {
             "test_acc": 0.5 + 0.3 * np.random.randn(),
@@ -163,6 +166,22 @@ def get_experiment(init_all=False):
     print("get_experiment")
     experiment = ExperimentWrapper(init_all=init_all)
     return experiment
+
+
+# This function will be called when the reschedule is triggered.
+# It should save the current state of the experiment and return a
+# dictionary that may be used to update the configuration upon rescheduling.
+# You are responsible for implementing the actual saving/loading of the experiment state
+# due to the updated config.
+@ex.reschedule_hook
+def reschedule_hook(model_weights, step, **kwargs):
+    # Here you would save the current state of the experiment
+    # and return any necessary configuration updates.
+
+    # !!! You will need to call this function regularly from within your training loop
+    # to check if rescheduling is needed.
+    # Pass everything you need to store your state to this function.
+    return {"checkpoint_path": "path/to/saved/checkpoint"}
 
 
 # This function will be called by default. Note that we could in principle manually pass an experiment instance,

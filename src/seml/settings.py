@@ -36,6 +36,7 @@ class States(SettingsDict[List[str]]):
     STAGED: list[str]
     PENDING: list[str]
     RUNNING: list[str]
+    RESCHEDULED: list[str]
     FAILED: list[str]
     KILLED: list[str]
     INTERRUPTED: list[str]
@@ -197,6 +198,7 @@ SETTINGS = cast(
                 'KILLED': ['KILLED'],
                 'INTERRUPTED': ['INTERRUPTED'],
                 'COMPLETED': ['COMPLETED'],
+                'RESCHEDULED': ['RESCHEDULED'],
             },
             'SLURM_STATES': {
                 'PENDING': [
@@ -234,6 +236,7 @@ SETTINGS = cast(
                 'project_root_dir',
                 'description',
                 'stash_all_py_files',
+                'reschedule_timeout',
             ],
             'SEML_CONFIG_VALUE_VERSION': 'version',
             'VALID_SLURM_CONFIG_VALUES': [

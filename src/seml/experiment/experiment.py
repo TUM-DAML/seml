@@ -3,9 +3,22 @@ import logging
 import resource
 import sys
 from enum import Enum
-from typing import TYPE_CHECKING, List, Optional, Sequence, Union, cast
+from pathlib import Path
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    List,
+    Optional,
+    ParamSpec,
+    Sequence,
+    Union,
+    cast,
+)
 
-from seml.database import get_collection
+from pymongo.collection import Collection
+
+from seml.database import States, get_collection
+from seml.document import ExperimentDoc
 from seml.experiment.observers import create_mongodb_observer
 from seml.settings import SETTINGS
 from seml.utils.multi_process import is_main_process
@@ -24,6 +37,7 @@ from sacred.config.utils import (
     recursive_fill_in,
     undogmatize,
 )
+from sacred.utils import SacredInterrupt
 
 
 class LoggerOptions(Enum):
@@ -32,7 +46,14 @@ class LoggerOptions(Enum):
     RICH = 'rich'
 
 
+class RescheduleInterrupt(SacredInterrupt):
+    STATUS = States.RESCHEDULED[0]
+
+
 class Experiment(ExperimentBase):
+    _reschedule_watch_path: Path | None
+    _reschedule_hook_registered: bool
+
     def __init__(
         self,
         name: Optional[str] = None,
@@ -65,6 +86,9 @@ class Experiment(ExperimentBase):
         if collect_stats:
             self.post_run_hook(lambda _run: _collect_exp_stats(_run))
 
+        self._reschedule_watch_path = None
+        self._reschedule_hook_registered = False
+
     def run(
         self,
         command_name: Optional[str] = None,
@@ -86,6 +110,191 @@ class Experiment(ExperimentBase):
             meta_info=meta_info,
             options=options,
         )
+
+    P = ParamSpec('P')
+
+    def reschedule_hook(self, f: Callable[P, dict]) -> Callable[P, None]:
+        """Decorator to register the reschedule hook.
+
+        In case of a required rescheduling, the decorated function will be called.
+        It should return a config dictionary that will be used to update the current
+        configuration before submitting the rescheduled job.
+
+        Parameters
+        ----------
+        f: Callable[P, dict]
+            User-defined function to be called when rescheduling is triggered.
+
+        Returns
+        -------
+        Callable[P, None]
+            Wrapped function that checks for rescheduling and calls the user-defined function.
+
+
+        Example
+        -------
+
+        ```python
+        from seml import Experiment
+        ex = Experiment()
+
+        @ex.reschedule_hook
+        def reschedule(step: int):
+            print(f'Reschedule triggered at step {step}.')
+            return {'checkpoint': step}
+
+        @ex.automain
+        def run(n_steps: int, checkpoint: int | None = None):
+            if checkpoint is not None:
+                print(f'Resuming from checkpoint: {checkpoint}')
+            for step in range(checkpoint or 0, n_steps):
+                reschedule(step)
+                print(f'Processing step {step + 1}/{n_steps}')
+            print('Experiment completed successfully.')
+        ```
+        """
+
+        self._reschedule_hook_registered = True
+
+        def _reschedule_hook(*args, **kwargs):
+            if not is_main_process():
+                return
+
+            if not self._ensure_reschedule_hook_ready():
+                return
+
+            assert self._reschedule_watch_path is not None
+            if not Path(self._reschedule_watch_path).exists():
+                return
+
+            # If yes, call the user-defined function
+            logging.info('Caught reschedule signal, calling reschedule_hook.')
+            new_config = f(*args, **kwargs)
+            assert isinstance(new_config, dict), (
+                'Reschedule hook must return a configuration dictionary.'
+                f' Got type:  + {type(new_config)}'
+            )
+            logging.info('Reschedule hook returned new configuration: ' f'{new_config}')
+
+            # Add the new_config to the database
+            self._add_reschedule_config_to_db(new_config)
+            self._touch_reschedule_request_file()
+
+            raise RescheduleInterrupt
+
+        return _reschedule_hook
+
+    def _ensure_reschedule_hook_ready(self) -> bool:
+        # Exit, in case the hook is already disabled
+        if not self._reschedule_hook_registered:
+            return False
+
+        # Exit, if already initialized
+        if self._reschedule_watch_path is not None:
+            return True
+
+        # Initialize the reschedule hook
+        exp = self._get_exp_document_from_db()
+        if exp is None:
+            logging.warning(
+                'Failed to retrieve experiment document from database.'
+                ' Disabling reschedule hook.'
+            )
+            self._reschedule_hook_registered = False
+            return False
+
+        if self._is_local_execution(exp):
+            logging.info('Experiment is executed locally. Reschedule hook is ignored.')
+            self._reschedule_hook_registered = False
+            return False
+
+        if not self._is_reschedule_timeout_configured(exp):
+            logging.info(
+                'No reschedule timeout configured for this experiment.'
+                ' Disabling reschedule hook.'
+            )
+            self._reschedule_hook_registered = False
+            return False
+
+        reschedule_path = self._get_reschedule_signal_file(exp)
+        logging.info(
+            'Found signal path for reschedule hook.'
+            f' Watching for file: {reschedule_path.as_posix()}'
+        )
+        self._reschedule_watch_path = reschedule_path
+        return True
+
+    def _add_reschedule_config_to_db(self, config: dict):
+        run = self.current_run
+        assert run is not None
+        for observer in run.observers:
+            if hasattr(observer, 'set_reschedule_config_update'):
+                logging.info(
+                    'Adding reschedule configuration update to the database observer.'
+                )
+                observer.set_reschedule_config_update(config)
+
+    def _get_db_collection(self) -> Optional[Collection[ExperimentDoc]]:
+        assert self.current_run is not None
+        db_collection = self.current_run.config.get('db_collection')
+        if db_collection is None:
+            logging.warning(
+                'Failed to retrieve `db_collection`'
+                ' Was the reschedule_hook called outside a SEML-managed experiment?'
+            )
+            return None
+        db_collection = get_collection(db_collection)
+        return db_collection
+
+    def _get_exp_id(self) -> Optional[int]:
+        assert self.current_run is not None
+        exp_id = self.current_run.config.get('overwrite')
+        if exp_id is None:
+            logging.warning(
+                'Failed to retrieve experiment ID from `overwrite` field.'
+                ' Is this execution unobserved?'
+            )
+        return exp_id
+
+    def _get_exp_document_from_db(self) -> Optional[ExperimentDoc]:
+        db_collection = self._get_db_collection()
+        exp_id = self._get_exp_id()
+        if db_collection is None or exp_id is None:
+            return None
+        exp = db_collection.find_one(exp_id)
+        if exp is None:
+            logging.warning(
+                f'No experiment with ID {exp_id} found in database.'
+                ' Cannot retrieve experiment document.'
+            )
+        return exp
+
+    @staticmethod
+    def _is_reschedule_timeout_configured(exp: ExperimentDoc) -> bool:
+        timeout = exp.get('seml', {}).get('reschedule_timeout')
+        if not timeout:
+            return False
+        return True
+
+    @staticmethod
+    def _is_local_execution(exp: ExperimentDoc) -> bool:
+        cluster = exp.get('execution', {}).get('cluster')
+        return cluster == 'local'
+
+    @staticmethod
+    def _get_reschedule_signal_file(exp: ExperimentDoc) -> Path:
+        reschedule_path = exp.get('execution', {}).get('reschedule_file')
+        assert (
+            reschedule_path is not None
+        ), 'No SLURM reschedule file recorded for this experiment in the database.'
+        return Path(reschedule_path)
+
+    def _touch_reschedule_request_file(self) -> None:
+        assert self._reschedule_watch_path is not None
+        request_path = Path(f'{self._reschedule_watch_path}.request')
+        request_path.parent.mkdir(parents=True, exist_ok=True)
+        request_path.touch(exist_ok=True)
+        logging.info('Created reschedule request file %s', request_path.as_posix())
 
 
 class MongoDbObserverConfig:

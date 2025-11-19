@@ -40,6 +40,7 @@ class SemlDocBase(TypedDict, total=False):
     description: str
     name: str
     stash_all_py_files: bool
+    reschedule_timeout: int | None
 
 
 class SemlFileConfig(SemlDocBase, total=False):
@@ -156,11 +157,15 @@ class SlurmDoc(SlurmConfig):
         The number of tasks in the SLURM job.
     output_files_template : str
         The template for the output files. The template must contain the placeholders {array_id} and {task_id}.
+    reschedule_file : str
+        The path to the reschedule file for this SLURM job. This is set regardless of whether an experiment
+        is actually executed by this SLURM job, i.e. whether the job manages to claim the experiment.
     """
 
     array_id: int
     num_tasks: int
     output_files_template: str
+    reschedule_file: str
 
 
 class GitDoc(TypedDict):
@@ -196,12 +201,16 @@ class ExecutionDoc(TypedDict):
         The task ID of the SLURM job.
     slurm_output_file: str
         The output file of the SLURM job.
+    reschedule_file: str
+        The reschedule file of the SLURM job. This is only set once an experiment is actually
+        executed by the SLURM job.
     """
 
     cluster: str
     array_id: int
     task_id: int
     slurm_output_file: str
+    reschedule_file: str
 
 
 class SacredExperimentDoc(TypedDict):
@@ -412,6 +421,9 @@ class ExperimentDoc(TypedDict, total=True):
         The statistics about runtime and memory consumption of the experiment.
     stop_time: datetime
         The time at which the experiment has been stopped.
+    reschedule_config_update: dict[str, Any] | None
+        If the experiment has been rescheduled, this contains the configuration update
+        that must be applied during rescheduling.
     """
 
     # Set at init
@@ -443,6 +455,7 @@ class ExperimentDoc(TypedDict, total=True):
     start_time: datetime
     stats: StatsDoc
     stop_time: datetime
+    reschedule_config_update: dict[str, Any] | None
 
 
 class ExperimentConfig(TypedDict, total=False, closed=True):
