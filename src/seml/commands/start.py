@@ -4,7 +4,6 @@ import copy
 import logging
 import math
 import os
-import shlex
 import shutil
 import subprocess
 import sys
@@ -84,7 +83,7 @@ def set_slurm_job_name(
             "Can't set sbatch `job-name` parameter explicitly. "
             'Use `name` parameter instead and SEML will do that for you.'
         )
-    job_name = f"{name}_{exp['batch_id']}"
+    job_name = f'{name}_{exp["batch_id"]}'
     sbatch_options['job-name'] = job_name
     if sbatch_options.get('comment', db_collection_name) != db_collection_name:
         raise ConfigError(
@@ -94,9 +93,7 @@ def set_slurm_job_name(
     sbatch_options['comment'] = db_collection_name
 
 
-def create_slurm_options_string(
-    slurm_options: SBatchOptions, env: dict[str, str] | None = None, srun: bool = False
-):
+def create_slurm_options_string(slurm_options: SBatchOptions, srun: bool = False):
     """
     Convert a dictionary with sbatch_options into a string that can be used in a bash script.
 
@@ -124,11 +121,9 @@ def create_slurm_options_string(
         slurm_options_str += option_structure.format(
             prepend=prepend, key=key, value=value
         )
-    if env is not None:
-        env_kv = shlex.quote(','.join(f'{key}={value}' for key, value in env.items()))
-        slurm_options_str += option_structure.format(
-            prepend='--', key='export', value=env_kv
-        )
+    slurm_options_str += option_structure.format(
+        prepend='--', key='export', value='ALL'
+    )
     return slurm_options_str
 
 
@@ -208,10 +203,10 @@ def start_sbatch_job(
     srun_str = '' if experiments_per_job > 1 else 'srun '
     # Construct sbatch options string
     env = get_experiment_environment(exp_array[0])
-    sbatch_options_str = create_slurm_options_string(sbatch_options, env, False)
+    sbatch_options_str = create_slurm_options_string(sbatch_options, False)
 
     # Construct list with all experiment IDs
-    expid_strings = f"{' '.join([str(exp['_id']) for exp in exp_array])}"
+    expid_strings = f'{" ".join([str(exp["_id"]) for exp in exp_array])}'
 
     with_sources = 'source_files' in seml_conf
     use_conda_env = seml_conf.get('conda_environment')
@@ -261,12 +256,12 @@ def start_sbatch_job(
         # Sbatch the script
         try:
             output = subprocess.run(
-                f'sbatch {f.name}', shell=True, check=True, capture_output=True
+                f'sbatch {f.name}', shell=True, check=True, capture_output=True, env=env
             ).stdout
         except subprocess.CalledProcessError as e:
             logging.error(
                 f"Could not start Slurm job via sbatch. Here's the sbatch error message:\n"
-                f"{e.stderr.decode('utf-8')}"
+                f'{e.stderr.decode("utf-8")}'
             )
             exit(1)
 
@@ -330,20 +325,20 @@ def start_srun_job(
         if 'ntasks' not in srun_options:
             srun_options['ntasks'] = 1
         env = get_experiment_environment(exp)
-        srun_options_str = create_slurm_options_string(srun_options, env, True)
+        srun_options_str = create_slurm_options_string(srun_options, True)
 
         # Set command args for job inside Slurm
-        cmd_args = f"--local --sacred-id {exp['_id']} "
+        cmd_args = f'--local --sacred-id {exp["_id"]} '
         cmd_args += ' '.join(seml_arguments)
 
         cmd = f'srun{srun_options_str} seml {collection.name} start {cmd_args}'
         try:
-            subprocess.run(cmd, shell=True, check=True)
+            subprocess.run(cmd, shell=True, check=True, env=env)
         except subprocess.CalledProcessError as e:
             if e.stderr:
                 logging.error(
                     f"Could not start Slurm job via srun. Here's the sbatch error message:\n"
-                    f"{e.stderr.decode('utf-8')}"
+                    f'{e.stderr.decode("utf-8")}'
                 )
             else:
                 logging.error('Could not start Slurm job via srun.')
@@ -420,7 +415,7 @@ def start_local_job(
 
             if output_dir_path:
                 exp_name = get_exp_name(exp, collection.name)
-                output_file = f"{output_dir_path}/{exp_name}_{exp['_id']}.out"
+                output_file = f'{output_dir_path}/{exp_name}_{exp["_id"]}.out'
                 if not unobserved:
                     collection.update_one(
                         {'_id': exp['_id']}, {'$set': {'seml.output_file': output_file}}
@@ -432,10 +427,10 @@ def start_local_job(
 
             if seml_config.get('conda_environment') is not None:
                 cmd = (
-                    f". $(conda info --base)/etc/profile.d/conda.sh "
-                    f"&& conda activate {seml_config['conda_environment']} "
-                    f"&& {cmd} "
-                    f"&& conda deactivate"
+                    f'. $(conda info --base)/etc/profile.d/conda.sh '
+                    f'&& conda activate {seml_config["conda_environment"]} '
+                    f'&& {cmd} '
+                    f'&& conda deactivate'
                 )
 
             if not unobserved:
@@ -793,7 +788,7 @@ def start_local_worker(
 
                     # Cancel Slurm job; after cleaning up to prevent race conditions
                     if prompt(
-                        f"SLURM is currently executing experiment {exp['_id']}, do you want to cancel the SLURM job?",
+                        f'SLURM is currently executing experiment {exp["_id"]}, do you want to cancel the SLURM job?',
                         type=bool,
                     ):
                         cancel_experiment_by_id(
@@ -804,7 +799,7 @@ def start_local_worker(
                         )
 
                 progress.console.print(
-                    f"current id : {exp['_id']}, failed={num_exceptions}/{jobs_counter} experiments"
+                    f'current id : {exp["_id"]}, failed={num_exceptions}/{jobs_counter} experiments'
                 )
 
                 # Add newline if we need to avoid tqdm's output
@@ -996,7 +991,7 @@ def start_jupyter_job(
     except subprocess.CalledProcessError as e:
         logging.error(
             f"Could not start Slurm job via sbatch. Here's the sbatch error message:\n"
-            f"{e.stderr.decode('utf-8')}"
+            f'{e.stderr.decode("utf-8")}'
         )
         os.remove(path)
         exit(1)
