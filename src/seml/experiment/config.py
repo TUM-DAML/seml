@@ -1090,9 +1090,9 @@ def resolve_interpolations(
     }
     resolved_keys = set(resolved_flat.keys())
     unresolved_keys = set(unresolved_flat.keys())
-    assert resolved_keys.isdisjoint(
-        unresolved_keys
-    ), f'Overlap between unresolved and resolved dicts: {resolved_keys.intersection(unresolved_keys)}'
+    assert resolved_keys.isdisjoint(unresolved_keys), (
+        f'Overlap between unresolved and resolved dicts: {resolved_keys.intersection(unresolved_keys)}'
+    )
     resolved = unflatten({**resolved_flat, **unresolved_flat})
     return cast(T, resolved)
 

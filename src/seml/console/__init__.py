@@ -12,8 +12,7 @@ import rich.table
 from rich.console import Console
 from rich.padding import Padding
 from rich.rule import Rule
-
-from seml.cli_utils.typer import prompt as typer_prompt
+from typer import prompt as typer_prompt
 
 try:
     terminal_width = os.get_terminal_size().columns

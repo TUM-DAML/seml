@@ -16,9 +16,9 @@ from typing import (
     TypeVar,
 )
 
+import typer
 from typing_extensions import Annotated, ParamSpec
 
-import seml.cli_utils.typer as typer
 from seml.cli_utils import AUTOCOMPLETING, cache_to_disk
 from seml.cli_utils.cli_states import CliStates as States
 from seml.document import SBatchOptions
@@ -196,7 +196,7 @@ NumExperimentsAnnotation = Annotated[
     typer.Option(
         '-n',
         '--num-experiments',
-        help='Number of experiments to start. ' '0: all (staged) experiments ',
+        help='Number of experiments to start. 0: all (staged) experiments ',
     ),
 ]
 NoFileOutputAnnotation = Annotated[

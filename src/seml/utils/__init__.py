@@ -762,7 +762,7 @@ TD1 = TypeVar('TD1', bound=Mapping[str, Any])
 TD2 = TypeVar('TD2', bound=Mapping[str, Any])
 
 
-def drop_typeddict_difference(obj: TD1, cls: type[TD1], cls2: type[TD2]):
+def drop_typeddict_difference(obj: TD1, cls: type[TD1], cls2: type[TD2]) -> TD2:
     """
     Returns a new TypedDict where all keys that cls has but cls2 does not have are dropped.
 
@@ -787,4 +787,4 @@ def drop_typeddict_difference(obj: TD1, cls: type[TD1], cls2: type[TD2]):
     for k in to_drop:
         if k in result:
             del result[k]
-    return cast(cls2, result)
+    return result  # type: ignore

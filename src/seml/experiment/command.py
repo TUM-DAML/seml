@@ -102,7 +102,7 @@ def get_command_from_exp(
 
     if 'executable' not in exp['seml']:
         raise MongoDBError(
-            f"No executable found for experiment {exp['_id']}. Aborting."
+            f'No executable found for experiment {exp["_id"]}. Aborting.'
         )
     exe = exp['seml']['executable']
 
@@ -142,9 +142,9 @@ def get_command_from_exp(
                 if not k.startswith(SETTINGS.NAMED_CONFIG.PREFIX)
             }
     else:
-        assert (
-            resolve_interpolations
-        ), 'In resolved configs, interpolations are automatically resolved'
+        assert resolve_interpolations, (
+            'In resolved configs, interpolations are automatically resolved'
+        )
         config = exp['config']
         named_configs = []
 

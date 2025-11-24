@@ -43,39 +43,42 @@ def parse_jsonpickle(db_entry: ExperimentDoc):
 @overload
 def get_results(
     db_collection_name: str,
-    fields: Sequence[str] | dict[str, Any] | None = None,
-    to_data_frame: Literal[False] = False,
-    mongodb_config: dict[str, Any] | None = None,
-    states: Sequence[str] | None = None,
-    filter_dict: dict[str, Any] | None = None,
-    parallel: bool = False,
-    progress: bool = True,
+    fields: Sequence[str] | dict[str, Any] | None = ...,
+    *,
+    to_data_frame: Literal[False] = ...,
+    mongodb_config: dict[str, Any] | None = ...,
+    states: Sequence[str] | None = ...,
+    filter_dict: dict[str, Any] | None = ...,
+    parallel: bool = ...,
+    progress: bool = ...,
 ) -> list[ExperimentDoc]: ...
 
 
 @overload
 def get_results(
     db_collection_name: str,
-    fields: Sequence[str] | dict[str, Any] | None = None,
-    to_data_frame: Literal[True] = True,
-    mongodb_config: dict[str, Any] | None = None,
-    states: Sequence[str] | None = None,
-    filter_dict: dict[str, Any] | None = None,
-    parallel: bool = False,
-    progress: bool = True,
+    fields: Sequence[str] | dict[str, Any] | None = ...,
+    *,
+    to_data_frame: Literal[True],
+    mongodb_config: dict[str, Any] | None = ...,
+    states: Sequence[str] | None = ...,
+    filter_dict: dict[str, Any] | None = ...,
+    parallel: bool = ...,
+    progress: bool = ...,
 ) -> pd.DataFrame: ...
 
 
 def get_results(
     db_collection_name: str,
     fields: Sequence[str] | dict[str, Any] | None = None,
+    *,
     to_data_frame: bool = False,
     mongodb_config: dict[str, Any] | None = None,
     states: Sequence[str] | None = None,
     filter_dict: dict[str, Any] | None = None,
     parallel: bool = False,
     progress: bool = True,
-):
+) -> list[ExperimentDoc] | pd.DataFrame:
     """
     Get experiment results from the MongoDB.
     Parameters

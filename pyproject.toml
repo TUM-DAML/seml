@@ -50,7 +50,7 @@ dev = [
     "filelock>=3.15.4",
     "sshtunnel>=0.4.0",
 ]
-ssh_forward = ["sshtunnel>=0.4.0", "filelock>=3.13.3"]
+ssh_forward = ["sshtunnel>=0.4.0", "filelock>=3.13.3", "paramiko>=3.0,<4.0"]
 
 [project.urls]
 Homepage = "https://github.com/TUM-DAML/seml"
@@ -76,6 +76,7 @@ dev-dependencies = [
     "twine>=5.1.1",
     "backports-tarfile>=1.2.0",
     "tuna>=0.5.11",
+    "pyright>=1.1.407",
 ]
 
 [tool.ruff.format]
@@ -84,3 +85,5 @@ line-ending = "lf"
 
 [tool.pyright]
 typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"

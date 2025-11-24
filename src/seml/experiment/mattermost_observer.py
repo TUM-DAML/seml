@@ -112,10 +112,10 @@ class MattermostObserver(RunObserver):
             'started on host `{host_info[hostname]}` at _{start_time}_.'
         )
         self.interrupted_text = interrupted_text or (
-            ':warning: *{experiment[name]}* ' 'interrupted after _{elapsed_time}_'
+            ':warning: *{experiment[name]}* interrupted after _{elapsed_time}_'
         )
         self.failed_text = failed_text or (
-            ':x: *{experiment[name]}* failed after ' '_{elapsed_time}_ with `{error}`'
+            ':x: *{experiment[name]}* failed after _{elapsed_time}_ with `{error}`'
         )
         self.heartbeat_text = heartbeat_text or (
             ':heartpulse: *{experiment[name]}* has been up and running for '

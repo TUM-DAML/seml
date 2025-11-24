@@ -174,7 +174,7 @@ class Experiment(ExperimentBase):
                 'Reschedule hook must return a configuration dictionary.'
                 f' Got type:  + {type(new_config)}'
             )
-            logging.info('Reschedule hook returned new configuration: ' f'{new_config}')
+            logging.info(f'Reschedule hook returned new configuration: {new_config}')
 
             # Add the new_config to the database
             self._add_reschedule_config_to_db(new_config)
@@ -284,9 +284,9 @@ class Experiment(ExperimentBase):
     @staticmethod
     def _get_reschedule_signal_file(exp: ExperimentDoc) -> Path:
         reschedule_path = exp.get('execution', {}).get('reschedule_file')
-        assert (
-            reschedule_path is not None
-        ), 'No SLURM reschedule file recorded for this experiment in the database.'
+        assert reschedule_path is not None, (
+            'No SLURM reschedule file recorded for this experiment in the database.'
+        )
         return Path(reschedule_path)
 
     def _touch_reschedule_request_file(self) -> None:

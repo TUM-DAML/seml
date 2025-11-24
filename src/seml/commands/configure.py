@@ -65,8 +65,8 @@ def mongodb_configure(
         config['ssh_config'] = prompt_ssh_forward()
     config_string = yaml.dump(config)
     logging.info(
-        f"Saving the following configuration to {file_path}:\n"
-        f"{config_string.replace(f'{password}', '********')}"
+        f'Saving the following configuration to {file_path}:\n'
+        f'{config_string.replace(f"{password}", "********")}'
     )
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, 'w') as f:

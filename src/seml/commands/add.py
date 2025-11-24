@@ -113,7 +113,7 @@ def add_configs(
         start_id = start_id + 1
 
     logging.info(
-        f"Adding {len(documents)} configs to the database (batch-ID {documents[0]['batch_id']})."
+        f'Adding {len(documents)} configs to the database (batch-ID {documents[0]["batch_id"]}).'
     )
 
     documents = [

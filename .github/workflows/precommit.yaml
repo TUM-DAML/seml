@@ -12,10 +12,11 @@ jobs:
           path: ~/.cache/pre-commit
           key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v6
         with:
-          version: "0.4.20"
           enable-cache: true
+      - name: Setup virtual environment
+        run: uv sync
       - name: Install pre-commit
         run: uv tool install pre-commit --with pre-commit-uv
       - name: Run pre-commit
