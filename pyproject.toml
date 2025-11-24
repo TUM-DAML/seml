@@ -1,6 +1,6 @@
 [project]
 name = "seml"
-version = "0.5.5"
+version = "0.5.6"
 description = "Slurm Experiment Management Library"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -42,13 +42,15 @@ dependencies = [
     "deepdiff>=7.0.1",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "ruff>=0.6.1",
     "pytest>=8.3.2",
     "pre-commit>=3.8.0",
     "filelock>=3.15.4",
     "sshtunnel>=0.4.0",
+    "pyright>=1.1.407",
+    "tuna>=0.5.11",
 ]
 ssh_forward = ["sshtunnel>=0.4.0", "filelock>=3.13.3", "paramiko>=3.0,<4.0"]
 
@@ -66,18 +68,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.uv]
-dev-dependencies = [
-    "ruff>=0.6.1",
-    "pytest>=8.3.2",
-    "pre-commit>=3.8.0",
-    "filelock>=3.15.4",
-    "sshtunnel>=0.4.0",
-    "build>=1.2.1",
-    "twine>=5.1.1",
-    "backports-tarfile>=1.2.0",
-    "tuna>=0.5.11",
-    "pyright>=1.1.407",
-]
+default-groups = "all"
 
 [tool.ruff.format]
 quote-style = "single"
