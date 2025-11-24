@@ -1118,6 +1118,7 @@ def claim_experiment(db_collection_name: str, exp_ids: Sequence[int]):
     """
     collection = get_collection(db_collection_name)
     array_id, task_id = get_current_slurm_array_id()
+    exp = None
     if array_id is not None and task_id is not None:
         # We are running in slurm
         array_id, task_id = int(array_id), int(task_id)
@@ -1127,14 +1128,30 @@ def claim_experiment(db_collection_name: str, exp_ids: Sequence[int]):
             'execution.task_id': task_id,
             'execution.cluster': cluster_name,
         }
+        # First, we check whether this SLURM job is responsible for a RESCHEDULED experiment
+        # If so, we claim this first
         exp = collection.find_one_and_update(
             {
                 '_id': {'$in': list(exp_ids)},
-                'status': {'$in': States.PENDING + States.RESCHEDULED},
+                'status': {'$in': States.RESCHEDULED},
+                'execution.array_id': array_id,
+                'execution.task_id': task_id,
+                'execution.cluster': cluster_name,
             },
             {'$set': {'status': States.RUNNING[0], **update}},
             {'_id': 1, 'slurm': 1},
         )
+        # Only after we have checked that this job is not responsible for a RESCHEDULED experiment
+        # can we pick up a pending one.
+        if exp is None:
+            exp = collection.find_one_and_update(
+                {
+                    '_id': {'$in': list(exp_ids)},
+                    'status': {'$in': States.PENDING},
+                },
+                {'$set': {'status': States.RUNNING[0], **update}},
+                {'_id': 1, 'slurm': 1},
+            )
         if exp is None:
             exit(3)
         # Set slurm output file
