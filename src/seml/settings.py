@@ -4,9 +4,9 @@ from pathlib import Path
 from runpy import run_path
 from typing import Any, Dict, List, Mapping, cast
 
+import typer
 from typing_extensions import TypeVar
 
-import seml.cli_utils.typer as typer
 from seml.cli_utils.module_hider import ModuleHider
 from seml.document import SBatchOptions, SlurmConfig
 from seml.utils import merge_dicts

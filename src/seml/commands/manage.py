@@ -180,7 +180,7 @@ def cancel_experiment_by_id(
     # check if the job has been claimed and associated with a concrete job
     is_running = 'array_id' in exp['execution']
     if is_running:
-        job_strings = [f"{exp['execution']['array_id']}_{exp['execution']['task_id']}"]
+        job_strings = [f'{exp["execution"]["array_id"]}_{exp["execution"]["task_id"]}']
     else:
         job_strings = list(map(str, array_ids))
 
@@ -710,7 +710,7 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
                         # If the experiment is canceled before starting (e.g. when still queued), there is not output file.
                         logging.debug(f'File {output_file} could not be read.')
                 else:
-                    logging.debug(f"Output file not found in experiment {exp['_id']}.")
+                    logging.debug(f'Output file not found in experiment {exp["_id"]}.')
     updates = [
         UpdateMany(
             {'_id': {'$in': interrupted_exps}},

@@ -1232,9 +1232,9 @@ def prepare_experiment(
     if stored_sources_dir:
         os.makedirs(stored_sources_dir, exist_ok=True)
         if not os.listdir(stored_sources_dir):
-            assert (
-                'source_files' in exp['seml']
-            ), '--stored-sources-dir is set but no source files are stored in the database.'
+            assert 'source_files' in exp['seml'], (
+                '--stored-sources-dir is set but no source files are stored in the database.'
+            )
             load_sources_from_db(exp, collection, to_directory=stored_sources_dir)
 
     # The remaining part (updateing MongoDB & printing the python command) is only executed by the main process.
@@ -1264,9 +1264,9 @@ def prepare_experiment(
     # Let's apply the reschedule updates, if we are rescheduling
     if 'reschedule_config_update' in exp:
         reschedule_update = exp['reschedule_config_update']
-        assert isinstance(
-            reschedule_update, dict
-        ), f'Encountered faulty type {type(reschedule_update)} for reschedule_update in database.'
+        assert isinstance(reschedule_update, dict), (
+            f'Encountered faulty type {type(reschedule_update)} for reschedule_update in database.'
+        )
         exp['config'] = merge_dicts(exp['config'], reschedule_update)
 
     interpreter, exe, config = get_command_from_exp(

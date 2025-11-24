@@ -458,7 +458,7 @@ class ExperimentDoc(TypedDict, total=True):
     reschedule_config_update: dict[str, Any] | None
 
 
-class ExperimentConfig(TypedDict, total=False, closed=True):
+class ExperimentConfig(TypedDict, total=False, closed=False):
     # We have this base class to represent also sub-configurations.
     # TODO: properly type the configurations files.
     fixed: Any

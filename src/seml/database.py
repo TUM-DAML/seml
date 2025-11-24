@@ -230,7 +230,7 @@ def build_filter_dict(
         else:
             logging.warning(
                 f"'status' was defined in the filter dictionary passed via the command line (-f): "
-                f"{filter_dict['status']} AND --status was set to {filter_states}. "
+                f'{filter_dict["status"]} AND --status was set to {filter_states}. '
                 f"I'm using the value passed via -f."
             )
 
@@ -240,7 +240,7 @@ def build_filter_dict(
         else:
             logging.warning(
                 f"'batch_id' was defined in the filter dictionary passed via the command line (-f): "
-                f"{filter_dict['status']} AND --batch-id was set to {filter_states}. "
+                f'{filter_dict["status"]} AND --batch-id was set to {filter_states}. '
                 f"I'm using the value passed via -f."
             )
     return filter_dict

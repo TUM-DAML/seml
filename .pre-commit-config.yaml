@@ -1,13 +1,6 @@
 repos:
-  - repo: local
-    hooks:
-      - id: sync-dependencies
-        name: update pre-commit-config
-        entry: uv run ci/scripts/pre_commit_sync_pyright_deps.py
-        language: system
-        files: "(pyproject.toml|scripts/.pre-commit-config.yaml.template|.pre-commit.config.yaml)" # the quotes are here to make sure that this stay in line for the formatter.
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
       - id: check-case-conflict
       - id: check-toml
@@ -20,7 +13,7 @@ repos:
       - id: check-added-large-files
       - id: trailing-whitespace
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.17.0
+    rev: v3.21.2
     hooks:
       - id: pyupgrade
         name: pyupgrade
@@ -31,7 +24,7 @@ repos:
         args: [--py38-plus, --keep-runtime-typing]
         files: .*\/__main__.py # We run ruff after pyugprade to remove unused imports
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.1
+    rev: v0.14.6
     hooks:
       - id: ruff # Run the linter.
         args: [--fix]
@@ -39,39 +32,12 @@ repos:
         name: sort imports with ruff
         args: [--select, I, --fix]
       - id: ruff-format # Run the formatter.
-  - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.377
+  - repo: local # Run pyright type checker
     hooks:
       - id: pyright
-        additional_dependencies: # these dependencies are synced via the first hook
-          - numpy>=1.15; python_version < '3.13'
-          - numpy>=2.1; python_version >= '3.13'
-          - pymongo>=4.1
-          - pandas>=2.2; python_version < '3.13'
-          - pandas>=2.2.3; python_version >= '3.13'
-          - sacred>=0.8.4
-          - pyyaml>=5.1
-          - jsonpickle>=2.2
-          - munch>=4.0
-          - debugpy>=1.2.1
-          - requests>=2.28.1
-          - typer>=0.12
-          - rich>=13.0,<14.1
-          - click>=8.0
-          - omegaconf>=2.3.0
-          - gitignore_parser>=0.1.11
-          - setuptools>=69.2.0
-          - importlib_resources>=5.7.0
-          - typing_extensions>=4.10; python_version < '3.13'
-          - typing_extensions>=4.12; python_version >= '3.13'
-          - deepdiff>=7.0.1
-          - ruff>=0.6.1
-          - pytest>=8.3.2
-          - pre-commit>=3.8.0
-          - filelock>=3.15.4
-          - sshtunnel>=0.4.0
-          - build>=1.2.1
-          - twine>=5.1.1
-          - backports-tarfile>=1.2.0
-          - tuna>=0.5.11
-        files: src/seml/.*\.py
+        name: pyright check
+        entry: uv run pyright src/
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true

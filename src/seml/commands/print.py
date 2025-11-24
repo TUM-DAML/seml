@@ -740,12 +740,12 @@ def generate_queue_table(
                     {'_id': 1},
                 )
                 if ids := [exp['_id'] for exp in experiments]:
-                    suffix = f", Id{s_if(len(ids))}: {'|'.join(map(str, ids))}"
+                    suffix = f', Id{s_if(len(ids))}: {"|".join(map(str, ids))}'
 
         if is_running:
-            return f"[bright_blue]{job_id}[/bright_blue] ({job_info['RunTime']}, {nodelist}{suffix})"
+            return f'[bright_blue]{job_id}[/bright_blue] ({job_info["RunTime"]}, {nodelist}{suffix})'
         else:
-            return f"[bright_blue]{job_id}[/bright_blue] ({job_info.get('Reason', '')}{suffix})"
+            return f'[bright_blue]{job_id}[/bright_blue] ({job_info.get("Reason", "")}{suffix})'
 
     for col in sorted(collections):
         row = [col]
