@@ -93,6 +93,8 @@ def cancel_empty_pending_jobs(db_collection_name: str, *sacred_ids: int):
             {'execution'},
         )
     )
+
+    # We exclude all SLURM jobs that are needed for continuing a RESCHEDULED experiment
     rescheduled_ids = []
     for exp in rescheduled_exps:
         execution = exp['execution']
@@ -672,7 +674,7 @@ def detect_killed(db_collection_name: str, print_detected: bool = True):
     cluster = get_cluster_name()
     exps = collection.find(
         {
-            'status': {'$in': [*States.PENDING, *States.RUNNING]},
+            'status': {'$in': [*States.PENDING, *States.RUNNING, *States.RESCHEDULED]},
             'execution.cluster': cluster,  # only check experiments that are running on the current cluster
             # Previously we only checked for started experiments by including the following line:
             # 'host': {'$exists': True},  # only check experiments that have been started
