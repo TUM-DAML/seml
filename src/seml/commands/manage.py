@@ -87,12 +87,25 @@ def cancel_empty_pending_jobs(db_collection_name: str, *sacred_ids: int):
         # There are still pending experiments, we don't want to cancel the jobs.
         return
     pending_exps = list(collection.find({'_id': {'$in': sacred_ids}}, {'slurm'}))
+    rescheduled_exps = list(
+        collection.find(
+            {'_id': {'$in': sacred_ids}, 'status': {'$in': States.RESCHEDULED}},
+            {'execution'},
+        )
+    )
+    rescheduled_ids = []
+    for exp in rescheduled_exps:
+        execution = exp['execution']
+        if 'array_id' in execution:
+            rescheduled_ids.append(execution['array_id'])
+
     array_ids = {
         conf['array_id']
         for exp in pending_exps
         for conf in exp['slurm']
         if 'array_id' in conf
     }
+    array_ids = array_ids.difference(rescheduled_ids)
     # Only cancel the pending jobs
     cancel_slurm_jobs(*array_ids, state=SETTINGS.SLURM_STATES.PENDING[0])
 
