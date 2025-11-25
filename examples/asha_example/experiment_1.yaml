@@ -1,0 +1,49 @@
+seml:
+  executable: main.py
+  name: asha_import_test
+  output_dir: logs
+  project_root_dir: .
+
+slurm:
+  experiments_per_job: 1
+  max_simultaneous_jobs: 10
+  sbatch_options:
+    gres: gpu:0
+    mem: 2G
+    cpus-per-task: 1
+    time: 0-01:00
+
+
+fixed:
+  dataset: 'mnist'
+  base_shared_dir: "./shared/experiments"
+  asha_collection_name: asha_import_test
+  num_stages: 10
+  asha:
+    eta: 3
+    min_r: 1 
+    max_r: 20
+    metric_increases: True #True or False
+
+random:
+  samples: 3  # Run 5 random configurations
+  seed: 42
+
+  hidden_units:
+    type: choice
+    options:
+      - [64]
+      - [128, 64]
+      - [256, 128, 64]
+
+  dropout:
+    type: uniform
+    min: 0.0
+    max: 0.5
+
+  learning_rate:
+    type: loguniform
+    min: 1e-4
+    max: 1e-2
+
+
