@@ -1,7 +1,10 @@
 import math
 import uuid
+from logging import Logger
+from typing import Any
 
 from pymongo import MongoClient
+from pymongo.collection import Collection
 
 
 class ASHA:
@@ -12,9 +15,9 @@ class ASHA:
         min_r: int,
         max_r: int,
         metric_increases: bool,
-        mongodb_configurations,
-        _log,
-    ):
+        mongodb_configurations: dict[str, Any],
+        _log: Logger,
+    ) -> None:
         """Doc string pretty please ^^
 
         Args:
@@ -46,7 +49,9 @@ class ASHA:
             self.mongodb_configurations, self.asha_collection_name
         )
 
-    def _get_mongo_collection(self, mongodb_configurations, experiment_name):
+    def _get_mongo_collection(
+        self, mongodb_configurations: dict[str, Any], experiment_name: str
+    ) -> Collection:
         """
         Connecting to the MongoDB, credentials from SEML config
         returns connection
@@ -72,7 +77,9 @@ class ASHA:
         )
         return collection
 
-    def save_metric_to_db(self, collection, job_id, stage, metric):
+    def save_metric_to_db(
+        self, collection: Collection, job_id: str, stage: int, metric: float
+    ) -> None:
         """
         Insert or update metric for the given job_id and stage in the MongoDB collection.
         """
@@ -82,7 +89,7 @@ class ASHA:
             upsert=True,
         )
 
-    def store_stage_metric(self, stage: int, metric: float):
+    def store_stage_metric(self, stage: int, metric: float) -> bool:
         """
         Accuracy added and other metrics compaired,
         probably should break this into different functions,
@@ -126,7 +133,7 @@ class ASHA:
                 self.set_status_db('Completed')
         return should_terminate
 
-    def metric_in_rungs(self, stage):
+    def metric_in_rungs(self, stage: int) -> bool:
         """
         if user wants to check if their stage/resource is in a rung
         """
@@ -135,7 +142,9 @@ class ASHA:
         else:
             return False
 
-    def get_metric_at_stage_db(self, collection, stage, current_job_id=None):
+    def get_metric_at_stage_db(
+        self, collection: Collection, stage: int, current_job_id: str | None = None
+    ) -> dict[str, float]:
         """
         Retrieve metrics of all jobs at the specified stage from the MongoDB collection.
         Returns a dict: {job_id: metric}, excluding current_job_id if provided.
@@ -149,12 +158,16 @@ class ASHA:
                 metrics[job_id] = metric
         return metrics
 
-    def _print_stage_info(self, stage, metric, other_job_metrics):
+    def _print_stage_info(
+        self, stage: int, metric: float, other_job_metrics: dict[str, float]
+    ) -> None:
         self._log.info(f'[Epoch {stage}] Own metric: {metric}')
         self._log.info(f"[Epoch {stage}] Other jobs' metrics: {other_job_metrics}")
         pass
 
-    def _job_promotion(self, metric, other_job_metrics, eta):
+    def _job_promotion(
+        self, metric: float, other_job_metrics: dict[str, float], eta: int | float
+    ) -> bool:
         """
         returns cutoff metric at which jobs should be promoted
         """
@@ -191,7 +204,7 @@ class ASHA:
 
         return promotion
 
-    def generate_rungs(self, min_r, eta, max_r):
+    def generate_rungs(self, min_r: int, eta: int | float, max_r: int) -> list[int]:
         """
         generates rungs at which promotion will be checked
         """
@@ -216,7 +229,7 @@ class ASHA:
         )
         return rungs
 
-    def set_status_db(self, status):
+    def set_status_db(self, status: str) -> None:
         """
         set status in mongodb collection to mark if process is still running
         """
@@ -225,7 +238,7 @@ class ASHA:
         )
 
     # def isbest(self,metric,other_job_metrics):
-    def isbest(self):
+    def isbest(self) -> None:
         """
         this function doesn't is incorrect,
         working on it to use the status to see if all jobs are completed
