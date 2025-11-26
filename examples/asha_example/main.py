@@ -1,22 +1,14 @@
-import os
-import time
-from datetime import datetime
-import random
-import torch
-import numpy as np
 import uuid
-import hashlib
-from torch import nn, optim
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, random_split
 
-from seml import Experiment
-from seml.settings import SETTINGS
+import torch
 from model import SimpleNN
-
-from seml.utils import ASHA # Import asha class
-
+from seml import Experiment
 from seml.database import get_mongodb_config
+from seml.utils import ASHA  # Import asha class
+from torch import nn, optim
+from torch.utils.data import DataLoader, random_split
+from torchvision import datasets, transforms
+
 # def seed_everything(job_id):
 #     # Combine job_id and entropy to make a unique seed
 #     entropy = f"{job_id}-{time.time()}-{os.urandom(8)}".encode("utf-8")
@@ -31,10 +23,11 @@ from seml.database import get_mongodb_config
 
 experiment = Experiment()
 
+
 @experiment.config
 def default_config():
     num_stages = 10
-    dataset = 'mnist'
+    dataset = "mnist"
     hidden_units = [64]
     dropout = 0.3
     learning_rate = 1e-3
@@ -43,23 +36,30 @@ def default_config():
     seed = 42
     asha_collection_name = "unknown_experiment"
     samples = 5
-    asha = {
-        "eta" : 3,
-        "min_r": 1,
-        "max_resource": 20,
-        "progression": "increase"
-    }
+    asha = {"eta": 3, "min_r": 1, "max_resource": 20, "progression": "increase"}
 
 
 @experiment.automain
-def main(num_stages, dataset, hidden_units, dropout, learning_rate, base_shared_dir, job_id, asha,_log, _run,):
-    
+def main(
+    num_stages,
+    dataset,
+    hidden_units,
+    dropout,
+    learning_rate,
+    base_shared_dir,
+    job_id,
+    asha,
+    _log,
+    _run,
+):
     mongodb_configurations = get_mongodb_config()
 
-    print(f"job parameters, hiddenunits:{hidden_units}, dropout:{dropout}, learningrate:{learning_rate}")
+    print(
+        f"job parameters, hiddenunits:{hidden_units}, dropout:{dropout}, learningrate:{learning_rate}"
+    )
     if job_id is None:
         job_id = str(uuid.uuid4())
-        #job_id = str(_run._id)
+        # job_id = str(_run._id)
 
     asha_collection_name = _run.config.get("asha_collection_name", "unknown_experiment")
     print("Run info:", _run.experiment_info)
@@ -70,11 +70,12 @@ def main(num_stages, dataset, hidden_units, dropout, learning_rate, base_shared_
     model.to(device)
 
     # Prepare dataset and loaders
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
-    ])
-    full_dataset = datasets.MNIST(root="./data", train=True, download=True, transform=transform)
+    transform = transforms.Compose(
+        [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+    )
+    full_dataset = datasets.MNIST(
+        root="./data", train=True, download=True, transform=transform
+    )
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
@@ -126,16 +127,19 @@ def main(num_stages, dataset, hidden_units, dropout, learning_rate, base_shared_
         metric = correct / total
         print(f"[Epoch {stage}] Validation Accuracy: {metric:.4f}")
 
-        if stage < (num_stages-1):
+        if stage < (num_stages - 1):
             should_stop = tracker.store_stage_metric(stage, metric)
             if should_stop:
                 print("We should end this process here")
-                print(f"job parameters, hiddenunits:{hidden_units}, dropout:{dropout}, learningrate:{learning_rate}")
+                print(
+                    f"job parameters, hiddenunits:{hidden_units}, dropout:{dropout}, learningrate:{learning_rate}"
+                )
                 break
         else:
             print("job finished")
-            print(f"job parameters, hiddenunits:{hidden_units}, dropout:{dropout}, learningrate:{learning_rate}")
-
+            print(
+                f"job parameters, hiddenunits:{hidden_units}, dropout:{dropout}, learningrate:{learning_rate}"
+            )
 
     return {
         "asha_collection_name": asha_collection_name,
@@ -148,6 +152,5 @@ def main(num_stages, dataset, hidden_units, dropout, learning_rate, base_shared_
         "num_stages": num_stages,
         "dataset": dataset,
         "device": str(device),
-        "final_stage": len(tracker.metric_history) 
+        "final_stage": len(tracker.metric_history),
     }
-

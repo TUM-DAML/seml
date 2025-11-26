@@ -21,7 +21,7 @@ fixed:
   num_stages: 10
   asha:
     eta: 3
-    min_r: 1 
+    min_r: 1
     max_r: 20
     metric_increases: True #True or False
 
