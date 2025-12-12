@@ -237,6 +237,7 @@ SETTINGS = cast(
                 'description',
                 'stash_all_py_files',
                 'reschedule_timeout',
+                'additional_artifacts',
             ],
             'SEML_CONFIG_VALUE_VERSION': 'version',
             'VALID_SLURM_CONFIG_VALUES': [

@@ -788,3 +788,14 @@ def drop_typeddict_difference(obj: TD1, cls: type[TD1], cls2: type[TD2]) -> TD2:
         if k in result:
             del result[k]
     return result  # type: ignore
+
+
+def recursively_list_files(path: Path | str) -> set[Path]:
+    """Recursively lists all (resolved) files in the directory."""
+    path = Path(path)
+    if path.expanduser().resolve().is_file():
+        return {path.expanduser().resolve()}
+    elif path.expanduser().resolve().is_dir():
+        return {p.expanduser().resolve() for p in path.rglob('*') if p.is_file()}
+    else:
+        raise ValueError(f'Path {path} is neither a file nor a directory.')
