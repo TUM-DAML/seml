@@ -14,6 +14,7 @@ from seml.settings import SETTINGS
 from seml.utils import (
     assert_package_installed,
     is_local_file,
+    recursively_list_files,
     s_if,
     working_directory,
 )
@@ -75,7 +76,12 @@ def import_exe(executable: str, conda_env: str | None, working_dir: str):
 
 
 def get_imported_sources(
-    executable, root_dir, conda_env, working_dir, stash_all_py_files: bool
+    executable,
+    root_dir,
+    conda_env,
+    working_dir,
+    stash_all_py_files: bool,
+    additional_artifacts: list[str] | None = None,
 ) -> set[str]:
     """Get the sources imported by the given executable.
 
@@ -85,6 +91,7 @@ def get_imported_sources(
         conda_env (_type_): The experiment's Anaconda environment.
         working_dir (_type_): The working directory of the experiment.
         stash_all_py_files (_type_): Whether to stash all .py files in the working directory.
+        additional_artifacts: list[str] | None: Additional artifacts to put into the source code files.
 
     Returns:
         List[str]: The sources imported by the given executable.
@@ -114,6 +121,18 @@ def get_imported_sources(
             if is_local_file(file, root_path):
                 sources.add(str(file))
 
+    for artifact in set().union(
+        *(recursively_list_files(path) for path in additional_artifacts or [])
+    ):
+        artifact = artifact.expanduser().resolve()
+        # Check that the artifact is in `working_dir`
+        if artifact.is_file() and is_local_file(str(artifact), root_path):
+            sources.add(str(artifact))
+        else:
+            logging.warning(
+                f'Additional artifact {artifact} is not a subpath of the root directory '
+                f'{root_path} and will be ignored.'
+            )
     return sources
 
 
@@ -124,13 +143,13 @@ def upload_sources(
 
     with working_directory(seml_config['working_dir']):
         root_dir = str(Path(seml_config['working_dir']).expanduser().resolve())
-
         sources = get_imported_sources(
             seml_config['executable'],
             root_dir=root_dir,
             conda_env=seml_config['conda_environment'],
             working_dir=seml_config['working_dir'],
             stash_all_py_files=seml_config.get('stash_all_py_files', False),
+            additional_artifacts=seml_config.get('additional_artifacts', []),
         )
         executable_abs = str(Path(seml_config['executable']).expanduser().resolve())
 

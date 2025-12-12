@@ -61,6 +61,8 @@ seml:
   description: "An advanced example configuration. We can also use variable interpolation here: ${config.model.model_type}"
   reschedule_timeout: 300 # The time (in seconds) that are left on the job before SEML will try to reschedule unfinished experiments.
   # Note that you have to implement a `reschedule_hook` to use this feature.
+  additional_artifacts:
+    - artifacts/something
 
 slurm:
   - experiments_per_job: 1
