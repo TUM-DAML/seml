@@ -791,7 +791,12 @@ def drop_typeddict_difference(obj: TD1, cls: type[TD1], cls2: type[TD2]) -> TD2:
 
 
 def recursively_list_files(path: Path | str) -> set[Path]:
-    """Recursively lists all (resolved) files in the directory."""
+    """Recursively lists all (resolved) files in the directory.
+
+    Also supports `glob` patterns.
+    """
+    if any(c in str(path) for c in '*?[]'):
+        return {p.expanduser() for p in Path().rglob(str(path))}
     path = Path(path)
     if path.expanduser().resolve().is_file():
         return {path.expanduser().resolve()}
