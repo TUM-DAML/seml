@@ -1246,6 +1246,52 @@ def check_slurm_config(experiments_per_job: int, sbatch_options: SBatchOptions):
         )
 
 
+# Each inner list is a set of mutually exclusive option groups. When the higher-priority
+# config sets any key from one group, keys from all other groups are removed from the base.
+# Keys are compared after stripping leading dashes to handle --cpus-per-task and cpus-per-task.
+_SBATCH_MUTUALLY_EXCLUSIVE: list[list[frozenset[str]]] = [
+    # --cpus-per-gpu is not compatible with --cpus-per-task (-c)
+    [frozenset({'cpus-per-task', 'c'}), frozenset({'cpus-per-gpu'})],
+    # --mem, --mem-per-cpu and --mem-per-gpu are mutually exclusive
+    [frozenset({'mem'}), frozenset({'mem-per-cpu'}), frozenset({'mem-per-gpu'})],
+    # --exclusive and --oversubscribe (-s) are mutually exclusive
+    [frozenset({'exclusive'}), frozenset({'oversubscribe', 's'})],
+    # --core-spec (-S) and --thread-spec are mutually exclusive
+    [frozenset({'core-spec', 'S'}), frozenset({'thread-spec'})],
+    # --ntasks-per-gpu is not compatible with --gpus-per-task, --gpus-per-socket, or
+    # --ntasks-per-node. Modelled as separate pairs because those three are not necessarily
+    # incompatible with each other.
+    [frozenset({'ntasks-per-gpu'}), frozenset({'gpus-per-task'})],
+    [frozenset({'ntasks-per-gpu'}), frozenset({'gpus-per-socket'})],
+    [frozenset({'ntasks-per-gpu'}), frozenset({'ntasks-per-node'})],
+]
+
+
+def _merge_sbatch_options(
+    base: dict[str, Any], override: dict[str, Any]
+) -> SBatchOptions:
+    """merge_dicts for sbatch options with automatic mutual-exclusion cleanup.
+
+    When override sets a key that belongs to a mutually exclusive group (e.g. cpus-per-gpu),
+    any keys from conflicting groups that were inherited from base (e.g. cpus-per-task) are
+    removed from the result, mirroring normal override precedence.
+    """
+    result: dict[str, Any] = dict(merge_dicts(base, override))
+    norm = str.lstrip  # strip leading dashes for key comparison
+
+    for exclusive_groups in _SBATCH_MUTUALLY_EXCLUSIVE:
+        for i, group in enumerate(exclusive_groups):
+            if any(norm(k, '-') in group for k in override):
+                for j, other_group in enumerate(exclusive_groups):
+                    if j != i:
+                        for k in list(result):
+                            if norm(k, '-') in other_group and k not in override:
+                                del result[k]
+                break
+
+    return cast(SBatchOptions, result)
+
+
 def assemble_slurm_config_dict(experiment_slurm_config: SlurmConfig):
     """
     Realize inheritance for the slurm configuration, with the following relationship:
@@ -1274,13 +1320,19 @@ def assemble_slurm_config_dict(experiment_slurm_config: SlurmConfig):
             raise ConfigError(
                 f"sbatch options template '{sbatch_options_template}' not found in settings.py."
             )
-        slurm_config_base['sbatch_options'] = merge_dicts(
-            slurm_config_base['sbatch_options'],
-            SETTINGS.SBATCH_OPTIONS_TEMPLATES[sbatch_options_template],
+        slurm_config_base['sbatch_options'] = _merge_sbatch_options(
+            dict(slurm_config_base['sbatch_options']),
+            dict(SETTINGS.SBATCH_OPTIONS_TEMPLATES[sbatch_options_template]),
         )
 
     # Integrate experiment specific config
+    exp_sbatch_options = dict(slurm_config.get('sbatch_options', {}))
     slurm_config = merge_dicts(slurm_config_base, slurm_config)
+    if exp_sbatch_options:
+        slurm_config['sbatch_options'] = _merge_sbatch_options(
+            dict(slurm_config_base['sbatch_options']),
+            exp_sbatch_options,
+        )
 
     slurm_config['sbatch_options'] = cast(
         SBatchOptions,
