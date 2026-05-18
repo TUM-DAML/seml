@@ -261,6 +261,24 @@ def chunker(seq: S, size: int) -> Generator[S]:
     yield from (cast(S, seq[pos : pos + size]) for pos in range(0, len(seq), size))
 
 
+class _RemoveSentinel:
+    """Sentinel that removes a key during dict merging. Use ``REMOVE`` (or ``!remove`` in YAML)
+    as a config value to unset a key inherited from a lower-priority config."""
+
+    _instance: _RemoveSentinel | None = None
+
+    def __new__(cls) -> _RemoveSentinel:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return 'REMOVE'
+
+
+REMOVE = _RemoveSentinel()
+
+
 D = TypeVar('D', bound=Mapping)
 
 
@@ -283,6 +301,9 @@ def merge_dicts(dict1: Mapping, dict2: Mapping) -> Mapping:
     value, this will call itself recursively to merge these dictionaries.
     This does not modify the input dictionaries (creates an internal copy).
 
+    Setting a value to ``REMOVE`` (or ``!remove`` in YAML) in dict2 will remove that key
+    from the result even if it was present in dict1.
+
     Parameters
     ----------
     dict1: dict
@@ -304,7 +325,9 @@ def merge_dicts(dict1: Mapping, dict2: Mapping) -> Mapping:
     return_dict = copy.deepcopy(dict1)
 
     for k, v in dict2.items():
-        if k not in dict1:
+        if isinstance(v, _RemoveSentinel):
+            return_dict.pop(k, None)
+        elif k not in dict1:
             return_dict[k] = v
         else:
             if isinstance(v, dict) and isinstance(dict1[k], dict):
