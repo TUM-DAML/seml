@@ -1,5 +1,6 @@
 import yaml
 
+from seml.utils import REMOVE
 from seml.utils.errors import ConfigError
 
 
@@ -28,6 +29,11 @@ def construct_mapping(loader, node, deep=False):
 YamlUniqueLoader.add_constructor(
     yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
     construct_mapping,
+)
+
+YamlUniqueLoader.add_constructor(
+    '!remove',
+    lambda loader, node: REMOVE,
 )
 
 

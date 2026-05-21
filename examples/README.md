@@ -158,6 +158,12 @@ This can be nested arbitrarily deeply (be aware of combinatorial explosion of th
 
 If a parameter is defined in (at least) two **different blocks** in `[grid, random, fixed]` on the same level, `seml` will throw an error to avoid ambiguity.
 If a parameter is re-defined in a sub-configuration, the redefinition overrides any previous definitions of that parameter.
+To remove a key inherited from a lower-priority config instead of overriding it, set it to `!remove`:
+```yaml
+large_datasets:
+  fixed:
+    regularization: !remove  # removes the key set in the root fixed block
+```
 
 ### Grid parameters
 In an experiment config, under `grid` you can define parameters that should be sampled from a regular grid. Currently supported
