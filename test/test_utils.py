@@ -1,6 +1,9 @@
 import unittest
 
+import yaml
 from seml import utils
+from seml.utils import REMOVE, _RemoveSentinel
+from seml.utils.yaml import YamlUniqueLoader
 
 
 class TestMergeDictionaries(unittest.TestCase):
@@ -46,6 +49,37 @@ class TestMergeDictionaries(unittest.TestCase):
 
         self.assertEqual(merged1, expected1)
         self.assertEqual(merged2, expected2)
+
+    def test_remove_sentinel_basic(self):
+        d1 = {"a": 3, "b": 5, "c": 7}
+        d2 = {"b": REMOVE}
+        merged = utils.merge_dicts(d1, d2)
+        self.assertEqual(merged, {"a": 3, "c": 7})
+
+    def test_remove_sentinel_nonexistent_key(self):
+        d1 = {"a": 3}
+        d2 = {"b": REMOVE}
+        merged = utils.merge_dicts(d1, d2)
+        self.assertEqual(merged, {"a": 3})
+
+    def test_remove_sentinel_nested(self):
+        d1 = {"a": {"b": 1, "c": 2}, "d": 5}
+        d2 = {"a": {"b": REMOVE}}
+        merged = utils.merge_dicts(d1, d2)
+        self.assertEqual(merged, {"a": {"c": 2}, "d": 5})
+
+    def test_remove_sentinel_is_singleton(self):
+        another = _RemoveSentinel()
+        self.assertIs(REMOVE, another)
+
+    def test_remove_yaml_tag(self):
+        data = yaml.load("key: !remove", Loader=YamlUniqueLoader)
+        self.assertIs(data["key"], REMOVE)
+
+    def test_remove_yaml_tag_in_merge(self):
+        data = yaml.load("key: !remove\nother: 99", Loader=YamlUniqueLoader)
+        merged = utils.merge_dicts({"key": 42, "extra": 1}, data)
+        self.assertEqual(merged, {"extra": 1, "other": 99})
 
 
 class TestUnflattenDictionaries(unittest.TestCase):

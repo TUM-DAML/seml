@@ -64,6 +64,9 @@ class TestParseConfigDicts(unittest.TestCase):
     CONFIG_RESOLVE_INTERPOLATION = (
         "resources/config/config_resolve_with_interpolation.yaml"
     )
+    CONFIG_SLURM_REMOVE_SENTINEL = "resources/config/config_slurm_remove_sentinel.yaml"
+    CONFIG_SLURM_CPUS_PER_GPU = "resources/config/config_slurm_cpus_per_gpu.yaml"
+    CONFIG_SLURM_MEM_PER_CPU = "resources/config/config_slurm_mem_per_cpu.yaml"
 
     EXPERIMENT_RESOLVE_CONFIG = "resources/scripts/experiment_resolve_config.py"
     EXPERIMENT_RESOLVE_INTERPOLATION = (
@@ -422,3 +425,38 @@ class TestParseConfigDicts(unittest.TestCase):
         slurm_conf = config.read_config(self.CONFIG_SLURM_EXPERIMENTS_AND_TASKS)[1]
         with self.assertRaises(ConfigError):
             assemble_slurm_config_dict(slurm_conf[0])
+
+    def test_remove_sentinel_in_sbatch_options(self):
+        # !remove in an experiment's sbatch_options should delete the inherited key.
+        _, slurm_configs, _ = read_config(self.CONFIG_SLURM_REMOVE_SENTINEL)
+        slurm_config = assemble_slurm_config_dict(slurm_configs[0])
+        self.assertNotIn("mem", slurm_config["sbatch_options"])
+        # All other default keys should still be present.
+        self.assertIn("time", slurm_config["sbatch_options"])
+        self.assertIn("cpus-per-task", slurm_config["sbatch_options"])
+
+    def test_mutually_exclusive_cpus_per_gpu_removes_cpus_per_task(self):
+        # Setting cpus-per-gpu in the experiment config should automatically remove
+        # cpus-per-task inherited from the GPU template (and base defaults).
+        _, slurm_configs, _ = read_config(self.CONFIG_SLURM_CPUS_PER_GPU)
+        slurm_config = assemble_slurm_config_dict(slurm_configs[0])
+        sbatch = slurm_config["sbatch_options"]
+        self.assertIn("cpus-per-gpu", sbatch)
+        self.assertEqual(sbatch["cpus-per-gpu"], 4)
+        self.assertNotIn("cpus-per-task", sbatch)
+        # Non-conflicting keys from the template and defaults should survive.
+        self.assertIn("mem", sbatch)
+        self.assertIn("gres", sbatch)
+
+    def test_mutually_exclusive_mem_per_cpu_removes_mem(self):
+        # Setting mem-per-cpu in the experiment config should automatically remove
+        # mem inherited from the base defaults.
+        _, slurm_configs, _ = read_config(self.CONFIG_SLURM_MEM_PER_CPU)
+        slurm_config = assemble_slurm_config_dict(slurm_configs[0])
+        sbatch = slurm_config["sbatch_options"]
+        self.assertIn("mem-per-cpu", sbatch)
+        self.assertEqual(sbatch["mem-per-cpu"], "4G")
+        self.assertNotIn("mem", sbatch)
+        # cpus-per-task and time from defaults should still be there.
+        self.assertIn("cpus-per-task", sbatch)
+        self.assertIn("time", sbatch)
