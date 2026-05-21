@@ -41,6 +41,7 @@ class SemlDocBase(TypedDict, total=False):
     name: str
     stash_all_py_files: bool
     reschedule_timeout: int | None
+    additional_artifacts: list[str]
 
 
 class SemlFileConfig(SemlDocBase, total=False):

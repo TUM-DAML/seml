@@ -5,6 +5,8 @@ We wrap all the experiment-specific functionality inside the "ExperimentWrapper"
 are parsed by a specific method. This avoids having one large "main" function which takes all parameters as input.
 """
 
+import logging
+
 import numpy as np
 from seml import Experiment
 
@@ -132,6 +134,11 @@ class ExperimentWrapper:
     def init_augmentation(self, flip: bool):
         self.augmentation_parameters = (flip,)
 
+    def init_artifacts(self):
+        # Load token from artifact specified in `seml.additional_artifacts
+        with open("artifacts/something") as f:
+            logging.info(f"Loaded artifact {f.read().strip()}")
+
     def init_all(self):
         """
         Sequentially run the sub-initializers of the experiment.
@@ -141,6 +148,7 @@ class ExperimentWrapper:
         self.init_optimizer()
         self.init_preprocessing()
         self.init_augmentation()
+        self.init_artifacts()
 
     @ex.capture(prefix="training")
     def train(self, patience, num_epochs):
