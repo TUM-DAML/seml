@@ -1205,6 +1205,13 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 
+[package.optional-dependencies]
+ssh-forward = [
+    { name = "filelock" },
+    { name = "paramiko" },
+    { name = "sshtunnel" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "filelock" },
@@ -1215,17 +1222,13 @@ dev = [
     { name = "sshtunnel" },
     { name = "tuna" },
 ]
-ssh-forward = [
-    { name = "filelock" },
-    { name = "paramiko" },
-    { name = "sshtunnel" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.0" },
     { name = "debugpy", specifier = ">=1.2.1" },
     { name = "deepdiff", specifier = ">=7.0.1" },
+    { name = "filelock", marker = "extra == 'ssh-forward'", specifier = ">=3.13.3" },
     { name = "gitignore-parser", specifier = ">=0.1.11" },
     { name = "importlib-resources", specifier = ">=5.7.0" },
     { name = "jsonpickle", specifier = ">=2.2" },
@@ -1235,16 +1238,20 @@ requires-dist = [
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "pandas", marker = "python_full_version < '3.13'", specifier = ">=2.2" },
     { name = "pandas", marker = "python_full_version >= '3.13'", specifier = ">=2.2.3" },
+    { name = "paramiko", marker = "extra == 'ssh-forward'", specifier = ">=3.0,<4.0" },
     { name = "pymongo", specifier = ">=4.1" },
     { name = "pyyaml", specifier = ">=5.1" },
     { name = "requests", specifier = ">=2.28.1" },
     { name = "rich", specifier = ">=13.0,<14.1" },
     { name = "sacred", specifier = ">=0.8.4" },
+    { name = "setuptools", specifier = "<81" },
     { name = "setuptools", specifier = ">=69.2.0" },
+    { name = "sshtunnel", marker = "extra == 'ssh-forward'", specifier = ">=0.4.0" },
     { name = "typer", specifier = ">=0.12" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'", specifier = ">=4.10" },
     { name = "typing-extensions", marker = "python_full_version >= '3.13'", specifier = ">=4.12" },
 ]
+provides-extras = ["ssh-forward"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1255,11 +1262,6 @@ dev = [
     { name = "ruff", specifier = ">=0.6.1" },
     { name = "sshtunnel", specifier = ">=0.4.0" },
     { name = "tuna", specifier = ">=0.5.11" },
-]
-ssh-forward = [
-    { name = "filelock", specifier = ">=3.13.3" },
-    { name = "paramiko", specifier = ">=3.0,<4.0" },
-    { name = "sshtunnel", specifier = ">=0.4.0" },
 ]
 
 [[package]]
