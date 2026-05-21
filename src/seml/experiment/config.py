@@ -1278,16 +1278,25 @@ def _merge_sbatch_options(
     """
     result: dict[str, Any] = dict(merge_dicts(base, override))
     norm = str.lstrip  # strip leading dashes for key comparison
+    override_normalized = {norm(k, '-') for k in override}
 
     for exclusive_groups in _SBATCH_MUTUALLY_EXCLUSIVE:
-        for i, group in enumerate(exclusive_groups):
-            if any(norm(k, '-') in group for k in override):
-                for j, other_group in enumerate(exclusive_groups):
-                    if j != i:
-                        for k in list(result):
-                            if norm(k, '-') in other_group and k not in override:
-                                del result[k]
-                break
+        activated = {
+            i for i, g in enumerate(exclusive_groups) if override_normalized & g
+        }
+        if not activated:
+            continue
+        conflicting = {
+            s for j, g in enumerate(exclusive_groups) if j not in activated for s in g
+        }
+        to_remove = [
+            k for k in result if norm(k, '-') in conflicting and k not in override
+        ]
+        for k in to_remove:
+            logging.info(
+                f"Removed inherited sbatch option '{k}' because it conflicts with an override."
+            )
+            del result[k]
 
     return cast(SBatchOptions, result)
 
