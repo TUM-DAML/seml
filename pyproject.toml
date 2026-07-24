@@ -40,7 +40,7 @@ dependencies = [
     "typing_extensions>=4.10; python_version < '3.13'",
     "typing_extensions>=4.12; python_version >= '3.13'",
     "deepdiff>=7.0.1",
-    "setuptools<81",
+    "setuptools<84",
 ]
 
 [dependency-groups]
